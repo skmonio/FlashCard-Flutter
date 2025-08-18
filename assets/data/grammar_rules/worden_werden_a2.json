@@ -1,0 +1,152 @@
+{
+  "id": "verb_worden_werden_a2",
+  "title": "Worden vs Werden - To Become",
+  "type": "verbConjugation",
+  "level": "a2",
+  "explanation": "The verb 'worden' (to become) is irregular and often confused with its past tense form 'werden'. This is one of the most important verbs in Dutch because it's used for:\n\n1. Passive voice constructions\n2. Future tense with 'zullen'\n3. Expressing change or transformation\n\nPresent tense: worden\nPast tense: werden\nPast participle: geworden\n\nMemory tip: 'Worden' is the base form, 'werden' is what happened in the past.",
+  "keyPoints": [
+    "'Worden' = infinitive (to become)",
+    "'Werden' = past tense (became)",
+    "Used for passive voice constructions",
+    "Essential for expressing change or transformation",
+    "Often used with 'zullen' for future tense"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik word leraar.",
+      "english": "I become a teacher.",
+      "breakdown": "worden: ik word (present tense)"
+    },
+    {
+      "dutch": "Hij werd ziek.",
+      "english": "He became sick.",
+      "breakdown": "werden: hij werd (past tense)"
+    },
+    {
+      "dutch": "Het wordt koud.",
+      "english": "It becomes cold.",
+      "breakdown": "worden: het wordt (present tense)"
+    },
+    {
+      "dutch": "Wij werden vrienden.",
+      "english": "We became friends.",
+      "breakdown": "werden: wij werden (past tense, plural)"
+    },
+    {
+      "dutch": "Het huis wordt gebouwd.",
+      "english": "The house is being built.",
+      "breakdown": "worden: passive voice construction"
+    },
+    {
+      "dutch": "Zij werd verkozen tot voorzitter.",
+      "english": "She was elected as chairperson.",
+      "breakdown": "werden: passive voice in past tense"
+    },
+    {
+      "dutch": "Ik zal dokter worden.",
+      "english": "I will become a doctor.",
+      "breakdown": "worden: future tense with 'zullen'"
+    },
+    {
+      "dutch": "Het weer wordt slechter.",
+      "english": "The weather is getting worse.",
+      "breakdown": "worden: expressing change"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Present tense of 'worden': Ik ... leraar.",
+      "options": ["werd", "word", "worden", "geworden"],
+      "correctAnswer": 1,
+      "explanation": "'Worden' for 'ik' becomes 'word' in present tense",
+      "hint": "Present tense: ik word"
+    },
+    {
+      "question": "Past tense of 'worden': Hij ... ziek.",
+      "options": ["wordt", "werd", "worden", "geworden"],
+      "correctAnswer": 1,
+      "explanation": "'Worden' for 'hij' becomes 'werd' in past tense",
+      "hint": "Past tense: hij werd"
+    },
+    {
+      "question": "Present tense of 'worden': Het ... koud.",
+      "options": ["werd", "wordt", "worden", "geworden"],
+      "correctAnswer": 1,
+      "explanation": "'Worden' for 'het' becomes 'wordt' in present tense",
+      "hint": "Present tense: het wordt"
+    },
+    {
+      "question": "Past tense of 'worden': Wij ... vrienden.",
+      "options": ["worden", "werden", "wordt", "werd"],
+      "correctAnswer": 1,
+      "explanation": "'Worden' for 'wij' becomes 'werden' in past tense",
+      "hint": "Past tense plural: wij werden"
+    },
+    {
+      "question": "How do you say 'I became a teacher' in Dutch?",
+      "options": ["Ik word leraar", "Ik werd leraar", "Ik worden leraar", "Ik geworden leraar"],
+      "correctAnswer": 1,
+      "explanation": "Ik werd leraar - past tense of 'worden'",
+      "hint": "Past tense: ik werd",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "How do you say 'She becomes happy' in Dutch?",
+      "options": ["Zij werd blij", "Zij wordt blij", "Zij worden blij", "Zij geworden blij"],
+      "correctAnswer": 1,
+      "explanation": "Zij wordt blij - present tense of 'worden'",
+      "hint": "Present tense: zij wordt",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "Passive voice: Het huis ... gebouwd.",
+      "options": ["werd", "wordt", "worden", "geworden"],
+      "correctAnswer": 1,
+      "explanation": "Present passive: het huis wordt gebouwd",
+      "hint": "Present passive uses 'wordt'"
+    },
+    {
+      "question": "Passive voice past: Het huis ... gebouwd.",
+      "options": ["werd", "wordt", "worden", "geworden"],
+      "correctAnswer": 0,
+      "explanation": "Past passive: het huis werd gebouwd",
+      "hint": "Past passive uses 'werd'"
+    },
+    {
+      "question": "Future tense: Ik ... dokter worden.",
+      "options": ["word", "werd", "zal", "zullen"],
+      "correctAnswer": 2,
+      "explanation": "Future: ik zal dokter worden",
+      "hint": "Future uses 'zullen' + infinitive"
+    },
+    {
+      "question": "Change expression: Het weer ... slechter.",
+      "options": ["werd", "wordt", "worden", "geworden"],
+      "correctAnswer": 1,
+      "explanation": "Present tense expressing change: het weer wordt slechter",
+      "hint": "Expressing ongoing change uses present tense"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "mistake": "Using 'werden' instead of 'worden' in present tense",
+      "correct": "Ik word leraar (not 'Ik werden leraar')",
+      "explanation": "'Worden' is the infinitive, 'werden' is past tense"
+    },
+    {
+      "mistake": "Using 'worden' instead of 'werden' in past tense",
+      "correct": "Hij werd ziek (not 'Hij worden ziek')",
+      "explanation": "Past tense uses 'werden' (werd/werd/werd/werden/werden/werden)"
+    },
+    {
+      "mistake": "Confusing passive voice forms",
+      "correct": "Het wordt gebouwd (present) vs Het werd gebouwd (past)",
+      "explanation": "Passive voice follows the same pattern as regular usage"
+    }
+  ],
+  "relatedTopics": [
+    "passive_voice",
+    "future_tense",
+    "irregular_verbs"
+  ]
+}

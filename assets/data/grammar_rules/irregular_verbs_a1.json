@@ -1,0 +1,164 @@
+{
+  "id": "verb_irregular_a1",
+  "title": "Irregular Verbs - Basic",
+  "type": "verbConjugation",
+  "level": "a1",
+  "explanation": "Some verbs are irregular, meaning they don't follow the normal rules. The most important irregular verbs for beginners are:\n\n• zijn (to be) - very irregular\n• hebben (to have) - small changes\n• gaan (to go) - small changes\n• doen (to do) - small changes\n• komen (to come) - small changes\n\nThese verbs must be memorized because they are used very frequently.",
+  "keyPoints": [
+    "Irregular verbs don't follow normal rules",
+    "'Zijn' is the most irregular verb",
+    "Learn the most important irregular verbs by heart",
+    "These verbs appear very often in conversations"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik ben student.",
+      "english": "I am a student.",
+      "breakdown": "zijn: ik ben (not 'ik zij')"
+    },
+    {
+      "dutch": "Jij bent aardig.",
+      "english": "You are nice.",
+      "breakdown": "zijn: jij bent (not 'jij zijt')"
+    },
+    {
+      "dutch": "Hij is thuis.",
+      "english": "He is at home.",
+      "breakdown": "zijn: hij is (not 'hij zijt')"
+    },
+    {
+      "dutch": "Ik heb een auto.",
+      "english": "I have a car.",
+      "breakdown": "hebben: ik heb (stem hebb → heb)"
+    },
+    {
+      "dutch": "Hij heeft honger.",
+      "english": "He is hungry.",
+      "breakdown": "hebben: hij heeft (stem hebb → heeft)"
+    },
+    {
+      "dutch": "Wij gaan naar huis.",
+      "english": "We go home.",
+      "breakdown": "gaan: wij gaan (infinitive form)"
+    },
+    {
+      "dutch": "Zij doet haar werk.",
+      "english": "She does her work.",
+      "breakdown": "doen: zij doet (stem do → doet)"
+    },
+    {
+      "dutch": "Jullie komen te laat.",
+      "english": "You come too late.",
+      "breakdown": "komen: jullie komen (infinitive form)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Conjugation of 'zijn': Ik ... moe.",
+      "options": ["zij", "ben", "bent", "is"],
+      "correctAnswer": 1,
+      "explanation": "'Zijn' for 'ik' becomes 'ben'",
+      "hint": "The verb 'zijn' is very irregular"
+    },
+    {
+      "question": "Conjugation of 'hebben': Hij ... honger.",
+      "options": ["heb", "hebt", "heeft", "hebben"],
+      "correctAnswer": 2,
+      "explanation": "'Hebben' for 'hij' becomes 'heeft'",
+      "hint": "For 'hij/zij' of 'hebben' use 'heeft'"
+    },
+    {
+      "question": "How do you say 'I am tired' in Dutch?",
+      "options": ["Ik zij moe", "Ik ben moe", "Ik bent moe", "Ik is moe"],
+      "correctAnswer": 1,
+      "explanation": "Ik ben moe - 'zijn' becomes 'ben' for 'ik'",
+      "hint": "Remember: 'ik' uses 'ben' with 'zijn'",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "Conjugation of 'zijn': Zij ... ziek.",
+      "options": ["zij", "ben", "bent", "is"],
+      "correctAnswer": 3,
+      "explanation": "'Zijn' for 'zij' becomes 'is'",
+      "hint": "For 'hij/zij/het' of 'zijn' use 'is'"
+    },
+    {
+      "question": "Conjugation of 'hebben': Jullie ... tijd.",
+      "options": ["heb", "hebt", "heeft", "hebben"],
+      "correctAnswer": 3,
+      "explanation": "'Hebben' for 'jullie' becomes 'hebben'",
+      "hint": "For 'wij/jullie/zij' of 'hebben' use 'hebben'"
+    },
+    {
+      "question": "Conjugation of 'gaan': Wij ... naar de winkel.",
+      "options": ["ga", "gaat", "gaan", "ging"],
+      "correctAnswer": 2,
+      "explanation": "'Gaan' for 'wij' becomes 'gaan'",
+      "hint": "For 'wij/jullie/zij' of 'gaan' use 'gaan'"
+    },
+    {
+      "question": "Conjugation of 'doen': Hij ... zijn best.",
+      "options": ["doe", "doet", "doen", "deed"],
+      "correctAnswer": 1,
+      "explanation": "'Doen' for 'hij' becomes 'doet'",
+      "hint": "For 'hij/zij/het' of 'doen' use 'doet'"
+    },
+    {
+      "question": "Conjugation of 'komen': Zij ... uit Nederland.",
+      "options": ["kom", "komt", "komen", "kwam"],
+      "correctAnswer": 1,
+      "explanation": "'Komen' for 'zij' becomes 'komt'",
+      "hint": "For 'hij/zij/het' of 'komen' use 'komt'"
+    },
+    {
+      "question": "How do you say 'We have a problem' in Dutch?",
+      "options": ["Wij heb een probleem", "Wij hebt een probleem", "Wij heeft een probleem", "Wij hebben een probleem"],
+      "correctAnswer": 3,
+      "explanation": "Wij hebben een probleem - 'hebben' for 'wij'",
+      "hint": "Remember: 'wij' uses 'hebben'",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "Conjugation of 'zijn': Jullie ... vrienden.",
+      "options": ["zij", "ben", "bent", "zijn"],
+      "correctAnswer": 3,
+      "explanation": "'Zijn' for 'jullie' becomes 'zijn'",
+      "hint": "For 'wij/jullie/zij' of 'zijn' use 'zijn'"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik zij",
+      "correct": "Ik ben",
+      "explanation": "'Zijn' for 'ik' is always 'ben'"
+    },
+    {
+      "incorrect": "Hij hebt",
+      "correct": "Hij heeft",
+      "explanation": "'Hebben' for 'hij/zij' becomes 'heeft' (not 'hebt')"
+    },
+    {
+      "incorrect": "Wij is",
+      "correct": "Wij zijn",
+      "explanation": "'Zijn' for 'wij' is always 'zijn'"
+    },
+    {
+      "incorrect": "Zij heb",
+      "correct": "Zij heeft",
+      "explanation": "'Hebben' for 'zij' becomes 'heeft'"
+    },
+    {
+      "incorrect": "Jullie bent",
+      "correct": "Jullie zijn",
+      "explanation": "'Zijn' for 'jullie' is always 'zijn'"
+    }
+  ],
+  "tips": [
+    "Learn 'zijn' first: ik ben, jij bent, hij/zij is, wij/jullie/zij zijn",
+    "Practice these verbs every day - they appear very often",
+    "Make sentences with these verbs to remember them",
+    "Common irregular verbs: zijn, hebben, gaan, doen, komen",
+    "These verbs are essential for basic Dutch conversation"
+  ],
+  "relatedRules": ["verb_present_a1", "verb_negation_a1", "verb_questions_a1"]
+}

@@ -1,0 +1,171 @@
+{
+  "id": "verbs_fixed_prepositions_b1",
+  "title": "Verbs with Fixed Prepositions",
+  "type": "prepositions",
+  "level": "b1",
+  "explanation": "Many Dutch verbs have a fixed preposition that always goes with them. This preposition cannot be omitted or replaced with another preposition. These combinations must be memorized because they are often different from English.\n\nImportant patterns:\n• Verb + fixed preposition + object: \"Ik denk aan jou\" (I think about you)\n• The preposition is fixed and cannot be changed\n• Often different from English: \"denken aan\" ≠ \"think about\"\n• In questions, the preposition often moves to the front: \"Waar denk je aan?\" (What are you thinking about?)\n\nThese verb-preposition combinations are extremely common in daily Dutch conversations and are essential for fluent Dutch.\n\nCommon patterns by preposition:\n• AAN: denken aan, ergeren aan, wennen aan, herinneren aan\n• VAN: houden van, dromen van, genieten van, schrikken van\n• OP: wachten op, letten op, rekenen op, vertrouwen op\n• VOOR: zorgen voor, kiezen voor, bedanken voor, bang zijn voor\n• NAAR: luisteren naar, kijken naar, verlangen naar, informeren naar\n• OVER: praten over, discussiëren over, nadenken over, klagen over\n• IN: geïnteresseerd zijn in, goed zijn in, geloven in, slagen in\n• MET: beginnen met, stoppen met, trouwen met, kennismaken met",
+  "keyPoints": [
+    "Fixed prepositions cannot be omitted or replaced",
+    "Combinations are often different from English",
+    "Prepositions move to front in questions",
+    "These combinations must be memorized",
+    "Very common in daily conversation",
+    "Essential for fluent Dutch"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik denk aan jou.",
+      "english": "I think about you.",
+      "breakdown": "denken + aan (fixed combination)"
+    },
+    {
+      "dutch": "Ik hou van koffie.",
+      "english": "I love coffee.",
+      "breakdown": "houden + van (fixed combination)"
+    },
+    {
+      "dutch": "Hij wacht op de bus.",
+      "english": "He waits for the bus.",
+      "breakdown": "wachten + op (fixed combination)"
+    },
+    {
+      "dutch": "Ze zorgt voor haar kinderen.",
+      "english": "She takes care of her children.",
+      "breakdown": "zorgen + voor (fixed combination)"
+    },
+    {
+      "dutch": "Wij luisteren naar muziek.",
+      "english": "We listen to music.",
+      "breakdown": "luisteren + naar (fixed combination)"
+    },
+    {
+      "dutch": "Hij praat over zijn werk.",
+      "english": "He talks about his work.",
+      "breakdown": "praten + over (fixed combination)"
+    },
+    {
+      "dutch": "Ik ben geïnteresseerd in kunst.",
+      "english": "I am interested in art.",
+      "breakdown": "geïnteresseerd zijn + in (fixed combination)"
+    },
+    {
+      "dutch": "Ze begint met haar huiswerk.",
+      "english": "She starts with her homework.",
+      "breakdown": "beginnen + met (fixed combination)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Fill in: 'Ik denk ___ jou' (I think about you)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 1,
+      "explanation": "Denken always takes 'aan' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'denken'"
+    },
+    {
+      "question": "Fill in: 'Ik hou ___ koffie' (I love coffee)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 0,
+      "explanation": "Houden always takes 'van' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'houden'"
+    },
+    {
+      "question": "Fill in: 'Hij wacht ___ de bus' (He waits for the bus)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 2,
+      "explanation": "Wachten always takes 'op' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'wachten'"
+    },
+    {
+      "question": "Fill in: 'Ze zorgt ___ haar kinderen' (She takes care of her children)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 3,
+      "explanation": "Zorgen always takes 'voor' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'zorgen'"
+    },
+    {
+      "question": "Fill in: 'Wij luisteren ___ muziek' (We listen to music)",
+      "options": ["van", "aan", "op", "naar"],
+      "correctAnswer": 3,
+      "explanation": "Luisteren always takes 'naar' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'luisteren'"
+    },
+    {
+      "question": "Fill in: 'Hij praat ___ zijn werk' (He talks about his work)",
+      "options": ["van", "aan", "over", "voor"],
+      "correctAnswer": 2,
+      "explanation": "Praten always takes 'over' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'praten'"
+    },
+    {
+      "question": "Fill in: 'Ik ben geïnteresseerd ___ kunst' (I am interested in art)",
+      "options": ["van", "aan", "op", "in"],
+      "correctAnswer": 3,
+      "explanation": "Geïnteresseerd zijn always takes 'in' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'geïnteresseerd zijn'"
+    },
+    {
+      "question": "Fill in: 'Ze begint ___ haar huiswerk' (She starts with her homework)",
+      "options": ["van", "aan", "op", "met"],
+      "correctAnswer": 3,
+      "explanation": "Beginnen always takes 'met' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'beginnen'"
+    },
+    {
+      "question": "Fill in: 'Ik erger me ___ het lawaai' (I am annoyed by the noise)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 1,
+      "explanation": "Ergeren always takes 'aan' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'ergeren'"
+    },
+    {
+      "question": "Fill in: 'Hij droomt ___ vakantie' (He dreams of vacation)",
+      "options": ["van", "aan", "op", "voor"],
+      "correctAnswer": 0,
+      "explanation": "Dromen always takes 'van' - this is a fixed combination",
+      "hint": "Think about the fixed preposition for 'dromen'"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik denk van jou",
+      "correct": "Ik denk aan jou",
+      "explanation": "Denken always takes 'aan', not 'van'"
+    },
+    {
+      "incorrect": "Ik hou aan koffie",
+      "correct": "Ik hou van koffie",
+      "explanation": "Houden always takes 'van', not 'aan'"
+    },
+    {
+      "incorrect": "Hij wacht voor de bus",
+      "correct": "Hij wacht op de bus",
+      "explanation": "Wachten always takes 'op', not 'voor'"
+    },
+    {
+      "incorrect": "Ze zorgt aan haar kinderen",
+      "correct": "Ze zorgt voor haar kinderen",
+      "explanation": "Zorgen always takes 'voor', not 'aan'"
+    },
+    {
+      "incorrect": "Wij luisteren aan muziek",
+      "correct": "Wij luisteren naar muziek",
+      "explanation": "Luisteren always takes 'naar', not 'aan'"
+    },
+    {
+      "incorrect": "Hij praat van zijn werk",
+      "correct": "Hij praat over zijn werk",
+      "explanation": "Praten always takes 'over', not 'van'"
+    }
+  ],
+  "tips": [
+    "Learn these combinations as complete phrases, not separate words",
+    "Practice with common verbs: denken aan, houden van, wachten op",
+    "In questions, the preposition often moves to the front",
+    "These combinations are very common in daily conversation",
+    "Don't translate directly from English - the prepositions are often different",
+    "Common patterns: AAN for thinking/remembering, VAN for loving/dreaming, OP for waiting",
+    "Practice with real sentences to remember the combinations better"
+  ],
+  "relatedRules": ["prepositions_basic_a2", "verb_present_a1", "questions_formation_a2"]
+}

@@ -1,0 +1,70 @@
+{
+  "exercise_packs": [
+    {
+      "id": "exercises_chapter_1",
+      "name": "Chapter 1 Exercises",
+      "description": "Interactive exercises for Chapter 1 vocabulary including multiple choice, fill in blank, and sentence building",
+      "exercise_count": 45,
+      "filename": "exercises_chapter_1.csv",
+      "unlocked": false,
+      "category": "exercises",
+      "difficulty": "beginner",
+      "chapter": "1"
+    },
+    {
+      "id": "exercises_chapter_2",
+      "name": "Chapter 2 Exercises", 
+      "description": "Interactive exercises for Chapter 2 vocabulary including multiple choice, fill in blank, and sentence building",
+      "exercise_count": 38,
+      "filename": "exercises_chapter_2.csv",
+      "unlocked": false,
+      "category": "exercises",
+      "difficulty": "beginner",
+      "chapter": "2"
+    },
+    {
+      "id": "exercises_chapter_3",
+      "name": "Chapter 3 Exercises",
+      "description": "Interactive exercises for Chapter 3 vocabulary including multiple choice, fill in blank, and sentence building", 
+      "exercise_count": 42,
+      "filename": "exercises_chapter_3.csv",
+      "unlocked": false,
+      "category": "exercises",
+      "difficulty": "intermediate",
+      "chapter": "3"
+    },
+    {
+      "id": "exercises_chapter_4",
+      "name": "Chapter 4 Exercises",
+      "description": "Interactive exercises for Chapter 4 vocabulary including multiple choice, fill in blank, and sentence building",
+      "exercise_count": 35,
+      "filename": "exercises_chapter_4.csv", 
+      "unlocked": false,
+      "category": "exercises",
+      "difficulty": "intermediate",
+      "chapter": "4"
+    },
+    {
+      "id": "exercises_chapter_5",
+      "name": "Chapter 5 Exercises",
+      "description": "Interactive exercises for Chapter 5 vocabulary including multiple choice, fill in blank, and sentence building",
+      "exercise_count": 40,
+      "filename": "exercises_chapter_5.csv",
+      "unlocked": false,
+      "category": "exercises", 
+      "difficulty": "intermediate",
+      "chapter": "5"
+    },
+    {
+      "id": "exercises_work_vocabulary",
+      "name": "Work Vocabulary Exercises",
+      "description": "Interactive exercises for work-related vocabulary including job applications, workplace communication, and professional skills",
+      "exercise_count": 32,
+      "filename": "exercises_work_vocabulary.csv",
+      "unlocked": false,
+      "category": "exercises",
+      "difficulty": "intermediate", 
+      "chapter": "work"
+    }
+  ]
+}

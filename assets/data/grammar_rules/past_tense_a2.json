@@ -1,0 +1,155 @@
+{
+  "id": "verb_past_a2",
+  "title": "Past Tense - Regular Verbs",
+  "type": "verbConjugation",
+  "level": "a2",
+  "explanation": "The past tense (imperfectum) is used to tell what happened in the past. For regular verbs, there are two patterns:\n\n1. Verbs ending in -de (soft consonants: v, z, l, m, n, r)\n2. Verbs ending in -te (hard consonants: p, t, k, f, s, ch)\n\nMemory aid: \"'t kofschip\" for hard consonants (t, k, f, s, ch, p)\n\nConjugations:\n• ik/jij/hij/zij: stem + de/te\n• wij/jullie/zij: stem + den/ten",
+  "keyPoints": [
+    "Two patterns: -de or -te depending on last letter of stem",
+    "'t kofschip for hard consonants → -te",
+    "Other letters → -de",
+    "Plural gets extra -n: -den/-ten",
+    "All persons have same ending (except plural)"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik werkte gisteren.",
+      "english": "I worked yesterday.",
+      "breakdown": "werk + te (k is hard → 't kofschip)"
+    },
+    {
+      "dutch": "Zij speelde piano.",
+      "english": "She played piano.",
+      "breakdown": "speel + de (l is soft → not in 't kofschip)"
+    },
+    {
+      "dutch": "Wij kookten samen.",
+      "english": "We cooked together.",
+      "breakdown": "kook + ten (k is hard + plural)"
+    },
+    {
+      "dutch": "Hij woonde in Amsterdam.",
+      "english": "He lived in Amsterdam.",
+      "breakdown": "woon + de (n is soft → not in 't kofschip)"
+    },
+    {
+      "dutch": "Jullie maakten een taart.",
+      "english": "You made a cake.",
+      "breakdown": "maak + ten (k is hard + plural)"
+    },
+    {
+      "dutch": "Zij luisterden naar muziek.",
+      "english": "They listened to music.",
+      "breakdown": "luister + den (r is soft + plural)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Past tense of 'maken': Ik ... gisteren een taart.",
+      "options": ["maakte", "maakde", "maken", "gemaakt"],
+      "correctAnswer": 0,
+      "explanation": "Maak + te (k is hard according to 't kofschip)",
+      "hint": "Is the k hard or soft? Think of 't kofschip"
+    },
+    {
+      "question": "Past tense of 'wonen': Hij ... in Berlijn.",
+      "options": ["woonte", "woonde", "wonen", "gewoond"],
+      "correctAnswer": 1,
+      "explanation": "Woon + de (n is soft, not in 't kofschip)",
+      "hint": "Is the n hard or soft?"
+    },
+    {
+      "question": "Past tense of 'werken': Wij ... hard.",
+      "options": ["werkte", "werkten", "werkde", "werkden"],
+      "correctAnswer": 1,
+      "explanation": "Werk + ten (k is hard + plural)",
+      "hint": "K is hard, and it's plural"
+    },
+    {
+      "question": "Past tense of 'spelen': Zij ... voetbal.",
+      "options": ["speelde", "speelden", "speelte", "speelten"],
+      "correctAnswer": 1,
+      "explanation": "Speel + den (l is soft + plural)",
+      "hint": "L is soft, and it's plural"
+    },
+    {
+      "question": "Past tense of 'koken': Ik ... pasta.",
+      "options": ["kookte", "kookde", "koken", "gekookt"],
+      "correctAnswer": 0,
+      "explanation": "Kook + te (k is hard according to 't kofschip)",
+      "hint": "Is the k hard or soft?"
+    },
+    {
+      "question": "Past tense of 'luisteren': Jullie ... naar de radio.",
+      "options": ["luisterde", "luisterden", "luisterte", "luisterten"],
+      "correctAnswer": 1,
+      "explanation": "Luister + den (r is soft + plural)",
+      "hint": "R is soft, and it's plural"
+    },
+    {
+      "question": "Past tense of 'studeren': Hij ... Nederlands.",
+      "options": ["studeerde", "studeerden", "studeerte", "studeerten"],
+      "correctAnswer": 0,
+      "explanation": "Studeer + de (r is soft, not in 't kofschip)",
+      "hint": "Is the r hard or soft?"
+    },
+    {
+      "question": "Past tense of 'maken': Zij ... een fout.",
+      "options": ["maakte", "maakde", "maken", "gemaakt"],
+      "correctAnswer": 0,
+      "explanation": "Maak + te (k is hard according to 't kofschip)",
+      "hint": "Think of 't kofschip'"
+    },
+    {
+      "question": "Past tense of 'wonen': Wij ... in Rotterdam.",
+      "options": ["woonte", "woonden", "woonde", "woonden"],
+      "correctAnswer": 3,
+      "explanation": "Woon + den (n is soft + plural)",
+      "hint": "N is soft, and it's plural"
+    },
+    {
+      "question": "Past tense of 'werken': Jullie ... samen.",
+      "options": ["werkte", "werkten", "werkde", "werkden"],
+      "correctAnswer": 1,
+      "explanation": "Werk + ten (k is hard + plural)",
+      "hint": "K is hard, and it's plural"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik maakde",
+      "correct": "Ik maakte",
+      "explanation": "K is hard ('t kofschip) so use -te, not -de"
+    },
+    {
+      "incorrect": "Hij woonte",
+      "correct": "Hij woonde",
+      "explanation": "N is soft (not in 't kofschip) so use -de"
+    },
+    {
+      "incorrect": "Wij werkde",
+      "correct": "Wij werkten",
+      "explanation": "K is hard, and plural needs -ten"
+    },
+    {
+      "incorrect": "Zij speelte",
+      "correct": "Zij speelde",
+      "explanation": "L is soft (not in 't kofschip) so use -de"
+    },
+    {
+      "incorrect": "Jullie kookde",
+      "correct": "Jullie kookten",
+      "explanation": "K is hard, and plural needs -ten"
+    }
+  ],
+  "tips": [
+    "Learn 't kofschip by heart: t-k-o-f-s-ch-i-p",
+    "Practice with the stem: remove -en and look at the last letter",
+    "Soft letters (not in 't kofschip) get -de",
+    "Hard letters ('t kofschip) get -te",
+    "Plural always gets an extra -n",
+    "Common hard consonants: p, t, k, f, s, ch",
+    "Common soft consonants: v, z, l, m, n, r"
+  ],
+  "relatedRules": ["verb_present_a1", "verb_perfect_a2", "verb_irregular_past_a2"]
+}

@@ -1,0 +1,7 @@
+Deck,Word,Definition,Exercise Type,Question,Correct Answer,Options,Explanation
+Home,huis,house,Multiple Choice,What does "huis" mean in Dutch?,house,home (2);house (1);building (3);room (4),"Huis" means house in Dutch.
+Home,huis,house,Sentence Building,Translate "I live in a house",ik woon in een huis,ik (1);woon (2);in (3);een (4);huis (5),I live in a house.
+Food,kaas,cheese,Multiple Choice,What does "kaas" mean?,cheese,milk (2);cheese (1);bread (3);butter (4),"Kaas" means cheese in Dutch.
+Food,kaas,cheese,Fill in Blank,Ik eet _____.,kaas,kaas (1);brood (2);melk (3);boter (4),I eat cheese.
+Transport,auto,car,Multiple Choice,What does "auto" mean?,car,bus (2);car (1);train (3);bike (4),"Auto" means car in Dutch.
+Transport,auto,car,Sentence Building,Translate "I drive a car",ik rijd een auto,ik (1);rijd (2);een (3);auto (4),I drive a car. 

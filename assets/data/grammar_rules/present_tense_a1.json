@@ -1,0 +1,150 @@
+{
+  "id": "verb_present_a1",
+  "title": "Present Tense - Regular Verbs",
+  "type": "verbConjugation",
+  "level": "a1",
+  "explanation": "In Dutch, you conjugate verbs by adding endings to the stem of the verb. The stem is obtained by removing -en from the infinitive (whole verb).\n\nFor example: 'werken' → stem = 'werk'\n\nFor regular verbs in the present tense, use these endings:\n• ik: stem (no ending)\n• jij/je: stem + t\n• hij/zij/het: stem + t\n• wij/we: whole verb (infinitive)\n• jullie: whole verb (infinitive)\n• zij: whole verb (infinitive)",
+  "keyPoints": [
+    "Stem = infinitive minus -en",
+    "Ik = just the stem",
+    "Jij/hij/zij = stem + t",
+    "Wij/jullie/zij = whole verb",
+    "Note: in questions, 'jij' becomes 'jij' (no extra -t)"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik werk in een kantoor.",
+      "english": "I work in an office.",
+      "breakdown": "werk (stem) - no ending for 'ik'"
+    },
+    {
+      "dutch": "Jij werkt hard.",
+      "english": "You work hard.",
+      "breakdown": "werk (stem) + t = werkt"
+    },
+    {
+      "dutch": "Hij woont in Amsterdam.",
+      "english": "He lives in Amsterdam.",
+      "breakdown": "woon (stem) + t = woont"
+    },
+    {
+      "dutch": "Wij leren Nederlands.",
+      "english": "We learn Dutch.",
+      "breakdown": "leren (whole verb) - no change"
+    },
+    {
+      "dutch": "Zij koken samen.",
+      "english": "They cook together.",
+      "breakdown": "koken (whole verb) - no change"
+    },
+    {
+      "dutch": "Jullie spelen voetbal.",
+      "english": "You (plural) play football.",
+      "breakdown": "spelen (whole verb) - no change"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Conjugation of 'maken' (to make): Ik ... elke dag huiswerk.",
+      "options": ["maak", "maakt", "maken", "maakte"],
+      "correctAnswer": 0,
+      "explanation": "For 'ik' use just the stem: maak (maken - en = maak)",
+      "hint": "For 'ik' use no ending"
+    },
+    {
+      "question": "Conjugation of 'wonen' (to live): Hij ... in Utrecht.",
+      "options": ["woon", "woont", "wonen", "woonde"],
+      "correctAnswer": 1,
+      "explanation": "For 'hij' use stem + t: woon + t = woont",
+      "hint": "For 'hij/zij' add -t to the stem"
+    },
+    {
+      "question": "How do you say 'I work in Amsterdam' in Dutch?",
+      "options": ["Ik werk in Amsterdam", "Ik werkt in Amsterdam", "Ik werken in Amsterdam", "Ik werkte in Amsterdam"],
+      "correctAnswer": 0,
+      "explanation": "Ik werk in Amsterdam - 'werk' is the stem form for 'ik'",
+      "hint": "Remember: 'ik' uses the stem without any ending",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "Conjugation of 'studeren' (to study): Zij ... elke avond.",
+      "options": ["studeer", "studeert", "studeren", "studeerde"],
+      "correctAnswer": 1,
+      "explanation": "For 'zij' use stem + t: studeer + t = studeert",
+      "hint": "For 'hij/zij' add -t to the stem"
+    },
+    {
+      "question": "Conjugation of 'koken' (to cook): Wij ... samen.",
+      "options": ["kook", "kookt", "koken", "kookte"],
+      "correctAnswer": 2,
+      "explanation": "For 'wij' use the whole verb: koken",
+      "hint": "For 'wij/jullie/zij' use the infinitive"
+    },
+    {
+      "question": "Conjugation of 'lezen' (to read): Jullie ... veel boeken.",
+      "options": ["lees", "leest", "lezen", "las"],
+      "correctAnswer": 2,
+      "explanation": "For 'jullie' use the whole verb: lezen",
+      "hint": "For 'wij/jullie/zij' use the infinitive"
+    },
+    {
+      "question": "Conjugation of 'schrijven' (to write): Ik ... een brief.",
+      "options": ["schrijf", "schrijft", "schrijven", "schreef"],
+      "correctAnswer": 0,
+      "explanation": "For 'ik' use just the stem: schrijf (schrijven - en = schrijf)",
+      "hint": "For 'ik' use no ending"
+    },
+    {
+      "question": "Conjugation of 'luisteren' (to listen): Zij ... naar muziek.",
+      "options": ["luister", "luistert", "luisteren", "luisterde"],
+      "correctAnswer": 1,
+      "explanation": "For 'zij' use stem + t: luister + t = luistert",
+      "hint": "For 'hij/zij' add -t to the stem"
+    },
+    {
+      "question": "How do you say 'We live in Rotterdam' in Dutch?",
+      "options": ["Wij woon in Rotterdam", "Wij woont in Rotterdam", "Wij wonen in Rotterdam", "Wij woonden in Rotterdam"],
+      "correctAnswer": 2,
+      "explanation": "Wij wonen in Rotterdam - 'wonen' is the infinitive for 'wij'",
+      "hint": "Remember: 'wij' uses the infinitive",
+      "exerciseType": "translation"
+    },
+    {
+      "question": "Conjugation of 'beginnen' (to begin): Het ... om 8 uur.",
+      "options": ["begin", "begint", "beginnen", "begon"],
+      "correctAnswer": 1,
+      "explanation": "For 'het' use stem + t: begin + t = begint",
+      "hint": "For 'hij/zij/het' add -t to the stem"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik werkt",
+      "correct": "Ik werk",
+      "explanation": "For 'ik' don't add -t, just use the stem"
+    },
+    {
+      "incorrect": "Hij werk",
+      "correct": "Hij werkt",
+      "explanation": "For 'hij/zij' you must add -t to the stem"
+    },
+    {
+      "incorrect": "Wij werkt",
+      "correct": "Wij werken",
+      "explanation": "For 'wij' use the whole verb (infinitive), not stem + t"
+    },
+    {
+      "incorrect": "Zij woon",
+      "correct": "Zij woont",
+      "explanation": "For 'zij' add -t to the stem"
+    }
+  ],
+  "tips": [
+    "Practice with the stem first: write the infinitive and remove -en",
+    "Remember: ik=stem, jij/hij/zij=stem+t, wij/jullie/zij=infinitive",
+    "In questions with 'jij' you get no extra -t: 'Werk jij?' (not 'Werkt jij?')",
+    "Common verbs to practice: werken, wonen, leren, maken, koken, lezen",
+    "Watch out for verbs ending in -eren: studeren → studeer (stem)"
+  ],
+  "relatedRules": ["verb_irregular_a1", "verb_questions_a1", "verb_negation_a1"]
+}

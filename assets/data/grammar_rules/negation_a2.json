@@ -1,0 +1,172 @@
+{
+  "id": "negation_a2",
+  "title": "Negation: Niet and Geen",
+  "type": "negation",
+  "level": "a2",
+  "explanation": "Dutch negation uses two main words: 'niet' and 'geen'. The choice between them depends on what you're negating and the type of noun phrase.\n\n1. GEEN with indefinite nouns (even if plural or uncountable)\nBasic rule: geen replaces \"een\" or zero article.\nBut watch out for cases where an adjective is in between — you still use geen, not niet.\n\nIk heb geen goed idee. (no good idea)\nHij draagt geen mooie kleren. (no nice clothes)\n\nWhy tricky: Some learners want to say niet een goed idee because of the adjective, but that's only correct for emphasis (\"niet één goed idee\" = not even one good idea).\n\n2. NIET with definite nouns\nIf a noun has de, het, or a possessive/demonstrative word, you use niet before the whole noun phrase.\n\nDat is niet het juiste antwoord. (not the correct answer)\nHij is niet mijn broer. (not my brother)\n\nWhy tricky: It's about the specificity — if the noun is \"specific/known,\" you switch to niet.\n\n3. Special emphatic contrast: niet… maar wel\nWhen denying one specific part and affirming another, niet is used even if it's an indefinite noun.\n\nIk heb niet een groot huis, maar een klein appartement.\n(Not a big house, but a small apartment.)\n\nWhy tricky: This breaks the normal \"geen\" rule because here you're contrasting, not simply saying \"none.\"\n\n4. Time & place negation\nFor adverbs of time, place, or manner, niet is used — but position matters.\n\nHij komt niet vandaag. (not today)\nZe woont niet in Nederland. (not in the Netherlands)\n\n5. NIET with verbs and adjectives\nHij loopt niet. (He doesn't walk.)\nHet is niet duidelijk. (It's not clear.)\n\nWhy tricky: In long sentences, niet usually comes right before what you want to negate, unless negating the whole sentence — then it's at the end.\n\n6. GEEN for emphasis on \"none whatsoever\"\nEven if you could use niet, sometimes geen is chosen for force.\n\nIk heb er geen zin in. (I'm not in the mood / I don't feel like it.)\nWe hebben daar geen problemen mee. (We have no problems with that.)\n\n7. Fixed expressions\nSome phrases are fixed and must take geen or niet regardless of the \"rule\":\n\nGeen dank! (You're welcome!)\nDat is niet niks. (That's not nothing — meaning \"that's impressive.\")\nGeen idee. (No idea.)",
+  "keyPoints": [
+    "GEEN replaces 'een' or zero article with indefinite nouns",
+    "NIET used with definite nouns (de, het, possessives)",
+    "NIET for verbs, adjectives, and adverbs",
+    "GEEN for emphasis on 'none whatsoever'",
+    "Special cases: emphatic contrast uses NIET",
+    "Fixed expressions have their own rules",
+    "Position matters for NIET in complex sentences"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik heb geen goed idee.",
+      "english": "I have no good idea.",
+      "breakdown": "geen replaces 'een' even with adjective"
+    },
+    {
+      "dutch": "Dat is niet het juiste antwoord.",
+      "english": "That is not the correct answer.",
+      "breakdown": "niet with definite noun (het)"
+    },
+    {
+      "dutch": "Hij komt niet vandaag.",
+      "english": "He is not coming today.",
+      "breakdown": "niet with time adverb"
+    },
+    {
+      "dutch": "Ik heb er geen zin in.",
+      "english": "I'm not in the mood.",
+      "breakdown": "geen for emphasis on 'none'"
+    },
+    {
+      "dutch": "Ze woont niet in Amsterdam.",
+      "english": "She doesn't live in Amsterdam.",
+      "breakdown": "niet with place adverb"
+    },
+    {
+      "dutch": "Hij spreekt geen Nederlands.",
+      "english": "He doesn't speak Dutch.",
+      "breakdown": "geen with languages (no article)"
+    },
+    {
+      "dutch": "Dit is niet jouw fout.",
+      "english": "This is not your fault.",
+      "breakdown": "niet with possessive pronoun"
+    },
+    {
+      "dutch": "We hebben geen problemen.",
+      "english": "We have no problems.",
+      "breakdown": "geen with plural indefinite noun"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Fill in: 'Ik heb __________ auto' (I have no car)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' to replace 'een' with indefinite nouns",
+      "hint": "Think about replacing 'een'"
+    },
+    {
+      "question": "Fill in: 'Dat is __________ mijn boek' (That is not my book)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 0,
+      "explanation": "Use 'niet' with possessive pronouns (mijn)",
+      "hint": "Think about definite vs indefinite"
+    },
+    {
+      "question": "Fill in: 'Hij spreekt __________ Nederlands' (He doesn't speak Dutch)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' with languages (no article)",
+      "hint": "Languages don't have articles"
+    },
+    {
+      "question": "Fill in: 'We hebben vandaag __________ regen gehad' (We had no rain today)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' with uncountable nouns (regen)",
+      "hint": "Rain is uncountable"
+    },
+    {
+      "question": "Fill in: 'Ze woont __________ in Amsterdam' (She doesn't live in Amsterdam)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 0,
+      "explanation": "Use 'niet' with place adverbs",
+      "hint": "Think about negating location"
+    },
+    {
+      "question": "Fill in: 'Ik heb __________ interessante boeken' (I have no interesting books)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' with plural indefinite nouns",
+      "hint": "Books is plural and indefinite"
+    },
+    {
+      "question": "Fill in: 'Dit is __________ jouw fout' (This is not your fault)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 0,
+      "explanation": "Use 'niet' with possessive pronouns (jouw)",
+      "hint": "Your fault is definite"
+    },
+    {
+      "question": "Fill in: 'Er is __________ beter plan' (There is no better plan)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' with indefinite nouns (plan)",
+      "hint": "Plan is indefinite"
+    },
+    {
+      "question": "Fill in: 'Ik voel me __________ zo goed' (I don't feel so good)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 0,
+      "explanation": "Use 'niet' with adjectives",
+      "hint": "Negating an adjective"
+    },
+    {
+      "question": "Fill in: 'We hebben __________ enkele problemen gevonden' (We found no problems)",
+      "options": ["niet", "geen", "niet een", "geen een"],
+      "correctAnswer": 1,
+      "explanation": "Use 'geen' for emphasis on 'none whatsoever'",
+      "hint": "Emphasizing complete absence"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik heb niet een auto",
+      "correct": "Ik heb geen auto",
+      "explanation": "Use 'geen' to replace 'een' with indefinite nouns"
+    },
+    {
+      "incorrect": "Dat is geen het juiste antwoord",
+      "correct": "Dat is niet het juiste antwoord",
+      "explanation": "Use 'niet' with definite nouns (het)"
+    },
+    {
+      "incorrect": "Hij spreekt niet Nederlands",
+      "correct": "Hij spreekt geen Nederlands",
+      "explanation": "Languages use 'geen' (no article)"
+    },
+    {
+      "incorrect": "Ik heb geen zin in",
+      "correct": "Ik heb er geen zin in",
+      "explanation": "Fixed expression requires 'er'"
+    },
+    {
+      "incorrect": "Ze woont geen in Amsterdam",
+      "correct": "Ze woont niet in Amsterdam",
+      "explanation": "Use 'niet' with place adverbs"
+    },
+    {
+      "incorrect": "Ik voel me geen goed",
+      "correct": "Ik voel me niet goed",
+      "explanation": "Use 'niet' with adjectives"
+    }
+  ],
+  "tips": [
+    "Remember: GEEN replaces 'een' or zero article",
+    "NIET is used with definite nouns (de, het, possessives)",
+    "For emphasis on 'none whatsoever', use GEEN",
+    "Fixed expressions often break the normal rules",
+    "Position matters: NIET usually comes before what you're negating",
+    "Languages and uncountable nouns use GEEN",
+    "Practice with the pattern: indefinite = GEEN, definite = NIET"
+  ],
+  "relatedRules": ["articles_a1", "adjectives_a2", "verb_present_a1"]
+}

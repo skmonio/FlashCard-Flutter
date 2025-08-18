@@ -1,0 +1,294 @@
+{
+  "store_packs": [
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Vocabulary pack with 6 Dutch words and phrases",
+      "card_count": 6,
+      "filename": "Uncategorized.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.1",
+      "name": "Chapter 2  >  2.1",
+      "description": "Vocabulary pack with 11 Dutch words and phrases",
+      "card_count": 11,
+      "filename": "Chapter_2_-_2.1.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_5____5.3",
+      "name": "Chapter 5  >  5.3",
+      "description": "Vocabulary pack with 13 Dutch words and phrases",
+      "card_count": 13,
+      "filename": "Chapter_5_-_5.3.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_5____5.2",
+      "name": "Chapter 5  >  5.2",
+      "description": "Vocabulary pack with 18 Dutch words and phrases",
+      "card_count": 18,
+      "filename": "Chapter_5_-_5.2.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.1",
+      "name": "Chapter 4  >  4.1",
+      "description": "Vocabulary pack with 25 Dutch words and phrases",
+      "card_count": 25,
+      "filename": "Chapter_4_-_4.1.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "dutch_basics",
+      "name": "Dutch Basics",
+      "description": "Vocabulary pack with 20 Dutch words and phrases",
+      "card_count": 20,
+      "filename": "Dutch_Basics.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "beginner"
+    },
+    {
+      "id": "chapter_3____3.3",
+      "name": "Chapter 3  >  3.3",
+      "description": "Vocabulary pack with 13 Dutch words and phrases",
+      "card_count": 13,
+      "filename": "Chapter_3_-_3.3.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_3____3.1",
+      "name": "Chapter 3  >  3.1",
+      "description": "Vocabulary pack with 20 Dutch words and phrases",
+      "card_count": 20,
+      "filename": "Chapter_3_-_3.1.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.3",
+      "name": "Chapter 4  >  4.3",
+      "description": "Vocabulary pack with 13 Dutch words and phrases",
+      "card_count": 13,
+      "filename": "Chapter_4_-_4.3.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.2",
+      "name": "Chapter 2  >  2.2",
+      "description": "Vocabulary pack with 21 Dutch words and phrases",
+      "card_count": 21,
+      "filename": "Chapter_2_-_2.2.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_5____5.1",
+      "name": "Chapter 5  >  5.1",
+      "description": "Vocabulary pack with 12 Dutch words and phrases",
+      "card_count": 12,
+      "filename": "Chapter_5_-_5.1.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.3",
+      "name": "Chapter 2  >  2.3",
+      "description": "Vocabulary pack with 18 Dutch words and phrases",
+      "card_count": 18,
+      "filename": "Chapter_2_-_2.3.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.2",
+      "name": "Chapter 4  >  4.2",
+      "description": "Vocabulary pack with 2 Dutch words and phrases",
+      "card_count": 2,
+      "filename": "Chapter_4_-_4.2.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.6",
+      "name": "Chapter 4  >  4.6",
+      "description": "Vocabulary pack with 2 Dutch words and phrases",
+      "card_count": 2,
+      "filename": "Chapter_4_-_4.6.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.7",
+      "name": "Chapter 2  >  2.7",
+      "description": "Vocabulary pack with 1 Dutch words and phrases",
+      "card_count": 1,
+      "filename": "Chapter_2_-_2.7.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_5____5.4",
+      "name": "Chapter 5  >  5.4",
+      "description": "Vocabulary pack with 3 Dutch words and phrases",
+      "card_count": 3,
+      "filename": "Chapter_5_-_5.4.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.6",
+      "name": "Chapter 2  >  2.6",
+      "description": "Vocabulary pack with 27 Dutch words and phrases",
+      "card_count": 27,
+      "filename": "Chapter_2_-_2.6.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_3____3.5",
+      "name": "Chapter 3  >  3.5",
+      "description": "Vocabulary pack with 16 Dutch words and phrases",
+      "card_count": 16,
+      "filename": "Chapter_3_-_3.5.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_3____3.7",
+      "name": "Chapter 3  >  3.7",
+      "description": "Vocabulary pack with 29 Dutch words and phrases",
+      "card_count": 29,
+      "filename": "Chapter_3_-_3.7.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.5",
+      "name": "Chapter 4  >  4.5",
+      "description": "Vocabulary pack with 4 Dutch words and phrases",
+      "card_count": 4,
+      "filename": "Chapter_4_-_4.5.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.4",
+      "name": "Chapter 2  >  2.4",
+      "description": "Vocabulary pack with 8 Dutch words and phrases",
+      "card_count": 8,
+      "filename": "Chapter_2_-_2.4.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2____2.5",
+      "name": "Chapter 2  >  2.5",
+      "description": "Vocabulary pack with 14 Dutch words and phrases",
+      "card_count": 14,
+      "filename": "Chapter_2_-_2.5.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_4____4.4",
+      "name": "Chapter 4  >  4.4",
+      "description": "Vocabulary pack with 20 Dutch words and phrases",
+      "card_count": 20,
+      "filename": "Chapter_4_-_4.4.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_3____3.6",
+      "name": "Chapter 3  >  3.6",
+      "description": "Vocabulary pack with 16 Dutch words and phrases",
+      "card_count": 16,
+      "filename": "Chapter_3_-_3.6.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_2",
+      "name": "Chapter 2",
+      "description": "Vocabulary pack with 9 Dutch words and phrases",
+      "card_count": 9,
+      "filename": "Chapter_2.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_1____1.1",
+      "name": "Chapter 1  >  1.1",
+      "description": "Vocabulary pack with 20 Dutch words and phrases",
+      "card_count": 20,
+      "filename": "Chapter_1_-_1.1.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_1____1.2",
+      "name": "Chapter 1  >  1.2",
+      "description": "Vocabulary pack with 19 Dutch words and phrases",
+      "card_count": 19,
+      "filename": "Chapter_1_-_1.2.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_1____1.7",
+      "name": "Chapter 1  >  1.7",
+      "description": "Vocabulary pack with 19 Dutch words and phrases",
+      "card_count": 19,
+      "filename": "Chapter_1_-_1.7.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    },
+    {
+      "id": "chapter_1____1.5",
+      "name": "Chapter 1  >  1.5",
+      "description": "Vocabulary pack with 25 Dutch words and phrases",
+      "card_count": 25,
+      "filename": "Chapter_1_-_1.5.csv",
+      "unlocked": false,
+      "category": "vocabulary",
+      "difficulty": "intermediate"
+    }
+  ]
+}

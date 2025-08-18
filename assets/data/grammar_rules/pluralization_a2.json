@@ -1,0 +1,156 @@
+{
+  "id": "pluralization_a2",
+  "title": "Plural Formation",
+  "type": "pluralization",
+  "level": "a2",
+  "explanation": "Dutch plural formation follows several patterns. The most common is adding -EN, but there are many exceptions and special cases.\n\nMain patterns:\n• Most words: add -EN (de man → de mannen)\n• Some words: add -S (de auto → de auto's)\n• Special cases: kind → kinderen, stad → steden\n• Foreign words: usually add -S (de computer → de computers)\n\nImportant rules:\n• All plurals use DE as the article\n• Words ending in -heid become -heden\n• Words ending in vowels get -'s\n• Diminutives always add -s",
+  "keyPoints": [
+    "Most words add -EN",
+    "Some words add -S",
+    "All plurals use DE",
+    "Words ending in -heid become -heden",
+    "Foreign words usually add -S",
+    "Special cases must be memorized"
+  ],
+  "examples": [
+    {
+      "dutch": "de man → de mannen",
+      "english": "the man → the men",
+      "breakdown": "man + en = mannen"
+    },
+    {
+      "dutch": "de auto → de auto's",
+      "english": "the car → the cars",
+      "breakdown": "auto + 's = auto's"
+    },
+    {
+      "dutch": "het kind → de kinderen",
+      "english": "the child → the children",
+      "breakdown": "irregular plural"
+    },
+    {
+      "dutch": "de vrijheid → de vrijheden",
+      "english": "the freedom → the freedoms",
+      "breakdown": "-heid becomes -heden"
+    },
+    {
+      "dutch": "de computer → de computers",
+      "english": "the computer → the computers",
+      "breakdown": "foreign word + s"
+    },
+    {
+      "dutch": "het huis → de huizen",
+      "english": "the house → the houses",
+      "breakdown": "huis + en = huizen (vowel change)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "What is the plural of 'het huis' (house)?",
+      "options": ["de huiss", "de huizen", "de huisen", "het huizen"],
+      "correctAnswer": 1,
+      "explanation": "Huis becomes huizen with vowel change and -EN ending. Remember: all plurals use DE.",
+      "hint": "Think about vowel changes and which article plurals use"
+    },
+    {
+      "question": "What is the plural of 'de computer'?",
+      "options": ["de computeren", "de computers", "de computeres", "het computers"],
+      "correctAnswer": 1,
+      "explanation": "Foreign words like 'computer' typically add -S to form the plural.",
+      "hint": "Computer is a foreign/borrowed word"
+    },
+    {
+      "question": "What is the plural of 'de man' (man)?",
+      "options": ["de mans", "de mannen", "de manen", "het mannen"],
+      "correctAnswer": 1,
+      "explanation": "Man becomes mannen (double n + -EN). This is a common pattern for words ending in a single consonant.",
+      "hint": "Single consonants often double before -EN"
+    },
+    {
+      "question": "What is the plural of 'de vrijheid' (freedom)?",
+      "options": ["de vrijheden", "de vrijheids", "de vrijheid", "het vrijheden"],
+      "correctAnswer": 0,
+      "explanation": "Words ending in -heid become -heden in the plural.",
+      "hint": "Words ending in -heid follow a special rule"
+    },
+    {
+      "question": "What is the plural of 'het boek' (book)?",
+      "options": ["de boeks", "de boeken", "de boek", "het boeken"],
+      "correctAnswer": 1,
+      "explanation": "Boek becomes boeken with -EN ending. Remember: all plurals use DE.",
+      "hint": "Most Dutch words add -EN"
+    },
+    {
+      "question": "What is the plural of 'de auto' (car)?",
+      "options": ["de autoen", "de auto's", "de autos", "het auto's"],
+      "correctAnswer": 1,
+      "explanation": "Auto becomes auto's with apostrophe + S because it ends in a vowel.",
+      "hint": "Words ending in vowels get -'s"
+    },
+    {
+      "question": "What is the plural of 'het kind' (child)?",
+      "options": ["de kinds", "de kinden", "de kinderen", "het kinderen"],
+      "correctAnswer": 2,
+      "explanation": "Kind becomes kinderen (irregular plural). This must be memorized.",
+      "hint": "This is an irregular plural"
+    },
+    {
+      "question": "What is the plural of 'de mogelijkheid' (possibility)?",
+      "options": ["de mogelijkheden", "de mogelijkheids", "de mogelijkheid", "het mogelijkheden"],
+      "correctAnswer": 0,
+      "explanation": "Words ending in -heid become -heden in the plural.",
+      "hint": "Think about the -heid rule"
+    },
+    {
+      "question": "What is the plural of 'de stad' (city)?",
+      "options": ["de stads", "de steden", "de staden", "het steden"],
+      "correctAnswer": 1,
+      "explanation": "Stad becomes steden (irregular plural with vowel change).",
+      "hint": "This is another irregular plural"
+    },
+    {
+      "question": "What is the plural of 'het meisje' (girl)?",
+      "options": ["de meisjes", "de meisjeen", "de meisje", "het meisjes"],
+      "correctAnswer": 0,
+      "explanation": "Diminutives (ending in -je) always add -s in the plural.",
+      "hint": "Diminutives always add -s"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "het boeken (plural)",
+      "correct": "de boeken",
+      "explanation": "All plurals use DE, never HET"
+    },
+    {
+      "incorrect": "de huiss",
+      "correct": "de huizen",
+      "explanation": "Don't just add -S to everything - many words need -EN with vowel changes"
+    },
+    {
+      "incorrect": "de kinds",
+      "correct": "de kinderen",
+      "explanation": "Some words have completely irregular plurals that must be memorized"
+    },
+    {
+      "incorrect": "de vrijheids",
+      "correct": "de vrijheden",
+      "explanation": "Words ending in -heid become -heden, not -heids"
+    },
+    {
+      "incorrect": "de autos",
+      "correct": "de auto's",
+      "explanation": "Words ending in vowels need apostrophe + S, not just S"
+    }
+  ],
+  "tips": [
+    "Learn common irregular plurals: kind→kinderen, ei→eieren, blad→bladeren, glas→glazen",
+    "Words ending in -HEID always become -HEDEN: vrijheid→vrijheden, mogelijkheid→mogelijkheden",
+    "Use apostrophe + S (-'s) for words ending in vowels: auto→auto's, café→café's, taxi→taxi's",
+    "Words ending in -je (diminutives) always add -s: meisje→meisjes, boekje→boekjes",
+    "When in doubt with Dutch words, try -EN first",
+    "Remember: ALL plurals use DE as the article",
+    "Foreign words usually add -S: computer→computers, film→films"
+  ],
+  "relatedRules": ["articles_a1", "adjectives_a2", "negation_a2"]
+}

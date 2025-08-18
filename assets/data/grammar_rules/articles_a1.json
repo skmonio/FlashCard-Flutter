@@ -1,0 +1,165 @@
+{
+  "id": "articles_a1",
+  "title": "Articles: De and Het",
+  "type": "articles",
+  "level": "a1",
+  "explanation": "In Dutch, all nouns have a gender: masculine, feminine, or neuter. This determines which article you use: 'de' or 'het'.\n\nThere are two types of articles:\n• DE-words: masculine and feminine words (de man, de vrouw, de auto)\n• HET-words: neuter words (het huis, het boek, het kind)\n\nImportant rules:\n• All plurals use 'de' (de mannen, de huizen)\n• Diminutives always use 'het' (het mannetje, het huisje)\n• Words ending in -heid, -nis, -ing, -st are usually DE-words\n• Words ending in -je, -tje are always HET-words\n• Many words you just have to learn (no clear rule)",
+  "keyPoints": [
+    "All nouns have a gender (masculine, feminine, or neuter)",
+    "DE for masculine/feminine words",
+    "HET for neuter words",
+    "All plurals use DE",
+    "Diminutives always use HET",
+    "Many words you just have to learn"
+  ],
+  "examples": [
+    {
+      "dutch": "de man",
+      "english": "the man",
+      "breakdown": "masculine → de"
+    },
+    {
+      "dutch": "de mannen",
+      "english": "the men",
+      "breakdown": "plural → always de"
+    },
+    {
+      "dutch": "het huis",
+      "english": "the house",
+      "breakdown": "neuter → het"
+    },
+    {
+      "dutch": "de huizen",
+      "english": "the houses",
+      "breakdown": "plural → always de"
+    },
+    {
+      "dutch": "de vrouw",
+      "english": "the woman",
+      "breakdown": "feminine → de"
+    },
+    {
+      "dutch": "het boek",
+      "english": "the book",
+      "breakdown": "neuter → het"
+    },
+    {
+      "dutch": "de auto",
+      "english": "the car",
+      "breakdown": "masculine/feminine → de"
+    },
+    {
+      "dutch": "het kind",
+      "english": "the child",
+      "breakdown": "neuter → het"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "What article do you use for 'auto' (car)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "Auto is a DE-word (masculine/feminine)",
+      "hint": "Think about common words - most are DE-words"
+    },
+    {
+      "question": "What article do you use for 'boek' (book)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 1,
+      "explanation": "Boek is a HET-word (neuter)",
+      "hint": "Many short words are HET-words"
+    },
+    {
+      "question": "What article do you use for 'huizen' (houses)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "All plurals use DE",
+      "hint": "All plurals use DE, never HET"
+    },
+    {
+      "question": "What article do you use for 'vrouw' (woman)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "Vrouw is a DE-word (feminine)",
+      "hint": "People are usually DE-words"
+    },
+    {
+      "question": "What article do you use for 'kind' (child)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 1,
+      "explanation": "Kind is a HET-word (neuter)",
+      "hint": "Some words for people are HET-words"
+    },
+    {
+      "question": "What article do you use for 'tafel' (table)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "Tafel is a DE-word (feminine)",
+      "hint": "Furniture is usually DE-words"
+    },
+    {
+      "question": "What article do you use for 'water' (water)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 1,
+      "explanation": "Water is a HET-word (neuter)",
+      "hint": "Liquids are often HET-words"
+    },
+    {
+      "question": "What article do you use for 'mannen' (men)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "All plurals use DE",
+      "hint": "All plurals use DE, never HET"
+    },
+    {
+      "question": "What article do you use for 'stad' (city)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 0,
+      "explanation": "Stad is a DE-word (feminine)",
+      "hint": "Places are usually DE-words"
+    },
+    {
+      "question": "What article do you use for 'land' (country)?",
+      "options": ["de", "het", "een", "geen"],
+      "correctAnswer": 1,
+      "explanation": "Land is a HET-word (neuter)",
+      "hint": "Some place words are HET-words"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "het boeken (plural)",
+      "correct": "de boeken",
+      "explanation": "All plurals use DE, never HET"
+    },
+    {
+      "incorrect": "de huis",
+      "correct": "het huis",
+      "explanation": "Huis is a HET-word, not a DE-word"
+    },
+    {
+      "incorrect": "het vrouwen",
+      "correct": "de vrouwen",
+      "explanation": "All plurals use DE"
+    },
+    {
+      "incorrect": "de water",
+      "correct": "het water",
+      "explanation": "Water is a HET-word"
+    },
+    {
+      "incorrect": "het auto",
+      "correct": "de auto",
+      "explanation": "Auto is a DE-word"
+    }
+  ],
+  "tips": [
+    "Most words are DE-words",
+    "Short words are often HET-words",
+    "All plurals use DE",
+    "Learn articles together with new vocabulary",
+    "Common HET-words: huis, boek, kind, water, land",
+    "Common DE-words: man, vrouw, auto, tafel, stad"
+  ],
+  "relatedRules": ["pluralization_a2", "adjectives_a2", "negation_a2"]
+}

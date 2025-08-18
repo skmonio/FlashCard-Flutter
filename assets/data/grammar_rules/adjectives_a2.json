@@ -1,0 +1,165 @@
+{
+  "id": "adjectives_a2",
+  "title": "Adjective Endings in Dutch",
+  "type": "adjectives",
+  "level": "a2",
+  "explanation": "Dutch adjectives change their form depending on the noun they describe. This is one of the trickier aspects of Dutch grammar, but there are clear rules.\n\nBasic rule: Adjectives get an -E ending EXCEPT:\n• Before HET-words that are singular and indefinite (een + het-word)\n• When the adjective already ends in -en\n\nExamples:\n• de grote hond (the big dog) - DE word gets -E\n• een grote hond (a big dog) - DE word gets -E  \n• het grote huis (the big house) - HET word + definite gets -E\n• een groot huis (a big house) - HET word + indefinite gets NO -E\n\nThis system helps distinguish between DE and HET words!",
+  "keyPoints": [
+    "Adjectives usually add -E when describing nouns",
+    "Exception: HET-words with EEN (indefinite) get no -E",
+    "DE-words always get -E on their adjectives",
+    "Definite HET-words (het grote huis) get -E",
+    "This rule helps you identify DE vs HET words",
+    "Adjectives ending in -en don't change"
+  ],
+  "examples": [
+    {
+      "dutch": "de kleine kat",
+      "english": "the small cat",
+      "breakdown": "DE-word: adjective gets -E (klein → kleine)"
+    },
+    {
+      "dutch": "een kleine kat",
+      "english": "a small cat",
+      "breakdown": "DE-word with EEN: adjective still gets -E"
+    },
+    {
+      "dutch": "het kleine kind",
+      "english": "the small child",
+      "breakdown": "HET-word with definite article: adjective gets -E"
+    },
+    {
+      "dutch": "een klein kind",
+      "english": "a small child",
+      "breakdown": "HET-word with EEN: adjective gets NO -E"
+    },
+    {
+      "dutch": "de rode auto",
+      "english": "the red car",
+      "breakdown": "DE-word: adjective gets -E (rood → rode)"
+    },
+    {
+      "dutch": "een rood huis",
+      "english": "a red house",
+      "breakdown": "HET-word with EEN: adjective gets NO -E"
+    },
+    {
+      "dutch": "het rode boek",
+      "english": "the red book",
+      "breakdown": "HET-word with definite article: adjective gets -E"
+    },
+    {
+      "dutch": "de grote man",
+      "english": "the big man",
+      "breakdown": "DE-word: adjective gets -E (groot → grote)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "Choose the correct form: 'een ___ huis' (big house)",
+      "options": ["grote", "groot", "groten", "groote"],
+      "correctAnswer": 1,
+      "explanation": "Huis is a HET-word. With EEN (indefinite), the adjective gets no -E: een groot huis.",
+      "hint": "Is 'huis' a DE or HET word? Is it definite or indefinite?"
+    },
+    {
+      "question": "Choose the correct form: 'de ___ auto' (red car)",
+      "options": ["rood", "rode", "roden", "roode"],
+      "correctAnswer": 1,
+      "explanation": "Auto is a DE-word. DE-words always get -E on their adjectives: de rode auto.",
+      "hint": "DE-words always get -E on adjectives"
+    },
+    {
+      "question": "Choose the correct form: 'het ___ boek' (new book)",
+      "options": ["nieuw", "nieuwe", "nieuwen", "nieuws"],
+      "correctAnswer": 1,
+      "explanation": "Boek is a HET-word with definite article. Definite HET-words get -E: het nieuwe boek.",
+      "hint": "Definite HET-words get -E"
+    },
+    {
+      "question": "Choose the correct form: 'een ___ kind' (small child)",
+      "options": ["kleine", "klein", "kleinen", "kleins"],
+      "correctAnswer": 1,
+      "explanation": "Kind is a HET-word. With EEN (indefinite), the adjective gets no -E: een klein kind.",
+      "hint": "HET-words with EEN get no -E"
+    },
+    {
+      "question": "Choose the correct form: 'de ___ vrouw' (beautiful woman)",
+      "options": ["mooi", "mooie", "mooien", "moois"],
+      "correctAnswer": 1,
+      "explanation": "Vrouw is a DE-word. DE-words always get -E on their adjectives: de mooie vrouw.",
+      "hint": "DE-words always get -E"
+    },
+    {
+      "question": "Choose the correct form: 'een ___ man' (tall man)",
+      "options": ["lang", "lange", "langen", "langs"],
+      "correctAnswer": 1,
+      "explanation": "Man is a DE-word. Even with EEN, DE-words get -E on their adjectives: een lange man.",
+      "hint": "DE-words always get -E, even with EEN"
+    },
+    {
+      "question": "Choose the correct form: 'het ___ water' (cold water)",
+      "options": ["koud", "koude", "kouden", "kouds"],
+      "correctAnswer": 1,
+      "explanation": "Water is a HET-word with definite article. Definite HET-words get -E: het koude water.",
+      "hint": "Definite HET-words get -E"
+    },
+    {
+      "question": "Choose the correct form: 'een ___ tafel' (wooden table)",
+      "options": ["houten", "hout", "houte", "houtens"],
+      "correctAnswer": 0,
+      "explanation": "Houten already ends in -en, so it doesn't change: een houten tafel.",
+      "hint": "Adjectives ending in -en don't change"
+    },
+    {
+      "question": "Choose the correct form: 'de ___ kinderen' (happy children)",
+      "options": ["blij", "blije", "blijen", "blijs"],
+      "correctAnswer": 1,
+      "explanation": "Kinderen is plural. All plurals use DE, so adjectives get -E: de blije kinderen.",
+      "hint": "Plurals use DE, so adjectives get -E"
+    },
+    {
+      "question": "Choose the correct form: 'een ___ land' (small country)",
+      "options": ["kleine", "klein", "kleinen", "kleins"],
+      "correctAnswer": 1,
+      "explanation": "Land is a HET-word. With EEN (indefinite), the adjective gets no -E: een klein land.",
+      "hint": "HET-words with EEN get no -E"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "een grote huis",
+      "correct": "een groot huis",
+      "explanation": "HET-words with EEN don't get -E on the adjective"
+    },
+    {
+      "incorrect": "de groot auto",
+      "correct": "de grote auto",
+      "explanation": "DE-words always get -E on their adjectives"
+    },
+    {
+      "incorrect": "het klein kind",
+      "correct": "het kleine kind",
+      "explanation": "Definite HET-words get -E on adjectives"
+    },
+    {
+      "incorrect": "een rood auto",
+      "correct": "een rode auto",
+      "explanation": "DE-words always get -E, even with EEN"
+    },
+    {
+      "incorrect": "de klein huis",
+      "correct": "de kleine huis",
+      "explanation": "DE-words always get -E on adjectives"
+    }
+  ],
+  "tips": [
+    "Use this rule to test if a word is DE or HET: if 'een + adjective + noun' needs -E, it's a DE-word",
+    "Practice with color adjectives: een rood huis, de rode auto",
+    "Remember: definite = -E, indefinite HET-word = no -E",
+    "Adjectives ending in -en (open, gebroken) never change",
+    "All plurals use DE, so adjectives always get -E",
+    "Common adjectives to practice: groot/klein, rood/blauw, nieuw/oud, mooi/lelijk"
+  ],
+  "relatedRules": ["articles_a1", "pluralization_a2", "negation_a2"]
+}
