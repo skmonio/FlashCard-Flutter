@@ -30,7 +30,7 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Unified Import/Export'),
+        title: const Text('Import/Export'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
@@ -61,28 +61,35 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.blue),
+                Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  'Unified Import/Export',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  'Import/Export Information',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
             Text(
-              'This system allows you to import and export both flashcards and exercises in a single CSV file. '
-              'Words can have basic information (definition, example, etc.) and optional exercises (multiple choice, fill in blank, sentence building).',
-              style: Theme.of(context).textTheme.bodyMedium,
+              'Import your flashcards from CSV files or export your current data for backup. '
+              'Supported formats include word lists, exercises, and complete deck structures.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
-              'CSV Format: Word, Definition, Example, Article, Plural, Past Tense, Future Tense, Past Participle, Decks, Exercise Type, Question, Correct Answer, Options, Explanation',
+              '• Import: Add new cards and exercises from CSV files\n'
+              '• Export: Save your data as CSV files for backup\n'
+              '• Format: Use standard CSV format with headers',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontFamily: 'monospace',
-                backgroundColor: Colors.grey[100],
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],
@@ -104,38 +111,32 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Import flashcards and exercises from a CSV file. The system will automatically create both flashcards and exercises for words that have exercise data.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isImporting ? null : _importFromCSV,
-                    icon: _isImporting 
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file),
-                    label: Text(_isImporting ? 'Importing...' : 'Import CSV'),
-                  ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isImporting ? null : _importFromCSV,
+                icon: _isImporting 
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.upload_file),
+                label: Text(_isImporting ? 'Importing...' : 'Import Data'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                const SizedBox(width: 12),
-                if (_selectedFileName != null)
-                  Expanded(
-                    child: Text(
-                      _selectedFileName!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
+              ),
             ),
+            if (_selectedFileName != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _selectedFileName!,
+                style: Theme.of(context).textTheme.bodySmall,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ],
         ),
       ),
@@ -155,19 +156,16 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Export your flashcards and exercises with flexible options. Choose between CSV or JSON format, and export cards only, exercises only, or both together.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => _navigateToEnhancedExport(),
-              icon: const Icon(Icons.download),
-              label: const Text('Export Data'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _navigateToEnhancedExport(),
+                icon: const Icon(Icons.download),
+                label: const Text('Export Data'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ],
@@ -245,6 +243,8 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
     });
 
     try {
+      print('🔍 Starting CSV import...');
+      
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
@@ -253,22 +253,31 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
+        print('🔍 Selected file: ${file.name}, size: ${file.size} bytes');
+        
         setState(() {
           _selectedFileName = file.name;
         });
 
         if (file.path != null) {
+          print('🔍 Reading file from path: ${file.path}');
           final csvContent = await File(file.path!).readAsString();
+          print('🔍 CSV content length: ${csvContent.length} characters');
+          print('🔍 CSV content preview: ${csvContent.substring(0, csvContent.length > 200 ? 200 : csvContent.length)}...');
+          
           final flashcardProvider = context.read<FlashcardProvider>();
           final dutchProvider = context.read<DutchWordExerciseProvider>();
 
           // Parse the CSV to get both cards and exercises
+          print('🔍 Parsing CSV with UnifiedImportService...');
           final parseResult = await UnifiedImportService.parseUnifiedCSV(csvContent);
           
           final cards = parseResult['cards'] as List<FlashCard>? ?? [];
           final exercises = parseResult['exercises'] as List<DutchWordExercise>? ?? [];
           final parseErrors = parseResult['errors'] as List<String>? ?? [];
           final errors = <String>[];
+          
+          print('🔍 Parse result: ${cards.length} cards, ${exercises.length} exercises, ${parseErrors.length} errors');
           
           // Add parsing errors to the error list
           errors.addAll(parseErrors);
@@ -277,6 +286,7 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
           var cardSuccessCount = 0;
           var skippedCount = 0;
           
+          print('🔍 Starting card import...');
           for (final card in cards) {
             // Check for duplicates
             final existingCard = flashcardProvider.cards.firstWhere(
@@ -291,6 +301,7 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
             
             if (existingCard.id.isNotEmpty) {
               skippedCount++;
+              print('🔍 Skipping duplicate card: ${card.word}');
               continue;
             }
             
@@ -349,11 +360,16 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
             
             if (newCard != null) {
               cardSuccessCount++;
+              print('🔍 Successfully created card: ${card.word}');
+            } else {
+              print('🔍 Failed to create card: ${card.word}');
+              errors.add('Failed to create card: ${card.word}');
             }
           }
 
           // Import exercises using DutchWordExerciseProvider
           var exerciseSuccessCount = 0;
+          print('🔍 Starting exercise import...');
           for (final exercise in exercises) {
             // Check for duplicates
             final existingExercise = dutchProvider.wordExercises.firstWhere(
@@ -373,13 +389,17 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
             );
             
             if (existingExercise.id.isNotEmpty) {
+              print('🔍 Skipping duplicate exercise: ${exercise.targetWord}');
               continue; // Skip duplicate
             }
             
             // Add the exercise
             await dutchProvider.addWordExercise(exercise);
             exerciseSuccessCount++;
+            print('🔍 Successfully created exercise: ${exercise.targetWord}');
           }
+
+          print('🔍 Import completed: $cardSuccessCount cards, $exerciseSuccessCount exercises, $skippedCount skipped');
 
           setState(() {
             if (errors.isNotEmpty) {
@@ -394,13 +414,21 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
             _importErrors = List<String>.from(errors);
           });
         } else {
+          print('🔍 File path is null');
           setState(() {
             _importResult = 'Import failed';
-            _importErrors = ['Could not read file'];
+            _importErrors = ['Could not read file - file path is null'];
           });
         }
+      } else {
+        print('🔍 No file selected');
+        setState(() {
+          _importResult = 'Import cancelled';
+          _importErrors = ['No file selected'];
+        });
       }
     } catch (e) {
+      print('🔍 Import error: $e');
       setState(() {
         _importResult = 'Import failed';
         _importErrors = [e.toString()];

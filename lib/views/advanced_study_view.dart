@@ -72,11 +72,21 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   
   // Edit functionality
   FlashCard? _selectedCardForEdit;
+  
+  // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _currentCards;
 
   @override
   void initState() {
     super.initState();
     _isShowingFront = !widget.startFlipped;
+    
+    // Initialize our copy of cards
+    _currentCards = List<FlashCard>.from(widget.cards);
+    
+    // Add listener to refresh cards when provider updates
+    final provider = context.read<FlashcardProvider>();
+    provider.addListener(_onProviderChanged);
     
     // Initialize flip animation - slower duration
     _flipController = AnimationController(
@@ -133,7 +143,42 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _flipController.dispose();
     _dealController.dispose();
     _exitController.dispose();
+    
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
     super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in _currentCards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    // Update our current cards list
+    setState(() {
+      _currentCards = updatedCards;
+    });
+    
+    print('🔍 AdvancedStudyView: Refreshed cards from provider');
   }
 
   @override
@@ -177,10 +222,40 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                         ),
                       ),
                       const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
+                      PopupMenuButton<String>(
+                        onSelected: _handleMenuAction,
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit),
+                                SizedBox(width: 8),
+                                Text('Edit'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('Delete', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'info',
+                            child: Row(
+                              children: [
+                                Icon(Icons.info),
+                                SizedBox(width: 8),
+                                Text('Info'),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -194,7 +269,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           // Main card area with background color based on swipe direction
           Expanded(
             child: Container(
-              color: _getSwipeBackgroundColor(),
               child: Column(
                 children: [
                   // Card area with directional labels behind
@@ -218,7 +292,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
+    final progress = _currentIndex / _currentCards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -226,7 +300,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Card ${_currentIndex + 1} of ${widget.cards.length}'),
+              Text('Card ${_currentIndex + 1} of ${_currentCards.length}'),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -244,7 +318,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildCardArea() {
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     return GestureDetector(
       onPanUpdate: _handlePanUpdate,
@@ -609,7 +683,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _editCurrentCard() {
-    _selectedCardForEdit = widget.cards[_currentIndex];
+    _selectedCardForEdit = _currentCards[_currentIndex];
     final card = _selectedCardForEdit!;
     
     Navigator.of(context).push(
@@ -703,7 +777,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   void _handleSwipe(SwipeDirection direction) {
     if (_nextCardActive) return;
     
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     // Save to history
     _cardHistory.add(_currentIndex);
@@ -851,7 +925,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           _swipeDirection = SwipeDirection.none;
           _swipeIntensity = 0;
           
-          if (_currentIndex >= widget.cards.length) {
+          if (_currentIndex >= _currentCards.length) {
             // Award XP for the session
             _awardXp();
             _showingResults = true;
@@ -888,6 +962,84 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               Navigator.of(context).pop();
             },
             child: const Text('End Session'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'edit':
+        _editCurrentCard();
+        break;
+      case 'delete':
+        _deleteCurrentCard();
+        break;
+      case 'info':
+        _showCardInfo();
+        break;
+    }
+  }
+
+  void _deleteCurrentCard() {
+    final currentCard = _currentCards[_currentIndex];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Card'),
+        content: Text('Are you sure you want to delete "${currentCard.word}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              final provider = context.read<FlashcardProvider>();
+              await provider.deleteCard(currentCard.id);
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Deleted card: ${currentCard.word}')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCardInfo() {
+    final currentCard = _currentCards[_currentIndex];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(currentCard.word),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Definition: ${currentCard.definition}'),
+            if (currentCard.example != null) ...[
+              const SizedBox(height: 8),
+              Text('Example: ${currentCard.example}'),
+            ],
+            const SizedBox(height: 8),
+            Text('SRS Level: ${currentCard.srsLevel}'),
+            Text('Times Shown: ${currentCard.timesShown}'),
+            Text('Times Correct: ${currentCard.timesCorrect}'),
+            Text('Success Rate: ${currentCard.timesShown > 0 ? ((currentCard.timesCorrect / currentCard.timesShown) * 100).toStringAsFixed(1) : '0'}%'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -959,6 +1111,32 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Score circle
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
+                             accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
+                             Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$accuracy%',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: accuracy >= 80 ? Colors.green : 
+                                 accuracy >= 60 ? Colors.orange : 
+                                 Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
                   // Session stats
                   _buildStatCard('Cards Studied', totalCards.toString(), Icons.school),
                   const SizedBox(height: 16),
@@ -970,11 +1148,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                   _buildStatCard('Unknown', _unknownCards.length.toString(), Icons.cancel, Colors.red),
                   const SizedBox(height: 16),
                   _buildStatCard('Skipped', _skippedCards.length.toString(), Icons.skip_next, Colors.orange),
-                  const SizedBox(height: 24),
-                  _buildStatCard('Accuracy', '$accuracy%', Icons.analytics, Colors.blue),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Max Combo', _maxCombo.toString(), Icons.local_fire_department, Colors.orange),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 48),
                   
                   // Action buttons
                   Row(
@@ -983,19 +1157,50 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                         child: ElevatedButton(
                           onPressed: () {
                             setState(() {
+                              // Reset all card state
                               _currentIndex = 0;
                               _knownCards.clear();
                               _unknownCards.clear();
                               _skippedCards.clear();
                               _combo = 0;
                               _maxCombo = 0;
-                              _gameSession.reset(); // Reset XP tracking
+                              
+                              // Reset history tracking
+                              _cardHistory.clear();
+                              _knownHistory.clear();
+                              _unknownHistory.clear();
+                              _skippedHistory.clear();
+                              
+                              // Reset swipe/drag state
+                              _dragOffset = Offset.zero;
+                              _swipeDirection = SwipeDirection.none;
+                              _swipeIntensity = 0;
+                              _nextCardActive = false;
+                              
+                              // Reset session tracking
+                              _gameSession.reset();
                               _sessionStartTime = DateTime.now();
+                              _sessionXP = 0;
+                              
+                              // Reset UI state
                               _showingResults = false;
                               _isShowingFront = !widget.startFlipped;
+                              _selectedCardForEdit = null;
+                              
+                              // Reset all animation controllers
                               _flipController.reset();
+                              _dealController.reset();
+                              _exitController.reset();
+                              
                               if (widget.startFlipped) {
                                 _flipController.value = 1.0;
+                              }
+                            });
+                            
+                            // Start initial deal animation for first card
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                _dealController.forward();
                               }
                             });
                           },

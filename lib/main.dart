@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/flashcard_provider.dart';
 import 'providers/theme_provider.dart';
@@ -7,16 +8,21 @@ import 'providers/dutch_word_exercise_provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'providers/dutch_grammar_provider.dart';
 import 'providers/store_provider.dart';
-import 'views/main_navigation_view.dart';
-import 'views/loading_view.dart';
-import 'services/haptic_service.dart';
+import 'services/performance_service.dart';
+import 'views/app_initialization_view.dart';
 
 void main() async {
-  // Ensure Flutter binding is initialized before accessing platform services
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize haptic service
-  await HapticService().initialize();
+  // Initialize performance service for battery and memory optimization
+  PerformanceService().initialize();
+  
+  // Set preferred orientations to portrait only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+  
   runApp(const FlashcardApp());
 }
 
@@ -49,6 +55,25 @@ class FlashcardApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
+          // Update system UI overlay style based on theme
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final isDark = themeProvider.themeMode == ThemeMode.dark || 
+                          (themeProvider.themeMode == ThemeMode.system && 
+                           MediaQuery.of(context).platformBrightness == Brightness.dark);
+            
+            SystemChrome.setSystemUIOverlayStyle(
+              isDark 
+                ? SystemUiOverlayStyle.light.copyWith(
+                    statusBarColor: Colors.transparent,
+                    statusBarIconBrightness: Brightness.light,
+                  )
+                : SystemUiOverlayStyle.dark.copyWith(
+                    statusBarColor: Colors.transparent,
+                    statusBarIconBrightness: Brightness.dark,
+                  ),
+            );
+          });
+          
           return MaterialApp(
             title: 'Taal Trek',
             themeMode: themeProvider.themeMode,
@@ -92,15 +117,7 @@ class FlashcardApp extends StatelessWidget {
                 ),
               ),
             ),
-            home: LoadingView(
-              minimumDisplayTime: const Duration(milliseconds: 200),
-              isReadyCheck: () async {
-                // Add a timeout to prevent infinite loading
-                await Future.delayed(const Duration(milliseconds: 500));
-                return true;
-              },
-              child: const MainNavigationView(),
-            ),
+            home: const AppInitializationView(),
             debugShowCheckedModeBanner: false,
           );
         },

@@ -130,8 +130,7 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    filled: true,
-                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -1104,11 +1103,6 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
         return ExerciseType.fillInBlank;
       case 'sentence building':
         return ExerciseType.sentenceBuilding;
-      case 'translation':
-        return ExerciseType.translation;
-      case 'true/false':
-      case 'true false':
-        return ExerciseType.trueFalse;
       default:
         return ExerciseType.multipleChoice;
     }

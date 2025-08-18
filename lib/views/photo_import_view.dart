@@ -53,7 +53,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
         children: [
           // Header
           UnifiedHeader(
-            title: 'Import from Photo',
+            title: 'Photo Import',
             onBack: () => Navigator.of(context).pop(),
           ),
           
@@ -671,7 +671,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
       print('PhotoImportView: Starting image processing...');
       
       // Add timeout to prevent hanging during OCR
-      final words = await _photoService.extractWordsWithPosition(_selectedImage!)
+      final words = await _photoService.extractWordsWithPosition(_selectedImage!.path)
           .timeout(const Duration(seconds: 60), onTimeout: () {
         print('PhotoImportView: OCR processing timed out');
         return <ExtractedWord>[];

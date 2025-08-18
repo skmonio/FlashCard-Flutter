@@ -552,16 +552,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           ],
         ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.purple.withOpacity(0.1),
-              Colors.white,
-            ],
-          ),
-        ),
+        color: Theme.of(context).colorScheme.surface,
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -585,24 +576,24 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                 const SizedBox(height: 32),
                 
                 // Title
-                const Text(
+                Text(
                   'Shuffle Your Cards',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.purple,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 16),
                 
                 // Description
-                const Text(
+                Text(
                   'Test your knowledge with a mix of all exercise types!\n'
                   'Get as far as you can without making a mistake.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
                 const SizedBox(height: 32),

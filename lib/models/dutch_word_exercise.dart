@@ -2,15 +2,8 @@ import 'dart:convert';
 
 enum ExerciseType {
   fillInBlank,
-  missingWord,
-  matchMeaning,
-  useInSentence,
   sentenceBuilding,
   multipleChoice,
-  trueFalse,
-  wordOrder,
-  translation,
-  contextClue
 }
 
 enum ExerciseDifficulty {

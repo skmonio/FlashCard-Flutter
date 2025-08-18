@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../components/unified_header.dart';
 import '../models/flash_card.dart';
-import 'study_view.dart';
+import '../models/deck.dart';
+
 import 'advanced_study_view.dart';
 import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
@@ -394,107 +395,15 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       return;
     }
     
-    // Show deck selection dialog
+    // Show multi-deck selection dialog
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Deck'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: ListView.builder(
-            itemCount: decks.length,
-            itemBuilder: (context, index) {
-              final deck = decks[index];
-              final deckCards = provider.getCardsForDeck(deck.id);
-              return ListTile(
-                title: Text(deck.name),
-                subtitle: Text('${deckCards.length} cards'),
-                onTap: () {
-                  if (deckCards.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('No cards in deck "${deck.name}". Please add some cards first.')),
-                    );
-                    return;
-                  }
-                  Navigator.of(context).pop();
-                  
-                  // Navigate based on game mode
-                  switch (widget.gameMode) {
-                    case GameMode.study:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => AdvancedStudyView(
-                            cards: deckCards,
-                            startFlipped: _startFlipped,
-                            title: deck.name,
-                          ),
-                        ),
-                      );
-                      break;
-                    case GameMode.test:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => MultipleChoiceView(
-                            cards: deckCards,
-                            title: deck.name,
-                          ),
-                        ),
-                      );
-                      break;
-                    case GameMode.trueFalse:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => TrueFalseView(
-                            cards: deckCards,
-                            title: deck.name,
-                          ),
-                        ),
-                      );
-                      break;
-                    case GameMode.write:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => WritingView(
-                            cards: deckCards,
-                            title: deck.name,
-                          ),
-                        ),
-                      );
-                      break;
-                    case GameMode.game:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => MemoryGameView(
-                            cards: deckCards,
-                            startFlipped: _startFlipped,
-                          ),
-                        ),
-                      );
-                      break;
-                    case GameMode.bubbleWord:
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => WordScrambleView(
-                            cards: deckCards,
-                            title: deck.name,
-                            startFlipped: _startFlipped,
-                          ),
-                        ),
-                      );
-                      break;
-                  }
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
+      builder: (context) => _MultiDeckSelectionDialog(
+        decks: decks,
+        provider: provider,
+        gameMode: widget.gameMode,
+        startFlipped: _startFlipped,
+        selectedCardCount: _selectedCardCount,
       ),
     );
   }
@@ -542,6 +451,240 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MultiDeckSelectionDialog extends StatefulWidget {
+  final List<Deck> decks;
+  final FlashcardProvider provider;
+  final GameMode gameMode;
+  final bool startFlipped;
+  final int selectedCardCount;
+
+  const _MultiDeckSelectionDialog({
+    required this.decks,
+    required this.provider,
+    required this.gameMode,
+    required this.startFlipped,
+    required this.selectedCardCount,
+  });
+
+  @override
+  State<_MultiDeckSelectionDialog> createState() => _MultiDeckSelectionDialogState();
+}
+
+class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
+  final Set<String> _selectedDeckIds = {};
+  int _totalSelectedCards = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateTotalCards();
+  }
+
+  void _calculateTotalCards() {
+    _totalSelectedCards = 0;
+    for (final deckId in _selectedDeckIds) {
+      final deck = widget.decks.firstWhere((d) => d.id == deckId);
+      final deckCards = widget.provider.getCardsForDeck(deck.id);
+      _totalSelectedCards += deckCards.length;
+    }
+  }
+
+  void _toggleDeckSelection(String deckId) {
+    setState(() {
+      if (_selectedDeckIds.contains(deckId)) {
+        _selectedDeckIds.remove(deckId);
+      } else {
+        _selectedDeckIds.add(deckId);
+      }
+      _calculateTotalCards();
+    });
+  }
+
+  void _startStudy() {
+    if (_selectedDeckIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one deck.')),
+      );
+      return;
+    }
+
+    // Collect all cards from selected decks
+    List<FlashCard> allSelectedCards = [];
+    List<String> selectedDeckNames = [];
+    
+    for (final deckId in _selectedDeckIds) {
+      final deck = widget.decks.firstWhere((d) => d.id == deckId);
+      final deckCards = widget.provider.getCardsForDeck(deck.id);
+      allSelectedCards.addAll(deckCards);
+      selectedDeckNames.add(deck.name);
+    }
+
+    if (allSelectedCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+
+    // Shuffle and limit cards if needed
+    allSelectedCards.shuffle();
+    if (allSelectedCards.length > widget.selectedCardCount) {
+      allSelectedCards = allSelectedCards.take(widget.selectedCardCount).toList();
+    }
+
+    Navigator.of(context).pop();
+
+    // Create title from selected deck names
+    String title = selectedDeckNames.length == 1 
+        ? selectedDeckNames.first 
+        : '${selectedDeckNames.length} Decks';
+
+    // Navigate based on game mode
+    switch (widget.gameMode) {
+      case GameMode.study:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => AdvancedStudyView(
+              cards: allSelectedCards,
+              startFlipped: widget.startFlipped,
+              title: title,
+            ),
+          ),
+        );
+        break;
+      case GameMode.test:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MultipleChoiceView(
+              cards: allSelectedCards,
+              title: title,
+            ),
+          ),
+        );
+        break;
+      case GameMode.trueFalse:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrueFalseView(
+              cards: allSelectedCards,
+              title: title,
+            ),
+          ),
+        );
+        break;
+      case GameMode.write:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => WritingView(
+              cards: allSelectedCards,
+              title: title,
+            ),
+          ),
+        );
+        break;
+      case GameMode.game:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MemoryGameView(
+              cards: allSelectedCards,
+              startFlipped: widget.startFlipped,
+            ),
+          ),
+        );
+        break;
+      case GameMode.bubbleWord:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => WordScrambleView(
+              cards: allSelectedCards,
+              title: title,
+              startFlipped: widget.startFlipped,
+            ),
+          ),
+        );
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Decks'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            // Summary of selected decks
+            if (_selectedDeckIds.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.blue, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'} selected • $_totalSelectedCards cards',
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_selectedDeckIds.isNotEmpty) const SizedBox(height: 16),
+            
+            // Deck list
+            Expanded(
+              child: ListView.builder(
+                itemCount: widget.decks.length,
+                itemBuilder: (context, index) {
+                  final deck = widget.decks[index];
+                  final deckCards = widget.provider.getCardsForDeck(deck.id);
+                  final isSelected = _selectedDeckIds.contains(deck.id);
+                  
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: CheckboxListTile(
+                      title: Text(deck.name),
+                      subtitle: Text('${deckCards.length} cards'),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        _toggleDeckSelection(deck.id);
+                      },
+                      secondary: Icon(
+                        isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                        color: isSelected ? Colors.blue : Colors.grey,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _selectedDeckIds.isNotEmpty ? _startStudy : null,
+          child: const Text('Start Study'),
+        ),
+      ],
     );
   }
 }

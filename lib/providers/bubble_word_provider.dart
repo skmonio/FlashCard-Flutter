@@ -24,7 +24,12 @@ class BubbleWordProvider extends ChangeNotifier {
   // Undo/Redo functionality
   List<List<BubbleWordMap>> _undoStack = [];
   List<List<BubbleWordMap>> _redoStack = [];
-  static const int maxUndoSteps = 20;
+  static const int maxUndoSteps = 10; // Reduced from 20 to 10 for memory optimization
+  
+  // Performance limits
+  static const int maxNodesPerMap = 50; // Limit nodes per map
+  static const int maxMaps = 10; // Limit total maps
+  static const int maxOverlayMaps = 3; // Limit overlay maps
 
   // Color palette
   final List<Color> _bubbleColors = [
@@ -173,6 +178,17 @@ class BubbleWordProvider extends ChangeNotifier {
 
   // Map Management
   BubbleWordMap createMap(String name) {
+    // Check map limit
+    if (_maps.length >= maxMaps) {
+      print('BubbleWordProvider: Cannot create more maps. Limit reached: $maxMaps');
+      // Return existing map if limit reached
+      if (_maps.isNotEmpty) {
+        _selectedMapId = _maps.first.id;
+        notifyListeners();
+        return _maps.first;
+      }
+    }
+
     final newMap = BubbleWordMap(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
@@ -224,6 +240,12 @@ class BubbleWordProvider extends ChangeNotifier {
       _overlayMapIds.remove(mapId);
       print('BubbleWordProvider: Removed overlay for map: $mapId');
     } else {
+      // Check overlay limit
+      if (_overlayMapIds.length >= maxOverlayMaps) {
+        print('BubbleWordProvider: Cannot add more overlays. Limit reached: $maxOverlayMaps');
+        return;
+      }
+      
       _overlayMapIds.add(mapId);
       print('BubbleWordProvider: Added overlay for map: $mapId');
       // Auto-align overlapping words when adding overlay
@@ -286,6 +308,18 @@ class BubbleWordProvider extends ChangeNotifier {
   void addNode(String word, String definition, Offset position) {
     if (currentMap == null) return;
 
+    // Check node limit
+    if (currentMap!.nodes.length >= maxNodesPerMap) {
+      print('BubbleWordProvider: Cannot add more nodes. Limit reached: $maxNodesPerMap');
+      return;
+    }
+
+    // Validate input lengths
+    if (word.length > 20 || definition.length > 50) {
+      print('BubbleWordProvider: Word or definition too long. Word: ${word.length}, Definition: ${definition.length}');
+      return;
+    }
+
     _saveStateForUndo();
 
     final node = WordNode(
@@ -306,11 +340,11 @@ class BubbleWordProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateNode(String nodeId, {String? word, String? definition, Offset? position}) {
+  void updateNode(String nodeId, {String? word, String? definition, Offset? position, Color? color, Color? textColor}) {
     if (currentMap == null) return;
 
-    // Save state for undo if we're changing word/definition (not just position)
-    if (word != null || definition != null) {
+    // Save state for undo if we're changing word/definition/color/textColor (not just position)
+    if (word != null || definition != null || color != null || textColor != null) {
       _saveStateForUndo();
     }
 
@@ -390,6 +424,8 @@ class BubbleWordProvider extends ChangeNotifier {
         updatedNodes[nodeIndex] = oldNode.copyWith(
           word: word ?? oldNode.word,
           definition: definition ?? oldNode.definition,
+          color: color ?? oldNode.color,
+          textColor: textColor ?? oldNode.textColor,
         );
         final updatedMap = currentMap!.copyWith(
           nodes: updatedNodes,
@@ -408,6 +444,8 @@ class BubbleWordProvider extends ChangeNotifier {
               updatedNodes[overlayNodeIndex] = oldNode.copyWith(
                 word: word ?? oldNode.word,
                 definition: definition ?? oldNode.definition,
+                color: color ?? oldNode.color,
+                textColor: textColor ?? oldNode.textColor,
               );
               final updatedMap = overlayMap.copyWith(
                 nodes: updatedNodes,
@@ -420,6 +458,82 @@ class BubbleWordProvider extends ChangeNotifier {
             // Continue to next overlay map
           }
         }
+      }
+    }
+
+    saveData();
+    notifyListeners();
+  }
+
+  // Special method for updating node position across all maps
+  void updateNodePosition(String nodeId, Offset position) {
+    if (currentMap == null) return;
+
+    // Find the node to get its word
+    WordNode? targetNode;
+    String? targetWord;
+    
+    // First try to find in current map
+    final nodeIndex = currentMap!.nodes.indexWhere((node) => node.id == nodeId);
+    if (nodeIndex != -1) {
+      targetNode = currentMap!.nodes[nodeIndex];
+      targetWord = targetNode.word;
+    } else {
+      // Try to find in overlay maps
+      for (final mapId in _overlayMapIds) {
+        try {
+          final overlayMap = _maps.firstWhere((map) => map.id == mapId);
+          final overlayNodeIndex = overlayMap.nodes.indexWhere((node) => node.id == nodeId);
+          if (overlayNodeIndex != -1) {
+            targetNode = overlayMap.nodes[overlayNodeIndex];
+            targetWord = targetNode.word;
+            break;
+          }
+        } catch (e) {
+          // Continue to next overlay map
+        }
+      }
+    }
+
+    if (targetNode == null || targetWord == null) return;
+
+    // Update ALL instances of this word across all maps
+    // Update current map
+    if (currentMap != null) {
+      final updatedNodes = List<WordNode>.from(currentMap!.nodes);
+      for (int i = 0; i < updatedNodes.length; i++) {
+        if (updatedNodes[i].word == targetWord) {
+          updatedNodes[i] = updatedNodes[i].copyWith(position: position);
+        }
+      }
+      final updatedMap = currentMap!.copyWith(
+        nodes: updatedNodes,
+        updatedAt: DateTime.now(),
+      );
+      _updateMap(updatedMap);
+    }
+
+    // Update overlay maps
+    for (final mapId in _overlayMapIds) {
+      try {
+        final overlayMap = _maps.firstWhere((map) => map.id == mapId);
+        final updatedNodes = List<WordNode>.from(overlayMap.nodes);
+        bool updated = false;
+        for (int i = 0; i < updatedNodes.length; i++) {
+          if (updatedNodes[i].word == targetWord) {
+            updatedNodes[i] = updatedNodes[i].copyWith(position: position);
+            updated = true;
+          }
+        }
+        if (updated) {
+          final updatedMap = overlayMap.copyWith(
+            nodes: updatedNodes,
+            updatedAt: DateTime.now(),
+          );
+          _updateMap(updatedMap);
+        }
+      } catch (e) {
+        // Continue to next overlay map
       }
     }
 
@@ -653,6 +767,30 @@ class BubbleWordProvider extends ChangeNotifier {
     }
   }
 
+  // Find a node across all maps (current + overlays)
+  WordNode? findNodeAcrossAllMaps(String nodeId) {
+    // First try to find in current map
+    if (currentMap != null) {
+      try {
+        return currentMap!.nodes.firstWhere((node) => node.id == nodeId);
+      } catch (e) {
+        // Node not found in current map
+      }
+    }
+    
+    // Try to find in overlay maps
+    for (final mapId in _overlayMapIds) {
+      try {
+        final overlayMap = _maps.firstWhere((map) => map.id == mapId);
+        return overlayMap.nodes.firstWhere((node) => node.id == nodeId);
+      } catch (e) {
+        // Continue to next overlay map
+      }
+    }
+    
+    return null;
+  }
+
   // Persistence
   Future<void> saveData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -696,21 +834,80 @@ class BubbleWordProvider extends ChangeNotifier {
     
     _saveStateForUndo();
     
+    // Find the node to get its word
+    WordNode? targetNode;
+    String? targetWord;
+    
+    // First try to find in current map
     final nodeIndex = currentMap!.nodes.indexWhere((node) => node.id == nodeId);
     if (nodeIndex != -1) {
+      targetNode = currentMap!.nodes[nodeIndex];
+      targetWord = targetNode.word;
+    } else {
+      // Try to find in overlay maps
+      for (final mapId in _overlayMapIds) {
+        try {
+          final overlayMap = _maps.firstWhere((map) => map.id == mapId);
+          final overlayNodeIndex = overlayMap.nodes.indexWhere((node) => node.id == nodeId);
+          if (overlayNodeIndex != -1) {
+            targetNode = overlayMap.nodes[overlayNodeIndex];
+            targetWord = targetNode.word;
+            break;
+          }
+        } catch (e) {
+          // Continue to next overlay map
+        }
+      }
+    }
+
+    if (targetNode == null || targetWord == null) return;
+
+    // Flip ALL instances of this word across all maps
+    // Flip in current map
+    if (currentMap != null) {
       final updatedNodes = List<WordNode>.from(currentMap!.nodes);
-      final oldNode = updatedNodes[nodeIndex];
-      updatedNodes[nodeIndex] = oldNode.copyWith(
-        isFlipped: !oldNode.isFlipped,
-      );
+      for (int i = 0; i < updatedNodes.length; i++) {
+        if (updatedNodes[i].word == targetWord) {
+          updatedNodes[i] = updatedNodes[i].copyWith(
+            isFlipped: !updatedNodes[i].isFlipped,
+          );
+        }
+      }
       final updatedMap = currentMap!.copyWith(
         nodes: updatedNodes,
         updatedAt: DateTime.now(),
       );
       _updateMap(updatedMap);
-      saveData();
-      notifyListeners();
     }
+
+    // Flip in overlay maps
+    for (final mapId in _overlayMapIds) {
+      try {
+        final overlayMap = _maps.firstWhere((map) => map.id == mapId);
+        final updatedNodes = List<WordNode>.from(overlayMap.nodes);
+        bool updated = false;
+        for (int i = 0; i < updatedNodes.length; i++) {
+          if (updatedNodes[i].word == targetWord) {
+            updatedNodes[i] = updatedNodes[i].copyWith(
+              isFlipped: !updatedNodes[i].isFlipped,
+            );
+            updated = true;
+          }
+        }
+        if (updated) {
+          final updatedMap = overlayMap.copyWith(
+            nodes: updatedNodes,
+            updatedAt: DateTime.now(),
+          );
+          _updateMap(updatedMap);
+        }
+      } catch (e) {
+        // Continue to next overlay map
+      }
+    }
+
+    saveData();
+    notifyListeners();
   }
   
   // Undo/Redo functionality
@@ -768,22 +965,71 @@ class BubbleWordProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Flip all nodes
+  // Flip all nodes across all maps
   void flipAllNodes() {
-    if (currentMap == null) return;
+    if (_maps.isEmpty) return;
     
     _saveStateForUndo();
     
-    final updatedNodes = currentMap!.nodes.map((node) => 
-      node.copyWith(isFlipped: !node.isFlipped)
-    ).toList();
+    // Flip all nodes across all maps
+    final updatedMaps = _maps.map((map) {
+      final updatedNodes = map.nodes.map((node) => 
+        node.copyWith(isFlipped: !node.isFlipped)
+      ).toList();
+      
+      return map.copyWith(
+        nodes: updatedNodes,
+        updatedAt: DateTime.now(),
+      );
+    }).toList();
     
-    final updatedMap = currentMap!.copyWith(
-      nodes: updatedNodes,
-      updatedAt: DateTime.now(),
-    );
+    _maps = updatedMaps;
+    saveData();
+    notifyListeners();
+  }
+
+  // Show all words (unflip all nodes)
+  void showAllWords() {
+    if (_maps.isEmpty) return;
     
-    _updateMap(updatedMap);
+    _saveStateForUndo();
+    
+    // Set all nodes to show words (not flipped)
+    final updatedMaps = _maps.map((map) {
+      final updatedNodes = map.nodes.map((node) => 
+        node.copyWith(isFlipped: false)
+      ).toList();
+      
+      return map.copyWith(
+        nodes: updatedNodes,
+        updatedAt: DateTime.now(),
+      );
+    }).toList();
+    
+    _maps = updatedMaps;
+    saveData();
+    notifyListeners();
+  }
+
+  // Show all definitions (flip all nodes)
+  void showAllDefinitions() {
+    if (_maps.isEmpty) return;
+    
+    _saveStateForUndo();
+    
+    // Set all nodes to show definitions (flipped)
+    final updatedMaps = _maps.map((map) {
+      final updatedNodes = map.nodes.map((node) => 
+        node.copyWith(isFlipped: true)
+      ).toList();
+      
+      return map.copyWith(
+        nodes: updatedNodes,
+        updatedAt: DateTime.now(),
+      );
+    }).toList();
+    
+    _maps = updatedMaps;
     saveData();
     notifyListeners();
   }

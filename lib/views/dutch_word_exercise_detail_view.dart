@@ -4,7 +4,7 @@ import '../models/dutch_word_exercise.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
-import '../components/text_context_menu.dart';
+
 import 'create_word_exercise_view.dart';
 
 class DutchWordExerciseDetailView extends StatefulWidget {
@@ -230,28 +230,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             textAlign: TextAlign.left,
             enableInteractiveSelection: true,
             showCursor: false,
-            contextMenuBuilder: (context, editableTextState) {
-              final selectedText = editableTextState.textEditingValue.selection.textInside(exercise.prompt);
-              if (selectedText.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              
-              return TextContextMenu(
-                selectedText: selectedText,
-                onCopy: () {
-                  // Copy functionality is handled in TextContextMenu
-                },
-                onTranslate: () {
-                  // Translation is handled in TextContextMenu
-                },
-                onAddToDeck: () {
-                  _addWordToDeck(selectedText);
-                },
-                onSearch: () {
-                  _searchWord(selectedText);
-                },
-              );
-            },
           ),
           
           const SizedBox(height: 24),
@@ -286,17 +264,17 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
-        Color backgroundColor = Colors.white;
-        Color borderColor = Colors.grey.withOpacity(0.3);
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
+        Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
         
         if (showCorrect) {
-          backgroundColor = Colors.green.withOpacity(0.1);
+          backgroundColor = Colors.green.withValues(alpha: 0.1);
           borderColor = Colors.green;
         } else if (showIncorrect) {
-          backgroundColor = Colors.red.withOpacity(0.1);
+          backgroundColor = Colors.red.withValues(alpha: 0.1);
           borderColor = Colors.red;
         } else if (isSelected) {
-          backgroundColor = Colors.blue.withOpacity(0.1);
+          backgroundColor = Colors.blue.withValues(alpha: 0.1);
           borderColor = Colors.blue;
         }
         
@@ -359,17 +337,17 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
-        Color backgroundColor = Colors.white;
-        Color borderColor = Colors.grey.withOpacity(0.3);
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
+        Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
         
         if (showCorrect) {
-          backgroundColor = Colors.green.withOpacity(0.1);
+          backgroundColor = Colors.green.withValues(alpha: 0.1);
           borderColor = Colors.green;
         } else if (showIncorrect) {
-          backgroundColor = Colors.red.withOpacity(0.1);
+          backgroundColor = Colors.red.withValues(alpha: 0.1);
           borderColor = Colors.red;
         } else if (isSelected) {
-          backgroundColor = Colors.blue.withOpacity(0.1);
+          backgroundColor = Colors.blue.withValues(alpha: 0.1);
           borderColor = Colors.blue;
         }
         
@@ -465,9 +443,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           constraints: const BoxConstraints(minHeight: 80),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withOpacity(0.3)),
+            border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
           ),
           child: Wrap(
             spacing: 8,
@@ -484,9 +462,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -495,7 +473,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
                   'Available Words:',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.blue[700],
+                    color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -657,28 +635,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             textAlign: TextAlign.left,
             enableInteractiveSelection: true,
             showCursor: false,
-            contextMenuBuilder: (context, editableTextState) {
-              final selectedText = editableTextState.textEditingValue.selection.textInside(exercise.explanation);
-              if (selectedText.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              
-              return TextContextMenu(
-                selectedText: selectedText,
-                onCopy: () {
-                  // Copy functionality is handled in TextContextMenu
-                },
-                onTranslate: () {
-                  // Translation is handled in TextContextMenu
-                },
-                onAddToDeck: () {
-                  _addWordToDeck(selectedText);
-                },
-                onSearch: () {
-                  _searchWord(selectedText);
-                },
-              );
-            },
           ),
           if (!_isCorrect && exercise.type == ExerciseType.sentenceBuilding) ...[
             const SizedBox(height: 8),
@@ -704,28 +660,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
                       textAlign: TextAlign.left,
                       enableInteractiveSelection: true,
                       showCursor: false,
-                      contextMenuBuilder: (context, editableTextState) {
-                        final selectedText = editableTextState.textEditingValue.selection.textInside('Correct answer: ${exercise.correctAnswer}');
-                        if (selectedText.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        
-                        return TextContextMenu(
-                          selectedText: selectedText,
-                          onCopy: () {
-                            // Copy functionality is handled in TextContextMenu
-                          },
-                          onTranslate: () {
-                            // Translation is handled in TextContextMenu
-                          },
-                          onAddToDeck: () {
-                            _addWordToDeck(selectedText);
-                          },
-                          onSearch: () {
-                            _searchWord(selectedText);
-                          },
-                        );
-                      },
                     ),
                   ),
                 ],
@@ -744,28 +678,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
               textAlign: TextAlign.left,
               enableInteractiveSelection: true,
               showCursor: false,
-              contextMenuBuilder: (context, editableTextState) {
-                final selectedText = editableTextState.textEditingValue.selection.textInside('Hint: ${exercise.hint}');
-                if (selectedText.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                
-                return TextContextMenu(
-                  selectedText: selectedText,
-                  onCopy: () {
-                    // Copy functionality is handled in TextContextMenu
-                  },
-                  onTranslate: () {
-                    // Translation is handled in TextContextMenu
-                  },
-                  onAddToDeck: () {
-                    _addWordToDeck(selectedText);
-                  },
-                  onSearch: () {
-                    _searchWord(selectedText);
-                  },
-                );
-              },
             ),
           ],
         ],
@@ -1190,77 +1102,12 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     switch (type) {
       case ExerciseType.fillInBlank:
         return 'Fill in the Blank';
-      case ExerciseType.missingWord:
-        return 'Missing Word';
-      case ExerciseType.matchMeaning:
-        return 'Match Meaning';
-      case ExerciseType.useInSentence:
-        return 'Use in Sentence';
       case ExerciseType.sentenceBuilding:
         return 'Sentence Building';
       case ExerciseType.multipleChoice:
         return 'Multiple Choice';
-      case ExerciseType.trueFalse:
-        return 'True/False';
-      case ExerciseType.wordOrder:
-        return 'Word Order';
-      case ExerciseType.translation:
-        return 'Translation';
-      case ExerciseType.contextClue:
-        return 'Context Clue';
     }
   }
 
-  // Helper methods for context menu actions
-  void _addWordToDeck(String word) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Word to Deck'),
-        content: Text('Would you like to add "$word" to a deck?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement add to deck functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Add to deck functionality coming soon!')),
-              );
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _searchWord(String word) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Search Word'),
-        content: Text('Would you like to search for "$word" in your flashcards?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement search functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Search functionality coming soon!')),
-              );
-            },
-            child: const Text('Search'),
-          ),
-        ],
-      ),
-    );
-  }
 } 

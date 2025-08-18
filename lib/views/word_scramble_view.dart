@@ -58,6 +58,55 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   void initState() {
     super.initState();
     _generateQuestion();
+    
+    // Listen for card updates from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<FlashcardProvider>();
+      provider.addListener(_onProviderChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in widget.cards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    // Update the current question if it's using an updated card
+    if (_currentIndex < updatedCards.length) {
+      final currentCard = updatedCards[_currentIndex];
+      if (currentCard.id == widget.cards[_currentIndex].id) {
+        // Regenerate question with updated card data
+        _generateQuestion();
+      }
+    }
+    
+    print('🔍 WordScrambleView: Refreshed cards from provider');
   }
 
   void _generateQuestion() {
@@ -462,7 +511,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                 children: [
                   // Question text above card
                   Text(
-                    'Arrange the letters to translate the word',
+                    'Arrange the pieces to translate:',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -809,7 +858,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   const SizedBox(height: 16),
                   _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                     AnimatedXpCounter(xpGained: _gameSession.xpGained)),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 48),
                   
                   // Action buttons
                   Row(

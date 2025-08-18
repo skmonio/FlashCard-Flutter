@@ -186,17 +186,30 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   Widget _buildSortChip(String value, String label) {
     final isSelected = _sortBy == value;
     
+    Widget chip = FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _sortBy = value;
+        });
+      },
+    );
+    
+    // Add tooltip for SRS Level
+    if (value == 'srsLevel') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Tooltip(
+          message: 'Sort by learning progress level (0 = new, 10 = mastered)',
+          child: chip,
+        ),
+      );
+    }
+    
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() {
-            _sortBy = value;
-          });
-        },
-      ),
+      child: chip,
     );
   }
 
@@ -413,6 +426,33 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     }
   }
 
+  String _getSRSDescription(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return 'New card - never studied';
+      case 1:
+        return 'Learning phase - review every day';
+      case 2:
+        return 'Early learning - review every 6 days';
+      case 3:
+        return 'Mid-learning - review every 15 days';
+      case 4:
+        return 'Review phase - longer intervals';
+      case 5:
+        return 'Well learned - review every 2-4 weeks';
+      case 6:
+        return 'Familiar - review every 1-2 months';
+      case 7:
+        return 'Very familiar - review every 2-4 months';
+      case 8:
+        return 'Mastered - review every 4-8 months';
+      case 9:
+        return 'Expert - review every 6-12 months';
+      default:
+        return 'Mastered - review every 8+ months';
+    }
+  }
+
   List<FlashCard> _getFilteredAndSortedCards(FlashcardProvider provider) {
     // Get cards from the deck including all sub-decks
     var cards = provider.getCardsForDeckWithSubDecks(widget.deck.id);
@@ -563,7 +603,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           exercises: [
             WordExercise(
               id: '${card.id}_exercise_1',
-              type: ExerciseType.translation,
+              type: ExerciseType.multipleChoice,
               prompt: 'Translate "${card.word}" to English',
               correctAnswer: card.definition,
               options: [card.definition, 'Incorrect option 1', 'Incorrect option 2', 'Incorrect option 3'],
@@ -787,21 +827,24 @@ class _DeckDetailViewState extends State<DeckDetailView> {
             Row(
               children: [
                 Text('SRS Level: '),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getSRSColor(card.srsLevel),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    card.srsLevel.toString(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                Tooltip(
+                  message: _getSRSDescription(card.srsLevel),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getSRSColor(card.srsLevel),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      card.srsLevel.toString(),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-                         Text('Learning Progress: ${((card.learningPercentage ?? 0) * 100).toInt()}%'),
+            Text('Learning Progress: ${((card.learningPercentage ?? 0) * 100).toInt()}%'),
           ],
         ),
         actions: [

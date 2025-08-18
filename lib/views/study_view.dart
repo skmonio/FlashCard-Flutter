@@ -42,18 +42,61 @@ class _StudyViewState extends State<StudyView> {
   String _userAnswer = '';
   bool _isCorrect = false;
   bool _showResult = false;
+  List<FlashCard> _currentCards = [];
 
   @override
   void initState() {
     super.initState();
     _isFlipped = widget.startFlipped;
+    _currentCards = List.from(widget.cards);
     _generateMultipleChoiceOptions();
     _generateScrambledWord();
+    
+    // Add listener to refresh cards when provider updates
+    final provider = context.read<FlashcardProvider>();
+    provider.addListener(_onProviderChanged);
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in widget.cards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    setState(() {
+      _currentCards = updatedCards;
+    });
+    
+    print('🔍 StudyView: Refreshed cards from provider');
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.cards.isEmpty) {
+    if (_currentCards.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.title)),
         body: const Center(
@@ -88,18 +131,18 @@ class _StudyViewState extends State<StudyView> {
   }
 
   Widget _buildProgressBar() {
-    final progress = _totalAnswers / widget.cards.length;
+    final progress = _totalAnswers / _currentCards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Card ${_currentCardIndex + 1} of ${widget.cards.length}'),
-              Text('${(progress * 100).toInt()}%'),
-            ],
-          ),
+                      Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Card ${_currentCardIndex + 1} of ${_currentCards.length}'),
+                Text('${(progress * 100).toInt()}%'),
+              ],
+            ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: progress,
@@ -114,7 +157,7 @@ class _StudyViewState extends State<StudyView> {
   }
 
   Widget _buildStudyContent() {
-    final currentCard = widget.cards[_currentCardIndex];
+    final currentCard = _currentCards[_currentCardIndex];
     
     switch (widget.studyMode) {
       case StudyMode.multipleChoice:
@@ -645,7 +688,7 @@ class _StudyViewState extends State<StudyView> {
   }
 
   void _checkWritingAnswer() {
-    final currentCard = widget.cards[_currentCardIndex];
+    final currentCard = _currentCards[_currentCardIndex];
     final correctAnswer = _isFlipped ? currentCard.word : currentCard.definition;
     final isCorrect = _userAnswer.toLowerCase() == correctAnswer.toLowerCase();
     
@@ -682,7 +725,7 @@ class _StudyViewState extends State<StudyView> {
     });
 
     // Update the card's SRS data
-    final currentCard = widget.cards[_currentCardIndex];
+    final currentCard = _currentCards[_currentCardIndex];
     if (isCorrect) {
       currentCard.markCorrect();
     } else {
@@ -695,7 +738,7 @@ class _StudyViewState extends State<StudyView> {
     // Move to next card or finish
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
-        if (_currentCardIndex < widget.cards.length - 1) {
+        if (_currentCardIndex < _currentCards.length - 1) {
           setState(() {
             _currentCardIndex++;
             _showAnswer = false;
@@ -710,6 +753,8 @@ class _StudyViewState extends State<StudyView> {
   }
 
   void _showResults() {
+    final accuracy = _currentCards.isNotEmpty ? (_correctAnswers / _currentCards.length * 100).toInt() : 0;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -718,9 +763,38 @@ class _StudyViewState extends State<StudyView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('You got $_correctAnswers out of ${widget.cards.length} correct.'),
+            // Score circle
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
+                       accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
+                       Colors.red.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  '$accuracy%',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: accuracy >= 80 ? Colors.green : 
+                           accuracy >= 60 ? Colors.orange : 
+                           Colors.red,
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // Stats
+            _buildStatCard('Cards Studied', _currentCards.length.toString(), Icons.school),
             const SizedBox(height: 8),
-            Text('Accuracy: ${((_correctAnswers / widget.cards.length) * 100).toInt()}%'),
+            _buildStatCard('Known', _correctAnswers.toString(), Icons.check_circle, Colors.green),
+            const SizedBox(height: 8),
+            _buildStatCard('Unknown', (_currentCards.length - _correctAnswers).toString(), Icons.cancel, Colors.red),
           ],
         ),
         actions: [
@@ -730,6 +804,44 @@ class _StudyViewState extends State<StudyView> {
               Navigator.of(context).pop();
             },
             child: const Text('Finish'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, [Color? color]) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: color ?? Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color ?? Theme.of(context).colorScheme.primary,
+            ),
           ),
         ],
       ),

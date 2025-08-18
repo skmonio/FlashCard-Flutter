@@ -67,7 +67,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.editingExercise != null ? 'Edit Word Exercise' : 'Create Word Exercise'),
+        title: Text(widget.editingExercise != null ? 'Edit Exercise' : 'Exercise'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
@@ -94,8 +94,8 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
               
               const SizedBox(height: 24),
               
-              // Add exercise button
-              _buildAddExerciseButton(),
+              // Add exercise button (only show when there are existing exercises)
+              if (_exercises.isNotEmpty) _buildAddExerciseButton(),
               
               const SizedBox(height: 24),
               
@@ -363,9 +363,54 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         const SizedBox(height: 16),
         
         // Exercise list
-        ...List.generate(_exercises.length, (index) {
-          return _buildExerciseCard(index);
-        }),
+        if (_exercises.isEmpty) ...[
+          // Show message when no exercises
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.grey.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.quiz,
+                  size: 48,
+                  color: Colors.grey.withValues(alpha: 0.6),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No exercises yet',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add your first exercise to get started',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                _buildAddExerciseButton(),
+              ],
+            ),
+          ),
+        ] else ...[
+          // Show existing exercises
+          ...List.generate(_exercises.length, (index) {
+            return _buildExerciseCard(index);
+          }),
+        ],
       ],
     );
   }
@@ -449,39 +494,35 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
             
             const SizedBox(height: 16),
             
-            // Correct answer
-            TextFormField(
-              controller: _correctAnswerControllers[index],
-              decoration: const InputDecoration(
-                labelText: 'Correct Answer',
-                hintText: 'Enter the correct answer',
-                border: OutlineInputBorder(),
+            // Correct answer (not needed for multiple choice)
+            if (_exerciseTypes[index] != ExerciseType.multipleChoice)
+              TextFormField(
+                controller: _correctAnswerControllers[index],
+                decoration: const InputDecoration(
+                  labelText: 'Correct Answer',
+                  hintText: 'Enter the correct answer',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter the correct answer';
+                  }
+                  return null;
+                },
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter the correct answer';
-                }
-                return null;
-              },
-            ),
             
-            const SizedBox(height: 16),
+            if (_exerciseTypes[index] != ExerciseType.multipleChoice)
+              const SizedBox(height: 16),
             
-            // Explanation
+            // Explanation (optional)
             TextFormField(
               controller: _explanationControllers[index],
               decoration: const InputDecoration(
-                labelText: 'Explanation',
-                hintText: 'Explain why this is correct',
+                labelText: 'Explanation (Optional)',
+                hintText: 'Explain why this is correct (optional)',
                 border: OutlineInputBorder(),
               ),
               maxLines: 3,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter an explanation';
-                }
-                return null;
-              },
             ),
           ],
         ),
@@ -498,12 +539,26 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Options',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Options',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (_exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice)
+                  Text(
+                    'First option is the correct answer',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+              ],
             ),
             TextButton.icon(
               onPressed: () => _addOption(exerciseIndex),
@@ -522,7 +577,9 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                   child: TextFormField(
                     controller: options[optionIndex],
                     decoration: InputDecoration(
-                      labelText: 'Option ${optionIndex + 1}',
+                      labelText: _exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice && optionIndex == 0
+                          ? 'Correct Answer (Option 1)'
+                          : 'Option ${optionIndex + 1}',
                       border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
@@ -665,23 +722,34 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   }
 
   void _removeExercise(int index) {
-    if (_exercises.length > 1) {
-      setState(() {
-        _exercises.removeAt(index);
-        _promptControllers[index].dispose();
-        _promptControllers.removeAt(index);
-        _correctAnswerControllers[index].dispose();
-        _correctAnswerControllers.removeAt(index);
-        _explanationControllers[index].dispose();
-        _explanationControllers.removeAt(index);
-        _exerciseTypes.removeAt(index);
-        
-        // Dispose option controllers
-        for (final controller in _optionControllers[index]) {
-          controller.dispose();
-        }
-        _optionControllers.removeAt(index);
-      });
+    setState(() {
+      _exercises.removeAt(index);
+      _promptControllers[index].dispose();
+      _promptControllers.removeAt(index);
+      _correctAnswerControllers[index].dispose();
+      _correctAnswerControllers.removeAt(index);
+      _explanationControllers[index].dispose();
+      _explanationControllers.removeAt(index);
+      _exerciseTypes.removeAt(index);
+      
+      // Dispose option controllers
+      for (final controller in _optionControllers[index]) {
+        controller.dispose();
+      }
+      _optionControllers.removeAt(index);
+    });
+    
+    // If this was the last exercise and we're editing an existing exercise, 
+    // navigate back to create exercise view
+    if (_exercises.isEmpty && widget.editingExercise != null) {
+      Navigator.of(context).pop();
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => CreateWordExerciseView(
+            editingExercise: widget.editingExercise,
+          ),
+        ),
+      );
     }
   }
 
@@ -731,14 +799,20 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     
     for (int i = 0; i < _exercises.length; i++) {
       List<String> options;
+      String correctAnswer;
       
       if (_exerciseTypes[i] == ExerciseType.sentenceBuilding) {
         // For sentence building, split the correct answer into individual words
-        final correctAnswer = _correctAnswerControllers[i].text;
+        correctAnswer = _correctAnswerControllers[i].text;
         options = correctAnswer.split(' ').where((word) => word.isNotEmpty).toList();
-      } else {
-        // For other exercise types, use the options from the form
+      } else if (_exerciseTypes[i] == ExerciseType.multipleChoice) {
+        // For multiple choice, first option is the correct answer
         options = _optionControllers[i].map((c) => c.text).toList();
+        correctAnswer = options.isNotEmpty ? options[0] : '';
+      } else {
+        // For other exercise types, use the options from the form and separate correct answer
+        options = _optionControllers[i].map((c) => c.text).toList();
+        correctAnswer = _correctAnswerControllers[i].text;
       }
       
       exercises.add(WordExercise(
@@ -746,7 +820,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         type: _exerciseTypes[i],
         prompt: _promptControllers[i].text,
         options: options,
-        correctAnswer: _correctAnswerControllers[i].text,
+        correctAnswer: correctAnswer,
         explanation: _explanationControllers[i].text,
         difficulty: ExerciseDifficulty.beginner,
       ));
@@ -964,24 +1038,10 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     switch (type) {
       case ExerciseType.fillInBlank:
         return 'Fill in the Blank';
-      case ExerciseType.missingWord:
-        return 'Missing Word';
-      case ExerciseType.matchMeaning:
-        return 'Match Meaning';
-      case ExerciseType.useInSentence:
-        return 'Use in Sentence';
       case ExerciseType.sentenceBuilding:
         return 'Sentence Building';
       case ExerciseType.multipleChoice:
         return 'Multiple Choice';
-      case ExerciseType.trueFalse:
-        return 'True/False';
-      case ExerciseType.wordOrder:
-        return 'Word Order';
-      case ExerciseType.translation:
-        return 'Translation';
-      case ExerciseType.contextClue:
-        return 'Context Clue';
     }
   }
 } 

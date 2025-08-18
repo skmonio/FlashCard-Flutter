@@ -46,7 +46,7 @@ class _AddDeckViewState extends State<AddDeckView> {
       body: Column(
         children: [
           UnifiedHeader(
-            title: 'Create New Deck',
+            title: 'Create Deck',
             onBack: () => Navigator.of(context).pop(),
           ),
           Expanded(

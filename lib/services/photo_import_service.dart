@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class PhotoImportService {
   static final PhotoImportService _instance = PhotoImportService._internal();
@@ -10,7 +10,7 @@ class PhotoImportService {
   PhotoImportService._internal();
 
   final ImagePicker _picker = ImagePicker();
-  final TextRecognizer _textRecognizer = GoogleMlKit.vision.textRecognizer();
+  final TextRecognizer _textRecognizer = TextRecognizer();
 
   /// Check if camera is available (not on simulator)
   bool get isCameraAvailable {
@@ -117,45 +117,30 @@ class PhotoImportService {
     }
   }
 
-  /// Extract text with position information for better word selection
-  Future<List<ExtractedWord>> extractWordsWithPosition(File imageFile) async {
+  /// Extract words with position information from an image
+  Future<List<ExtractedWord>> extractWordsWithPosition(String imagePath) async {
     try {
-      print('PhotoImportService: Starting OCR with position processing...');
+      print('PhotoImportService: Extracting words with position from: $imagePath');
       
-      // Validate file exists
-      if (!await imageFile.exists()) {
-        print('PhotoImportService: Image file does not exist');
-        return [];
-      }
+      // Load the image
+      final inputImage = InputImage.fromFilePath(imagePath);
       
-      final inputImage = InputImage.fromFile(imageFile);
-      print('PhotoImportService: InputImage created, processing...');
+      // Recognize text
+      final recognizedText = await _textRecognizer.processImage(inputImage);
       
-      final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
-      print('PhotoImportService: OCR completed, processing ${recognizedText.blocks.length} blocks');
+      final extractedWords = <ExtractedWord>[];
       
-      List<ExtractedWord> extractedWords = [];
-      
-      for (TextBlock block in recognizedText.blocks) {
-        for (TextLine line in block.lines) {
-          for (TextElement element in line.elements) {
-            String text = element.text.trim();
-            if (text.isNotEmpty) {
-              // Split by whitespace and filter out punctuation
-              List<String> words = text.split(' ');
-              for (String word in words) {
-                String cleanWord = _cleanWord(word);
-                if (cleanWord.isNotEmpty && 
-                    cleanWord.length > 2 && 
-                    cleanWord.length < 50 && // Add maximum length to prevent memory issues
-                    RegExp(r'^[a-zA-ZÀ-ÿ]+$').hasMatch(cleanWord)) {
-                  extractedWords.add(ExtractedWord(
-                    word: cleanWord,
-                    boundingBox: element.boundingBox,
-                    confidence: element.confidence ?? 0.0,
-                  ));
-                }
-              }
+      for (final textBlock in recognizedText.blocks) {
+        for (final textLine in textBlock.lines) {
+          for (final textElement in textLine.elements) {
+            final word = _cleanWord(textElement.text);
+            
+            if (word.isNotEmpty && word.length >= 2) { // Only words with 2+ characters
+              extractedWords.add(ExtractedWord(
+                word: word,
+                boundingBox: textElement.boundingBox,
+                confidence: textElement.confidence ?? 0.0,
+              ));
             }
           }
         }
@@ -168,15 +153,19 @@ class PhotoImportService {
           uniqueWords[extractedWord.word] = extractedWord;
         }
         
-        // Limit to 100 words to prevent memory issues
-        if (uniqueWords.length >= 100) {
-          print('PhotoImportService: Limiting words to 100 to prevent memory issues');
+        // Limit to 50 words to prevent memory issues (reduced from 100)
+        if (uniqueWords.length >= 50) {
+          print('PhotoImportService: Limiting words to 50 to prevent memory issues');
           break;
         }
       }
       
       final result = uniqueWords.values.toList();
       print('PhotoImportService: Extracted ${result.length} unique words with position');
+      
+      // Force garbage collection hint
+      _cleanupMemory();
+      
       return result;
     } catch (e) {
       print('PhotoImportService: Error extracting words with position: $e');

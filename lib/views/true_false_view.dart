@@ -51,15 +51,72 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   Map<int, String> _questionTexts = {}; // question index -> question text
   Map<int, bool> _questionModes = {}; // question index -> is question mode
   Map<int, String> _translations = {}; // question index -> translation being tested
+  
+  // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _currentCards;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize our copy of cards
+    _currentCards = List<FlashCard>.from(widget.cards);
+    
     _generateQuestion();
+    
+    // Listen for card updates from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<FlashcardProvider>();
+      provider.addListener(_onProviderChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in _currentCards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    // Update our current cards list
+    setState(() {
+      _currentCards = updatedCards;
+      
+      // If we're currently viewing a card that was updated, regenerate the question
+      if (_currentIndex < _currentCards.length && !_showingResults) {
+        _generateQuestion();
+      }
+    });
+    
+    print('🔍 TrueFalseView: Refreshed cards from provider');
   }
 
   void _generateQuestion() {
-    if (_currentIndex >= widget.cards.length) {
+    if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
       final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
@@ -93,7 +150,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       return;
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
     // Reset question state for new question
@@ -247,7 +304,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   }
 
   void _editCurrentCard() {
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -289,7 +346,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     if (_answered) return;
     
     final isCorrect = (answer == _correctAnswer);
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     // Provide haptic feedback based on answer correctness
     if (isCorrect) {
@@ -445,7 +502,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       return _buildResultsView();
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -505,13 +562,15 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   
                   const SizedBox(height: 16), // Reduced spacing
                   
-                  // Card with white background and colored outline
+                  // Card with theme-adaptive background and colored outline
                   Container(
                     width: double.infinity,
                     height: 200, // Reduced height
                     padding: const EdgeInsets.all(24), // Reduced padding
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Theme.of(context).colorScheme.surface 
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(20), // Slightly smaller radius
                       border: Border.all(
                         color: _getCardBorderColor(currentCard),
@@ -533,10 +592,12 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                     child: Center(
                       child: Text(
                         _isQuestionMode ? currentCard.word : currentCard.definition,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 32, // Smaller font size
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Theme.of(context).colorScheme.onSurface 
+                              : Colors.black87,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -632,29 +693,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                        // Show correct answer if user answered incorrectly
-                        if (_answered && _selectedAnswer != _correctAnswer) ...[
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'Correct answer: ${widget.cards[_currentIndex].definition}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.green,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -849,7 +887,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                     AnimatedXpCounter(xpGained: _gameSession.xpGained)),
                   
-
+                  const SizedBox(height: 48),
                   
                   // Action buttons
                   Row(

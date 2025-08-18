@@ -714,11 +714,6 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
         return ExerciseType.fillInBlank;
       case 'sentence building':
         return ExerciseType.sentenceBuilding;
-      case 'translation':
-        return ExerciseType.translation;
-      case 'true/false':
-      case 'true false':
-        return ExerciseType.trueFalse;
       default:
         return ExerciseType.multipleChoice;
     }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 
 // Word Node Model
 class WordNode {
@@ -7,6 +6,7 @@ class WordNode {
   final String word;
   final String definition;
   final Color color;
+  final Color textColor;
   final Offset position;
   final double size;
   bool isSelected;
@@ -18,6 +18,7 @@ class WordNode {
     required this.word,
     required this.definition,
     required this.color,
+    this.textColor = Colors.white,
     required this.position,
     this.size = 80,
     this.isSelected = false,
@@ -30,6 +31,7 @@ class WordNode {
     String? word,
     String? definition,
     Color? color,
+    Color? textColor,
     Offset? position,
     double? size,
     bool? isSelected,
@@ -41,6 +43,7 @@ class WordNode {
       word: word ?? this.word,
       definition: definition ?? this.definition,
       color: color ?? this.color,
+      textColor: textColor ?? this.textColor,
       position: position ?? this.position,
       size: size ?? this.size,
       isSelected: isSelected ?? this.isSelected,
@@ -55,6 +58,7 @@ class WordNode {
       'word': word,
       'definition': definition,
       'color': color.value,
+      'textColor': textColor.value,
       'position': {'dx': position.dx, 'dy': position.dy},
       'size': size,
       'isFlipped': isFlipped,
@@ -67,6 +71,7 @@ class WordNode {
       word: json['word'],
       definition: json['definition'],
       color: Color(json['color']),
+      textColor: json['textColor'] != null ? Color(json['textColor']) : Colors.white,
       position: Offset(json['position']['dx'], json['position']['dy']),
       size: json['size'] ?? 80,
       isFlipped: json['isFlipped'] ?? false,

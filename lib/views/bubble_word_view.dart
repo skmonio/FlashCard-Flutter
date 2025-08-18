@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
 import '../providers/bubble_word_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/bubble_word_models.dart';
@@ -44,7 +46,7 @@ class _BubbleWordViewState extends State<BubbleWordView> {
             children: [
               // Header
               UnifiedHeader(
-                title: provider.currentMap?.name ?? 'Bubble Word',
+                title: 'Bubble Words',
                 onBack: () => _showSavePrompt(context),
                 trailing: _buildTrailingMenu(context, provider),
               ),
@@ -52,13 +54,52 @@ class _BubbleWordViewState extends State<BubbleWordView> {
               // Action buttons
               _buildActionButtons(provider),
               
-
-              
               // Canvas
               Expanded(
                 child: Stack(
                   children: [
                     _buildCanvas(provider),
+                    
+                    // Show create map button if no maps exist
+                    if (provider.maps.isEmpty)
+                      Positioned.fill(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.bubble_chart,
+                                size: 64,
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No Maps Yet',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Create your first bubble word map to get started',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: () => _showCreateMapDialog(context, provider),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Create New Map'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     
                     // Zoom controls - positioned in bottom right
                     Positioned(
@@ -106,14 +147,30 @@ class _BubbleWordViewState extends State<BubbleWordView> {
                       ),
                     ),
                     
-                    // Floating action button for adding words - positioned in top right
+                    // Floating action buttons - positioned in bottom right
                     Positioned(
-                      top: 20,
-                      right: 20,
-                      child: FloatingActionButton(
-                        onPressed: () => _showAddWordOptions(context),
-                        backgroundColor: Colors.green,
-                        child: const Icon(Icons.add, color: Colors.white),
+                      bottom: 32,
+                      left: 20,
+                      child: Column(
+                        children: [
+                          // Add word button
+                          if (provider.maps.isNotEmpty)
+                            FloatingActionButton(
+                              onPressed: () => _showAddWordOptions(context),
+                              backgroundColor: Colors.green,
+                              child: const Icon(Icons.add, color: Colors.white),
+                            ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // Add map button (small)
+                          if (provider.maps.isNotEmpty)
+                            FloatingActionButton.small(
+                              onPressed: () => _showCreateMapDialog(context, provider),
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: const Icon(Icons.map, color: Colors.white),
+                            ),
+                        ],
                       ),
                     ),
                   ],
@@ -203,12 +260,22 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           ),
         ),
         const PopupMenuItem(
-          value: 'flip_all',
+          value: 'show_words',
           child: Row(
             children: [
-              Icon(Icons.flip),
+              Icon(Icons.text_fields),
               SizedBox(width: 8),
-              Text('Flip All'),
+              Text('Show Words'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'show_definitions',
+          child: Row(
+            children: [
+              Icon(Icons.description),
+              SizedBox(width: 8),
+              Text('Show Definitions'),
             ],
           ),
         ),
@@ -260,77 +327,73 @@ class _BubbleWordViewState extends State<BubbleWordView> {
       print('BubbleWordView: Node "${node.word}" at position: ${node.position}');
     }
     
-    return GestureDetector(
-      onScaleUpdate: (details) {
-        // Handle both scale and pan in the scale gesture
-        if (details.scale != 1.0) {
-          final newScale = provider.scale * details.scale;
-          provider.setScale(newScale);
-        }
-        if (details.focalPointDelta != Offset.zero) {
-          final newOffset = provider.offset + details.focalPointDelta;
-          provider.setOffset(newOffset);
-        }
+    return InteractiveViewer(
+      minScale: 0.1,
+      maxScale: 5.0,
+      boundaryMargin: const EdgeInsets.all(double.infinity),
+      constrained: false,
+      onInteractionUpdate: (details) {
+        // Update provider scale and offset from InteractiveViewer
+        provider.setScale(details.scale);
+        provider.setOffset(details.focalPoint - Offset(
+          MediaQuery.of(context).size.width / 2,
+          MediaQuery.of(context).size.height / 2,
+        ));
       },
-      onTapUp: (details) {
-        // Deselect if tapping on empty space
-        if (provider.selectedNodeId != null) {
-          provider.selectNode(null);
-        }
-      },
-      child: Container(
-        color: Theme.of(context).colorScheme.surface,
-        child: Transform.scale(
-          scale: provider.scale,
-          child: Transform.translate(
-            offset: provider.offset,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Create a truly infinite canvas by using Size.infinite
-                return SizedBox.expand(
-                  child: Stack(
-                    children: [
-                      // Connections
-                      ...provider.connections.map((connection) => _buildConnection(connection, provider)),
-                      
-                      // Word bubbles
-                      ...provider.nodes.map((node) => _buildWordBubble(node, provider)),
-                      
-                      // Empty state message
-                      if (provider.nodes.isEmpty)
-                        Positioned.fill(
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.bubble_chart,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No words yet',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Tap the + button to add your first word',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
-                                  ),
-                                ),
-                              ],
+      child: GestureDetector(
+        onTapUp: (details) {
+          // Deselect if tapping on empty space
+          if (provider.selectedNodeId != null) {
+            provider.selectNode(null);
+          }
+        },
+        child: Container(
+          color: Theme.of(context).colorScheme.surface,
+          width: 2000, // Large canvas size
+          height: 2000,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  // Connections
+                  ...provider.connections.map((connection) => _buildConnection(connection, provider)),
+                  
+                  // Word bubbles
+                  ...provider.nodes.map((node) => _buildWordBubble(node, provider)),
+                  
+                  // Empty state message
+                  if (provider.nodes.isEmpty)
+                    Positioned.fill(
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.bubble_chart,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No words yet',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap the + button to add your first word',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                              ),
+                            ),
+                          ],
                         ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -407,9 +470,9 @@ class _BubbleWordViewState extends State<BubbleWordView> {
   // Calculate dynamic bubble size based on text length
   double _calculateBubbleSize(String text) {
     const double minSize = 60.0;
-    const double maxSize = 150.0;
-    const double baseSize = 80.0;
-    const double sizePerCharacter = 4.0;
+    const double maxSize = 120.0; // Reduced from 150 to 120
+    const double baseSize = 70.0; // Reduced from 80 to 70
+    const double sizePerCharacter = 2.5; // Reduced from 4.0 to 2.5
     
     // Calculate size based on text length
     final calculatedSize = baseSize + (text.length * sizePerCharacter);
@@ -443,14 +506,15 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           onDoubleTap: () => _showEditWordDialog(context, node),
           onPanUpdate: (details) {
             final newPosition = node.position + details.delta;
-            provider.updateNode(node.id, position: newPosition);
+            // Update node position across all maps (current + overlays)
+            provider.updateNodePosition(node.id, newPosition);
           },
           onLongPress: () => _showDeleteWordDialog(context, node, provider),
         child: Container(
           width: dynamicSize,
           height: dynamicSize,
           decoration: BoxDecoration(
-            color: isOverlayNode ? node.color.withOpacity(0.8) : node.color,
+            color: node.color,
             borderRadius: BorderRadius.circular(20),
             border: isSelected
                 ? Border.all(color: Theme.of(context).colorScheme.onPrimary, width: 3)
@@ -473,7 +537,7 @@ class _BubbleWordViewState extends State<BubbleWordView> {
                   child: Text(
                     displayText,
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
+                      color: node.textColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -572,9 +636,12 @@ class _BubbleWordViewState extends State<BubbleWordView> {
       case 'reset':
         provider.resetView();
         break;
-      case 'flip_all':
-        provider.flipAllNodes();
-        break;
+              case 'show_words':
+          provider.showAllWords();
+          break;
+        case 'show_definitions':
+          provider.showAllDefinitions();
+          break;
       case 'clear':
         _showClearAllDialog(context, provider);
         break;
@@ -585,6 +652,11 @@ class _BubbleWordViewState extends State<BubbleWordView> {
   }
 
   void _showAddWordOptions(BuildContext context) {
+    final provider = context.read<BubbleWordProvider>();
+    
+    // Check if we can add more words
+    final canAddWords = (provider.currentMap?.nodes.length ?? 0) < 50;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -592,23 +664,47 @@ class _BubbleWordViewState extends State<BubbleWordView> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!canAddWords) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Maximum 50 words per map reached',
+                        style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             ListTile(
               leading: const Icon(Icons.add_circle_outline),
               title: const Text('New Word'),
               subtitle: const Text('Create a new word'),
-              onTap: () {
+              enabled: canAddWords,
+              onTap: canAddWords ? () {
                 Navigator.of(context).pop();
                 _showAddWordDialog(context);
-              },
+              } : null,
             ),
             ListTile(
               leading: const Icon(Icons.list),
               title: const Text('Existing Word'),
               subtitle: const Text('Choose from your flashcards'),
-              onTap: () {
+              enabled: canAddWords,
+              onTap: canAddWords ? () {
                 Navigator.of(context).pop();
                 _showExistingWordsDialog(context);
-              },
+              } : null,
             ),
           ],
         ),
@@ -639,7 +735,11 @@ class _BubbleWordViewState extends State<BubbleWordView> {
               decoration: const InputDecoration(
                 labelText: 'Word',
                 border: OutlineInputBorder(),
+                helperText: 'Max 20 characters',
+                counterText: '', // Hide default counter
               ),
+              maxLength: 20,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -647,7 +747,11 @@ class _BubbleWordViewState extends State<BubbleWordView> {
               decoration: const InputDecoration(
                 labelText: 'Definition',
                 border: OutlineInputBorder(),
+                helperText: 'Max 50 characters',
+                counterText: '', // Hide default counter
               ),
+              maxLength: 50,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
               maxLines: 3,
             ),
           ],
@@ -659,7 +763,7 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (_wordController.text.isNotEmpty) {
+              if (_wordController.text.isNotEmpty && _wordController.text.length <= 20) {
                 final provider = context.read<BubbleWordProvider>();
                 // Position the word at the center of the screen (simple approach)
                 final screenSize = MediaQuery.of(context).size;
@@ -735,67 +839,171 @@ class _BubbleWordViewState extends State<BubbleWordView> {
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Word'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _wordController,
-              decoration: const InputDecoration(
-                labelText: 'Word',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _definitionController,
-              decoration: const InputDecoration(
-                labelText: 'Definition',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            // Flip toggle
-            Consumer<BubbleWordProvider>(
-              builder: (context, provider, child) {
-                final currentNode = provider.currentMap?.nodes.firstWhere((n) => n.id == node.id, orElse: () => node);
-                return Row(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          Color selectedBubbleColor = node.color;
+          Color selectedTextColor = node.textColor;
+          
+          return AlertDialog(
+            title: const Text('Edit Word'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _wordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Word',
+                    border: OutlineInputBorder(),
+                    helperText: 'Max 20 characters',
+                    counterText: '', // Hide default counter
+                  ),
+                  maxLength: 20,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _definitionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Definition',
+                    border: OutlineInputBorder(),
+                    helperText: 'Max 50 characters',
+                    counterText: '', // Hide default counter
+                  ),
+                  maxLength: 50,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                
+                // Color pickers
+                Row(
                   children: [
-                    Checkbox(
-                      value: currentNode?.isFlipped ?? false,
-                      onChanged: (value) {
-                        provider.flipNode(node.id);
-                      },
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Bubble Color', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () async {
+                              final color = await showColorPickerDialog(
+                                context,
+                                selectedBubbleColor,
+                                title: const Text('Select Bubble Color'),
+                                width: 40,
+                                height: 40,
+                                spacing: 0,
+                                runSpacing: 0,
+                                borderRadius: 0,
+                                wheelDiameter: 165,
+                                enableOpacity: false,
+                                showColorCode: true,
+                                colorCodeHasColor: true,
+                                pickersEnabled: <ColorPickerType, bool>{
+                                  ColorPickerType.wheel: true,
+                                  ColorPickerType.accent: false,
+                                  ColorPickerType.primary: false,
+                                  ColorPickerType.both: false,
+                                },
+                              );
+                              if (color != null) {
+                                setState(() {
+                                  selectedBubbleColor = color;
+                                });
+                              }
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: selectedBubbleColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Text('Show definition (flipped)'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Text Color', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () async {
+                              final color = await showColorPickerDialog(
+                                context,
+                                selectedTextColor,
+                                title: const Text('Select Text Color'),
+                                width: 40,
+                                height: 40,
+                                spacing: 0,
+                                runSpacing: 0,
+                                borderRadius: 0,
+                                wheelDiameter: 165,
+                                enableOpacity: false,
+                                showColorCode: true,
+                                colorCodeHasColor: true,
+                                pickersEnabled: <ColorPickerType, bool>{
+                                  ColorPickerType.wheel: true,
+                                  ColorPickerType.accent: false,
+                                  ColorPickerType.primary: false,
+                                  ColorPickerType.both: false,
+                                },
+                              );
+                              if (color != null) {
+                                setState(() {
+                                  selectedTextColor = color;
+                                });
+                              }
+                            },
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: selectedTextColor,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: const Icon(Icons.text_fields, color: Colors.white, size: 20),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                );
-              },
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_wordController.text.isNotEmpty && _editingNode != null) {
-                final provider = context.read<BubbleWordProvider>();
-                provider.updateNode(
-                  _editingNode!.id,
-                  word: _wordController.text.trim(),
-                  definition: _definitionController.text.trim(),
-                );
-                Navigator.of(context).pop();
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (_wordController.text.isNotEmpty && 
+                      _wordController.text.length <= 20 && 
+                      _definitionController.text.length <= 50) {
+                    final provider = context.read<BubbleWordProvider>();
+                    provider.updateNode(
+                      node.id,
+                      word: _wordController.text.trim(),
+                      definition: _definitionController.text.trim(),
+                      color: selectedBubbleColor,
+                      textColor: selectedTextColor,
+                    );
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1026,6 +1234,47 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateMapDialog(BuildContext context, BubbleWordProvider provider) {
+    final nameController = TextEditingController(text: 'New Map ${provider.maps.length + 1}');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create New Map'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Map Name',
+                hintText: 'Enter a name for your new map',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final name = nameController.text.trim();
+              if (name.isNotEmpty) {
+                provider.createMap(name);
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('Create'),
           ),
         ],
       ),

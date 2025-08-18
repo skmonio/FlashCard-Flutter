@@ -46,13 +46,19 @@ class _MemoryGameViewState extends State<MemoryGameView>
   List<AnimationController> _floatingControllers = [];
   List<Animation<Offset>> _floatingAnimations = [];
   final GameSession _gameSession = GameSession();
-  List<_ReplacementRequest> _replacementQueue = []; // Queue for replacement requests
-  bool _isProcessingReplacements = false; // Track if we're currently processing replacements
+  // Old replacement queue system removed
+  // Old processing replacements flag removed
 
   @override
   void initState() {
     super.initState();
     _initializeGame();
+    
+    // Listen for card updates from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<FlashcardProvider>();
+      provider.addListener(_onProviderChanged);
+    });
   }
 
   @override
@@ -60,7 +66,51 @@ class _MemoryGameViewState extends State<MemoryGameView>
     for (var controller in _floatingControllers) {
       controller.dispose();
     }
+    
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
     super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Only update the content of memory cards if they've been edited, don't replace the entire structure
+    for (int i = 0; i < _memoryCards.length; i++) {
+      final memoryCard = _memoryCards[i];
+      final updatedCard = provider.getCard(memoryCard.originalCard.id);
+      
+      if (updatedCard != null) {
+        // Update the content but preserve all game state
+        _memoryCards[i] = MemoryCard(
+          id: memoryCard.id,
+          content: memoryCard.type == MemoryCardType.word ? updatedCard.word : updatedCard.definition,
+          type: memoryCard.type,
+          originalCard: updatedCard,
+          state: memoryCard.state,
+        );
+      }
+    }
+    
+    // Update remaining cards carefully - only update cards that are actually in the remaining list
+    for (int i = 0; i < _remainingCards.length; i++) {
+      final remainingCard = _remainingCards[i];
+      final updatedCard = provider.getCard(remainingCard.id);
+      if (updatedCard != null) {
+        _remainingCards[i] = updatedCard;
+      }
+    }
+    
+    print('🔍 MemoryGameView: Refreshed cards from provider without disrupting game state');
   }
 
   void _initializeGame() {
@@ -69,8 +119,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _totalCardsProcessed = 0;
     _matches = 0;
     _moves = 0;
-    _replacementQueue.clear();
-    _isProcessingReplacements = false;
+    // Old replacement queue cleared
+    // Old processing flag cleared
     
     // If we have 5 or fewer cards, use all of them and the game ends when all are matched
     if (widget.cards.length <= 5) {
@@ -108,11 +158,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
         content: card.word,
         type: MemoryCardType.word,
         originalCard: card,
-        isMatched: false,
-        isSelected: false,
-        isWrong: false,
-        isFadingOut: false,
-        isFadingIn: false,
+        state: CardState.normal,
       ));
       
       // Add definition card
@@ -121,11 +167,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
         content: card.definition,
         type: MemoryCardType.definition,
         originalCard: card,
-        isMatched: false,
-        isSelected: false,
-        isWrong: false,
-        isFadingOut: false,
-        isFadingIn: false,
+        state: CardState.normal,
       ));
     }
     
@@ -143,19 +185,19 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Create unique animation controller for each card
       final controller = AnimationController(
         duration: Duration(
-          milliseconds: 3000 + random.nextInt(2000), // 3-5 seconds
+          milliseconds: 4000 + random.nextInt(2000), // Increased from 3000 to 4000 for battery optimization
         ),
         vsync: this,
       );
       
-      // Create random floating movement within bounds (increased range for visibility)
+      // Create random floating movement within bounds (reduced range for battery optimization)
       final beginOffset = Offset(
-        (random.nextDouble() - 0.5) * 60, // -30 to 30 pixels
-        (random.nextDouble() - 0.5) * 40, // -20 to 20 pixels
+        (random.nextDouble() - 0.5) * 40, // Reduced from 60 to 40 pixels
+        (random.nextDouble() - 0.5) * 30, // Reduced from 40 to 30 pixels
       );
       final endOffset = Offset(
-        (random.nextDouble() - 0.5) * 60,
-        (random.nextDouble() - 0.5) * 40,
+        (random.nextDouble() - 0.5) * 40, // Reduced from 60 to 40 pixels
+        (random.nextDouble() - 0.5) * 30, // Reduced from 40 to 30 pixels
       );
       
       final animation = Tween<Offset>(
@@ -171,8 +213,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
       _floatingControllers.add(controller);
       _floatingAnimations.add(animation);
       
-      // Start the animation with random delay
-      Future.delayed(Duration(milliseconds: random.nextInt(1000)), () {
+      // Start the animation with random delay (increased delay for battery optimization)
+      Future.delayed(Duration(milliseconds: 1500 + random.nextInt(1000)), () {
         if (mounted) {
           controller.repeat(reverse: true);
         }
@@ -188,14 +230,14 @@ class _MemoryGameViewState extends State<MemoryGameView>
     // Reset the controller
     _floatingControllers[index].reset();
     
-    // Create new random floating movement (increased range for visibility)
+    // Create new random floating movement (reduced range for battery optimization)
     final beginOffset = Offset(
-      (random.nextDouble() - 0.5) * 60, // -30 to 30 pixels
-      (random.nextDouble() - 0.5) * 40, // -20 to 20 pixels
+      (random.nextDouble() - 0.5) * 40, // Reduced from 60 to 40 pixels
+      (random.nextDouble() - 0.5) * 30, // Reduced from 40 to 30 pixels
     );
     final endOffset = Offset(
-      (random.nextDouble() - 0.5) * 60,
-      (random.nextDouble() - 0.5) * 40,
+      (random.nextDouble() - 0.5) * 40, // Reduced from 60 to 40 pixels
+      (random.nextDouble() - 0.5) * 30, // Reduced from 40 to 30 pixels
     );
     
     final newAnimation = Tween<Offset>(
@@ -210,8 +252,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     _floatingAnimations[index] = newAnimation;
     
-    // Start the animation with random delay
-    Future.delayed(Duration(milliseconds: random.nextInt(500)), () {
+    // Start the animation with random delay (increased delay for battery optimization)
+    Future.delayed(Duration(milliseconds: 1000 + random.nextInt(500)), () {
       if (mounted) {
         _floatingControllers[index].repeat(reverse: true);
       }
@@ -373,61 +415,71 @@ class _MemoryGameViewState extends State<MemoryGameView>
     Color backgroundColor;
     List<BoxShadow> shadows;
     
-    if (card.isMatched) {
-      borderColor = Colors.green;
-      backgroundColor = Colors.white;
-      shadows = [
-        BoxShadow(
-          color: Colors.green.withValues(alpha: 0.3),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ];
-    } else if (card.isWrong) {
-      borderColor = Colors.red;
-      backgroundColor = Colors.red.withValues(alpha: 0.1);
-      shadows = [
-        BoxShadow(
-          color: Colors.red.withValues(alpha: 0.3),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ];
-    } else if (card.isSelected) {
-      borderColor = Colors.blue;
-      backgroundColor = Colors.blue.withValues(alpha: 0.1);
-      shadows = [
-        BoxShadow(
-          color: Colors.blue.withValues(alpha: 0.3),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ];
-    } else {
-      borderColor = _getMemoryCardBorderColor(card);
-      backgroundColor = Colors.white;
-      shadows = [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.15),
-          blurRadius: 6,
-          offset: const Offset(0, 3),
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
-          blurRadius: 2,
-          offset: const Offset(0, 1),
-        ),
-      ];
+    switch (card.state) {
+      case CardState.matched:
+        borderColor = Colors.green;
+        backgroundColor = Colors.green.withValues(alpha: 0.8); // Strong green background
+        shadows = [
+          BoxShadow(
+            color: Colors.green.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ];
+        break;
+      case CardState.wrong:
+        borderColor = Colors.red;
+        backgroundColor = Colors.red.withValues(alpha: 0.8); // Strong red background
+        shadows = [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ];
+        break;
+      case CardState.selected:
+        borderColor = Colors.blue;
+        backgroundColor = Colors.blue.withValues(alpha: 0.8); // Strong blue background
+        shadows = [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ];
+        break;
+      case CardState.normal:
+      case CardState.fadingIn:
+        borderColor = _getMemoryCardBorderColor(card);
+        backgroundColor = Theme.of(context).colorScheme.surface;
+        shadows = [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ];
+        break;
     }
     
     return GestureDetector(
       onTap: () => _selectCard(card),
       child: AnimatedOpacity(
         opacity: _calculateCardOpacity(card),
-        duration: Duration(milliseconds: card.isFadingOut || card.isFadingIn ? 500 : 200),
-        curve: Curves.easeInOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        duration: Duration(milliseconds: card.state == CardState.matched ? 300 : card.state == CardState.fadingIn ? 400 : 200),
+        curve: card.state == CardState.fadingIn ? Curves.easeOutBack : Curves.easeInOut,
+        child: AnimatedScale(
+          scale: card.state == CardState.fadingIn ? 1.0 : (card.state == CardState.matched ? 0.9 : 1.0),
+          duration: Duration(milliseconds: card.state == CardState.fadingIn ? 400 : 300),
+          curve: card.state == CardState.fadingIn ? Curves.easeOutBack : Curves.easeInOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
           width: double.infinity,
           height: 70,
           decoration: BoxDecoration(
@@ -435,11 +487,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: borderColor,
-              width: card.isSelected || card.isMatched || card.isWrong ? 3 : 2,
+              width: card.state == CardState.normal || card.state == CardState.fadingIn ? 2 : 3,
             ),
             boxShadow: shadows,
           ),
           child: _buildCardContent(card),
+          ),
         ),
       ),
     );
@@ -452,7 +505,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
         style: TextStyle(
           fontSize: _calculateFontSize(card.content),
           fontWeight: FontWeight.w500,
-          color: Colors.black87,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
         textAlign: TextAlign.center,
         maxLines: 2,
@@ -480,35 +533,19 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
 
   double _calculateCardOpacity(MemoryCard card) {
-    // If card is fading out, keep it invisible
-    if (card.isFadingOut) {
-      return 0.0;
+    switch (card.state) {
+      case CardState.matched:
+        return 0.0; // Fade out matched cards completely
+      case CardState.fadingIn:
+        return 1.0; // New cards fade in
+      case CardState.normal:
+      case CardState.selected:
+      case CardState.wrong:
+        return 1.0; // All other states are fully visible
     }
-    
-    // If card is fading in, show it
-    if (card.isFadingIn) {
-      return 1.0;
-    }
-    
-    // If card is matched, hide it
-    if (card.isMatched) {
-      return 0.0;
-    }
-    
-    // Check if this card is in the replacement queue (waiting to be replaced)
-    if (_isCardInReplacementQueue(card.id)) {
-      return 0.0; // Keep it invisible while waiting
-    }
-    
-    // Otherwise, show the card normally
-    return 1.0;
   }
 
-  bool _isCardInReplacementQueue(String cardId) {
-    return _replacementQueue.any((request) => 
-      request.firstCardId == cardId || request.secondCardId == cardId
-    );
-  }
+  // Old _isCardInReplacementQueue method removed
 
   Color _getMemoryCardBorderColor(MemoryCard card) {
     // Generate random vibrant colors to prevent color-based matching
@@ -541,7 +578,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
 
   void _selectCard(MemoryCard card) {
-    if (!_canSelect || card.isMatched) return;
+    // Only allow selection of normal cards
+    if (!_canSelect || card.state != CardState.normal) {
+      print('🔍 MemoryGameView: Card selection blocked - canSelect: $_canSelect, state: ${card.state}');
+      return;
+    }
     
     // Provide haptic feedback for card selection
     HapticService().memoryGameFeedback();
@@ -550,21 +591,31 @@ class _MemoryGameViewState extends State<MemoryGameView>
     if (_firstCard != null && _firstCard!.id == card.id) {
       print('🔍 MemoryGameView: Deselecting first card');
       setState(() {
-        _firstCard!.isSelected = false;
+        _firstCard!.state = CardState.normal;
         _firstCard = null;
       });
       return;
     }
 
     setState(() {
-      card.isSelected = true;
+      // Clear any existing wrong states on all cards when making a new selection
+      for (final memoryCard in _memoryCards) {
+        if (memoryCard.state == CardState.wrong) {
+          memoryCard.state = CardState.normal;
+        }
+      }
+      
+      // Set this card as selected
+      card.state = CardState.selected;
     });
 
     if (_firstCard == null) {
       _firstCard = card;
+      print('🔍 MemoryGameView: Selected first card: ${card.content}');
     } else {
       _secondCard = card;
       _moves++;
+      print('🔍 MemoryGameView: Selected second card: ${card.content}, checking match...');
       _checkMatch();
     }
   }
@@ -587,102 +638,38 @@ class _MemoryGameViewState extends State<MemoryGameView>
         print('🔍 MemoryGameView: Error in background update: $e');
       });
 
+      // Store references to the matched cards
+      final matchedFirstCard = _firstCard!;
+      final matchedSecondCard = _secondCard!;
+
       setState(() {
         _matches++;
-        _firstCard!.isSelected = false;
-        _secondCard!.isSelected = false;
+        // Set cards to matched state (green background + will fade out)
+        matchedFirstCard.state = CardState.matched;
+        matchedSecondCard.state = CardState.matched;
       });
 
       // Count each matched pair as one card processed
       _totalCardsProcessed++;
       
-      // Check if we should replace the matched pair with new cards
-      if (_remainingCards.isNotEmpty) {
-        final newCard = _remainingCards.removeAt(0);
-        
-        print('🔍 MemoryGameView: Processed card ${_totalCardsProcessed}/${widget.cards.length}');
-        print('🔍 MemoryGameView: Queueing replacement for "${newCard.word}" - "${newCard.definition}"');
-        print('🔍 MemoryGameView: Remaining cards: ${_remainingCards.length}');
-        
-        // Find the indices of the matched cards to replace them in the same positions
-        final firstCardIndex = _memoryCards.indexWhere((card) => card.id == _firstCard!.id);
-        final secondCardIndex = _memoryCards.indexWhere((card) => card.id == _secondCard!.id);
-        
-        print('🔍 MemoryGameView: First card index: $firstCardIndex, Second card index: $secondCardIndex');
-        
-        // Add replacement request to queue
-        _replacementQueue.add(_ReplacementRequest(
-          newCard: newCard,
-          firstCardIndex: firstCardIndex,
-          secondCardIndex: secondCardIndex,
-          firstCardId: _firstCard!.id,
-          secondCardId: _secondCard!.id,
-        ));
-        
-        // Start gentle fade out animation for matched cards only
-        setState(() {
-          _firstCard!.isFadingOut = true;
-          _secondCard!.isFadingOut = true;
-        });
-        
-        // Process the replacement queue if not already processing
-        if (!_isProcessingReplacements) {
-          _processReplacementQueue();
+      // Reset selection state immediately and re-enable selection
+      _firstCard = null;
+      _secondCard = null;
+      _canSelect = true; // Allow immediate next selection
+      
+      print('🔍 MemoryGameView: Match found! Cards fading out...');
+
+      // Schedule replacement/removal after fade out
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _replaceMatchedCards(matchedFirstCard, matchedSecondCard);
         }
-        
-        print('🔍 MemoryGameView: Queued replacement, queue length: ${_replacementQueue.length}');
-      } else {
-        // No more cards to replace with, mark as matched
-        setState(() {
-          _firstCard!.isMatched = true;
-          _secondCard!.isMatched = true;
-        });
-      }
+      });
 
       // Check if game is complete
       bool gameComplete = false;
       
-      if (_remainingCards.isEmpty) {
-        // For small decks (≤5 cards): game ends when all current cards are matched
-        // For large decks: game ends when all cards processed and no more replacements
-        if (widget.cards.length <= 5) {
-          gameComplete = _memoryCards.every((card) => card.isMatched);
-        } else {
-          gameComplete = _totalCardsProcessed >= widget.cards.length;
-        }
-      }
-      
-      if (gameComplete) {
-        // In shuffle mode, completing the memory game is always considered successful
-        // because the challenge is to match pairs, not to do it efficiently
-        final wasSuccessful = widget.shuffleMode ? true : 
-                             (_totalCardsProcessed > 0 ? _totalCardsProcessed / _moves >= 0.5 : false);
-        
-        print('🔍 MemoryGameView: Game complete! Shuffle mode: ${widget.shuffleMode}, Success: $wasSuccessful');
-        print('🔍 MemoryGameView: XP gained this session: ${_gameSession.xpGained}');
-        
-        // Award XP to user profile if not in shuffle mode (shuffle mode handles XP separately)
-        _awardXp();
-        
-        // Call the onComplete callback if provided
-        if (widget.onComplete != null) {
-          widget.onComplete!(wasSuccessful);
-          return;
-        }
-        
-        setState(() {
-          _gameComplete = true;
-        });
-        // Play completion sound when game is finished
-        SoundManager().playCompleteSound();
-      }
-
-      // Reset selection state
-      setState(() {
-        _firstCard = null;
-        _secondCard = null;
-        _canSelect = true;
-      });
+      _checkGameCompletion();
     } else {
       // Track XP for incorrect match (0 XP)
       XpService.recordAnswer(_gameSession, false);
@@ -701,109 +688,133 @@ class _MemoryGameViewState extends State<MemoryGameView>
         return;
       }
       
+      // Store references to the wrong cards
+      final wrongFirstCard = _firstCard!;
+      final wrongSecondCard = _secondCard!;
+      
       setState(() {
-        _firstCard!.isWrong = true;
-        _secondCard!.isWrong = true;
-        _firstCard!.isSelected = false;
-        _secondCard!.isSelected = false;
+        wrongFirstCard.state = CardState.wrong;
+        wrongSecondCard.state = CardState.wrong;
       });
 
       // Play wrong sound and provide haptic feedback
       SoundManager().playWrongSound();
       HapticService().errorFeedback();
 
-      // Reset wrong cards after a delay
-      Future.delayed(const Duration(milliseconds: 800), () {
+      // Reset selection state immediately but allow new selections
+      _firstCard = null;
+      _secondCard = null;
+      _canSelect = true;
+      
+      print('🔍 MemoryGameView: Wrong match! Cards will reset to normal...');
+      
+      // Reset wrong cards after showing the red state briefly
+      Future.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
           setState(() {
-            _firstCard!.isWrong = false;
-            _secondCard!.isWrong = false;
-            _firstCard = null;
-            _secondCard = null;
-            _canSelect = true;
+            wrongFirstCard.state = CardState.normal;
+            wrongSecondCard.state = CardState.normal;
           });
         }
       });
     }
   }
 
-  void _processReplacementQueue() {
-    if (_replacementQueue.isEmpty || _isProcessingReplacements) {
+  void _replaceMatchedCards(MemoryCard firstCard, MemoryCard secondCard) {
+    if (_remainingCards.isEmpty) {
+      print('🔍 MemoryGameView: No more cards to replace with - removing matched cards completely');
+      setState(() {
+        // Remove matched cards completely from the grid
+        _memoryCards.removeWhere((card) => card.id == firstCard.id || card.id == secondCard.id);
+      });
+      _checkGameCompletion();
       return;
     }
-
-    _isProcessingReplacements = true;
-    print('🔍 MemoryGameView: Processing replacement queue, length: ${_replacementQueue.length}');
-
-    // Process the first replacement in the queue
-    final request = _replacementQueue.removeAt(0);
     
-    // Wait for fade out to complete, then replace cards
-    Future.delayed(const Duration(milliseconds: 500), () {
+    final newCard = _remainingCards.removeAt(0);
+    print('🔍 MemoryGameView: Replacing matched cards with "${newCard.word}" - "${newCard.definition}"');
+    
+    setState(() {
+      // Find and replace the matched cards
+      final firstIndex = _memoryCards.indexWhere((card) => card.id == firstCard.id);
+      final secondIndex = _memoryCards.indexWhere((card) => card.id == secondCard.id);
+      
+      if (firstIndex != -1) {
+        _memoryCards[firstIndex] = MemoryCard(
+          id: '${newCard.id}_word',
+          content: newCard.word,
+          type: MemoryCardType.word,
+          originalCard: newCard,
+          state: CardState.fadingIn,
+        );
+        _updateFloatingAnimation(firstIndex);
+      }
+      
+      if (secondIndex != -1) {
+        _memoryCards[secondIndex] = MemoryCard(
+          id: '${newCard.id}_def',
+          content: newCard.definition,
+          type: MemoryCardType.definition,
+          originalCard: newCard,
+          state: CardState.fadingIn,
+        );
+        _updateFloatingAnimation(secondIndex);
+      }
+    });
+    
+    // Don't shuffle - keep cards in their original positions
+    
+    // After fade in completes, set cards to normal state
+    Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) {
         setState(() {
-          // Replace the first matched card with new word card
-          if (request.firstCardIndex != -1) {
-            _memoryCards[request.firstCardIndex] = MemoryCard(
-              id: '${request.newCard.id}_word',
-              content: request.newCard.word,
-              type: MemoryCardType.word,
-              originalCard: request.newCard,
-              isMatched: false,
-              isSelected: false,
-              isWrong: false,
-              isFadingOut: false,
-              isFadingIn: true,
-            );
-            // Update animation for this position
-            _updateFloatingAnimation(request.firstCardIndex);
-          }
-          
-          // Replace the second matched card with new definition card
-          if (request.secondCardIndex != -1) {
-            _memoryCards[request.secondCardIndex] = MemoryCard(
-              id: '${request.newCard.id}_def',
-              content: request.newCard.definition,
-              type: MemoryCardType.definition,
-              originalCard: request.newCard,
-              isMatched: false,
-              isSelected: false,
-              isWrong: false,
-              isFadingOut: false,
-              isFadingIn: true,
-            );
-            // Update animation for this position
-            _updateFloatingAnimation(request.secondCardIndex);
-          }
-        });
-        
-        print('🔍 MemoryGameView: Replaced cards for "${request.newCard.word}", queue remaining: ${_replacementQueue.length}');
-        
-        // After fade in completes, reset states only for the replaced cards and process next replacement
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) {
-            setState(() {
-              // Only reset states for the cards that were actually replaced
-              if (request.firstCardIndex != -1 && request.firstCardIndex < _memoryCards.length) {
-                _memoryCards[request.firstCardIndex].isFadingIn = false;
-                _memoryCards[request.firstCardIndex].isFadingOut = false;
-              }
-              if (request.secondCardIndex != -1 && request.secondCardIndex < _memoryCards.length) {
-                _memoryCards[request.secondCardIndex].isFadingIn = false;
-                _memoryCards[request.secondCardIndex].isFadingOut = false;
-              }
-            });
-            
-            // Process next replacement in queue if any
-            _isProcessingReplacements = false;
-            if (_replacementQueue.isNotEmpty) {
-              _processReplacementQueue();
+          for (final card in _memoryCards) {
+            if (card.state == CardState.fadingIn) {
+              card.state = CardState.normal;
             }
           }
         });
+        _checkGameCompletion();
       }
     });
   }
+  
+  void _checkGameCompletion() {
+    bool gameComplete = false;
+    
+    // For small decks (≤5 cards): game ends when all cards are removed from grid
+    if (widget.cards.length <= 5) {
+      gameComplete = _memoryCards.isEmpty;
+    } else {
+      // For large decks: game ends when all cards processed and no more replacements
+      gameComplete = _remainingCards.isEmpty && _totalCardsProcessed >= widget.cards.length;
+    }
+    
+    if (gameComplete) {
+      // In shuffle mode, completing the memory game is always considered successful
+      final wasSuccessful = widget.shuffleMode ? true : 
+                           (_totalCardsProcessed > 0 ? _totalCardsProcessed / _moves >= 0.5 : false);
+      
+      print('🔍 MemoryGameView: Game complete! Shuffle mode: ${widget.shuffleMode}, Success: $wasSuccessful');
+      
+      // Award XP to user profile if not in shuffle mode
+      _awardXp();
+      
+      // Call the onComplete callback if provided
+      if (widget.onComplete != null) {
+        widget.onComplete!(wasSuccessful);
+        return;
+      }
+      
+      setState(() {
+        _gameComplete = true;
+      });
+      // Play completion sound when game is finished
+      SoundManager().playCompleteSound();
+    }
+  }
+
+  // Old _processReplacementQueue method removed - using simplified _replaceMatchedCards instead
 
   Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
     try {
@@ -995,17 +1006,34 @@ class _MemoryGameViewState extends State<MemoryGameView>
           
           // Results content
           Expanded(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Celebration icon
-                  const Icon(
-                    Icons.celebration,
-                    size: 64,
-                    color: Colors.green,
+                  // Efficiency percentage circle
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: efficiency >= 80 ? Colors.green.withValues(alpha: 0.1) : 
+                             efficiency >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
+                             Colors.red.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$efficiency%',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: efficiency >= 80 ? Colors.green : 
+                                 efficiency >= 60 ? Colors.orange : 
+                                 Colors.red,
+                        ),
+                      ),
+                    ),
                   ),
+                  
                   const SizedBox(height: 24),
                   
                   // Session stats
@@ -1013,10 +1041,15 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   const SizedBox(height: 16),
                   _buildStatCard('Total Moves', '$_moves', Icons.touch_app, Colors.blue),
                   const SizedBox(height: 16),
+                  _buildStatCard('Correct Matches', '$_matches', Icons.check_circle, Colors.green),
+                  const SizedBox(height: 16),
+                  _buildStatCard('Incorrect Matches', '${_moves - _matches}', Icons.cancel, Colors.red),
+                  const SizedBox(height: 16),
                   _buildStatCard('Efficiency', '$efficiency%', Icons.analytics, Colors.orange),
                   const SizedBox(height: 16),
                   _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                     AnimatedXpCounter(xpGained: _gameSession.xpGained)),
+                  const SizedBox(height: 48),
                   
                   // Action buttons
                   Row(
@@ -1096,22 +1129,14 @@ class MemoryCard {
   final String content;
   final MemoryCardType type;
   final FlashCard originalCard;
-  bool isMatched;
-  bool isSelected;
-  bool isWrong;
-  bool isFadingOut;
-  bool isFadingIn;
+  CardState state;
 
   MemoryCard({
     required this.id,
     required this.content,
     required this.type,
     required this.originalCard,
-    this.isMatched = false,
-    this.isSelected = false,
-    this.isWrong = false,
-    this.isFadingOut = false,
-    this.isFadingIn = false,
+    this.state = CardState.normal,
   });
 }
 
@@ -1120,18 +1145,12 @@ enum MemoryCardType {
   definition,
 }
 
-class _ReplacementRequest {
-  final FlashCard newCard;
-  final int firstCardIndex;
-  final int secondCardIndex;
-  final String firstCardId;
-  final String secondCardId;
+enum CardState {
+  normal,
+  selected,
+  wrong,
+  matched,   // Green background + fading out
+  fadingIn,  // New cards appearing
+}
 
-  _ReplacementRequest({
-    required this.newCard,
-    required this.firstCardIndex,
-    required this.secondCardIndex,
-    required this.firstCardId,
-    required this.secondCardId,
-  });
-} 
+// _ReplacementRequest class removed - using simplified replacement system 

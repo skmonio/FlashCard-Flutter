@@ -46,21 +46,74 @@ class _WritingViewState extends State<WritingView> {
   Map<int, bool> _correctAnswersMap = {}; // question index -> is correct
   Map<int, String> _correctAnswersText = {}; // question index -> correct answer
   Map<int, bool> _questionModes = {}; // question index -> is question mode
+  
+  // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _currentCards;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize our copy of cards
+    _currentCards = List<FlashCard>.from(widget.cards);
+    
     _generateQuestion();
+    
+    // Listen for card updates from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<FlashcardProvider>();
+      provider.addListener(_onProviderChanged);
+    });
   }
 
   @override
   void dispose() {
     _textController.dispose();
+    
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
     super.dispose();
   }
 
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in _currentCards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    // Update our current cards list
+    setState(() {
+      _currentCards = updatedCards;
+      
+      // If we're currently viewing a card that was updated, regenerate the question
+      if (_currentIndex < _currentCards.length && !_showingResults) {
+        _generateQuestion();
+      }
+    });
+    
+    print('🔍 WritingView: Refreshed cards from provider');
+  }
+
   void _generateQuestion() {
-    if (_currentIndex >= widget.cards.length) {
+    if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
       final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
@@ -91,7 +144,7 @@ class _WritingViewState extends State<WritingView> {
       return;
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
     // Randomly choose question mode
@@ -235,7 +288,7 @@ class _WritingViewState extends State<WritingView> {
 
   Future<void> _updateCardLearningProgress(bool wasCorrect) async {
     try {
-      final currentCard = widget.cards[_currentIndex];
+      final currentCard = _currentCards[_currentIndex];
       final provider = context.read<FlashcardProvider>();
       
       // Update the card's learning progress
@@ -318,7 +371,7 @@ class _WritingViewState extends State<WritingView> {
   }
 
   void _goToNextQuestion() {
-    if (_currentIndex < widget.cards.length - 1) {
+    if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
       });
@@ -352,7 +405,7 @@ class _WritingViewState extends State<WritingView> {
       return _buildResultsView();
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -563,7 +616,7 @@ class _WritingViewState extends State<WritingView> {
                             child: ElevatedButton.icon(
                               onPressed: _goToNextQuestion,
                               icon: const Icon(Icons.arrow_forward, size: 18),
-                              label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                              label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.white,
@@ -584,7 +637,7 @@ class _WritingViewState extends State<WritingView> {
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
+    final progress = _currentIndex / _currentCards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -592,7 +645,7 @@ class _WritingViewState extends State<WritingView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),

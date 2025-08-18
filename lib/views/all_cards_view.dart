@@ -350,6 +350,33 @@ class _AllCardsViewState extends State<AllCardsView> {
     }
   }
 
+  String _getSRSDescription(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return 'New card - never studied';
+      case 1:
+        return 'Learning phase - review every day';
+      case 2:
+        return 'Early learning - review every 6 days';
+      case 3:
+        return 'Mid-learning - review every 15 days';
+      case 4:
+        return 'Review phase - longer intervals';
+      case 5:
+        return 'Well learned - review every 2-4 weeks';
+      case 6:
+        return 'Familiar - review every 1-2 months';
+      case 7:
+        return 'Very familiar - review every 2-4 months';
+      case 8:
+        return 'Mastered - review every 4-8 months';
+      case 9:
+        return 'Expert - review every 6-12 months';
+      default:
+        return 'Mastered - review every 8+ months';
+    }
+  }
+
   List<FlashCard> _getFilteredAndSortedCards(FlashcardProvider provider) {
     var cards = List<FlashCard>.from(provider.cards);
     
@@ -696,15 +723,18 @@ class _AllCardsViewState extends State<AllCardsView> {
             Row(
               children: [
                 Text('SRS Level: '),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getSRSColor(card.srsLevel),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    card.srsLevel.toString(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                Tooltip(
+                  message: _getSRSDescription(card.srsLevel),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getSRSColor(card.srsLevel),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      card.srsLevel.toString(),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -715,7 +745,18 @@ class _AllCardsViewState extends State<AllCardsView> {
             Text('Times Shown: ${card.timesShown}'),
             Text('Times Correct: ${card.timesCorrect}'),
             Text('Consecutive Correct: ${card.consecutiveCorrect}'),
-            Text('Ease Factor: ${card.easeFactor.toStringAsFixed(2)}'),
+            Row(
+              children: [
+                Text('Ease Factor: '),
+                Tooltip(
+                  message: 'Affects how quickly review intervals increase. Higher values (2.5) mean longer intervals, lower values (1.3) mean more frequent reviews.',
+                  child: Text(
+                    '${card.easeFactor.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
         actions: [
@@ -860,24 +901,30 @@ class _AllCardsViewState extends State<AllCardsView> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: SortOption.srsLevel,
-                child: Row(
-                  children: [
-                    Icon(Icons.trending_up),
-                    SizedBox(width: 8),
-                    Text('SRS Level'),
-                  ],
+                child: Tooltip(
+                  message: 'Sort by learning progress level (0 = new, 10 = mastered)',
+                  child: Row(
+                    children: [
+                      Icon(Icons.trending_up),
+                      SizedBox(width: 8),
+                      Text('SRS Level'),
+                    ],
+                  ),
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: SortOption.learningPercentage,
-                child: Row(
-                  children: [
-                    Icon(Icons.percent),
-                    SizedBox(width: 8),
-                    Text('Learning %'),
-                  ],
+                child: Tooltip(
+                  message: 'Sort by learning progress percentage (0-100%)',
+                  child: Row(
+                    children: [
+                      Icon(Icons.percent),
+                      SizedBox(width: 8),
+                      Text('Learning %'),
+                    ],
+                  ),
                 ),
               ),
               const PopupMenuItem(

@@ -50,15 +50,72 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<int, List<String>> _questionOptions = {}; // question index -> options
   Map<int, int> _correctAnswerIndices = {}; // question index -> correct answer index
   Map<int, bool> _questionModes = {}; // question index -> is question mode
+  
+  // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _currentCards;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize our copy of cards
+    _currentCards = List<FlashCard>.from(widget.cards);
+    
     _generateQuestion();
+    
+    // Listen for card updates from the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<FlashcardProvider>();
+      provider.addListener(_onProviderChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh cards from the provider when cards are updated
+    if (mounted) {
+      _refreshCardsFromProvider();
+    }
+  }
+
+  void _refreshCardsFromProvider() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get updated cards from provider
+    List<FlashCard> updatedCards = [];
+    for (final originalCard in _currentCards) {
+      final updatedCard = provider.getCard(originalCard.id);
+      if (updatedCard != null) {
+        updatedCards.add(updatedCard);
+      } else {
+        // If card was deleted, keep the original
+        updatedCards.add(originalCard);
+      }
+    }
+    
+    // Update our current cards list
+    setState(() {
+      _currentCards = updatedCards;
+      
+      // If we're currently viewing a card that was updated, regenerate the question
+      if (_currentIndex < _currentCards.length && !_showingResults) {
+        _generateQuestion();
+      }
+    });
+    
+    print('🔍 MultipleChoiceView: Refreshed cards from provider');
   }
 
   void _generateQuestion() {
-    if (_currentIndex >= widget.cards.length) {
+    if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
       final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
@@ -88,7 +145,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       return;
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
     // Randomly choose question mode
@@ -98,24 +155,52 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
     
     // Get other cards for wrong options
-    final otherCards = widget.cards.where((card) => card.id != currentCard.id).toList();
+    final otherCards = _currentCards.where((card) => card.id != currentCard.id).toList();
     final wrongOptions = <String>[];
     
-    // Get 3 wrong options
-    for (int i = 0; i < 3 && i < otherCards.length; i++) {
-      final randomCard = otherCards[random.nextInt(otherCards.length)];
-      final wrongOption = _isQuestionMode ? randomCard.definition : randomCard.word;
+        // Get 3 wrong options from other cards
+    final shuffledOtherCards = List.from(otherCards)..shuffle(random);
+    
+    for (final card in shuffledOtherCards) {
+      if (wrongOptions.length >= 3) break;
+      
+      final wrongOption = _isQuestionMode ? card.definition : card.word;
       if (!wrongOptions.contains(wrongOption) && wrongOption != correctAnswer) {
         wrongOptions.add(wrongOption);
       }
     }
     
-    // If we don't have enough wrong options, add some generic ones
-    while (wrongOptions.length < 3) {
-      final genericOptions = _isQuestionMode 
-          ? ['Not sure', 'Maybe this', 'Could be']
-          : ['Unknown', 'Something', 'Other'];
-      wrongOptions.add(genericOptions[wrongOptions.length]);
+    // If we still don't have enough wrong options from cards, generate more cards
+    if (wrongOptions.length < 3) {
+      // Get all available cards and try again with more variety
+      final allCards = context.read<FlashcardProvider>().cards;
+      final moreCards = allCards.where((card) => 
+        card.id != currentCard.id && 
+        !otherCards.any((oc) => oc.id == card.id)
+      ).toList();
+      
+      for (final card in moreCards) {
+        if (wrongOptions.length >= 3) break;
+        
+        final wrongOption = _isQuestionMode ? card.definition : card.word;
+        if (!wrongOptions.contains(wrongOption) && wrongOption != correctAnswer) {
+          wrongOptions.add(wrongOption);
+        }
+      }
+    }
+    
+    // Only use generic options as absolute last resort
+    if (wrongOptions.length < 3) {
+      final genericOptions = _isQuestionMode
+          ? ['Not applicable', 'Different meaning', 'Other definition']
+          : ['Unknown word', 'Different word', 'Other term'];
+      
+      while (wrongOptions.length < 3) {
+        final generic = genericOptions[wrongOptions.length];
+        if (!wrongOptions.contains(generic)) {
+          wrongOptions.add(generic);
+        }
+      }
     }
     
     // Create options list with correct answer
@@ -140,7 +225,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     if (_answered) return;
     
     final isCorrect = (index == _correctAnswerIndex);
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     // Provide haptic feedback based on answer correctness
     if (isCorrect) {
@@ -314,7 +399,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       return;
     }
     
-    if (_currentIndex < widget.cards.length - 1) {
+    if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
       });
@@ -332,7 +417,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   void _editCurrentCard() {
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -358,7 +443,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       return _buildResultsView();
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final question = _isQuestionMode ? currentCard.word : currentCard.definition;
 
     return Scaffold(
@@ -419,13 +504,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   
                   const SizedBox(height: 16), // Reduced spacing
                   
-                  // Card with white background and colored outline
+                  // Card with theme-adaptive background and colored outline
                   Container(
                     width: double.infinity,
                     height: 200, // Reduced height
                     padding: const EdgeInsets.all(24), // Reduced padding
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Theme.of(context).colorScheme.surface 
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(20), // Slightly smaller radius
                       border: Border.all(
                         color: _getCardBorderColor(currentCard),
@@ -447,10 +534,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                     child: Center(
                       child: Text(
                         question,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 32, // Smaller font size
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Theme.of(context).colorScheme.onSurface 
+                              : Colors.black87,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -500,7 +589,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                         child: ElevatedButton.icon(
                           onPressed: _answered ? _goToNextQuestion : null,
                           icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                          label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _answered ? Colors.green : Colors.grey,
                             foregroundColor: Colors.white,
@@ -539,7 +628,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
+    final progress = _currentIndex / _currentCards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -547,7 +636,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -699,9 +788,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   const SizedBox(height: 16),
                   _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                     AnimatedXpCounter(xpGained: _gameSession.xpGained)),
-                  const SizedBox(height: 32),
-                  
-
+                  const SizedBox(height: 48),
                   
                   // Action buttons
                   Row(

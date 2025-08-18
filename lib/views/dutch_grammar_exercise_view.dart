@@ -6,7 +6,7 @@ import '../providers/dutch_grammar_provider.dart';
 import '../components/unified_header.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
-import '../components/text_context_menu.dart';
+
 
 class DutchGrammarExerciseView extends StatefulWidget {
   final List<GrammarExercise> exercises;
@@ -78,7 +78,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
         children: [
           // Header
           UnifiedHeader(
-            title: widget.ruleTitle,
+            title: 'Exercise',
             onBack: () => _showCloseConfirmation(),
             trailing: IconButton(
               onPressed: () => _showHomeConfirmation(),
@@ -120,26 +120,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                       enableInteractiveSelection: true,
                       showCursor: false,
                       contextMenuBuilder: (context, editableTextState) {
-                        final selectedText = editableTextState.textEditingValue.selection.textInside(currentExercise.question);
-                        if (selectedText.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        
-                        return TextContextMenu(
-                          selectedText: selectedText,
-                          onCopy: () {
-                            // Copy functionality is handled in TextContextMenu
-                          },
-                          onTranslate: () {
-                            // Translation is handled in TextContextMenu
-                          },
-                          onAddToDeck: () {
-                            _addWordToDeck(selectedText);
-                          },
-                          onSearch: () {
-                            _searchWord(selectedText);
-                          },
-                        );
+                        return const SizedBox.shrink(); // Hide context menu to prevent error
                       },
                     ),
                   ),
@@ -152,7 +133,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                   ),
                   
                   // Navigation
-                  if (widget.exercises.length > 1) ...[
+                  if (widget.exercises.length > 1 || widget.shuffleMode) ...[
                     const SizedBox(height: 16),
                     _buildNavigation(),
                   ],
@@ -220,8 +201,8 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
         final isSelected = _selectedAnswer == index;
         final isCorrect = index == exercise.correctAnswer;
         
-        Color backgroundColor = Colors.transparent;
-        Color borderColor = Colors.grey.withValues(alpha: 0.3);
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
+        Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
         
         if (_answered) {
           if (isCorrect) {
@@ -282,26 +263,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                         enableInteractiveSelection: true,
                         showCursor: false,
                         contextMenuBuilder: (context, editableTextState) {
-                          final selectedText = editableTextState.textEditingValue.selection.textInside(option);
-                          if (selectedText.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          
-                          return TextContextMenu(
-                            selectedText: selectedText,
-                            onCopy: () {
-                              // Copy functionality is handled in TextContextMenu
-                            },
-                            onTranslate: () {
-                              // Translation is handled in TextContextMenu
-                            },
-                            onAddToDeck: () {
-                              _addWordToDeck(selectedText);
-                            },
-                            onSearch: () {
-                              _searchWord(selectedText);
-                            },
-                          );
+                          return const SizedBox.shrink(); // Hide context menu to prevent error
                         },
                       ),
                     ),
@@ -343,8 +305,8 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     final isSelected = _selectedAnswer == (isTrue ? 0 : 1);
     final isCorrect = (isTrue ? 0 : 1) == exercise.correctAnswer;
     
-    Color backgroundColor = Colors.transparent;
-    Color borderColor = Colors.grey.withValues(alpha: 0.3);
+    Color backgroundColor = Theme.of(context).colorScheme.surface;
+    Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
     
     if (_answered) {
       if (isCorrect) {
@@ -445,11 +407,11 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _currentIndex > 0 ? _goToPrevious : null,
+            onPressed: (_currentIndex > 0 && !widget.shuffleMode) ? _goToPrevious : null,
             icon: const Icon(Icons.arrow_back, size: 16),
             label: const Text('Previous'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
+              backgroundColor: (_currentIndex > 0 && !widget.shuffleMode) ? Colors.blue : Colors.grey,
               foregroundColor: Colors.white,
             ),
           ),
@@ -459,7 +421,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
           child: ElevatedButton.icon(
             onPressed: _answered ? _goToNext : null,
             icon: const Icon(Icons.arrow_forward, size: 16),
-            label: Text(_currentIndex == widget.exercises.length - 1 ? 'Finish' : 'Next'),
+            label: Text(widget.shuffleMode ? 'Complete' : (_currentIndex == widget.exercises.length - 1 ? 'Finish' : 'Next')),
             style: ElevatedButton.styleFrom(
               backgroundColor: _answered ? Colors.green : Colors.grey,
               foregroundColor: Colors.white,
@@ -791,56 +753,5 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     return _exerciseAnswers[exerciseIndex];
   }
 
-  // Helper methods for context menu actions
-  void _addWordToDeck(String word) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Word to Deck'),
-        content: Text('Would you like to add "$word" to a deck?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement add to deck functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Add to deck functionality coming soon!')),
-              );
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  void _searchWord(String word) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Search Word'),
-        content: Text('Would you like to search for "$word" in your flashcards?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // TODO: Implement search functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Search functionality coming soon!')),
-              );
-            },
-            child: const Text('Search'),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -1013,7 +1013,7 @@ class _AllDecksViewState extends State<AllDecksView> {
           exercises: [
             WordExercise(
               id: '${card.id}_exercise_1',
-              type: ExerciseType.translation,
+              type: ExerciseType.multipleChoice,
               prompt: 'Translate "${card.word}" to English',
               correctAnswer: card.definition,
               options: [card.definition, 'Incorrect option 1', 'Incorrect option 2', 'Incorrect option 3'],

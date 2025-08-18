@@ -4,7 +4,7 @@ import '../providers/theme_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/store_provider.dart';
-import '../services/sample_data_service.dart';
+
 import 'unified_import_export_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
@@ -100,12 +100,30 @@ class _SettingsViewState extends State<SettingsView> {
             children: [
               Consumer<ThemeProvider>(
                 builder: (context, themeProvider, child) {
-                  return SwitchListTile(
-                    title: const Text('Dark Mode'),
-                    subtitle: const Text('Use dark theme'),
-                    value: themeProvider.isDarkMode,
-                    onChanged: (value) {
-                      themeProvider.toggleTheme();
+                  return ListTile(
+                    leading: Icon(
+                      themeProvider.isSystemMode 
+                          ? Icons.brightness_auto 
+                          : themeProvider.isDarkMode 
+                              ? Icons.dark_mode 
+                              : Icons.light_mode,
+                      color: themeProvider.isSystemMode 
+                          ? Colors.blue 
+                          : themeProvider.isDarkMode 
+                              ? Colors.purple 
+                              : Colors.orange,
+                    ),
+                    title: const Text('Theme'),
+                    subtitle: Text(
+                      themeProvider.isSystemMode 
+                          ? 'System (auto)' 
+                          : themeProvider.isDarkMode 
+                              ? 'Dark mode' 
+                              : 'Light mode',
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      _showThemeSelectionDialog(context, themeProvider);
                     },
                   );
                 },
@@ -162,7 +180,7 @@ class _SettingsViewState extends State<SettingsView> {
 
               ListTile(
                 leading: const Icon(Icons.sync),
-                title: const Text('Unified Import/Export'),
+                title: const Text('Import/Export'),
                 subtitle: const Text('Import/export flashcards with exercises'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
@@ -175,18 +193,8 @@ class _SettingsViewState extends State<SettingsView> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.refresh, color: Colors.orange),
-                title: const Text('Reset XP & Progress', style: TextStyle(color: Colors.orange)),
-                subtitle: const Text('Reset all XP, levels, and achievements'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.orange),
-                onTap: () {
-                  _showResetXpDialog(context);
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
                 leading: const Icon(Icons.delete_forever, color: Colors.red),
-                title: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
+                title: const Text('Clear Data', style: TextStyle(color: Colors.red)),
                 subtitle: const Text('Delete all flashcards and settings'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
                 onTap: () {
@@ -261,26 +269,7 @@ class _SettingsViewState extends State<SettingsView> {
   void _showClearDataDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear All Data'),
-        content: const Text(
-          'This will permanently delete all your flashcards, decks, and settings. This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _clearAllData(context);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Clear All'),
-          ),
-        ],
-      ),
+      builder: (context) => _ClearDataSelectionDialog(),
     );
   }
 
@@ -315,65 +304,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  Future<void> _clearAllData(BuildContext context) async {
-    try {
-      final flashcardProvider = context.read<FlashcardProvider>();
-      
-      // Clear all cards
-      final cards = List.from(flashcardProvider.cards);
-      for (final card in cards) {
-        await flashcardProvider.deleteCard(card.id);
-      }
-      
-      // Clear all decks (except default ones)
-      final decks = List.from(flashcardProvider.decks);
-      for (final deck in decks) {
-        if (deck.name != 'Uncategorized' && deck.name != 'Default') {
-          await flashcardProvider.deleteDeck(deck.id);
-        }
-      }
-      
-      // Clear Dutch word exercises if provider is available
-      try {
-        final dutchProvider = context.read<DutchWordExerciseProvider>();
-        // Clear all exercises
-        final exercises = List.from(dutchProvider.wordExercises);
-        for (final exercise in exercises) {
-          await dutchProvider.deleteWordExercise(exercise.id);
-        }
-      } catch (e) {
-        // DutchWordExerciseProvider might not be available, that's okay
-        print('DutchWordExerciseProvider not available: $e');
-      }
-      
-      // Clear store unlocked packs
-      try {
-        final storeProvider = context.read<StoreProvider>();
-        await storeProvider.clearAllUnlockedPacks();
-      } catch (e) {
-        // StoreProvider might not be available, that's okay
-        print('StoreProvider not available: $e');
-      }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All data cleared successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error clearing data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+
 
   void _showResetXpDialog(BuildContext context) {
     showDialog(
@@ -425,5 +356,340 @@ class _SettingsViewState extends State<SettingsView> {
         );
       }
     }
+  }
+
+  void _showThemeSelectionDialog(BuildContext context, ThemeProvider themeProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Theme'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildThemeOption(
+              context,
+              themeProvider,
+              ThemeMode.system,
+              'System (Auto)',
+              'Follows your device settings',
+              Icons.brightness_auto,
+              Colors.blue,
+            ),
+            const SizedBox(height: 8),
+            _buildThemeOption(
+              context,
+              themeProvider,
+              ThemeMode.light,
+              'Light Mode',
+              'Always use light theme',
+              Icons.light_mode,
+              Colors.orange,
+            ),
+            const SizedBox(height: 8),
+            _buildThemeOption(
+              context,
+              themeProvider,
+              ThemeMode.dark,
+              'Dark Mode',
+              'Always use dark theme',
+              Icons.dark_mode,
+              Colors.purple,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeOption(
+    BuildContext context,
+    ThemeProvider themeProvider,
+    ThemeMode mode,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
+    final isSelected = themeProvider.themeMode == mode;
+    
+    return Card(
+      margin: EdgeInsets.zero,
+      color: isSelected ? color.withValues(alpha: 0.1) : null,
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isSelected ? color : Colors.grey,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? color : null,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: isSelected 
+            ? Icon(Icons.check, color: color)
+            : null,
+        onTap: () {
+          themeProvider.setThemeMode(mode);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+}
+
+class _ClearDataSelectionDialog extends StatefulWidget {
+  @override
+  State<_ClearDataSelectionDialog> createState() => _ClearDataSelectionDialogState();
+}
+
+class _ClearDataSelectionDialogState extends State<_ClearDataSelectionDialog> {
+  Set<String> _selectedOptions = {};
+
+  void _toggleOption(String option) {
+    setState(() {
+      if (_selectedOptions.contains(option)) {
+        _selectedOptions.remove(option);
+      } else {
+        _selectedOptions.add(option);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedOptions = {
+        'cards',
+        'exercises',
+        'stats',
+        'everything',
+      };
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedOptions.clear();
+    });
+  }
+
+  Future<void> _executeClear(BuildContext context) async {
+    if (_selectedOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one option to clear'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).pop();
+
+    try {
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('cards')) {
+        await _clearAllCards(context);
+      }
+      
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('exercises')) {
+        await _clearAllExercises(context);
+      }
+      
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) {
+        await _clearAllStats(context);
+      }
+
+      if (mounted) {
+        String message = 'Cleared: ';
+        if (_selectedOptions.contains('everything')) {
+          message = 'All data cleared successfully';
+        } else {
+          List<String> cleared = [];
+          if (_selectedOptions.contains('cards')) cleared.add('cards');
+          if (_selectedOptions.contains('exercises')) cleared.add('exercises');
+          if (_selectedOptions.contains('stats')) cleared.add('stats & progress');
+          message += cleared.join(', ');
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error clearing data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAllCards(BuildContext context) async {
+    final flashcardProvider = context.read<FlashcardProvider>();
+    
+    // Clear all cards
+    final cards = List.from(flashcardProvider.cards);
+    for (final card in cards) {
+      await flashcardProvider.deleteCard(card.id);
+    }
+    
+    // Clear all decks (except default ones)
+    final decks = List.from(flashcardProvider.decks);
+    for (final deck in decks) {
+      if (deck.name != 'Uncategorized' && deck.name != 'Default') {
+        await flashcardProvider.deleteDeck(deck.id);
+      }
+    }
+  }
+
+  Future<void> _clearAllExercises(BuildContext context) async {
+    try {
+      final dutchProvider = context.read<DutchWordExerciseProvider>();
+      await dutchProvider.clearAllExercises();
+    } catch (e) {
+      print('DutchWordExerciseProvider not available: $e');
+    }
+  }
+
+  Future<void> _clearAllStats(BuildContext context) async {
+    try {
+      final userProfileProvider = context.read<UserProfileProvider>();
+      await userProfileProvider.resetXpAndProgress();
+    } catch (e) {
+      print('UserProfileProvider not available: $e');
+    }
+    
+    try {
+      final storeProvider = context.read<StoreProvider>();
+      await storeProvider.clearAllUnlockedPacks();
+    } catch (e) {
+      print('StoreProvider not available: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Clear Data'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select what you want to clear:',
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            
+            // Select All / Clear All buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _selectAll,
+                    child: const Text('Select All'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _clearSelection,
+                    child: const Text('Clear All'),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Options
+            _buildOptionTile(
+              'cards',
+              'All Cards & Decks',
+              'Delete all flashcards and custom decks',
+              Icons.style,
+              Colors.blue,
+            ),
+            _buildOptionTile(
+              'exercises',
+              'All Exercises',
+              'Delete all Dutch word exercises',
+              Icons.quiz,
+              Colors.green,
+            ),
+            _buildOptionTile(
+              'stats',
+              'Stats & Progress',
+              'Reset XP, levels, achievements, and progress',
+              Icons.analytics,
+              Colors.orange,
+            ),
+            _buildOptionTile(
+              'everything',
+              'Everything',
+              'Clear all data (cards, exercises, stats)',
+              Icons.delete_forever,
+              Colors.red,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => _executeClear(context),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Clear Selected'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionTile(
+    String option,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
+    final isSelected = _selectedOptions.contains(option);
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: CheckboxListTile(
+        title: Text(title),
+        subtitle: Text(subtitle),
+        value: isSelected,
+        onChanged: (bool? value) {
+          _toggleOption(option);
+        },
+        secondary: Icon(
+          icon,
+          color: color,
+        ),
+        activeColor: color,
+      ),
+    );
   }
 } 

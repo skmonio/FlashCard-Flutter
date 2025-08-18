@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
@@ -27,6 +28,9 @@ class ThemeProvider extends ChangeNotifier {
       final themeIndex = prefs.getInt(_themeKey) ?? 0;
       _themeMode = ThemeMode.values[themeIndex];
       notifyListeners();
+      
+      // Set initial status bar appearance
+      _updateStatusBarAppearance();
     } catch (e) {
       print('Error loading theme: $e');
     }
@@ -37,6 +41,9 @@ class ThemeProvider extends ChangeNotifier {
     _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     await _saveTheme();
     notifyListeners();
+    
+    // Update status bar appearance
+    _updateStatusBarAppearance();
   }
   
   // Set specific theme mode
@@ -44,6 +51,9 @@ class ThemeProvider extends ChangeNotifier {
     _themeMode = mode;
     await _saveTheme();
     notifyListeners();
+    
+    // Update status bar appearance
+    _updateStatusBarAppearance();
   }
   
   // Save theme preference
@@ -54,5 +64,22 @@ class ThemeProvider extends ChangeNotifier {
     } catch (e) {
       print('Error saving theme: $e');
     }
+  }
+  
+  // Update status bar appearance based on current theme
+  void _updateStatusBarAppearance() {
+    final isDark = _themeMode == ThemeMode.dark;
+    
+    SystemChrome.setSystemUIOverlayStyle(
+      isDark 
+        ? SystemUiOverlayStyle.light.copyWith(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+          )
+        : SystemUiOverlayStyle.dark.copyWith(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+          ),
+    );
   }
 } 
