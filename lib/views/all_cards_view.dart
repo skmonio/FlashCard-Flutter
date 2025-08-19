@@ -33,6 +33,19 @@ class _AllCardsViewState extends State<AllCardsView> {
   bool _isSelectionMode = false;
   Set<String> _selectedCardIds = {};
   bool _selectAll = false;
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -827,6 +840,7 @@ class _AllCardsViewState extends State<AllCardsView> {
           // Search Bar
           Expanded(
             child: TextField(
+              controller: _searchController,
               onChanged: (value) {
                 setState(() {
                   _searchQuery = value;
@@ -840,6 +854,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                         onPressed: () {
                           setState(() {
                             _searchQuery = '';
+                            _searchController.clear();
                           });
                         },
                         icon: const Icon(Icons.clear),
