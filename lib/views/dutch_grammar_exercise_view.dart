@@ -117,11 +117,6 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                         height: 1.4,
                       ),
                       textAlign: TextAlign.left,
-                      enableInteractiveSelection: true,
-                      showCursor: false,
-                      contextMenuBuilder: (context, editableTextState) {
-                        return const SizedBox.shrink(); // Hide context menu to prevent error
-                      },
                     ),
                   ),
                   
