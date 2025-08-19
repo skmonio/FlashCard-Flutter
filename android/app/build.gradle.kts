@@ -35,11 +35,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = "taaltrek-key-alias"
+            keyPassword = "taaltrek2025"
+            storeFile = file("../../taaltrek-release-key.keystore")
+            storePassword = "taaltrek2025"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             // Disable R8 for now to avoid ML Kit issues
             isMinifyEnabled = false
             isShrinkResources = false
