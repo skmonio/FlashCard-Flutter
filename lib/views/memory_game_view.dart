@@ -462,34 +462,46 @@ class _MemoryGameViewState extends State<MemoryGameView>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // First row of cards
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                alignment: WrapAlignment.center,
-                children: _memoryCards.take(5).map((card) {
-                  final index = _memoryCards.indexOf(card);
-                  return SizedBox(
-                    width: 140,
-                    height: 70,
-                    child: _buildFloatingCard(card, index),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-              // Second row of cards
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                alignment: WrapAlignment.center,
-                children: _memoryCards.skip(5).map((card) {
-                  final index = _memoryCards.indexOf(card);
-                  return SizedBox(
-                    width: 140,
-                    height: 70,
-                    child: _buildFloatingCard(card, index),
-                  );
-                }).toList(),
+              // Fixed grid layout - always show 10 positions
+              Column(
+                children: [
+                  // First row - positions 0-4
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (position) {
+                      final card = position < _memoryCards.length ? _memoryCards[position] : null;
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: SizedBox(
+                          width: 140,
+                          height: 70,
+                          child: card != null 
+                            ? _buildFloatingCard(card, position)
+                            : Container(), // Empty space to maintain grid
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 20),
+                  // Second row - positions 5-9
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (position) {
+                      final actualPosition = position + 5;
+                      final card = actualPosition < _memoryCards.length ? _memoryCards[actualPosition] : null;
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: SizedBox(
+                          width: 140,
+                          height: 70,
+                          child: card != null 
+                            ? _buildFloatingCard(card, actualPosition)
+                            : Container(), // Empty space to maintain grid
+                        ),
+                      );
+                    }),
+                  ),
+                ],
               ),
             ],
           ),
