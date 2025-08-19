@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import '../models/dutch_grammar_rule.dart';
@@ -117,6 +119,23 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                         height: 1.4,
                       ),
                       textAlign: TextAlign.left,
+                      enableInteractiveSelection: true,
+                      showCursor: false,
+                      contextMenuBuilder: (context, editableTextState) {
+                        return AdaptiveTextSelectionToolbar(
+                          anchors: editableTextState.contextMenuAnchors,
+                          children: [
+                            CupertinoButton(
+                              child: const Text('Copy'),
+                              onPressed: () {
+                                final selectedText = editableTextState.textEditingValue.selection.textInside(editableTextState.textEditingValue.text);
+                                Clipboard.setData(ClipboardData(text: selectedText));
+                                editableTextState.hideToolbar();
+                              },
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   
