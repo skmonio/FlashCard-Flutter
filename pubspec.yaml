@@ -76,6 +76,18 @@ dev_dependencies:
   # App icon generation
   flutter_launcher_icons: ^0.13.1
 
+dependency_overrides:
+  google_mlkit_commons:
+    git:
+      url: https://github.com/bharat-biradar/Google-Ml-Kit-plugin.git
+      path: packages/google_mlkit_commons
+      ref: master
+  google_mlkit_text_recognition:
+    git:
+      url: https://github.com/bharat-biradar/Google-Ml-Kit-plugin.git
+      path: packages/google_mlkit_text_recognition
+      ref: master
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
