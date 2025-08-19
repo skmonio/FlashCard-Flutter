@@ -559,11 +559,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
       case CardState.normal:
       case CardState.fadingIn:
         borderColor = _getMemoryCardBorderColor(card);
-        // Add a subtle background color for light mode, keep surface color for dark mode
+        // Use white background for light mode, keep surface color for dark mode
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         backgroundColor = isDarkMode 
           ? Theme.of(context).colorScheme.surface
-          : Theme.of(context).colorScheme.surfaceVariant;
+          : Colors.white;
         shadows = [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
