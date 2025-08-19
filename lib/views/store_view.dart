@@ -1020,7 +1020,7 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
       ).firstOrNull;
 
       final optionsList = options.isNotEmpty 
-          ? options.split(';').map((e) => e.trim().toString()).where((e) => e.isNotEmpty).toList()
+          ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
           : <String>[];
 
       if (existingExercise != null) {

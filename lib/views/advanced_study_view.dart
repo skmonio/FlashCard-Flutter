@@ -222,40 +222,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                         ),
                       ),
                       const Spacer(),
-                      PopupMenuButton<String>(
-                        onSelected: _handleMenuAction,
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit),
-                                SizedBox(width: 8),
-                                Text('Edit'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Delete', style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'info',
-                            child: Row(
-                              children: [
-                                Icon(Icons.info),
-                                SizedBox(width: 8),
-                                Text('Info'),
-                              ],
-                            ),
-                          ),
-                        ],
+                      IconButton(
+                        onPressed: () => _showHomeConfirmation(),
+                        icon: const Icon(Icons.home),
+                        iconSize: 20,
                       ),
                     ],
                   ),
@@ -346,15 +316,21 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildCardAreaWithLabels() {
-    return Stack(
-      children: [
-        // Directional label behind the card (only show relevant one)
-        if (_swipeDirection != SwipeDirection.none && _swipeIntensity > 0.3)
-          _buildDirectionalLabel(),
-        
-        // Card area
-        _buildCardArea(),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: _getSwipeBackgroundColor(),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Stack(
+        children: [
+          // Directional label behind the card (only show relevant one)
+          if (_swipeDirection != SwipeDirection.none && _swipeIntensity > 0.3)
+            _buildDirectionalLabel(),
+          
+          // Card area
+          _buildCardArea(),
+        ],
+      ),
     );
   }
 
@@ -968,19 +944,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     );
   }
 
-  void _handleMenuAction(String action) {
-    switch (action) {
-      case 'edit':
-        _editCurrentCard();
-        break;
-      case 'delete':
-        _deleteCurrentCard();
-        break;
-      case 'info':
-        _showCardInfo();
-        break;
-    }
-  }
+
 
   void _deleteCurrentCard() {
     final currentCard = _currentCards[_currentIndex];

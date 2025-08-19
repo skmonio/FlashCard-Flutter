@@ -610,7 +610,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       if (existingExercise != null) {
         // Add new exercise to existing word exercise
         final optionsList = options.isNotEmpty 
-            ? options.split(';').map((e) => e.trim().toString()).where((e) => e.isNotEmpty).toList()
+            ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
             : <String>[];
             
         final newWordExercise = WordExercise(
@@ -641,7 +641,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       } else {
         // Create new word exercise
         final optionsList = options.isNotEmpty 
-            ? options.split(';').map((e) => e.trim().toString()).where((e) => e.isNotEmpty).toList()
+            ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
             : <String>[];
             
         final exercise = DutchWordExercise(

@@ -79,19 +79,42 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
-          if (widget.showEditDeleteButtons) ...[
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _editWordExercise(context),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _showDeleteWordDialog(context),
-            ),
-          ],
-          IconButton(
-            icon: const Icon(Icons.info),
-            onPressed: () => _showWordInfo(context),
+          PopupMenuButton<String>(
+            onSelected: _handleMenuAction,
+            itemBuilder: (context) => [
+              if (widget.showEditDeleteButtons) ...[
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit),
+                      SizedBox(width: 8),
+                      Text('Edit'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+              const PopupMenuItem(
+                value: 'info',
+                child: Row(
+                  children: [
+                    Icon(Icons.info),
+                    SizedBox(width: 8),
+                    Text('Info'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -986,6 +1009,20 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         ],
       ),
     );
+  }
+
+  void _handleMenuAction(String action) {
+    switch (action) {
+      case 'edit':
+        _editWordExercise(context);
+        break;
+      case 'delete':
+        _showDeleteWordDialog(context);
+        break;
+      case 'info':
+        _showWordInfo(context);
+        break;
+    }
   }
 
   void _deleteWord() {

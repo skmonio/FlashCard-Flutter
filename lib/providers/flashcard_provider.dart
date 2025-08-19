@@ -522,7 +522,7 @@ class FlashcardProvider extends ChangeNotifier {
             // Semicolon-separated format: "Deck1; Deck2"
             deckNameList = deckNames.split(';').map((name) => name.trim()).toList();
           }
-          final validDeckNames = deckNameList.where((name) => name.isNotEmpty).toList();
+          final validDeckNames = deckNameList.where((String name) => name.isNotEmpty).toList();
           
           if (validDeckNames.isNotEmpty) {
             // Create a path representation for hierarchy

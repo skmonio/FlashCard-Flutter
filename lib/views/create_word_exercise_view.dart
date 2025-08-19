@@ -605,7 +605,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
 
   Widget _buildSentenceBuildingPreview(int exerciseIndex) {
     final correctAnswer = _correctAnswerControllers[exerciseIndex].text;
-    final words = correctAnswer.split(' ').where((word) => word.isNotEmpty).toList();
+    final words = correctAnswer.split(' ').where((String word) => word.isNotEmpty).toList();
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -804,7 +804,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
       if (_exerciseTypes[i] == ExerciseType.sentenceBuilding) {
         // For sentence building, split the correct answer into individual words
         correctAnswer = _correctAnswerControllers[i].text;
-        options = correctAnswer.split(' ').where((word) => word.isNotEmpty).toList();
+        options = correctAnswer.split(' ').where((String word) => word.isNotEmpty).toList();
       } else if (_exerciseTypes[i] == ExerciseType.multipleChoice) {
         // For multiple choice, first option is the correct answer
         options = _optionControllers[i].map((c) => c.text).toList();

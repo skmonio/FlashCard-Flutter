@@ -97,6 +97,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           type: memoryCard.type,
           originalCard: updatedCard,
           state: memoryCard.state,
+          isFlipped: memoryCard.isFlipped,
         );
       }
     }
@@ -151,28 +152,43 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _floatingControllers.clear();
     _floatingAnimations.clear();
     
-    for (final card in cardsToUse) {
-      // Add word card
-      _memoryCards.add(MemoryCard(
-        id: '${card.id}_word',
-        content: card.word,
-        type: MemoryCardType.word,
-        originalCard: card,
-        state: CardState.normal,
-      ));
+    if (widget.startFlipped) {
+      // In startFlipped mode, show only definition cards that flip to reveal words
+      for (final card in cardsToUse) {
+        _memoryCards.add(MemoryCard(
+          id: '${card.id}_flippable',
+          content: card.definition, // Start with definition
+          type: MemoryCardType.definition,
+          originalCard: card,
+          state: CardState.normal,
+          isFlipped: false, // Not flipped initially
+        ));
+      }
+    } else {
+      // Normal matching mode - show both word and definition cards
+      for (final card in cardsToUse) {
+        // Add word card
+        _memoryCards.add(MemoryCard(
+          id: '${card.id}_word',
+          content: card.word,
+          type: MemoryCardType.word,
+          originalCard: card,
+          state: CardState.normal,
+        ));
+        
+        // Add definition card
+        _memoryCards.add(MemoryCard(
+          id: '${card.id}_def',
+          content: card.definition,
+          type: MemoryCardType.definition,
+          originalCard: card,
+          state: CardState.normal,
+        ));
+      }
       
-      // Add definition card
-      _memoryCards.add(MemoryCard(
-        id: '${card.id}_def',
-        content: card.definition,
-        type: MemoryCardType.definition,
-        originalCard: card,
-        state: CardState.normal,
-      ));
+      // Shuffle the cards only in normal mode
+      _memoryCards.shuffle();
     }
-    
-    // Shuffle the cards
-    _memoryCards.shuffle();
     
     // Create floating animations for each card
     _createFloatingAnimations();
@@ -287,7 +303,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                       ),
                       const Spacer(),
                       Text(
-                        'Memory Game',
+                        widget.startFlipped ? 'Study Cards' : 'Memory Game',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -452,7 +468,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
       case CardState.normal:
       case CardState.fadingIn:
         borderColor = _getMemoryCardBorderColor(card);
-        backgroundColor = Theme.of(context).colorScheme.surface;
+        // Add a subtle background color for light mode, keep surface color for dark mode
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        backgroundColor = isDarkMode 
+          ? Theme.of(context).colorScheme.surface
+          : Theme.of(context).colorScheme.surfaceVariant;
         shadows = [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
@@ -587,6 +607,27 @@ class _MemoryGameViewState extends State<MemoryGameView>
     // Provide haptic feedback for card selection
     HapticService().memoryGameFeedback();
     
+    // In startFlipped mode, handle card flipping behavior
+    if (widget.startFlipped) {
+      setState(() {
+        if (!card.isFlipped) {
+          // Flip card to show word
+          card.isFlipped = true;
+          card.content = card.originalCard.word;
+          card.state = CardState.selected;
+          print('🔍 MemoryGameView: Flipped card to show word: ${card.content}');
+        } else {
+          // Flip card back to show definition
+          card.isFlipped = false;
+          card.content = card.originalCard.definition;
+          card.state = CardState.normal;
+          print('🔍 MemoryGameView: Flipped card back to show definition: ${card.content}');
+        }
+      });
+      return;
+    }
+    
+    // Normal matching game behavior
     // If clicking the same card that's already selected, deselect it
     if (_firstCard != null && _firstCard!.id == card.id) {
       print('🔍 MemoryGameView: Deselecting first card');
@@ -746,6 +787,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           type: MemoryCardType.word,
           originalCard: newCard,
           state: CardState.fadingIn,
+          isFlipped: false,
         );
         _updateFloatingAnimation(firstIndex);
       }
@@ -757,6 +799,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           type: MemoryCardType.definition,
           originalCard: newCard,
           state: CardState.fadingIn,
+          isFlipped: false,
         );
         _updateFloatingAnimation(secondIndex);
       }
@@ -781,6 +824,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
   
   void _checkGameCompletion() {
     bool gameComplete = false;
+    
+    // In startFlipped mode, game completion is different (study mode)
+    if (widget.startFlipped) {
+      // In study mode, user can continue flipping cards - no automatic completion
+      return;
+    }
     
     // For small decks (≤5 cards): game ends when all cards are removed from grid
     if (widget.cards.length <= 5) {
@@ -894,7 +943,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Leave Memory Game?'),
+        title: Text(widget.startFlipped ? 'Leave Study Session?' : 'Leave Memory Game?'),
         content: const Text('Are you sure you want to leave? Your progress will be lost.'),
         actions: [
           TextButton(
@@ -918,7 +967,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Return to Home?'),
-        content: const Text('Are you sure you want to return to the home screen? This will end your current memory game.'),
+        content: Text(widget.startFlipped 
+          ? 'Are you sure you want to return to the home screen? This will end your current study session.'
+          : 'Are you sure you want to return to the home screen? This will end your current memory game.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1126,10 +1177,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
 class MemoryCard {
   final String id;
-  final String content;
+  String content;
   final MemoryCardType type;
   final FlashCard originalCard;
   CardState state;
+  bool isFlipped;
 
   MemoryCard({
     required this.id,
@@ -1137,6 +1189,7 @@ class MemoryCard {
     required this.type,
     required this.originalCard,
     this.state = CardState.normal,
+    this.isFlipped = false,
   });
 }
 

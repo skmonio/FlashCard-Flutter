@@ -411,7 +411,7 @@ class UnifiedImportService {
     if (options.isEmpty) return [];
     
     // Split by semicolon and trim each option
-    final optionList = options.split(';').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final optionList = options.split(';').map((e) => e.trim()).where((String e) => e.isNotEmpty).toList();
     
     // Remove numbers in parentheses (e.g., "word (1)" becomes "word")
     final cleanedOptions = optionList.map((option) {
