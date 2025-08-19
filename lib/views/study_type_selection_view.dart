@@ -78,17 +78,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return Column(
       children: [
         Text(
-          'Choose Study Type',
+          'How would you like to study?',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'How would you like to study?',
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
           textAlign: TextAlign.center,
         ),
@@ -119,17 +111,19 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           Colors.blue,
           () => _navigateToNormalStudy(),
         ),
-        const SizedBox(height: 20),
         
-        // Timed Study Option
-        _buildStudyTypeCard(
-          'Timed Study',
-          'Race against the clock',
-          'Complete challenges before time runs out',
-          Icons.timer,
-          Colors.red,
-          () => _navigateToTimedStudy(),
-        ),
+        // Timed Study Option - only for memory games
+        if (widget.gameMode == GameMode.game) ...[
+          const SizedBox(height: 20),
+          _buildStudyTypeCard(
+            'Timed Study',
+            'Race against the clock',
+            'Complete challenges before time runs out',
+            Icons.timer,
+            Colors.red,
+            () => _navigateToTimedStudy(),
+          ),
+        ],
         const SizedBox(height: 20),
         
         // Card count selector (for all modes)
