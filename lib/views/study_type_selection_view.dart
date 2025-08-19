@@ -490,7 +490,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           children: [
             Text('Select the difficulty level for your timed challenge:'),
             SizedBox(height: 16),
-            Text('• Easy: More time per card'),
+            Text('• Easy: Relaxed pace with plenty of time'),
             Text('• Medium: Balanced challenge'),
             Text('• Hard: Race against the clock'),
           ],
@@ -506,7 +506,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedStudy(allCards, 'easy');
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Easy'),
+            child: const Text('Easy - 8 seconds per pair'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -514,7 +514,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedStudy(allCards, 'medium');
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Medium'),
+            child: const Text('Medium - 5 seconds per pair'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -522,7 +522,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedStudy(allCards, 'hard');
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hard'),
+            child: const Text('Hard - 3 seconds per pair'),
           ),
         ],
       ),
@@ -534,16 +534,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     int secondsPerPair;
     switch (difficulty) {
       case 'easy':
-        secondsPerPair = 4; // 4 seconds per pair
+        secondsPerPair = 8; // 8 seconds per pair - relaxed pace
         break;
       case 'medium':
-        secondsPerPair = 2; // 2 seconds per pair
+        secondsPerPair = 5; // 5 seconds per pair - balanced challenge
         break;
       case 'hard':
-        secondsPerPair = 1; // 1 second per pair
+        secondsPerPair = 3; // 3 seconds per pair - challenging but achievable
         break;
       default:
-        secondsPerPair = 2;
+        secondsPerPair = 5;
     }
     
     // Shuffle and take a subset of cards
