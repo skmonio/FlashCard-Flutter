@@ -462,46 +462,34 @@ class _MemoryGameViewState extends State<MemoryGameView>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Fixed grid layout - always show 10 positions
-              Column(
-                children: [
-                  // First row - positions 0-4
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (position) {
-                      final card = position < _memoryCards.length ? _memoryCards[position] : null;
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SizedBox(
-                          width: 140,
-                          height: 70,
-                          child: card != null 
-                            ? _buildFloatingCard(card, position)
-                            : Container(), // Empty space to maintain grid
-                        ),
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 20),
-                  // Second row - positions 5-9
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (position) {
-                      final actualPosition = position + 5;
-                      final card = actualPosition < _memoryCards.length ? _memoryCards[actualPosition] : null;
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: SizedBox(
-                          width: 140,
-                          height: 70,
-                          child: card != null 
-                            ? _buildFloatingCard(card, actualPosition)
-                            : Container(), // Empty space to maintain grid
-                        ),
-                      );
-                    }),
-                  ),
-                ],
+              // First row of cards
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                alignment: WrapAlignment.center,
+                children: _memoryCards.take(5).map((card) {
+                  final index = _memoryCards.indexOf(card);
+                  return SizedBox(
+                    width: 140,
+                    height: 70,
+                    child: _buildFloatingCard(card, index),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              // Second row of cards
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                alignment: WrapAlignment.center,
+                children: _memoryCards.skip(5).map((card) {
+                  final index = _memoryCards.indexOf(card);
+                  return SizedBox(
+                    width: 140,
+                    height: 70,
+                    child: _buildFloatingCard(card, index),
+                  );
+                }).toList(),
               ),
             ],
           ),
@@ -589,6 +577,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
           ),
         ];
         break;
+      case CardState.removed:
+        // Invisible card that maintains position
+        borderColor = Colors.transparent;
+        backgroundColor = Colors.transparent;
+        shadows = [];
+        break;
     }
     
     return GestureDetector(
@@ -661,6 +655,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
         return 0.0; // Fade out matched cards completely
       case CardState.fadingIn:
         return 1.0; // New cards fade in
+      case CardState.removed:
+        return 0.0; // Removed cards are invisible but maintain position
       case CardState.normal:
       case CardState.selected:
       case CardState.wrong:
@@ -702,7 +698,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
   void _selectCard(MemoryCard card) {
     // Only allow selection of normal cards
-    if (!_canSelect || card.state != CardState.normal) {
+    if (!_canSelect || card.state != CardState.normal || card.state == CardState.removed) {
       print('🔍 MemoryGameView: Card selection blocked - canSelect: $_canSelect, state: ${card.state}');
       return;
     }
@@ -864,10 +860,14 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
   void _replaceMatchedCards(MemoryCard firstCard, MemoryCard secondCard) {
     if (_remainingCards.isEmpty) {
-      print('🔍 MemoryGameView: No more cards to replace with - removing matched cards completely');
+      print('🔍 MemoryGameView: No more cards to replace with - marking matched cards as removed');
       setState(() {
-        // Remove matched cards completely from the grid
-        _memoryCards.removeWhere((card) => card.id == firstCard.id || card.id == secondCard.id);
+        // Mark matched cards as removed instead of removing them from the list
+        for (final card in _memoryCards) {
+          if (card.id == firstCard.id || card.id == secondCard.id) {
+            card.state = CardState.removed;
+          }
+        }
       });
       _checkGameCompletion();
       return;
@@ -934,7 +934,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     // For small decks (≤5 cards): game ends when all cards are removed from grid
     if (widget.cards.length <= 5) {
-      gameComplete = _memoryCards.isEmpty;
+      gameComplete = _memoryCards.every((card) => card.state == CardState.removed);
     } else {
       // For large decks: game ends when all cards processed and no more replacements
       gameComplete = _remainingCards.isEmpty && _totalCardsProcessed >= widget.cards.length;
@@ -1308,6 +1308,7 @@ enum CardState {
   wrong,
   matched,   // Green background + fading out
   fadingIn,  // New cards appearing
+  removed,   // Cards that have been removed but keep their position
 }
 
 // _ReplacementRequest class removed - using simplified replacement system 
