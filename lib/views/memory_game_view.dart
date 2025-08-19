@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'dart:async';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
@@ -18,6 +19,9 @@ class MemoryGameView extends StatefulWidget {
   final bool startFlipped;
   final Function(bool)? onComplete;
   final bool shuffleMode;
+  final bool timedMode;
+  final int? timeLimitSeconds;
+  final String? difficulty;
 
   const MemoryGameView({
     super.key,
@@ -25,6 +29,9 @@ class MemoryGameView extends StatefulWidget {
     this.startFlipped = false,
     this.onComplete,
     this.shuffleMode = false,
+    this.timedMode = false,
+    this.timeLimitSeconds,
+    this.difficulty,
   });
 
   @override
@@ -46,6 +53,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
   List<AnimationController> _floatingControllers = [];
   List<Animation<Offset>> _floatingAnimations = [];
   final GameSession _gameSession = GameSession();
+  
+  // Timer functionality for timed mode
+  Timer? _timer;
+  int _remainingTimeSeconds = 0;
+  bool _isTimedMode = false;
   // Old replacement queue system removed
   // Old processing replacements flag removed
 
@@ -53,6 +65,13 @@ class _MemoryGameViewState extends State<MemoryGameView>
   void initState() {
     super.initState();
     _initializeGame();
+    
+    // Initialize timed mode if enabled
+    if (widget.timedMode && widget.timeLimitSeconds != null) {
+      _isTimedMode = true;
+      _remainingTimeSeconds = widget.timeLimitSeconds!;
+      _startTimer();
+    }
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,6 +85,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
     for (var controller in _floatingControllers) {
       controller.dispose();
     }
+    
+    // Cancel timer if running
+    _timer?.cancel();
     
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
@@ -112,6 +134,53 @@ class _MemoryGameViewState extends State<MemoryGameView>
     }
     
     print('🔍 MemoryGameView: Refreshed cards from provider without disrupting game state');
+  }
+
+  // Timer methods for timed mode
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _remainingTimeSeconds--;
+        });
+        
+        if (_remainingTimeSeconds <= 0) {
+          _timer?.cancel();
+          _handleTimeUp();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    // Play sound and provide haptic feedback
+    SoundManager().playWrongSound();
+    HapticService().errorFeedback();
+    
+    // Show time up dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Time\'s Up!'),
+        content: Text('You ran out of time! You completed $_matches matches.'),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Go back to previous screen
+            },
+            child: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   void _initializeGame() {
@@ -302,12 +371,34 @@ class _MemoryGameViewState extends State<MemoryGameView>
                         iconSize: 20,
                       ),
                       const Spacer(),
-                      Text(
-                        widget.startFlipped ? 'Study Cards' : 'Memory Game',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Column(
+                        children: [
+                          Text(
+                            widget.startFlipped ? 'Study Cards' : 'Memory Game',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (_isTimedMode) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _remainingTimeSeconds <= 10 ? Colors.red : Colors.orange,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _formatTime(_remainingTimeSeconds),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const Spacer(),
                       IconButton(
@@ -708,8 +799,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
       });
 
       // Check if game is complete
-      bool gameComplete = false;
-      
       _checkGameCompletion();
     } else {
       // Track XP for incorrect match (0 XP)
@@ -840,6 +929,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
     }
     
     if (gameComplete) {
+      // Cancel timer if running
+      _timer?.cancel();
+      
       // In shuffle mode, completing the memory game is always considered successful
       final wasSuccessful = widget.shuffleMode ? true : 
                            (_totalCardsProcessed > 0 ? _totalCardsProcessed / _moves >= 0.5 : false);

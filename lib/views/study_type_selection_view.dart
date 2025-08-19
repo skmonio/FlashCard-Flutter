@@ -121,6 +121,17 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         ),
         const SizedBox(height: 20),
         
+        // Timed Study Option
+        _buildStudyTypeCard(
+          'Timed Study',
+          'Race against the clock',
+          'Complete challenges before time runs out',
+          Icons.timer,
+          Colors.red,
+          () => _navigateToTimedStudy(),
+        ),
+        const SizedBox(height: 20),
+        
         // Card count selector (for all modes)
         _buildCardCountSelector(),
         
@@ -450,6 +461,109 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             child: const Text('Got it'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _navigateToTimedStudy() {
+    final provider = context.read<FlashcardProvider>();
+    final allCards = provider.cards;
+    
+    if (allCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available. Please add some cards first.')),
+      );
+      return;
+    }
+    
+    // Show difficulty selection dialog
+    _showTimedDifficultyDialog(allCards);
+  }
+
+  void _showTimedDifficultyDialog(List<FlashCard> allCards) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Difficulty'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select the difficulty level for your timed challenge:'),
+            SizedBox(height: 16),
+            Text('• Easy: More time per card'),
+            Text('• Medium: Balanced challenge'),
+            Text('• Hard: Race against the clock'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedStudy(allCards, 'easy');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Easy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedStudy(allCards, 'medium');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Medium'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedStudy(allCards, 'hard');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hard'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startTimedStudy(List<FlashCard> allCards, String difficulty) {
+    // Calculate time based on difficulty and card count
+    int secondsPerPair;
+    switch (difficulty) {
+      case 'easy':
+        secondsPerPair = 4; // 4 seconds per pair
+        break;
+      case 'medium':
+        secondsPerPair = 2; // 2 seconds per pair
+        break;
+      case 'hard':
+        secondsPerPair = 1; // 1 second per pair
+        break;
+      default:
+        secondsPerPair = 2;
+    }
+    
+    // Shuffle and take a subset of cards
+    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
+    final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
+    final totalPairs = (studyCards.length / 2).ceil();
+    final totalTimeSeconds = totalPairs * secondsPerPair;
+    
+    // Navigate to memory game with timed mode
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MemoryGameView(
+          cards: studyCards,
+          startFlipped: _startFlipped,
+          timedMode: true,
+          timeLimitSeconds: totalTimeSeconds,
+          difficulty: difficulty,
+        ),
       ),
     );
   }
