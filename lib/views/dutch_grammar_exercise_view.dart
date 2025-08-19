@@ -253,18 +253,13 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: SelectableText(
+                      child: Text(
                         option,
                         style: const TextStyle(
                           fontSize: 16,
                           height: 1.4,
                         ),
                         textAlign: TextAlign.left,
-                        enableInteractiveSelection: true,
-                        showCursor: false,
-                        contextMenuBuilder: (context, editableTextState) {
-                          return const SizedBox.shrink(); // Hide context menu to prevent error
-                        },
                       ),
                     ),
                     if (_answered && isCorrect)
