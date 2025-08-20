@@ -712,6 +712,9 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                     ],
                   ),
                   
+                  // Answer feedback (show when incorrect OR when correctly answered FALSE)
+                  if (_answered && (_selectedAnswer != _correctAnswer || (_selectedAnswer == false && _correctAnswer == false)))
+                    _buildAnswerFeedback(),
 
                 ],
               ),
@@ -807,6 +810,38 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerFeedback() {
+    final currentCard = _currentCards[_currentIndex];
+    final isCorrectAnswer = _selectedAnswer == _correctAnswer;
+    
+    // Determine color and message based on correctness
+    Color textColor;
+    String message;
+    
+    if (isCorrectAnswer && _selectedAnswer == false) {
+      // User correctly answered FALSE - show green positive feedback
+      textColor = Colors.green;
+      message = 'Correct! The answer is: ${currentCard.definition}';
+    } else {
+      // User answered incorrectly - show red feedback
+      textColor = Colors.red;
+      message = 'The correct answer is: ${currentCard.definition}';
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: textColor,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }

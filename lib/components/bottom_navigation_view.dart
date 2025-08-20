@@ -36,12 +36,12 @@ class BottomNavigationView extends StatelessWidget {
             Container(
               height: 60,
               child: Row(
-                children: [
-                  _buildTabButton(context, 0, Icons.home, 'Home'),
-                  _buildTabButton(context, 1, Icons.folder, 'Cards'),
-                  _buildTabButton(context, 2, Icons.store, 'Store'),
-                  _buildTabButton(context, 3, Icons.settings, 'Settings'),
-                ],
+                                       children: [
+                         _buildTabButton(context, 0, Icons.home, 'Home'),
+                         _buildTabButton(context, 1, Icons.folder, 'Cards'),
+                         _buildTabButton(context, 2, Icons.store, 'Store'),
+                         _buildTabButton(context, 3, Icons.settings, 'Settings'),
+                       ],
               ),
             ),
           ],

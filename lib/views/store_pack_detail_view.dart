@@ -508,7 +508,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
           id: DateTime.now().millisecondsSinceEpoch.toString() + exercises.indexOf(exercise).toString(),
           type: _getExerciseType(exercise['Exercise Type'] ?? ''),
           prompt: exercise['Question'] ?? '',
-          options: (exercise['Options'] ?? '').split(';').map((e) => e.trim()).toList(),
+          options: (exercise['Options'] ?? '').split(';').map((e) => e.trim().toString()).toList(),
           correctAnswer: exercise['Correct Answer'] ?? '',
           explanation: exercise['Explanation'] ?? '',
           difficulty: ExerciseDifficulty.beginner,

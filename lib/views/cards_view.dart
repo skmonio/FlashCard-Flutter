@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
+import '../providers/phrase_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import 'add_card_view.dart';
@@ -9,6 +10,8 @@ import 'all_cards_view.dart';
 import 'all_decks_view.dart';
 import 'create_word_exercise_view.dart';
 import 'photo_import_view.dart';
+import 'add_phrase_view.dart';
+import 'phrases_list_view.dart';
 
 class CardsView extends StatefulWidget {
   const CardsView({super.key});
@@ -331,6 +334,7 @@ class _CardsViewState extends State<CardsView> {
         // Add Exercise
         Container(
           width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton(
             onPressed: () => _showAddExerciseDialog(context),
             style: ElevatedButton.styleFrom(
@@ -353,6 +357,41 @@ class _CardsViewState extends State<CardsView> {
                 const SizedBox(width: 12),
                 Text(
                   'Add Exercise',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+        
+        // Add a Phrase
+        Container(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => _showAddPhraseDialog(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              elevation: 2,
+              shadowColor: Colors.teal.withOpacity(0.2),
+              padding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.translate,
+                  color: Colors.teal,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Add a Phrase',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
@@ -427,6 +466,7 @@ class _CardsViewState extends State<CardsView> {
         // View All Decks
         Container(
           width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton(
             onPressed: () => _viewAllDecks(context),
             style: ElevatedButton.styleFrom(
@@ -464,6 +504,52 @@ class _CardsViewState extends State<CardsView> {
             ),
           ),
         ),
+        
+        // View All Phrases
+        Consumer<PhraseProvider>(
+          builder: (context, phraseProvider, child) {
+            final allPhrases = phraseProvider.phrases;
+            return Container(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _viewAllPhrases(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  elevation: 2,
+                  shadowColor: Colors.teal.withOpacity(0.2),
+                  padding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.translate,
+                      color: Colors.teal,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'View All Phrases',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '(${allPhrases.length})',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -492,6 +578,14 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
+  void _showAddPhraseDialog(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AddPhraseView(),
+      ),
+    );
+  }
+
   void _showPhotoImportDialog(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -512,6 +606,14 @@ class _CardsViewState extends State<CardsView> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const AllDecksView(),
+      ),
+    );
+  }
+
+  void _viewAllPhrases(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const PhrasesListView(),
       ),
     );
   }
