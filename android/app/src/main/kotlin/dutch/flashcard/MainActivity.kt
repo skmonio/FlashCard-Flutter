@@ -1,4 +1,4 @@
-package com.skmonio.taaltrek
+package dutch.flashcard
 
 import io.flutter.embedding.android.FlutterActivity
 

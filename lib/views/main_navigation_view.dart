@@ -75,12 +75,12 @@ class _MainNavigationViewState extends State<MainNavigationView> {
             _selectedTabIndex = index;
           });
         },
-        children: const [
-          HomeView(),
-          CardsView(),
-          StoreView(),
-          SettingsView(),
-        ],
+                       children: const [
+                 HomeView(),
+                 CardsView(),
+                 StoreView(),
+                 SettingsView(),
+               ],
       ),
       bottomNavigationBar: BottomNavigationView(
         selectedTabIndex: _selectedTabIndex,
