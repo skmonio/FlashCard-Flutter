@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../services/sound_manager.dart';
@@ -19,6 +20,7 @@ class MultipleChoiceView extends StatefulWidget {
   final String title;
   final Function(bool)? onComplete;
   final bool shuffleMode;
+  final bool autoProgress;
 
   const MultipleChoiceView({
     super.key,
@@ -26,6 +28,7 @@ class MultipleChoiceView extends StatefulWidget {
     required this.title,
     this.onComplete,
     this.shuffleMode = false,
+    this.autoProgress = false,
   });
 
   @override
@@ -53,6 +56,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
+  
+  // Auto progress timer
+  Timer? _autoProgressTimer;
 
   @override
   void initState() {
@@ -75,6 +81,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
+    
+    // Cancel auto progress timer
+    _autoProgressTimer?.cancel();
     
     super.dispose();
   }
@@ -258,6 +267,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         SoundManager().playWrongSound();
       }
     });
+    
+    // Auto progress logic
+    if (widget.autoProgress) {
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+        if (mounted && _currentIndex < _currentCards.length - 1) {
+          _goToNextQuestion();
+        }
+      });
+    }
   }
 
   Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {

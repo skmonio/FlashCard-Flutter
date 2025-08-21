@@ -285,6 +285,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
           final exerciseType = exercise['Exercise Type'] ?? '';
           final question = exercise['Question'] ?? '';
           final correctAnswer = exercise['Correct Answer'] ?? '';
+          final isAlreadyImported = _isExerciseAlreadyImported(word, exercise);
 
           return Padding(
             padding: const EdgeInsets.all(16),
@@ -297,25 +298,39 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: isAlreadyImported 
+                              ? Colors.green.withOpacity(0.1)
+                              : Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          border: Border.all(
+                            color: isAlreadyImported 
+                                ? Colors.green.withOpacity(0.3)
+                                : Colors.orange.withOpacity(0.3),
+                          ),
                         ),
                         child: Text(
-                          exerciseType,
+                          isAlreadyImported ? 'Imported' : exerciseType,
                           style: TextStyle(
-                            color: Colors.orange[700],
+                            color: isAlreadyImported 
+                                ? Colors.green[700]
+                                : Colors.orange[700],
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
                     ),
-                    if (wordExists)
+                    if (wordExists && !isAlreadyImported)
                       IconButton(
                         onPressed: () => _importExerciseItem(exercise),
                         icon: const Icon(Icons.add_circle_outline, size: 20),
                         tooltip: 'Import this exercise',
+                      ),
+                    if (wordExists && isAlreadyImported)
+                      IconButton(
+                        onPressed: null,
+                        icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
+                        tooltip: 'Already imported',
                       ),
                   ],
                 ),
@@ -498,17 +513,35 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
         return;
       }
 
+      // Filter out exercises that are already imported
+      final exercisesToImport = exercises.where((exercise) => !_isExerciseAlreadyImported(word, exercise)).toList();
+      
+      if (exercisesToImport.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('All exercises for "$word" have already been imported'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+        return;
+      }
+
       // Check if exercise already exists for this word
       final existingExercise = exerciseProvider.wordExercises.where(
         (exercise) => exercise.targetWord.toLowerCase() == word.toLowerCase(),
       ).firstOrNull;
 
-      final newWordExercises = exercises.map((exercise) {
+      final newWordExercises = exercisesToImport.map((exercise) {
+        final optionsString = exercise['Options'] ?? '';
+        final optionsList = _parseOptions(optionsString);
+            
         return WordExercise(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + exercises.indexOf(exercise).toString(),
+          id: DateTime.now().millisecondsSinceEpoch.toString() + exercisesToImport.indexOf(exercise).toString(),
           type: _getExerciseType(exercise['Exercise Type'] ?? ''),
           prompt: exercise['Question'] ?? '',
-          options: (exercise['Options'] ?? '').split(';').map((e) => e.trim().toString()).toList(),
+          options: optionsList,
           correctAnswer: exercise['Correct Answer'] ?? '',
           explanation: exercise['Explanation'] ?? '',
           difficulty: ExerciseDifficulty.beginner,
@@ -554,12 +587,14 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully imported ${exercises.length} exercises for "$word"'),
+            content: Text('Successfully imported ${exercisesToImport.length} exercises for "$word"'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
+      print('🔍 Import: Error occurred: $e');
+      print('🔍 Import: Error stack trace: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -576,12 +611,30 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
     final flashcardProvider = context.read<FlashcardProvider>();
     
     try {
+      print('🔍 Import: Starting import for item: $item');
+      
       final word = item['Word'] ?? '';
       final exerciseType = item['Exercise Type'] ?? '';
       final question = item['Question'] ?? '';
       final correctAnswer = item['Correct Answer'] ?? '';
       final options = item['Options'] ?? '';
       final explanation = item['Explanation'] ?? '';
+      
+      print('🔍 Import: Parsed values - Word: "$word", Type: "$exerciseType", Question: "$question"');
+      print('🔍 Import: Options string: "$options"');
+
+      // Check if this exercise is already imported
+      if (_isExerciseAlreadyImported(word, item)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This exercise has already been imported for "$word"'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+        return;
+      }
 
 
 
@@ -609,9 +662,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
 
       if (existingExercise != null) {
         // Add new exercise to existing word exercise
-        final optionsList = options.isNotEmpty 
-            ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
-            : <String>[];
+        final optionsList = _parseOptions(options);
             
         final newWordExercise = WordExercise(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -640,9 +691,7 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
         await exerciseProvider.updateWordExercise(updatedExercise);
       } else {
         // Create new word exercise
-        final optionsList = options.isNotEmpty 
-            ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
-            : <String>[];
+        final optionsList = _parseOptions(options);
             
         final exercise = DutchWordExercise(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -693,6 +742,8 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
         }
       }
     } catch (e) {
+      print('🔍 Import: Error occurred in _importExerciseItem: $e');
+      print('🔍 Import: Error stack trace: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -717,6 +768,58 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       default:
         return ExerciseType.multipleChoice;
     }
+  }
+
+  List<String> _parseOptions(String optionsString) {
+    if (optionsString.isEmpty) {
+      return <String>[];
+    }
+    
+    final splitOptions = optionsString.split(';');
+    final result = <String>[];
+    
+    for (final option in splitOptions) {
+      final trimmed = option.trim();
+      if (trimmed.isNotEmpty) {
+        result.add(trimmed);
+      }
+    }
+    
+    return result;
+  }
+
+  String _generateExerciseId(Map<String, dynamic> exercise) {
+    final question = exercise['Question'] ?? '';
+    final correctAnswer = exercise['Correct Answer'] ?? '';
+    final exerciseType = exercise['Exercise Type'] ?? '';
+    final options = exercise['Options'] ?? '';
+    
+    // Create a unique identifier based on the exercise content
+    return '$question|$correctAnswer|$exerciseType|$options';
+  }
+
+  bool _isExerciseAlreadyImported(String word, Map<String, dynamic> exercise) {
+    final exerciseProvider = context.read<DutchWordExerciseProvider>();
+    final exerciseId = _generateExerciseId(exercise);
+    
+    // Find existing word exercise
+    final existingWordExercise = exerciseProvider.wordExercises.where(
+      (wordExercise) => wordExercise.targetWord.toLowerCase() == word.toLowerCase(),
+    ).firstOrNull;
+    
+    if (existingWordExercise == null) {
+      return false;
+    }
+    
+    // Check if any existing exercise matches this one
+    for (final existingExercise in existingWordExercise.exercises) {
+      final existingId = '${existingExercise.prompt}|${existingExercise.correctAnswer}|${existingExercise.type.toString()}|${existingExercise.options.join(';')}';
+      if (existingId == exerciseId) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   Future<String?> _showDeckSelectionDialog() async {
