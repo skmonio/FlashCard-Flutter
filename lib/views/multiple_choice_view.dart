@@ -25,6 +25,8 @@ class MultipleChoiceView extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
+  final bool startFlipped;
+  final bool useMixedMode;
 
   const MultipleChoiceView({
     super.key,
@@ -35,6 +37,8 @@ class MultipleChoiceView extends StatefulWidget {
     this.autoProgress = false,
     this.useLivesMode = false,
     this.customLives,
+    this.startFlipped = false,
+    this.useMixedMode = false,
   });
 
   @override
@@ -182,8 +186,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
-    // Randomly choose question mode
-    _isQuestionMode = random.nextBool();
+    // Choose question mode based on flipped mode settings
+    if (widget.useMixedMode) {
+      _isQuestionMode = random.nextBool(); // Randomly choose question mode
+    } else {
+      _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
+    }
     
     // Get correct answer
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;

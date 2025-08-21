@@ -25,6 +25,8 @@ class TrueFalseView extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
+  final bool startFlipped;
+  final bool useMixedMode;
 
   const TrueFalseView({
     super.key,
@@ -35,6 +37,8 @@ class TrueFalseView extends StatefulWidget {
     this.autoProgress = false,
     this.useLivesMode = false,
     this.customLives,
+    this.startFlipped = false,
+    this.useMixedMode = false,
   });
 
   @override
@@ -192,11 +196,15 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     _correctAnswer = null;
     _currentTranslation = '';
     
-    // Always use word to definition format (does the following "word" mean "definition")
-    _isQuestionMode = true;
+    // Choose question mode based on flipped mode settings
+    if (widget.useMixedMode) {
+      _isQuestionMode = Random().nextBool(); // Randomly choose question mode
+    } else {
+      _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
+    }
     
-    // Get correct answer (always the definition)
-    final correctAnswer = currentCard.definition;
+    // Get correct answer based on question mode
+    final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
     
     // Get other cards for wrong options
     final otherCards = widget.cards.where((card) => card.id != currentCard.id).toList();
@@ -206,7 +214,11 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     if (isTrue) {
       // True question - use correct answer
-      _question = 'Does the following word "${currentCard.word}" mean "${correctAnswer}"?';
+      if (_isQuestionMode) {
+        _question = 'Does the following word "${currentCard.word}" mean "${correctAnswer}"?';
+      } else {
+        _question = 'Does the following definition "${currentCard.definition}" mean "${correctAnswer}"?';
+      }
       _currentTranslation = correctAnswer;
       _correctAnswer = true;
       print('🔍 TrueFalse: TRUE question - "${currentCard.word}" means "${correctAnswer}" = TRUE');
@@ -219,35 +231,47 @@ class _TrueFalseViewState extends State<TrueFalseView> {
         String wrongAnswer = '';
         bool foundDifferentAnswer = false;
         
-        // Try each card until we find one with a truly different definition
+        // Try each card until we find one with a truly different answer
         for (final otherCard in otherCards) {
-          print('🔍 TrueFalse: Checking otherCard "${otherCard.word}" definition: "${otherCard.definition}" vs current "${currentCard.word}" definition: "${currentCard.definition}"');
-          if (otherCard.definition.toLowerCase().trim() != currentCard.definition.toLowerCase().trim()) {
-            wrongAnswer = otherCard.definition;
+          final otherAnswer = _isQuestionMode ? otherCard.definition : otherCard.word;
+          if (otherAnswer.toLowerCase().trim() != correctAnswer.toLowerCase().trim()) {
+            wrongAnswer = otherAnswer;
             foundDifferentAnswer = true;
-            print('🔍 TrueFalse: Found different answer: "${wrongAnswer}" vs correct "${currentCard.definition}"');
+            print('🔍 TrueFalse: Found different answer: "${wrongAnswer}" vs correct "${correctAnswer}"');
             break;
           }
         }
         
         if (foundDifferentAnswer) {
-          _question = 'Does the following word "${currentCard.word}" mean "${wrongAnswer}"?';
+          if (_isQuestionMode) {
+            _question = 'Does the following word "${currentCard.word}" mean "${wrongAnswer}"?';
+          } else {
+            _question = 'Does the following definition "${currentCard.definition}" mean "${wrongAnswer}"?';
+          }
           _currentTranslation = wrongAnswer;
           _correctAnswer = false;
           print('🔍 TrueFalse: FALSE question - "${currentCard.word}" does NOT mean "${wrongAnswer}" = FALSE');
         } else {
-          // If all definitions are somehow the same, try a different approach
-          // Use a completely wrong definition by combining words or using a generic wrong answer
-          final generatedWrongAnswer = _generateWrongDefinition(currentCard.word, otherCards);
-          _question = 'Does the following word "${currentCard.word}" mean "${generatedWrongAnswer}"?';
+          // If all answers are somehow the same, try a different approach
+          // Use a completely wrong answer by combining words or using a generic wrong answer
+          final generatedWrongAnswer = _generateWrongAnswer(currentCard, otherCards);
+          if (_isQuestionMode) {
+            _question = 'Does the following word "${currentCard.word}" mean "${generatedWrongAnswer}"?';
+          } else {
+            _question = 'Does the following definition "${currentCard.definition}" mean "${generatedWrongAnswer}"?';
+          }
           _currentTranslation = generatedWrongAnswer;
           _correctAnswer = false;
-          print('🔍 TrueFalse: Generated wrong definition: "${generatedWrongAnswer}" for FALSE question');
+          print('🔍 TrueFalse: Generated wrong answer: "${generatedWrongAnswer}" for FALSE question');
         }
       } else {
-        // If no other cards available, generate a wrong definition
-        final generatedWrongAnswer = _generateWrongDefinition(currentCard.word, []);
-        _question = 'Does the following word "${currentCard.word}" mean "${generatedWrongAnswer}"?';
+        // If no other cards available, generate a wrong answer
+        final generatedWrongAnswer = _generateWrongAnswer(currentCard, []);
+        if (_isQuestionMode) {
+          _question = 'Does the following word "${currentCard.word}" mean "${generatedWrongAnswer}"?';
+        } else {
+          _question = 'Does the following definition "${currentCard.definition}" mean "${generatedWrongAnswer}"?';
+        }
         _currentTranslation = generatedWrongAnswer;
         _correctAnswer = false;
         print('🔍 TrueFalse: Generated wrong definition: "${generatedWrongAnswer}" for FALSE question (no other cards)');
@@ -286,30 +310,57 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     return _currentTranslation;
   }
 
-  String _generateWrongDefinition(String word, List<FlashCard> otherCards) {
-    // Create plausible but wrong definitions
+  String _generateWrongAnswer(FlashCard card, List<FlashCard> otherCards) {
+    // Create plausible but wrong answers based on question mode
     final random = Random();
-    final wrongDefinitions = [
-      'a type of food',
-      'an animal',
-      'a color',
-      'a number',
-      'a place',
-      'an object',
-      'an action',
-      'a feeling',
-      'a time period',
-      'a weather condition',
-    ];
     
-    // If we have other cards, try to use one of their definitions
-    if (otherCards.isNotEmpty) {
-      final randomCard = otherCards[random.nextInt(otherCards.length)];
-      return randomCard.definition;
+    if (_isQuestionMode) {
+      // For word to definition mode, generate wrong definitions
+      final wrongDefinitions = [
+        'a type of food',
+        'an animal',
+        'a color',
+        'a number',
+        'a place',
+        'an object',
+        'an action',
+        'a feeling',
+        'a time period',
+        'a weather condition',
+      ];
+      
+      // If we have other cards, try to use one of their definitions
+      if (otherCards.isNotEmpty) {
+        final randomCard = otherCards[random.nextInt(otherCards.length)];
+        return randomCard.definition;
+      }
+      
+      // Otherwise use a generic wrong definition
+      return wrongDefinitions[random.nextInt(wrongDefinitions.length)];
+    } else {
+      // For definition to word mode, generate wrong words
+      final wrongWords = [
+        'huis',
+        'auto',
+        'boek',
+        'hond',
+        'kat',
+        'man',
+        'vrouw',
+        'kind',
+        'water',
+        'brood',
+      ];
+      
+      // If we have other cards, try to use one of their words
+      if (otherCards.isNotEmpty) {
+        final randomCard = otherCards[random.nextInt(otherCards.length)];
+        return randomCard.word;
+      }
+      
+      // Otherwise use a generic wrong word
+      return wrongWords[random.nextInt(wrongWords.length)];
     }
-    
-    // Otherwise use a generic wrong definition
-    return wrongDefinitions[random.nextInt(wrongDefinitions.length)];
   }
 
   void _goToNextQuestion() {
