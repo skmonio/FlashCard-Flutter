@@ -15,6 +15,8 @@ class WritingView extends StatefulWidget {
   final String title;
   final Function(bool)? onComplete;
   final bool shuffleMode;
+  final bool startFlipped;
+  final bool useMixedMode;
 
   const WritingView({
     super.key,
@@ -22,6 +24,8 @@ class WritingView extends StatefulWidget {
     required this.title,
     this.onComplete,
     this.shuffleMode = false,
+    this.startFlipped = false,
+    this.useMixedMode = false,
   });
 
   @override
@@ -149,8 +153,12 @@ class _WritingViewState extends State<WritingView> {
     final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
-    // Randomly choose question mode
-    _isQuestionMode = random.nextBool();
+    // Choose question mode based on flipped mode settings
+    if (widget.useMixedMode) {
+      _isQuestionMode = random.nextBool(); // Randomly choose question mode
+    } else {
+      _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
+    }
     
     // Get correct answer
     _correctAnswer = _isQuestionMode ? currentCard.word : currentCard.definition;

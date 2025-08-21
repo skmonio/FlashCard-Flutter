@@ -43,6 +43,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _autoProgress = false;
   bool _useLivesMode = false;
   int _selectedLives = 2; // Default to medium difficulty
+  
+  // New settings for flipped mode
+  String _flippedMode = 'normal'; // 'normal', 'flipped', 'mixed'
 
   @override
   Widget build(BuildContext context) {
@@ -55,8 +58,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             title: 'Study Type',
             onBack: () => Navigator.of(context).pop(),
             trailing: IconButton(
-              onPressed: () => _showGameInfo(context),
-              icon: const Icon(Icons.info, color: Colors.blue),
+              onPressed: () => _shouldShowSettings() ? _showSettingsDialog(context) : _showGameInfo(context),
+              icon: Icon(
+                _shouldShowSettings() ? Icons.settings : Icons.info,
+                color: Colors.blue,
+              ),
             ),
           ),
           
@@ -95,6 +101,22 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
+  bool _shouldShowSettings() {
+    // All game modes now have settings
+    return true;
+  }
+  
+  bool _getStartFlipped() {
+    if (_shouldShowSettings()) {
+      return _flippedMode == 'flipped';
+    }
+    return _startFlipped;
+  }
+  
+  bool _getUseMixedMode() {
+    return _shouldShowSettings() && _flippedMode == 'mixed';
+  }
+  
   Widget _buildStudyTypeOptions() {
     return Column(
       children: [
@@ -133,22 +155,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         ],
         const SizedBox(height: 20),
         
-        // Card count selector (for all modes)
-        _buildCardCountSelector(),
+        // Card count selector (for all modes except those with settings)
+        if (!_shouldShowSettings())
+          _buildCardCountSelector(),
         
-        // Start Flipped toggle (for study and test modes)
-        if (widget.gameMode == GameMode.study || widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse)
-          _buildStartFlippedToggle(),
-        
-        // Auto Progress toggle (for test, true/false, and jumble modes)
-        if (widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord)
-          _buildAutoProgressToggle(),
-        
-        // Lives Mode toggle (for test, true/false, and jumble modes)
-        if (widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord) ...[
-          const SizedBox(height: 16),
-          _buildLivesModeToggle(),
-        ],
+
       ],
     );
   }
@@ -277,50 +288,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  Widget _buildStartFlippedToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.flip, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Start Flipped',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Show translation first, then word',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch(
-            value: _startFlipped,
-            onChanged: (value) {
-              setState(() {
-                _startFlipped = value;
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildAutoProgressToggle() {
     return Container(
@@ -367,112 +335,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
   
-  Widget _buildLivesModeToggle() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.favorite, size: 20, color: Colors.red),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Lives Mode',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              Switch(
-                value: _useLivesMode,
-                onChanged: (value) {
-                  setState(() {
-                    _useLivesMode = value;
-                    if (!value) {
-                      _selectedLives = 2; // Reset to default
-                    }
-                  });
-                },
-              ),
-            ],
-          ),
-          if (_useLivesMode) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Select Difficulty:',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDifficultyButton('Easy', 3, Colors.green),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildDifficultyButton('Medium', 2, Colors.orange),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildDifficultyButton('Hard', 1, Colors.red),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Easy: 3 lives, Medium: 2 lives, Hard: 1 life',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+
   
-  Widget _buildDifficultyButton(String text, int lives, Color color) {
-    final isSelected = _selectedLives == lives;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedLives = lives;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
-            width: 2,
-          ),
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isSelected ? color : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   void _navigateToQuickStudy() {
     final provider = context.read<FlashcardProvider>();
@@ -487,7 +352,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     
     // Shuffle and take a subset of cards for quick study
     final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
-    final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    final cardCount = _selectedCardCount >= 50 ? allCards.length : _selectedCardCount;
+    final studyCards = shuffledCards.take(cardCount).toList();
     
     // Navigate based on game mode
     switch (widget.gameMode) {
@@ -496,7 +362,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           MaterialPageRoute(
             builder: (context) => AdvancedStudyView(
               cards: studyCards,
-              startFlipped: _startFlipped,
+              startFlipped: _getStartFlipped(),
               title: 'Quick Study',
             ),
           ),
@@ -511,6 +377,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               autoProgress: _autoProgress,
               useLivesMode: _useLivesMode,
               customLives: _useLivesMode ? _selectedLives : null,
+              startFlipped: _getStartFlipped(),
+              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -524,6 +392,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               autoProgress: _autoProgress,
               useLivesMode: _useLivesMode,
               customLives: _selectedLives,
+              startFlipped: _getStartFlipped(),
+              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -534,6 +404,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             builder: (context) => WritingView(
               cards: studyCards,
               title: 'Quick Write',
+              startFlipped: _getStartFlipped(),
+              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -543,7 +415,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           MaterialPageRoute(
             builder: (context) => MemoryGameView(
               cards: studyCards,
-              startFlipped: _startFlipped,
+              startFlipped: _getStartFlipped(),
             ),
           ),
         );
@@ -554,7 +426,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             builder: (context) => WordScrambleView(
               cards: studyCards,
               title: 'Quick Jumble',
-              startFlipped: _startFlipped,
+              startFlipped: _getStartFlipped(),
               autoProgress: _autoProgress,
               useLivesMode: _useLivesMode,
               customLives: _selectedLives,
@@ -585,12 +457,332 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         decks: decks,
         provider: provider,
         gameMode: widget.gameMode,
-        startFlipped: _startFlipped,
+        startFlipped: _getStartFlipped(),
         selectedCardCount: _selectedCardCount,
         autoProgress: _autoProgress,
         useLivesMode: _useLivesMode,
         customLives: _useLivesMode ? _selectedLives : null,
+        useMixedMode: _getUseMixedMode(),
       ),
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('${_getGameModeTitle()} Settings'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Flipped Mode (for study, test, true/false modes)
+                if (_shouldShowFlippedMode()) ...[
+                  _buildFlippedModeSetting(setState),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Auto Progress (for test, true/false, jumble modes)
+                if (_shouldShowAutoProgress()) ...[
+                  _buildAutoProgressSetting(setState),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Lives Mode (for test, true/false, jumble modes)
+                if (_shouldShowLivesMode()) ...[
+                  _buildLivesModeSetting(setState),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Number of Cards (for all modes)
+                _buildCardCountSetting(setState),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  String _getGameModeTitle() {
+    switch (widget.gameMode) {
+      case GameMode.study:
+        return 'Study Your Cards';
+      case GameMode.test:
+        return 'Test Your Cards';
+      case GameMode.trueFalse:
+        return 'True or False';
+      case GameMode.write:
+        return 'Write Your Cards';
+      case GameMode.game:
+        return 'Remember Your Cards';
+      case GameMode.bubbleWord:
+        return 'Jumble Your Cards';
+    }
+  }
+  
+  bool _shouldShowFlippedMode() {
+    return widget.gameMode == GameMode.study || 
+           widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.trueFalse;
+  }
+  
+  bool _shouldShowAutoProgress() {
+    return widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.trueFalse || 
+           widget.gameMode == GameMode.bubbleWord;
+  }
+  
+  bool _shouldShowLivesMode() {
+    return widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.trueFalse || 
+           widget.gameMode == GameMode.bubbleWord;
+  }
+  
+  Widget _buildFlippedModeSetting(StateSetter setState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Card Display Mode',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildFlippedModeButton('Normal', 'normal', setState),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildFlippedModeButton('Flipped', 'flipped', setState),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildFlippedModeButton('Mixed', 'mixed', setState),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildFlippedModeButton(String label, String value, StateSetter setState) {
+    final isSelected = _flippedMode == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _flippedMode = value;
+        });
+        this.setState(() {
+          _flippedMode = value;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue : Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? Colors.blue : Colors.grey.withOpacity(0.3),
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black87,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildAutoProgressSetting(StateSetter setState) {
+    return Row(
+      children: [
+        const Icon(Icons.auto_awesome, size: 20),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Text(
+            'Auto Progress',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Switch(
+          value: _autoProgress,
+          onChanged: (value) {
+            setState(() {
+              _autoProgress = value;
+            });
+            this.setState(() {
+              _autoProgress = value;
+            });
+          },
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildLivesModeSetting(StateSetter setState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.favorite, size: 20, color: Colors.red),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Lives Mode',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Switch(
+              value: _useLivesMode,
+              onChanged: (value) {
+                setState(() {
+                  _useLivesMode = value;
+                  if (!value) {
+                    _selectedLives = 2; // Reset to default
+                  }
+                });
+                this.setState(() {
+                  _useLivesMode = value;
+                  if (!value) {
+                    _selectedLives = 2; // Reset to default
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+        if (_useLivesMode) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'Select Difficulty:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildDifficultyButton('Easy', 3, Colors.green, setState),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildDifficultyButton('Medium', 2, Colors.orange, setState),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildDifficultyButton('Hard', 1, Colors.red, setState),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+  
+  Widget _buildDifficultyButton(String label, int lives, Color color, StateSetter setState) {
+    final isSelected = _selectedLives == lives;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedLives = lives;
+        });
+        this.setState(() {
+          _selectedLives = lives;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : color.withOpacity(0.3),
+          ),
+        ),
+        child: Text(
+          '$label ($lives)',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : color,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildCardCountSetting(StateSetter setState) {
+    final isInfinite = _selectedCardCount >= 50;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.format_list_numbered, size: 20),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Number of Cards',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Text(
+              isInfinite ? 'All' : '$_selectedCardCount',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Slider(
+          value: isInfinite ? 50.0 : _selectedCardCount.toDouble(),
+          min: 5,
+          max: 50,
+          divisions: 9,
+          label: isInfinite ? 'All' : '$_selectedCardCount',
+          onChanged: (value) {
+            setState(() {
+              _selectedCardCount = value.round();
+            });
+            this.setState(() {
+              _selectedCardCount = value.round();
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -969,6 +1161,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
+  final bool useMixedMode;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -979,6 +1172,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     required this.autoProgress,
     this.useLivesMode = false,
     this.customLives,
+    this.useMixedMode = false,
   });
 
   @override
@@ -1043,8 +1237,9 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
 
     // Shuffle and limit cards if needed
     allSelectedCards.shuffle();
-    if (allSelectedCards.length > widget.selectedCardCount) {
-      allSelectedCards = allSelectedCards.take(widget.selectedCardCount).toList();
+    final cardCount = widget.selectedCardCount >= 50 ? allSelectedCards.length : widget.selectedCardCount;
+    if (allSelectedCards.length > cardCount) {
+      allSelectedCards = allSelectedCards.take(cardCount).toList();
     }
 
     Navigator.of(context).pop();
@@ -1076,6 +1271,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               autoProgress: widget.autoProgress,
               useLivesMode: widget.useLivesMode,
               customLives: widget.customLives,
+              startFlipped: widget.startFlipped,
+              useMixedMode: widget.useMixedMode,
             ),
           ),
         );
@@ -1089,6 +1286,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               autoProgress: widget.autoProgress,
               useLivesMode: widget.useLivesMode,
               customLives: widget.customLives,
+              startFlipped: widget.startFlipped,
+              useMixedMode: widget.useMixedMode,
             ),
           ),
         );
@@ -1099,6 +1298,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             builder: (context) => WritingView(
               cards: allSelectedCards,
               title: title,
+              startFlipped: widget.startFlipped,
+              useMixedMode: widget.useMixedMode,
             ),
           ),
         );
