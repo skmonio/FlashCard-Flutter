@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
 
 enum StudyMode {
@@ -727,9 +728,9 @@ class _StudyViewState extends State<StudyView> {
     // Update the card's SRS data
     final currentCard = _currentCards[_currentCardIndex];
     if (isCorrect) {
-      currentCard.markCorrect();
+      currentCard.markCorrect(GameDifficulty.medium);
     } else {
-      currentCard.markIncorrect();
+      currentCard.markIncorrect(GameDifficulty.medium);
     }
 
     // Save the updated card

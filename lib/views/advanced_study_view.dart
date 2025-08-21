@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
+import '../models/learning_mastery.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
@@ -800,31 +801,16 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       final provider = context.read<FlashcardProvider>();
       
       // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: card.id,
-        word: card.word,
-        definition: card.definition,
-        example: card.example,
-        deckIds: card.deckIds,
-        successCount: card.successCount,
-        dateCreated: card.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: card.cloudKitRecordName,
-        timesShown: card.timesShown + 1,
-        timesCorrect: card.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: card.srsLevel,
-        nextReviewDate: card.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? card.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : card.consecutiveIncorrect + 1,
-        easeFactor: card.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: card.totalReviews + 1,
-        article: card.article,
-        plural: card.plural,
-        pastTense: card.pastTense,
-        futureTense: card.futureTense,
-        pastParticiple: card.pastParticiple,
+      final updatedCard = card.copyWith(
+        learningMastery: card.learningMastery.copyWith(),
       );
+      
+      // Update learning mastery based on difficulty (assuming medium for advanced study)
+      if (wasCorrect) {
+        updatedCard.markCorrect(GameDifficulty.medium);
+      } else {
+        updatedCard.markIncorrect(GameDifficulty.medium);
+      }
       
       await provider.updateCard(updatedCard);
       print('🔍 AdvancedStudyView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');

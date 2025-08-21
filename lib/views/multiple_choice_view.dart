@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
+import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -13,6 +14,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
+import '../utils/game_difficulty_helper.dart';
 import 'add_card_view.dart';
 
 class MultipleChoiceView extends StatefulWidget {
@@ -21,6 +23,8 @@ class MultipleChoiceView extends StatefulWidget {
   final Function(bool)? onComplete;
   final bool shuffleMode;
   final bool autoProgress;
+  final bool useLivesMode;
+  final int? customLives;
 
   const MultipleChoiceView({
     super.key,
@@ -29,6 +33,8 @@ class MultipleChoiceView extends StatefulWidget {
     this.onComplete,
     this.shuffleMode = false,
     this.autoProgress = false,
+    this.useLivesMode = false,
+    this.customLives,
   });
 
   @override
@@ -46,6 +52,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   List<String> _options = [];
   bool _isQuestionMode = true; // true = word to definition, false = definition to word
   final GameSession _gameSession = GameSession();
+  
+  // Lives system
+  int _lives = 0;
+  int _maxLives = 0;
+  bool _useLivesMode = false;
   
   // Track answered questions and their answers
   Map<int, int> _answeredQuestions = {}; // question index -> selected answer index
@@ -67,6 +78,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
     
+    // Initialize lives system
+    _useLivesMode = widget.useLivesMode;
+    if (_useLivesMode) {
+      _maxLives = widget.customLives ?? _getDefaultLives();
+      _lives = _maxLives;
+    }
+    
     _generateQuestion();
     
     // Listen for card updates from the provider
@@ -74,6 +92,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       final provider = context.read<FlashcardProvider>();
       provider.addListener(_onProviderChanged);
     });
+  }
+  
+  /// Get default lives based on difficulty (assuming medium difficulty for now)
+  int _getDefaultLives() {
+    // For now, return medium difficulty lives
+    // In the future, this could be based on actual difficulty detection
+    return 2; // Medium difficulty = 2 lives
   }
 
   @override
@@ -265,11 +290,24 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       } else {
         // Play wrong sound
         SoundManager().playWrongSound();
+        
+        // Handle lives system
+        if (_useLivesMode) {
+          _lives--;
+          print('🔍 MultipleChoiceView: Lost a life! Lives remaining: $_lives');
+          
+          // Check if game over
+          if (_lives <= 0) {
+            print('🔍 MultipleChoiceView: Game over! No lives remaining');
+            _showGameOverScreen();
+            return;
+          }
+        }
       }
     });
     
-    // Auto progress logic
-    if (widget.autoProgress) {
+    // Auto progress logic (only if not game over)
+    if (widget.autoProgress && !(_useLivesMode && _lives <= 0)) {
       _autoProgressTimer?.cancel();
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
         if (mounted && _currentIndex < _currentCards.length - 1) {
@@ -278,40 +316,43 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       });
     }
   }
+  
+  /// Show game over screen when all lives are lost
+  void _showGameOverScreen() {
+    setState(() {
+      _showingResults = true;
+    });
+    
+    // Play game over sound
+    SoundManager().playWrongSound();
+    
+    // Call onComplete with false (unsuccessful)
+    if (widget.onComplete != null) {
+      widget.onComplete!(false);
+    }
+  }
 
   Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: card.id,
-        word: card.word,
-        definition: card.definition,
-        example: card.example,
-        deckIds: card.deckIds,
-        successCount: card.successCount,
-        dateCreated: card.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: card.cloudKitRecordName,
-        timesShown: card.timesShown + 1,
-        timesCorrect: card.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: card.srsLevel,
-        nextReviewDate: card.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? card.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : card.consecutiveIncorrect + 1,
-        easeFactor: card.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: card.totalReviews + 1,
-        article: card.article,
-        plural: card.plural,
-        pastTense: card.pastTense,
-        futureTense: card.futureTense,
-        pastParticiple: card.pastParticiple,
+      // Get game difficulty for multiple choice
+      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('multiple choice');
+      
+      // Create updated card with new learning mastery
+      final updatedCard = card.copyWith(
+        learningMastery: card.learningMastery.copyWith(),
       );
       
+      // Update learning mastery based on difficulty
+      if (wasCorrect) {
+        updatedCard.markCorrect(difficulty);
+      } else {
+        updatedCard.markIncorrect(difficulty);
+      }
+      
       await provider.updateCard(updatedCard);
-      print('🔍 MultipleChoiceView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
+      print('🔍 MultipleChoiceView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
       
       // Also sync to Dutch words if this card exists there
       await _syncToDutchWords(card, wasCorrect);
@@ -501,6 +542,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
+                
+                // Lives display (if using lives mode) - centered
+                if (_useLivesMode) 
+                  Center(child: _buildLivesDisplay()),
               ],
             ),
           ),
@@ -671,6 +716,53 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       ),
     );
   }
+  
+  Widget _buildLivesDisplay() {
+    if (!_useLivesMode) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.favorite,
+            color: Colors.red,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Lives: $_lives/$_maxLives',
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Color _getDifficultyColor() {
+    if (_maxLives == 3) return Colors.green; // Easy
+    if (_maxLives == 2) return Colors.orange; // Medium
+    if (_maxLives == 1) return Colors.red; // Hard
+    return Colors.grey; // Default
+  }
+  
+  String _getDifficultyText() {
+    if (_maxLives == 3) return 'Easy';
+    if (_maxLives == 2) return 'Medium';
+    if (_maxLives == 1) return 'Hard';
+    return 'Custom';
+  }
 
   Widget _buildOptionButton(int index, String option) {
     return Container(
@@ -734,6 +826,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   Widget _buildResultsView() {
     final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final isGameOver = _useLivesMode && _lives <= 0;
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -804,6 +897,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                   const SizedBox(height: 16),
                   _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                  
+
                   const SizedBox(height: 16),
                   _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                     AnimatedXpCounter(xpGained: _gameSession.xpGained)),
@@ -823,6 +918,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                               _answered = false;
                               _selectedAnswer = null;
                               _gameSession.reset(); // Reset XP tracking
+                              
+                              // Reset lives if using lives mode
+                              if (_useLivesMode) {
+                                _lives = _maxLives;
+                              }
+                              
                               // Reset all navigation state
                               _answeredQuestions.clear();
                               _correctAnswersMap.clear();

@@ -41,6 +41,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   int _selectedCardCount = 10;
   bool _startFlipped = false;
   bool _autoProgress = false;
+  bool _useLivesMode = false;
+  int _selectedLives = 2; // Default to medium difficulty
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +143,12 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         // Auto Progress toggle (for test, true/false, and jumble modes)
         if (widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord)
           _buildAutoProgressToggle(),
+        
+        // Lives Mode toggle (for test, true/false, and jumble modes)
+        if (widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord) ...[
+          const SizedBox(height: 16),
+          _buildLivesModeToggle(),
+        ],
       ],
     );
   }
@@ -358,6 +366,113 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       ),
     );
   }
+  
+  Widget _buildLivesModeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.favorite, size: 20, color: Colors.red),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Lives Mode',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _useLivesMode,
+                onChanged: (value) {
+                  setState(() {
+                    _useLivesMode = value;
+                    if (!value) {
+                      _selectedLives = 2; // Reset to default
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+          if (_useLivesMode) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Select Difficulty:',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDifficultyButton('Easy', 3, Colors.green),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildDifficultyButton('Medium', 2, Colors.orange),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildDifficultyButton('Hard', 1, Colors.red),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Easy: 3 lives, Medium: 2 lives, Hard: 1 life',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildDifficultyButton(String text, int lives, Color color) {
+    final isSelected = _selectedLives == lives;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedLives = lives;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isSelected ? color : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _navigateToQuickStudy() {
     final provider = context.read<FlashcardProvider>();
@@ -394,6 +509,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               title: 'Quick Test',
               autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
             ),
           ),
         );
@@ -405,6 +522,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               title: 'Quick True or False',
               autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _selectedLives,
             ),
           ),
         );
@@ -437,6 +556,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               title: 'Quick Jumble',
               startFlipped: _startFlipped,
               autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _selectedLives,
             ),
           ),
         );
@@ -467,6 +588,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         startFlipped: _startFlipped,
         selectedCardCount: _selectedCardCount,
         autoProgress: _autoProgress,
+        useLivesMode: _useLivesMode,
+        customLives: _useLivesMode ? _selectedLives : null,
       ),
     );
   }
@@ -844,6 +967,8 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool startFlipped;
   final int selectedCardCount;
   final bool autoProgress;
+  final bool useLivesMode;
+  final int? customLives;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -852,6 +977,8 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     required this.startFlipped,
     required this.selectedCardCount,
     required this.autoProgress,
+    this.useLivesMode = false,
+    this.customLives,
   });
 
   @override
@@ -947,6 +1074,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: allSelectedCards,
               title: title,
               autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
             ),
           ),
         );
@@ -958,6 +1087,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: allSelectedCards,
               title: title,
               autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
             ),
           ),
         );
@@ -990,6 +1121,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               title: title,
               startFlipped: widget.startFlipped,
               autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
             ),
           ),
         );

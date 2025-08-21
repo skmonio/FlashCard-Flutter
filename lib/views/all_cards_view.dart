@@ -5,6 +5,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
+import '../models/learning_mastery.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
 import 'add_card_view.dart';
@@ -571,15 +572,7 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   void _resetCardProgress(FlashCard card, FlashcardProvider provider) async {
     final resetCard = card.copyWith(
-      srsLevel: 0,
-      timesShown: 0,
-      timesCorrect: 0,
-      consecutiveCorrect: 0,
-      consecutiveIncorrect: 0,
-      easeFactor: 2.5,
-      nextReviewDate: null,
-      lastReviewDate: null,
-      totalReviews: 0,
+      learningMastery: LearningMastery(),
     );
     
     await provider.updateCard(resetCard);

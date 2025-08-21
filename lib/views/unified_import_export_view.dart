@@ -272,9 +272,9 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
           print('🔍 Parsing CSV with UnifiedImportService...');
           final parseResult = await UnifiedImportService.parseUnifiedCSV(csvContent);
           
-          final cards = parseResult['cards'] as List<FlashCard>? ?? [];
-          final exercises = parseResult['exercises'] as List<DutchWordExercise>? ?? [];
-          final parseErrors = parseResult['errors'] as List<String>? ?? [];
+          final cards = (parseResult['cards'] as List<dynamic>?)?.cast<FlashCard>() ?? [];
+          final exercises = (parseResult['exercises'] as List<dynamic>?)?.cast<DutchWordExercise>() ?? [];
+          final parseErrors = (parseResult['errors'] as List<dynamic>?)?.cast<String>() ?? [];
           final errors = <String>[];
           
           print('🔍 Parse result: ${cards.length} cards, ${exercises.length} exercises, ${parseErrors.length} errors');

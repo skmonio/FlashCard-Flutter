@@ -4,6 +4,7 @@ import '../providers/flashcard_provider.dart';
 import '../components/unified_header.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
 import '../services/translation_service.dart';
 
 class AddCardView extends StatefulWidget {
@@ -715,15 +716,7 @@ class _AddCardViewState extends State<AddCardView> {
           dateCreated: widget.cardToEdit!.dateCreated,
           lastModified: DateTime.now(),
           cloudKitRecordName: widget.cardToEdit!.cloudKitRecordName,
-          timesShown: widget.cardToEdit!.timesShown,
-          timesCorrect: widget.cardToEdit!.timesCorrect,
-          srsLevel: widget.cardToEdit!.srsLevel,
-          nextReviewDate: widget.cardToEdit!.nextReviewDate,
-          consecutiveCorrect: widget.cardToEdit!.consecutiveCorrect,
-          consecutiveIncorrect: widget.cardToEdit!.consecutiveIncorrect,
-          easeFactor: widget.cardToEdit!.easeFactor,
-          lastReviewDate: widget.cardToEdit!.lastReviewDate,
-          totalReviews: widget.cardToEdit!.totalReviews,
+          learningMastery: widget.cardToEdit!.learningMastery,
           article: _selectedArticle,
           plural: _pluralController.text.trim().isEmpty ? '' : _pluralController.text.trim(),
           pastTense: _pastTenseController.text.trim().isEmpty ? '' : _pastTenseController.text.trim(),

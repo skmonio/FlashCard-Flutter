@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
+import '../utils/game_difficulty_helper.dart';
 
 class WritingView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -291,35 +293,23 @@ class _WritingViewState extends State<WritingView> {
       final currentCard = _currentCards[_currentIndex];
       final provider = context.read<FlashcardProvider>();
       
-      // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: currentCard.id,
-        word: currentCard.word,
-        definition: currentCard.definition,
-        example: currentCard.example,
-        deckIds: currentCard.deckIds,
-        successCount: currentCard.successCount,
-        dateCreated: currentCard.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: currentCard.cloudKitRecordName,
-        timesShown: currentCard.timesShown + 1,
-        timesCorrect: currentCard.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: currentCard.srsLevel,
-        nextReviewDate: currentCard.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? currentCard.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : currentCard.consecutiveIncorrect + 1,
-        easeFactor: currentCard.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: currentCard.totalReviews + 1,
-        article: currentCard.article,
-        plural: currentCard.plural,
-        pastTense: currentCard.pastTense,
-        futureTense: currentCard.futureTense,
-        pastParticiple: currentCard.pastParticiple,
+      // Get game difficulty for writing
+      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('writing');
+      
+      // Create updated card with new learning mastery
+      final updatedCard = currentCard.copyWith(
+        learningMastery: currentCard.learningMastery.copyWith(),
       );
       
+      // Update learning mastery based on difficulty
+      if (wasCorrect) {
+        updatedCard.markCorrect(difficulty);
+      } else {
+        updatedCard.markIncorrect(difficulty);
+      }
+      
       await provider.updateCard(updatedCard);
-      print('🔍 WritingView: Updated learning progress for "${currentCard.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
+      print('🔍 WritingView: Updated learning progress for "${currentCard.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
       
       // Also sync to Dutch words if this card exists there
       await _syncToDutchWords(currentCard, wasCorrect);
