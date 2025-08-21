@@ -4,6 +4,7 @@ import '../models/dutch_word_exercise.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
 
 import 'create_word_exercise_view.dart';
 
@@ -818,31 +819,16 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       }
       
       // Update the FlashCard's learning progress
-      final updatedCard = FlashCard(
-        id: flashCard.id,
-        word: flashCard.word,
-        definition: flashCard.definition,
-        example: flashCard.example,
-        deckIds: flashCard.deckIds,
-        successCount: flashCard.successCount,
-        dateCreated: flashCard.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: flashCard.cloudKitRecordName,
-        timesShown: flashCard.timesShown + 1,
-        timesCorrect: flashCard.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: flashCard.srsLevel,
-        nextReviewDate: flashCard.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? flashCard.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : flashCard.consecutiveIncorrect + 1,
-        easeFactor: flashCard.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: flashCard.totalReviews + 1,
-        article: flashCard.article,
-        plural: flashCard.plural,
-        pastTense: flashCard.pastTense,
-        futureTense: flashCard.futureTense,
-        pastParticiple: flashCard.pastParticiple,
+      final updatedCard = flashCard.copyWith(
+        learningMastery: flashCard.learningMastery.copyWith(),
       );
+      
+      // Update learning mastery based on difficulty (assuming medium for exercises)
+      if (wasCorrect) {
+        updatedCard.markCorrect(GameDifficulty.medium);
+      } else {
+        updatedCard.markIncorrect(GameDifficulty.medium);
+      }
       
       await flashcardProvider.updateCard(updatedCard);
       print('🔍 Progress synced to FlashCard: ${flashCard.word} - timesShown: ${updatedCard.timesShown}, timesCorrect: ${updatedCard.timesCorrect}');

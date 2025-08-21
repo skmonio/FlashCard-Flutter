@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
+import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
@@ -13,6 +14,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
+import '../utils/game_difficulty_helper.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -21,6 +23,8 @@ class WordScrambleView extends StatefulWidget {
   final bool shuffleMode;
   final bool startFlipped;
   final bool autoProgress;
+  final bool useLivesMode;
+  final int? customLives;
 
   const WordScrambleView({
     super.key,
@@ -30,6 +34,8 @@ class WordScrambleView extends StatefulWidget {
     this.shuffleMode = false,
     this.startFlipped = false,
     this.autoProgress = false,
+    this.useLivesMode = false,
+    this.customLives,
   });
 
   @override
@@ -59,10 +65,23 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   
   // Auto progress timer
   Timer? _autoProgressTimer;
+  
+  // Lives system
+  int _lives = 0;
+  int _maxLives = 0;
+  bool _useLivesMode = false;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize lives system
+    _useLivesMode = widget.useLivesMode;
+    if (_useLivesMode) {
+      _maxLives = widget.customLives ?? _getDefaultLives();
+      _lives = _maxLives;
+    }
+    
     _generateQuestion();
     
     // Listen for card updates from the provider
@@ -89,6 +108,13 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     if (mounted) {
       _refreshCardsFromProvider();
     }
+  }
+  
+  /// Get default lives based on difficulty (assuming medium difficulty for now)
+  int _getDefaultLives() {
+    // For now, return medium difficulty lives
+    // In the future, this could be based on actual difficulty detection
+    return 2;
   }
 
   void _refreshCardsFromProvider() {
@@ -234,6 +260,18 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       } else {
         _correctAnswersMap[_currentIndex] = false;
         SoundManager().playWrongSound();
+        
+        // Handle lives system
+        if (_useLivesMode) {
+          _lives--;
+          print('🔍 WordScrambleView: Lost a life! Lives remaining: $_lives');
+          
+          if (_lives <= 0) {
+            print('🔍 WordScrambleView: Game over! No lives remaining');
+            _showGameOverScreen();
+            return;
+          }
+        }
       }
       
       // Store the answer for navigation
@@ -255,35 +293,23 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: card.id,
-        word: card.word,
-        definition: card.definition,
-        example: card.example,
-        deckIds: card.deckIds,
-        successCount: card.successCount,
-        dateCreated: card.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: card.cloudKitRecordName,
-        timesShown: card.timesShown + 1,
-        timesCorrect: card.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: card.srsLevel,
-        nextReviewDate: card.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? card.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : card.consecutiveIncorrect + 1,
-        easeFactor: card.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: card.totalReviews + 1,
-        article: card.article,
-        plural: card.plural,
-        pastTense: card.pastTense,
-        futureTense: card.futureTense,
-        pastParticiple: card.pastParticiple,
+      // Get game difficulty for word scramble
+      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('word scramble');
+      
+      // Create updated card with new learning mastery
+      final updatedCard = card.copyWith(
+        learningMastery: card.learningMastery.copyWith(),
       );
       
+      // Update learning mastery based on difficulty
+      if (wasCorrect) {
+        updatedCard.markCorrect(difficulty);
+      } else {
+        updatedCard.markIncorrect(difficulty);
+      }
+      
       await provider.updateCard(updatedCard);
-      print('🔍 WordScrambleView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
+      print('🔍 WordScrambleView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
       
       // Also sync to Dutch words if this card exists there
       await _syncToDutchWords(card, wasCorrect);
@@ -293,6 +319,18 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     }
   }
 
+  void _showGameOverScreen() {
+    setState(() {
+      _showingResults = true;
+    });
+    
+    // Award XP for the session
+    _awardXp();
+    
+    // Play game over sound
+    SoundManager().playCompleteSound();
+  }
+  
   Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
     try {
       // Import the DutchWordExerciseProvider
@@ -518,6 +556,10 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
+                
+                // Lives display (if using lives mode) - centered
+                if (_useLivesMode) 
+                  Center(child: _buildLivesDisplay()),
               ],
             ),
           ),
@@ -711,6 +753,39 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             backgroundColor: Colors.grey.withValues(alpha: 0.2),
             valueColor: AlwaysStoppedAnimation<Color>(
               Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildLivesDisplay() {
+    if (!_useLivesMode) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.favorite,
+            color: Colors.red,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Lives: $_lives/$_maxLives',
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
             ),
           ),
         ],

@@ -8,6 +8,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/game_session.dart';
+import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -974,31 +975,16 @@ class _MemoryGameViewState extends State<MemoryGameView>
       final provider = context.read<FlashcardProvider>();
       
       // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: card.id,
-        word: card.word,
-        definition: card.definition,
-        example: card.example,
-        deckIds: card.deckIds,
-        successCount: card.successCount,
-        dateCreated: card.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: card.cloudKitRecordName,
-        timesShown: card.timesShown + 1,
-        timesCorrect: card.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: card.srsLevel,
-        nextReviewDate: card.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? card.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : card.consecutiveIncorrect + 1,
-        easeFactor: card.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: card.totalReviews + 1,
-        article: card.article,
-        plural: card.plural,
-        pastTense: card.pastTense,
-        futureTense: card.futureTense,
-        pastParticiple: card.pastParticiple,
+      final updatedCard = card.copyWith(
+        learningMastery: card.learningMastery.copyWith(),
       );
+      
+      // Update learning mastery based on difficulty (assuming medium for memory game)
+      if (wasCorrect) {
+        updatedCard.markCorrect(GameDifficulty.medium);
+      } else {
+        updatedCard.markIncorrect(GameDifficulty.medium);
+      }
       
       await provider.updateCard(updatedCard);
       print('🔍 MemoryGameView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');

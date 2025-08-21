@@ -23,6 +23,27 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
   void initState() {
     super.initState();
     _loadPackContents();
+    
+    // Listen to flashcard provider changes to update UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final flashcardProvider = context.read<FlashcardProvider>();
+      flashcardProvider.addListener(_onFlashcardProviderChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when widget is disposed
+    final flashcardProvider = context.read<FlashcardProvider>();
+    flashcardProvider.removeListener(_onFlashcardProviderChanged);
+    super.dispose();
+  }
+
+  void _onFlashcardProviderChanged() {
+    // Rebuild the widget when flashcard data changes
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadPackContents() async {
@@ -376,6 +397,17 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
     final example = item['Example'] ?? '';
     final article = item['Article'] ?? '';
 
+    // Check if the word already exists in any deck
+    final flashcardProvider = context.read<FlashcardProvider>();
+    final existingCard = flashcardProvider.cards.where(
+      (card) => card.word.toLowerCase() == word.toLowerCase(),
+    ).firstOrNull;
+    
+    final wordExists = existingCard != null;
+    final deckNames = wordExists 
+        ? flashcardProvider.getDeckNamesForCard(existingCard!)
+        : <String>[];
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -408,11 +440,54 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: () => _importVocabularyItem(item),
-                  icon: const Icon(Icons.add_circle_outline),
-                  tooltip: 'Import this word',
-                ),
+                const SizedBox(width: 8),
+                if (wordExists)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'Word exists',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'New word',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                if (!wordExists)
+                  IconButton(
+                    onPressed: () => _importVocabularyItem(item),
+                    icon: const Icon(Icons.add_circle_outline),
+                    tooltip: 'Import this word',
+                  )
+                else
+                  IconButton(
+                    onPressed: null,
+                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                    tooltip: 'Word already exists in: ${deckNames.join(', ')}',
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -430,6 +505,25 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
                 ),
               ),
             ],
+            if (wordExists && deckNames.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Text(
+                  'Exists in: ${deckNames.join(', ')}',
+                  style: TextStyle(
+                    color: Colors.blue[700],
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -439,12 +533,31 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
   Future<void> _importVocabularyItem(Map<String, dynamic> item) async {
     final flashcardProvider = context.read<FlashcardProvider>();
     
+    final word = item['Word'] ?? '';
+    
+    // Check if word already exists
+    final existingCard = flashcardProvider.cards.where(
+      (card) => card.word.toLowerCase() == word.toLowerCase(),
+    ).firstOrNull;
+
+    if (existingCard != null) {
+      final deckNames = flashcardProvider.getDeckNamesForCard(existingCard);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Word "$word" already exists in: ${deckNames.join(', ')}'),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+      return;
+    }
+    
     // Show deck selection dialog
     final selectedDeckId = await _showDeckSelectionDialog();
     if (selectedDeckId == null) return;
 
     try {
-      final word = item['Word'] ?? '';
       final definition = item['Definition'] ?? '';
       final example = item['Example'] ?? '';
       final article = item['Article'] ?? '';
@@ -462,6 +575,9 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
 
       if (success) {
         if (mounted) {
+          // Force a rebuild to update the UI immediately
+          setState(() {});
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Successfully imported "$word"'),
@@ -952,6 +1068,9 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       }
 
       if (mounted) {
+        // Force a rebuild to update the UI immediately
+        setState(() {});
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

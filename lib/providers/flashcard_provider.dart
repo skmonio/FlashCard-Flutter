@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
+import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
@@ -224,7 +225,7 @@ class FlashcardProvider extends ChangeNotifier {
   
   Future<bool> markCardCorrect(FlashCard card) async {
     try {
-      card.markCorrect();
+      card.markCorrect(GameDifficulty.medium);
       await _service.updateCard(card);
       
       // Update the card in our local list
@@ -242,7 +243,7 @@ class FlashcardProvider extends ChangeNotifier {
   
   Future<bool> markCardIncorrect(FlashCard card) async {
     try {
-      card.markIncorrect();
+      card.markIncorrect(GameDifficulty.medium);
       await _service.updateCard(card);
       
       // Update the card in our local list
@@ -742,8 +743,8 @@ class FlashcardProvider extends ChangeNotifier {
         if (newCard != null) {
           // Update statistics if provided
           newCard.successCount = cardSuccessCount;
-          newCard.timesShown = timesShown;
-          newCard.timesCorrect = timesCorrect;
+          // Note: timesShown and timesCorrect are now computed from learningMastery
+          // The legacy setters are no longer available
           
           // Update the card in the service
           await _service.updateCard(newCard);
@@ -833,9 +834,9 @@ class FlashcardProvider extends ChangeNotifier {
         };
       }
       
-      final cards = result['cards'] as List<FlashCard>;
-      final exercises = result['exercises'] as List<DutchWordExercise>;
-      final errors = result['errors'] as List<String>;
+      final cards = (result['cards'] as List<dynamic>).cast<FlashCard>();
+      final exercises = (result['exercises'] as List<dynamic>).cast<DutchWordExercise>();
+      final errors = (result['errors'] as List<dynamic>).cast<String>();
       
       var successCount = 0;
       var skippedCount = 0;

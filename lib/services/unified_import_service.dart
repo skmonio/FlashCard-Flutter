@@ -41,21 +41,28 @@ class UnifiedImportService {
     final headers = lines[0].split(',').map((h) => h.trim()).toList();
     final data = lines.skip(1).where((line) => line.trim().isNotEmpty).toList();
     
+    print('🔍 CSV Headers: $headers');
+    print('🔍 CSV Data lines: ${data.length}');
+    
     // Detect CSV format
     final isUnifiedFormat = _isUnifiedFormat(headers);
     final isBasicFormat = _isBasicFormat(headers);
+    
+    print('🔍 Format detection: Unified=$isUnifiedFormat, Basic=$isBasicFormat');
     
     if (!isUnifiedFormat && !isBasicFormat) {
       return {
         'cards': [], 
         'exercises': [], 
-        'errors': ['Unsupported CSV format. Expected either unified format (Deck,Word,Definition,Exercise Type,Question,Options,Explanation) or basic format (Word,Translation,Deck,Example,Article,Plural,Past Tense,Future Tense,Past Participle)']
+        'errors': ['Unsupported CSV format. Expected either unified format (Deck,Word,Definition,Exercise Type,Question,Options,Explanation) or basic format (Word,Translation/Definition,Deck/Decks,Example,Article,Plural,Past Tense,Future Tense,Past Participle)']
       };
     }
 
     if (isUnifiedFormat) {
+      print('🔍 Using unified format parser');
       return _parseUnifiedFormat(headers, data);
     } else {
+      print('🔍 Using basic format parser');
       return _parseBasicFormat(headers, data);
     }
   }
@@ -66,8 +73,11 @@ class UnifiedImportService {
   }
 
   static bool _isBasicFormat(List<String> headers) {
-    final requiredHeaders = ['Word', 'Translation', 'Deck'];
-    return requiredHeaders.every((header) => headers.contains(header));
+    // Check for basic format with either "Translation" or "Definition"
+    final hasWord = headers.contains('Word');
+    final hasTranslation = headers.contains('Translation') || headers.contains('Definition');
+    final hasDeck = headers.contains('Deck') || headers.contains('Decks');
+    return hasWord && hasTranslation && hasDeck;
   }
 
   static Map<String, dynamic> _parseBasicFormat(List<String> headers, List<String> data) {
@@ -85,11 +95,11 @@ class UnifiedImportService {
         }
 
         final wordIndex = headers.indexOf('Word');
-        final translationIndex = headers.indexOf('Translation');
-        final deckIndex = headers.indexOf('Deck');
+        final translationIndex = headers.indexOf('Translation') != -1 ? headers.indexOf('Translation') : headers.indexOf('Definition');
+        final deckIndex = headers.indexOf('Deck') != -1 ? headers.indexOf('Deck') : headers.indexOf('Decks');
         
         if (wordIndex == -1 || translationIndex == -1 || deckIndex == -1) {
-          errors.add('Missing required headers: Word, Translation, or Deck');
+          errors.add('Missing required headers: Word, Translation/Definition, or Deck/Decks');
           continue;
         }
         
@@ -394,8 +404,16 @@ class UnifiedImportService {
       final char = line[i];
       
       if (char == '"') {
-        inQuotes = !inQuotes;
+        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+          // Escaped quote
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          // Toggle quote state
+          inQuotes = !inQuotes;
+        }
       } else if (char == ',' && !inQuotes) {
+        // End of field
         result.add(current.trim());
         current = '';
       } else {
@@ -403,7 +421,15 @@ class UnifiedImportService {
       }
     }
     
+    // Add the last field
     result.add(current.trim());
+    
+    // Validate that we have the expected number of fields
+    // The CSV should have 9 fields: Decks,Word,Definition,Example,Article,Plural,Past Tense,Future Tense,Past Participle
+    while (result.length < 9) {
+      result.add(''); // Add empty fields if missing
+    }
+    
     return result;
   }
 
