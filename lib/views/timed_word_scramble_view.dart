@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
@@ -9,34 +9,30 @@ import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
+import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
+import '../models/timed_difficulty.dart';
 
-class WordScrambleView extends StatefulWidget {
+class TimedWordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
-  final Function(bool)? onComplete;
-  final bool shuffleMode;
-  final bool startFlipped;
-  final bool autoProgress;
+  final TimedDifficulty difficulty;
 
-  const WordScrambleView({
+  const TimedWordScrambleView({
     super.key,
     required this.cards,
     required this.title,
-    this.onComplete,
-    this.shuffleMode = false,
-    this.startFlipped = false,
-    this.autoProgress = false,
+    required this.difficulty,
   });
 
   @override
-  State<WordScrambleView> createState() => _WordScrambleViewState();
+  State<TimedWordScrambleView> createState() => _TimedWordScrambleViewState();
 }
 
-class _WordScrambleViewState extends State<WordScrambleView> {
+class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
@@ -46,24 +42,51 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   List<String> _scrambledLetters = [];
   List<String> _userAnswer = [];
   List<String> _originalLetters = [];
-  bool _isQuestionMode = true; // true = definition to word, false = word to definition
+  bool _isQuestionMode = true;
   bool _isCardFlipped = false;
   final GameSession _gameSession = GameSession();
   
-  // Track answered questions and their answers
-  Map<int, List<String>> _answeredQuestions = {}; // question index -> user answer
-  Map<int, bool> _correctAnswersMap = {}; // question index -> is correct
-  Map<int, String> _correctWords = {}; // question index -> correct word
-  Map<int, List<String>> _scrambledLettersMap = {}; // question index -> scrambled letters
-  Map<int, bool> _questionModes = {}; // question index -> is question mode
+  // Timer variables
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
   
-  // Auto progress timer
-  Timer? _autoProgressTimer;
+  // Track answered questions and their answers
+  Map<int, List<String>> _answeredQuestions = {};
+  Map<int, bool> _correctAnswersMap = {};
+  Map<int, String> _correctWords = {};
+  Map<int, List<String>> _scrambledLettersMap = {};
+  Map<int, bool> _questionModes = {};
+  
+  // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _currentCards;
 
   @override
   void initState() {
     super.initState();
+    
+    // Initialize our copy of cards
+    _currentCards = List<FlashCard>.from(widget.cards);
+    
+    // Set timer based on difficulty
+    switch (widget.difficulty) {
+      case TimedDifficulty.easy:
+        _timeRemaining = 10;
+        _totalTime = 10;
+        break;
+      case TimedDifficulty.medium:
+        _timeRemaining = 7;
+        _totalTime = 7;
+        break;
+      case TimedDifficulty.hard:
+        _timeRemaining = 5;
+        _totalTime = 5;
+        break;
+    }
+    
     _generateQuestion();
+    _startTimer();
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -78,8 +101,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
     
-    // Cancel auto progress timer
-    _autoProgressTimer?.cancel();
+    // Cancel timer
+    _timer?.cancel();
     
     super.dispose();
   }
@@ -101,275 +124,90 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       if (updatedCard != null) {
         updatedCards.add(updatedCard);
       } else {
-        // If card was deleted, keep the original
         updatedCards.add(originalCard);
       }
     }
     
-    // Update the current question if it's using an updated card
-    if (_currentIndex < updatedCards.length) {
-      final currentCard = updatedCards[_currentIndex];
-      if (currentCard.id == widget.cards[_currentIndex].id) {
-        // Regenerate question with updated card data
-        _generateQuestion();
+    setState(() {
+      _currentCards = updatedCards;
+    });
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _handleTimeUp();
+        }
       }
-    }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered) return; // Already answered
     
-    print('🔍 WordScrambleView: Refreshed cards from provider');
+    setState(() {
+      _answered = true;
+      _timeUp = true;
+      _correctAnswersMap[_currentIndex] = false; // Time out = incorrect
+    });
+    
+    // Auto progress after showing the answer
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _goToNextQuestion();
+      }
+    });
+  }
+
+  void _resetTimer() {
+    _timer?.cancel();
+    _timeRemaining = _totalTime;
+    _timeUp = false;
+    _startTimer();
   }
 
   void _generateQuestion() {
-    if (_currentIndex >= widget.cards.length) {
-      // Calculate success rate
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
-      final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
-      
-      // Award XP for the session if not in shuffle mode
-      _awardXp();
-      
-      // Call the onComplete callback if provided
-      if (widget.onComplete != null) {
-        widget.onComplete!(wasSuccessful);
-        return;
-      }
-      
-      setState(() {
-        _showingResults = true;
-      });
-      return;
-    }
-
-    // Check if this question has already been answered
-    if (_answeredQuestions.containsKey(_currentIndex)) {
-      // Load existing question data
-      _isQuestionMode = _questionModes[_currentIndex]!;
-      _correctWord = _correctWords[_currentIndex]!;
-      _scrambledLetters = List<String>.from(_scrambledLettersMap[_currentIndex]!);
-      _userAnswer = List<String>.from(_answeredQuestions[_currentIndex]!);
-      _answered = true;
-      return;
-    }
-
-    final currentCard = widget.cards[_currentIndex];
-    final random = Random();
+    if (_currentCards.isEmpty) return;
     
-    // Respect the startFlipped parameter to determine question orientation
-    _isQuestionMode = !widget.startFlipped; // true = definition to word, false = word to definition
+    final card = _currentCards[_currentIndex];
+    final random = math.Random();
     
-    // Get correct answer based on orientation
+    // Randomly choose question mode
+    _isQuestionMode = random.nextBool();
+    
     if (_isQuestionMode) {
-      // Show definition, ask for word
-      _correctWord = currentCard.word.toLowerCase();
+      // Definition to word
+      _correctWord = card.word;
     } else {
-      // Show word, ask for definition
-      _correctWord = currentCard.definition.toLowerCase();
+      // Word to definition
+      _correctWord = card.definition;
     }
     
-    // Create scrambled pieces (2-3 letters each, handling multi-word phrases)
-    _scrambledLetters = _createPiecesFromWords(_correctWord, random);
-    
-    // Store original letters for comparison (all letters without spaces)
-    _originalLetters = _correctWord.split('').where((char) => char != ' ').toList();
-    
-    // Store question data for future reference
+    // Store question data
     _correctWords[_currentIndex] = _correctWord;
-    _scrambledLettersMap[_currentIndex] = List<String>.from(_scrambledLetters);
     _questionModes[_currentIndex] = _isQuestionMode;
     
+    // Create scrambled pieces using the same logic as original word scramble
+    _scrambledLetters = _createPiecesFromWords(_correctWord, random);
+    _scrambledLettersMap[_currentIndex] = List<String>.from(_scrambledLetters);
+    
     setState(() {
-      _answered = false;
       _userAnswer = [];
-      _isCardFlipped = false;
-    });
-  }
-
-  void _addPiece(String piece) {
-    if (_answered || piece.isEmpty) return;
-    
-    setState(() {
-      _userAnswer.add(piece);
-      // Remove the piece from available pieces
-      _scrambledLetters.remove(piece);
+      _answered = false;
     });
     
-    // Auto-check answer if we have used all non-empty pieces
-    final nonEmptyPieces = _scrambledLetters.where((p) => p.isNotEmpty).length;
-    if (nonEmptyPieces == 0) {
-      _checkAnswer();
-    }
+    _resetTimer();
   }
 
-  void _removeLetterAt(int index) {
-    if (_answered || index < 0 || index >= _userAnswer.length) return;
-    
-    setState(() {
-      final removedPiece = _userAnswer.removeAt(index);
-      // Add the piece back to available pieces
-      _scrambledLetters.add(removedPiece);
-    });
-  }
-
-  void _checkAnswer() {
-    if (_answered || _userAnswer.isEmpty) return;
-    
-    final userWord = _userAnswer.join('');
-    final correctWordWithoutSpaces = _correctWord.replaceAll(' ', '').toLowerCase();
-    final isCorrect = userWord.toLowerCase() == correctWordWithoutSpaces;
-    final currentCard = widget.cards[_currentIndex];
-    
-    // Track XP for this answer
-    XpService.recordAnswer(_gameSession, isCorrect);
-    
-    // Update learning progress in the provider
-    _updateCardLearningProgress(currentCard, isCorrect);
-    
-    setState(() {
-      _answered = true;
-      _totalAnswered++;
-      
-      if (isCorrect) {
-        _correctAnswers++;
-        _correctAnswersMap[_currentIndex] = true;
-        SoundManager().playCorrectSound();
-      } else {
-        _correctAnswersMap[_currentIndex] = false;
-        SoundManager().playWrongSound();
-      }
-      
-      // Store the answer for navigation
-      _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
-    });
-    
-    // Auto progress logic
-    if (widget.autoProgress) {
-      _autoProgressTimer?.cancel();
-      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-        if (mounted && _currentIndex < widget.cards.length - 1) {
-          _goToNextQuestion();
-        }
-      });
-    }
-  }
-
-  Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
-    try {
-      final provider = context.read<FlashcardProvider>();
-      
-      // Update the card's learning progress
-      final updatedCard = FlashCard(
-        id: card.id,
-        word: card.word,
-        definition: card.definition,
-        example: card.example,
-        deckIds: card.deckIds,
-        successCount: card.successCount,
-        dateCreated: card.dateCreated,
-        lastModified: DateTime.now(),
-        cloudKitRecordName: card.cloudKitRecordName,
-        timesShown: card.timesShown + 1,
-        timesCorrect: card.timesCorrect + (wasCorrect ? 1 : 0),
-        srsLevel: card.srsLevel,
-        nextReviewDate: card.nextReviewDate,
-        consecutiveCorrect: wasCorrect ? card.consecutiveCorrect + 1 : 0,
-        consecutiveIncorrect: wasCorrect ? 0 : card.consecutiveIncorrect + 1,
-        easeFactor: card.easeFactor,
-        lastReviewDate: DateTime.now(),
-        totalReviews: card.totalReviews + 1,
-        article: card.article,
-        plural: card.plural,
-        pastTense: card.pastTense,
-        futureTense: card.futureTense,
-        pastParticiple: card.pastParticiple,
-      );
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 WordScrambleView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
-      
-    } catch (e) {
-      print('🔍 WordScrambleView: Error updating learning progress: $e');
-    }
-  }
-
-  Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
-    try {
-      // Import the DutchWordExerciseProvider
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      
-      // Find the corresponding Dutch word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.targetWord.toLowerCase() == card.word.toLowerCase(),
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isNotEmpty) {
-        // Update the Dutch word exercise learning progress
-        await dutchProvider.updateLearningProgress(wordExercise.id, wasCorrect);
-        print('🔍 WordScrambleView: Synced progress to Dutch word exercise "${wordExercise.targetWord}"');
-      }
-    } catch (e) {
-      print('🔍 WordScrambleView: Error syncing to Dutch words: $e');
-    }
-  }
-
-  void _goToPreviousQuestion() {
-    if (_currentIndex > 0) {
-      setState(() {
-        _currentIndex--;
-      });
-      _generateQuestion();
-    }
-  }
-
-  void _goToNextQuestion() {
-    // In shuffle mode, we only have one question, so call the callback immediately
-    if (widget.shuffleMode) {
-      // Check if the answer is correct by comparing user answer with correct word
-      final userWord = _userAnswer.join('');
-      final correctWordWithoutSpaces = _correctWord.replaceAll(' ', '').toLowerCase();
-      final isCorrect = userWord.toLowerCase() == correctWordWithoutSpaces;
-      
-      if (widget.onComplete != null) {
-        widget.onComplete!(isCorrect);
-      }
-      return;
-    }
-    
-    if (_currentIndex < widget.cards.length - 1) {
-      setState(() {
-        _currentIndex++;
-      });
-      _generateQuestion();
-    } else {
-      // Show results when on last question and clicking next
-      setState(() {
-        _showingResults = true;
-      });
-      // Play completion sound when test is finished
-      SoundManager().playCompleteSound();
-    }
-  }
-  
-  void _flipCard() {
-    setState(() {
-      _isCardFlipped = !_isCardFlipped;
-    });
-  }
-  
-  List<String> _createPiecesFromWords(String phrase, Random random) {
+  List<String> _createPiecesFromWords(String phrase, math.Random random) {
     final pieces = <String>[];
     
     // Split the phrase into words
@@ -388,7 +226,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     return pieces;
   }
   
-  List<String> _createPieces(List<String> letters, Random random) {
+  List<String> _createPieces(List<String> letters, math.Random random) {
     final pieces = <String>[];
     
     // Ensure we always have at least 2 pieces for any word
@@ -456,37 +294,127 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     return pieces;
   }
 
-  bool _isPieceUsed(String piece, int index) {
-    // Empty pieces are always considered "used"
-    if (piece.isEmpty) return true;
+  void _addLetter(String letter) {
+    if (_answered) return;
     
-    // If the piece is not in the scrambled letters list, it's been used
-    return !_scrambledLetters.contains(piece);
+    setState(() {
+      _userAnswer.add(letter);
+      _scrambledLetters.remove(letter);
+    });
+    
+    // Auto-progress when all pieces are added (in timed mode)
+    if (_userAnswer.length == _scrambledLettersMap[_currentIndex]!.length) {
+      // All pieces have been added, auto-check answer
+      Timer(const Duration(milliseconds: 500), () {
+        if (mounted && !_answered) {
+          _checkAnswer();
+        }
+      });
+    }
+  }
+
+  void _removeLetter(String letter) {
+    if (_answered) return;
+    
+    setState(() {
+      _userAnswer.remove(letter);
+      _scrambledLetters.add(letter);
+    });
+  }
+
+  void _checkAnswer() {
+    if (_answered) return;
+    
+    _timer?.cancel(); // Stop the timer
+    
+    final userAnswerString = _userAnswer.join('');
+    final isCorrect = userAnswerString.toLowerCase() == _correctWord.toLowerCase();
+    
+    setState(() {
+      _answered = true;
+      _totalAnswered++;
+      
+      if (isCorrect) {
+        _correctAnswers++;
+      }
+      
+      _correctAnswersMap[_currentIndex] = isCorrect;
+      _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
+    });
+    
+    // Provide feedback
+    if (isCorrect) {
+      HapticService().lightImpact();
+      SoundManager().playCorrectSound();
+    } else {
+      HapticService().mediumImpact();
+      SoundManager().playWrongSound();
+    }
+    
+    // Award XP
+    if (isCorrect) {
+      _gameSession.recordAnswer(true);
+    } else {
+      _gameSession.recordAnswer(false);
+    }
+    
+    // Auto progress after showing the answer
+    Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        _goToNextQuestion();
+      }
+    });
+  }
+
+  void _goToNextQuestion() {
+    if (_currentIndex < _currentCards.length - 1) {
+      setState(() {
+        _currentIndex++;
+      });
+      _generateQuestion();
+    } else {
+      // Last question completed
+      _awardXp();
+      setState(() {
+        _showingResults = true;
+      });
+      SoundManager().playCompleteSound();
+    }
+  }
+
+  void _goToPreviousQuestion() {
+    if (_currentIndex > 0) {
+      setState(() {
+        _currentIndex--;
+      });
+      _generateQuestion();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.cards.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text(widget.title)),
-        body: const Center(
-          child: Text('No cards available for word scramble'),
-        ),
-      );
-    }
-
     if (_showingResults) {
       return _buildResultsView();
     }
-
-    final currentCard = widget.cards[_currentIndex];
-    final question = _isQuestionMode ? currentCard.definition : currentCard.word;
-
+    
+    if (_currentCards.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title),
+        ),
+        body: const Center(
+          child: Text('No cards available for testing.'),
+        ),
+      );
+    }
+    
+    final card = _currentCards[_currentIndex];
+    
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
+          // Small header with progress bar and timer
           SafeArea(
             child: Column(
               children: [
@@ -518,6 +446,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
+                // Timer bar
+                _buildTimerBar(),
               ],
             ),
           ),
@@ -525,7 +455,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           // Question area
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), // Reduced top padding
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(
                 children: [
                   // Question text above card
@@ -538,87 +468,47 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16), // Reduced spacing
+                  const SizedBox(height: 16),
                   
                   // Card with white background and colored outline
-                  GestureDetector(
-                    onDoubleTap: _flipCard,
-                    child: Container(
-                      width: double.infinity,
-                      height: 200, // Reduced height
-                      padding: const EdgeInsets.all(24), // Reduced padding
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20), // Slightly smaller radius
-                        border: Border.all(
-                          color: _getCardBorderColor(currentCard),
-                          width: 4, // Slightly thinner border
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _getCardBorderColor(card),
+                        width: 4,
                       ),
-                      child: Center(
-                        child: Text(
-                          _isCardFlipped 
-                              ? (_isQuestionMode ? currentCard.word : currentCard.definition)
-                              : question,
-                          style: const TextStyle(
-                            fontSize: 32, // Smaller font size
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                          textAlign: TextAlign.center,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getCardBorderColor(card).withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _isQuestionMode ? card.definition : card.word,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                   
-                  const SizedBox(height: 16), // Reduced spacing
-                  
-                  // Navigation buttons (always show, greyed out when not available)
-                  Row(
-                    children: [
-                      // Back button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back, size: 16),
-                          label: const Text('Back'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Next/Finish button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _answered ? _goToNextQuestion : null,
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _answered ? Colors.green : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 20), // Reduced spacing
+                  const SizedBox(height: 20),
                   
                   // Answer box
                   Container(
@@ -692,32 +582,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     );
   }
 
-  Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
-              Text('${(progress * 100).toInt()}%'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey.withValues(alpha: 0.2),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildUserAnswerDisplay() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -739,7 +603,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               onTap: _answered ? null : () => _removeLetterAt(index),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 2),
-                width: piece.length > 2 ? 50 : 40, // Wider for longer pieces
+                width: piece.length > 2 ? 50 : 40,
                 height: 40,
                 decoration: BoxDecoration(
                   color: _answered 
@@ -760,7 +624,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   child: Text(
                     piece,
                     style: TextStyle(
-                      fontSize: piece.length > 2 ? 14 : 16, // Smaller font for longer pieces
+                      fontSize: piece.length > 2 ? 14 : 16,
                       fontWeight: FontWeight.bold,
                       color: _answered 
                           ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
@@ -777,6 +641,16 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     );
   }
 
+  void _removeLetterAt(int index) {
+    if (_answered) return;
+    
+    setState(() {
+      final removedLetter = _userAnswer[index];
+      _userAnswer.removeAt(index);
+      _scrambledLetters.add(removedLetter);
+    });
+  }
+
   Widget _buildScrambledLetters() {
     return Wrap(
       spacing: 8,
@@ -788,9 +662,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         final isUsed = _isPieceUsed(piece, index);
         
         return GestureDetector(
-          onTap: _answered || isUsed || piece.isEmpty ? null : () => _addPiece(piece),
+          onTap: _answered || isUsed || piece.isEmpty ? null : () => _addLetter(piece),
           child: Container(
-            width: piece.length > 2 ? 70 : 60, // Wider for longer pieces
+            width: piece.length > 2 ? 70 : 60,
             height: 50,
             decoration: BoxDecoration(
               color: isUsed || piece.isEmpty
@@ -798,20 +672,19 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               border: Border.all(
                 color: isUsed || piece.isEmpty
-                    ? Colors.grey.withValues(alpha: 0.5)
+                    ? Colors.grey
                     : Theme.of(context).colorScheme.primary,
-                width: 2,
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Center(
               child: Text(
-                piece.isEmpty ? '•' : piece, // Show dot for empty pieces
+                piece,
                 style: TextStyle(
-                  fontSize: piece.length > 2 ? 16 : 18, // Smaller font for longer pieces
+                  fontSize: piece.length > 2 ? 14 : 16,
                   fontWeight: FontWeight.bold,
                   color: isUsed || piece.isEmpty
-                      ? Colors.grey.withValues(alpha: 0.5)
+                      ? Colors.grey
                       : Theme.of(context).colorScheme.primary,
                 ),
               ),
@@ -822,6 +695,93 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     );
   }
 
+  bool _isPieceUsed(String piece, int index) {
+    // Check if this piece has been used in the user answer
+    final usedPieces = <String>[];
+    for (int i = 0; i < _scrambledLetters.length; i++) {
+      if (i != index) {
+        usedPieces.add(_scrambledLetters[i]);
+      }
+    }
+    
+    // If the piece is not in the remaining scrambled letters, it's been used
+    return !_scrambledLetters.contains(piece) || _userAnswer.contains(piece);
+  }
+
+  Widget _buildTimerBar() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: timerColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: timerColor),
+            ),
+            child: Text(
+              '$_timeRemaining',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: timerColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressBar() {
+    final progress = _currentIndex / _currentCards.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('${(progress * 100).toInt()}%'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withValues(alpha: 0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getCardBorderColor(FlashCard card) {
+    final percentage = card.learningPercentage;
+    if (percentage >= 80) {
+      return Colors.green;
+    } else if (percentage >= 60) {
+      return Colors.orange;
+    } else if (percentage >= 40) {
+      return Colors.yellow;
+    } else {
+      return Colors.red;
+    }
+  }
+
   Widget _buildResultsView() {
     final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     
@@ -829,10 +789,30 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Scramble Complete',
-            onBack: () => Navigator.of(context).pop(),
+          // Small header - matching study view
+          SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_back_ios),
+                    iconSize: 20,
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'Test Complete',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  const SizedBox(width: 48), // Balance the layout
+                ],
+              ),
+            ),
           ),
           
           // Results content
@@ -869,7 +849,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   const SizedBox(height: 24),
                   
                   // Stats
-                  _buildStatCard('Questions', _totalAnswered.toString(), Icons.text_fields),
+                  _buildStatCard('Questions', _totalAnswered.toString(), Icons.quiz),
                   const SizedBox(height: 16),
                   _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                   const SizedBox(height: 16),
@@ -901,8 +881,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                               _questionModes.clear();
                             });
                             _generateQuestion();
+                            _resetTimer();
                           },
-                          child: const Text('Scramble Again'),
+                          child: const Text('Test Again'),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -961,28 +942,25 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     );
   }
 
-  Color _getCardBorderColor(FlashCard card) {
-    // Generate a consistent color based on the card's ID
-    final hash = card.id.hashCode;
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.indigo,
-      Colors.pink,
-    ];
-    return colors[hash.abs() % colors.length];
+  void _awardXp() {
+    if (_gameSession.xpGained > 0) {
+      final userProfileProvider = context.read<UserProfileProvider>();
+      XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: false);
+    }
+    
+    // Update session statistics
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+    final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
+    
+    print('🔍 TimedWordScrambleView: Test completed - Accuracy: ${(accuracy * 100).toInt()}%, Perfect: $isPerfect');
   }
 
   void _showCloseConfirmation() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('End Scramble?'),
-        content: const Text('Are you sure you want to end this word scramble session?'),
+        title: const Text('Leave Timed Test?'),
+        content: const Text('Are you sure you want to leave? Your progress will be lost.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -993,7 +971,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               Navigator.of(context).pop();
               Navigator.of(context).pop();
             },
-            child: const Text('End Session'),
+            child: const Text('Leave'),
           ),
         ],
       ),
@@ -1004,8 +982,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Return to Home?'),
-        content: const Text('Are you sure you want to return to the home screen? This will end your current word scramble session.'),
+        title: const Text('Go Home?'),
+        content: const Text('Are you sure you want to go home? Your progress will be lost.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1022,24 +1000,4 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       ),
     );
   }
-
-  void _awardXp() {
-    if (!widget.shuffleMode && _gameSession.xpGained > 0) {
-      final userProfileProvider = context.read<UserProfileProvider>();
-      XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: widget.shuffleMode);
-    }
-    
-    // Update session statistics
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
-    final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
-    
-    context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAnswered,
-      sessionAccuracy: accuracy,
-      isPerfect: isPerfect,
-    );
-    
-    // Update streak based on study activity (Duolingo-style)
-    context.read<UserProfileProvider>().updateStreakFromStudyActivity();
-  }
-} 
+}

@@ -58,7 +58,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     _phrase = provider.getPhraseById(widget.phrase.id) ?? widget.phrase;
     
     // Debug logging
-    print('🔍 PhraseExerciseDetailView: Displaying phrase "${_phrase.phrase}" with learning percentage: ${_phrase.learningPercentage}%');
+    // print('🔍 PhraseExerciseDetailView: Displaying phrase "${_phrase.phrase}" with learning percentage: ${_phrase.learningPercentage}%');
     
     // Check if phrase data has changed and reset state if needed
     _checkAndResetStateIfNeeded();
@@ -85,7 +85,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     _initializeShuffledOptions(_currentExerciseIndex, currentExercise);
     
     // Debug current state
-    print('🔍 Current state - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
+    // print('🔍 Current state - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
     
     return Scaffold(
       appBar: AppBar(
@@ -403,35 +403,36 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         
         const SizedBox(height: 16),
         
-        // Available words
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Available Words:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey[700],
+        // Available words (only show if there are words available)
+        if (_availableWords.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Available Words:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _availableWords.map((word) => _buildWordChip(word, false)).toList(),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _availableWords.map((word) => _buildWordChip(word, false)).toList(),
+                ),
+              ],
+            ),
           ),
-        ),
         
         const SizedBox(height: 16),
         
@@ -440,7 +441,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _answerWords.isNotEmpty ? _checkSentenceBuilderAnswer : null,
+              onPressed: _canCheckAnswer() ? _checkSentenceBuilderAnswer : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
@@ -449,9 +450,9 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'Check Answer',
-                style: TextStyle(
+              child: Text(
+                _getCheckAnswerButtonText(),
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -463,10 +464,44 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   }
 
   Widget _buildWordChip(String word, bool isSelected) {
-    print('🔍 Building word chip: $word, isSelected: $isSelected, _showAnswer: $_showAnswer');
+    // print('🔍 Building word chip: $word, isSelected: $isSelected, _showAnswer: $_showAnswer');
+    
+    // Determine colors based on state
+    Color backgroundColor;
+    Color borderColor;
+    Color textColor;
+    
+    if (_showAnswer && isSelected) {
+      // Show correct/incorrect feedback for selected words when answer is shown
+      final exercises = _generateExercises();
+      final currentExercise = exercises[_currentExerciseIndex];
+      final correctOrder = currentExercise['correctOrder'] as List<String>;
+      final userAnswer = _answerWords.join(' ');
+      final correctAnswer = correctOrder.join(' ');
+      final isCorrect = userAnswer == correctAnswer;
+      
+      if (isCorrect) {
+        backgroundColor = Colors.green.withOpacity(0.2);
+        borderColor = Colors.green;
+        textColor = Colors.green[700]!;
+      } else {
+        backgroundColor = Colors.red.withOpacity(0.2);
+        borderColor = Colors.red;
+        textColor = Colors.red[700]!;
+      }
+    } else if (isSelected) {
+      backgroundColor = Colors.green.withOpacity(0.2);
+      borderColor = Colors.green.withOpacity(0.5);
+      textColor = Colors.green[700]!;
+    } else {
+      backgroundColor = Colors.blue.withOpacity(0.2);
+      borderColor = Colors.blue.withOpacity(0.5);
+      textColor = Colors.blue[700]!;
+    }
+    
     return GestureDetector(
       onTap: _showAnswer ? null : () {
-        print('🔍 GestureDetector tapped: $word, isSelected: $isSelected, _showAnswer: $_showAnswer');
+        // print('🔍 GestureDetector tapped: $word, isSelected: $isSelected, _showAnswer: $_showAnswer');
         if (isSelected) {
           _handleSelectedWordTap(word);
         } else {
@@ -476,22 +511,29 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected 
-              ? Colors.green.withOpacity(0.2)
-              : Colors.blue.withOpacity(0.2),
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected 
-                ? Colors.green.withOpacity(0.5)
-                : Colors.blue.withOpacity(0.5),
-          ),
+          border: Border.all(color: borderColor),
         ),
-        child: Text(
-          word,
-          style: TextStyle(
-            color: isSelected ? Colors.green[700] : Colors.blue[700],
-            fontWeight: FontWeight.w500,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              word,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (_showAnswer && isSelected) ...[
+              const SizedBox(width: 4),
+              Icon(
+                _isCorrect ? Icons.check_circle : Icons.cancel,
+                color: _isCorrect ? Colors.green : Colors.red,
+                size: 16,
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -502,6 +544,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   Widget _buildNavigationButtons(int totalExercises) {
     // Determine if we can go to next based on exercise type and answer status
     bool canGoNext = _showAnswer || _answeredQuestions[_currentExerciseIndex] == true;
+    bool isLastQuestion = _currentExerciseIndex == totalExercises - 1;
     
     return Row(
       children: [
@@ -524,14 +567,14 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         
         const SizedBox(width: 16),
         
-        // Next button
+        // Next/Finish button
         Expanded(
           child: ElevatedButton.icon(
             onPressed: canGoNext ? _goToNext : null,
-            icon: const Icon(Icons.arrow_forward),
-            label: const Text('Next'),
+            icon: Icon(isLastQuestion ? Icons.check : Icons.arrow_forward),
+            label: Text(isLastQuestion ? 'Finish' : 'Next'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
+              backgroundColor: isLastQuestion ? Colors.green : Colors.teal,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(
@@ -581,11 +624,12 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     if (exercise['type'] == 'sentence_builder' && 
         !_sentenceAnswers.containsKey(exerciseIndex) && 
         !_sentenceAvailable.containsKey(exerciseIndex) &&
-        _availableWords.isEmpty) {  // Only initialize if available words are empty
+        _availableWords.isEmpty && 
+        _answerWords.isEmpty) {  // Only initialize if both available words and answer words are empty
       final availableWords = exercise['availableWords'] as List<String>? ?? [];
       _availableWords = List<String>.from(availableWords);
       _answerWords = [];
-      print('🔍 Initialized sentence builder - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
+      // print('🔍 Initialized sentence builder - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
     }
   }
 
@@ -736,13 +780,33 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
             final availableWords = currentExercise['availableWords'] as List<String>? ?? [];
             _availableWords = List<String>.from(availableWords);
             _answerWords = [];
-            print('🔍 Reset sentence builder state in _goToNext - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
+            // print('🔍 Reset sentence builder state in _goToNext - Available: $_availableWords, Answer: $_answerWords, _showAnswer: $_showAnswer');
           }
         }
       });
     } else {
-      // Exercise complete
+      // Exercise complete - navigate back to phrases list
       final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+      
+      // Show completion dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: Text(accuracy >= 60 ? 'Great Job!' : 'Keep Practicing'),
+          content: Text('You got $_correctAnswers out of $_totalAnswered questions correct (${accuracy}%)'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                Navigator.of(context).pop(); // Go back to phrases list
+              },
+              child: const Text('Finish'),
+            ),
+          ],
+        ),
+      );
+      
       if (widget.onComplete != null) {
         widget.onComplete!(accuracy >= 60);
       }
@@ -788,5 +852,29 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     final phraseProvider = context.read<PhraseProvider>();
     phraseProvider.deletePhrase(_phrase.id);
     Navigator.of(context).pop();
+  }
+
+  bool _canCheckAnswer() {
+    final exercises = _generateExercises();
+    final currentExercise = exercises[_currentExerciseIndex];
+    if (currentExercise['type'] == 'sentence_builder') {
+      final correctOrder = currentExercise['correctOrder'] as List<String>;
+      return _answerWords.length == correctOrder.length;
+    }
+    return _answerWords.isNotEmpty;
+  }
+
+  String _getCheckAnswerButtonText() {
+    final exercises = _generateExercises();
+    final currentExercise = exercises[_currentExerciseIndex];
+    if (currentExercise['type'] == 'sentence_builder') {
+      final correctOrder = currentExercise['correctOrder'] as List<String>;
+      final remaining = correctOrder.length - _answerWords.length;
+      if (remaining > 0) {
+        return 'Add $remaining more word${remaining == 1 ? '' : 's'}';
+      }
+      return 'Check Answer';
+    }
+    return 'Check Answer';
   }
 }

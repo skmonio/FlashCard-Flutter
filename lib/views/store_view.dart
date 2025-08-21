@@ -1019,9 +1019,7 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
         (exercise) => exercise.targetWord.toLowerCase() == word.toLowerCase(),
       ).firstOrNull;
 
-      final optionsList = options.isNotEmpty 
-          ? options.split(';').map((e) => e.trim().toString()).where((String e) => e.isNotEmpty).toList()
-          : <String>[];
+      final optionsList = _parseOptions(options);
 
       if (existingExercise != null) {
         // Add new exercise to existing word exercise
@@ -1106,6 +1104,24 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
       default:
         return ExerciseType.multipleChoice;
     }
+  }
+
+  List<String> _parseOptions(String optionsString) {
+    if (optionsString.isEmpty) {
+      return <String>[];
+    }
+    
+    final splitOptions = optionsString.split(';');
+    final result = <String>[];
+    
+    for (final option in splitOptions) {
+      final trimmed = option.trim();
+      if (trimmed.isNotEmpty) {
+        result.add(trimmed);
+      }
+    }
+    
+    return result;
   }
 
   List<String> _parseCSVLine(String line) {

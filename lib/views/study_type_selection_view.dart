@@ -11,6 +11,10 @@ import 'true_false_view.dart';
 import 'writing_view.dart';
 import 'memory_game_view.dart';
 import 'word_scramble_view.dart';
+import 'timed_multiple_choice_view.dart';
+import 'timed_true_false_view.dart';
+import 'timed_word_scramble_view.dart';
+import '../models/timed_difficulty.dart';
 
 enum GameMode {
   study,
@@ -36,6 +40,7 @@ class StudyTypeSelectionView extends StatefulWidget {
 class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   int _selectedCardCount = 10;
   bool _startFlipped = false;
+  bool _autoProgress = false;
 
   @override
   Widget build(BuildContext context) {
@@ -112,8 +117,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           () => _navigateToNormalStudy(),
         ),
         
-        // Timed Study Option - only for memory games
-        if (widget.gameMode == GameMode.game) ...[
+        // Timed Study Option - for memory games, test mode, true/false, and word scramble
+        if (widget.gameMode == GameMode.game || widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord) ...[
           const SizedBox(height: 20),
           _buildStudyTypeCard(
             'Timed Study',
@@ -132,6 +137,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         // Start Flipped toggle (for study and test modes)
         if (widget.gameMode == GameMode.study || widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse)
           _buildStartFlippedToggle(),
+        
+        // Auto Progress toggle (for test, true/false, and jumble modes)
+        if (widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord)
+          _buildAutoProgressToggle(),
       ],
     );
   }
@@ -305,6 +314,51 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
+  Widget _buildAutoProgressToggle() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Auto Progress',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'Automatically advance to next question after answering',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _autoProgress,
+            onChanged: (value) {
+              setState(() {
+                _autoProgress = value;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _navigateToQuickStudy() {
     final provider = context.read<FlashcardProvider>();
     final allCards = provider.cards;
@@ -339,6 +393,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             builder: (context) => MultipleChoiceView(
               cards: studyCards,
               title: 'Quick Test',
+              autoProgress: _autoProgress,
             ),
           ),
         );
@@ -349,6 +404,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             builder: (context) => TrueFalseView(
               cards: studyCards,
               title: 'Quick True or False',
+              autoProgress: _autoProgress,
             ),
           ),
         );
@@ -380,6 +436,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               title: 'Quick Jumble',
               startFlipped: _startFlipped,
+              autoProgress: _autoProgress,
             ),
           ),
         );
@@ -409,6 +466,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         gameMode: widget.gameMode,
         startFlipped: _startFlipped,
         selectedCardCount: _selectedCardCount,
+        autoProgress: _autoProgress,
       ),
     );
   }
@@ -470,8 +528,25 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       return;
     }
     
-    // Show difficulty selection dialog
-    _showTimedDifficultyDialog(allCards);
+    // Handle different game modes
+    switch (widget.gameMode) {
+      case GameMode.test:
+        // Show difficulty selection dialog for test mode
+        _showTimedTestDifficultyDialog(allCards);
+        break;
+      case GameMode.trueFalse:
+        // Show difficulty selection dialog for true/false mode
+        _showTimedTrueFalseDifficultyDialog(allCards);
+        break;
+      case GameMode.bubbleWord:
+        // Show difficulty selection dialog for word scramble mode
+        _showTimedWordScrambleDifficultyDialog(allCards);
+        break;
+      default:
+        // Show difficulty selection dialog for memory games
+        _showTimedDifficultyDialog(allCards);
+        break;
+    }
   }
 
   void _showTimedDifficultyDialog(List<FlashCard> allCards) {
@@ -523,6 +598,55 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
+  void _showTimedTestDifficultyDialog(List<FlashCard> allCards) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Difficulty'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select the difficulty level for your timed test:'),
+            SizedBox(height: 16),
+            Text('• Easy: 10 seconds per question'),
+            Text('• Medium: 7 seconds per question'),
+            Text('• Hard: 5 seconds per question'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTest(allCards, TimedDifficulty.easy);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Easy - 10s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTest(allCards, TimedDifficulty.medium);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Medium - 7s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTest(allCards, TimedDifficulty.hard);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hard - 5s'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _startTimedStudy(List<FlashCard> allCards, String difficulty) {
     // Calculate time based on difficulty and card count
     int secondsPerPair;
@@ -561,6 +685,156 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       ),
     );
   }
+
+  void _startTimedTest(List<FlashCard> allCards, TimedDifficulty difficulty) {
+    // Shuffle and take a subset of cards
+    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
+    final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    // Navigate to timed test view
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TimedMultipleChoiceView(
+          cards: studyCards,
+          title: 'Timed Test',
+          difficulty: difficulty,
+          startFlipped: _startFlipped,
+        ),
+      ),
+    );
+  }
+
+  void _showTimedTrueFalseDifficultyDialog(List<FlashCard> allCards) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Difficulty'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select the difficulty level for your timed true/false test:'),
+            SizedBox(height: 16),
+            Text('• Easy: 10 seconds per question'),
+            Text('• Medium: 7 seconds per question'),
+            Text('• Hard: 5 seconds per question'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTrueFalse(allCards, TimedDifficulty.easy);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Easy - 10s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTrueFalse(allCards, TimedDifficulty.medium);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Medium - 7s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedTrueFalse(allCards, TimedDifficulty.hard);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hard - 5s'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTimedWordScrambleDifficultyDialog(List<FlashCard> allCards) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Difficulty'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Select the difficulty level for your timed word scramble test:'),
+            SizedBox(height: 16),
+            Text('• Easy: 10 seconds per question'),
+            Text('• Medium: 7 seconds per question'),
+            Text('• Hard: 5 seconds per question'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedWordScramble(allCards, TimedDifficulty.easy);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Easy - 10s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedWordScramble(allCards, TimedDifficulty.medium);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Medium - 7s'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _startTimedWordScramble(allCards, TimedDifficulty.hard);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Hard - 5s'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startTimedTrueFalse(List<FlashCard> allCards, TimedDifficulty difficulty) {
+    // Shuffle and take a subset of cards
+    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
+    final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    // Navigate to timed true/false view
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TimedTrueFalseView(
+          cards: studyCards,
+          title: 'Timed True/False',
+          difficulty: difficulty,
+        ),
+      ),
+    );
+  }
+
+  void _startTimedWordScramble(List<FlashCard> allCards, TimedDifficulty difficulty) {
+    // Shuffle and take a subset of cards
+    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
+    final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    // Navigate to timed word scramble view
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TimedWordScrambleView(
+          cards: studyCards,
+          title: 'Timed Word Scramble',
+          difficulty: difficulty,
+        ),
+      ),
+    );
+  }
 }
 
 class _MultiDeckSelectionDialog extends StatefulWidget {
@@ -569,6 +843,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final GameMode gameMode;
   final bool startFlipped;
   final int selectedCardCount;
+  final bool autoProgress;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -576,6 +851,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     required this.gameMode,
     required this.startFlipped,
     required this.selectedCardCount,
+    required this.autoProgress,
   });
 
   @override
@@ -670,6 +946,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             builder: (context) => MultipleChoiceView(
               cards: allSelectedCards,
               title: title,
+              autoProgress: widget.autoProgress,
             ),
           ),
         );
@@ -680,6 +957,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             builder: (context) => TrueFalseView(
               cards: allSelectedCards,
               title: title,
+              autoProgress: widget.autoProgress,
             ),
           ),
         );
@@ -711,6 +989,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: allSelectedCards,
               title: title,
               startFlipped: widget.startFlipped,
+              autoProgress: widget.autoProgress,
             ),
           ),
         );
