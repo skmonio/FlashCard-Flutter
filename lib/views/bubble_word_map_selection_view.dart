@@ -44,7 +44,7 @@ class _BubbleWordMapSelectionViewState extends State<BubbleWordMapSelectionView>
             children: [
               // Header
               UnifiedHeader(
-                title: 'Bubble Word Maps',
+                title: 'Bubble Words',
                 onBack: () => Navigator.of(context).pop(),
               ),
               
@@ -82,20 +82,7 @@ class _BubbleWordMapSelectionViewState extends State<BubbleWordMapSelectionView>
                         const SizedBox(height: 40),
                       ],
                       
-                      // Create new map button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showCreateMapDialog(context, provider),
-                          icon: const Icon(Icons.add),
-                          label: Text(provider.maps.isEmpty ? 'Create Your First Map' : 'Create New Map'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.all(16),
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 24),
+
                       
                       // Existing maps
                       if (provider.maps.isNotEmpty) ...[
@@ -160,6 +147,11 @@ class _BubbleWordMapSelectionViewState extends State<BubbleWordMapSelectionView>
                 ),
               ),
             ],
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showCreateMapDialog(context, provider),
+            tooltip: 'Create New Map',
+            child: const Icon(Icons.add),
           ),
         );
       },

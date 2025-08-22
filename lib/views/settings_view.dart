@@ -6,6 +6,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/store_provider.dart';
 
 import 'unified_import_export_view.dart';
+import 'clear_data_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
 
@@ -23,62 +24,28 @@ class _SettingsViewState extends State<SettingsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Header - wrapped in SafeArea to avoid system UI
-          SafeArea(
-            child: _buildHeader(context),
-          ),
-          
-          // Main content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // App Settings
-                  _buildAppSettingsSection(context),
-                  const SizedBox(height: 24),
-                  
-                  // Data Management
-                  _buildDataManagementSection(context),
-                  const SizedBox(height: 24),
-                  
-                  // About
-                  _buildAboutSection(context),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // App Settings
+            _buildAppSettingsSection(context),
+            const SizedBox(height: 24),
+            
+            // Data Management
+            _buildDataManagementSection(context),
+            const SizedBox(height: 24),
+            
+            // About
+            _buildAboutSection(context),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // Profile button placeholder
-          const SizedBox(width: 48),
-          const Spacer(),
-          // Title
-          const Text(
-            'Taal Trek',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          // Settings icon placeholder
-          const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
+
 
 
 
@@ -198,7 +165,11 @@ class _SettingsViewState extends State<SettingsView> {
                 subtitle: const Text('Delete all flashcards and settings'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
                 onTap: () {
-                  _showClearDataDialog(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const ClearDataView(),
+                    ),
+                  );
                 },
               ),
             ],
@@ -266,12 +237,7 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  void _showClearDataDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => _ClearDataSelectionDialog(),
-    );
-  }
+
 
   void _showAboutDialog(BuildContext context) {
     showDialog(
@@ -446,250 +412,4 @@ class _SettingsViewState extends State<SettingsView> {
   }
 }
 
-class _ClearDataSelectionDialog extends StatefulWidget {
-  @override
-  State<_ClearDataSelectionDialog> createState() => _ClearDataSelectionDialogState();
-}
-
-class _ClearDataSelectionDialogState extends State<_ClearDataSelectionDialog> {
-  Set<String> _selectedOptions = {};
-
-  void _toggleOption(String option) {
-    setState(() {
-      if (_selectedOptions.contains(option)) {
-        _selectedOptions.remove(option);
-      } else {
-        _selectedOptions.add(option);
-      }
-    });
-  }
-
-  void _selectAll() {
-    setState(() {
-      _selectedOptions = {
-        'cards',
-        'exercises',
-        'stats',
-        'everything',
-      };
-    });
-  }
-
-  void _clearSelection() {
-    setState(() {
-      _selectedOptions.clear();
-    });
-  }
-
-  Future<void> _executeClear(BuildContext context) async {
-    if (_selectedOptions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one option to clear'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    Navigator.of(context).pop();
-
-    try {
-      if (_selectedOptions.contains('everything') || _selectedOptions.contains('cards')) {
-        await _clearAllCards(context);
-      }
-      
-      if (_selectedOptions.contains('everything') || _selectedOptions.contains('exercises')) {
-        await _clearAllExercises(context);
-      }
-      
-      if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) {
-        await _clearAllStats(context);
-      }
-
-      if (mounted) {
-        String message = 'Cleared: ';
-        if (_selectedOptions.contains('everything')) {
-          message = 'All data cleared successfully';
-        } else {
-          List<String> cleared = [];
-          if (_selectedOptions.contains('cards')) cleared.add('cards');
-          if (_selectedOptions.contains('exercises')) cleared.add('exercises');
-          if (_selectedOptions.contains('stats')) cleared.add('stats & progress');
-          message += cleared.join(', ');
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error clearing data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _clearAllCards(BuildContext context) async {
-    final flashcardProvider = context.read<FlashcardProvider>();
-    
-    // Clear all cards
-    final cards = List.from(flashcardProvider.cards);
-    for (final card in cards) {
-      await flashcardProvider.deleteCard(card.id);
-    }
-    
-    // Clear all decks (except default ones)
-    final decks = List.from(flashcardProvider.decks);
-    for (final deck in decks) {
-      if (deck.name != 'Uncategorized' && deck.name != 'Default') {
-        await flashcardProvider.deleteDeck(deck.id);
-      }
-    }
-  }
-
-  Future<void> _clearAllExercises(BuildContext context) async {
-    try {
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      await dutchProvider.clearAllExercises();
-    } catch (e) {
-      print('DutchWordExerciseProvider not available: $e');
-    }
-  }
-
-  Future<void> _clearAllStats(BuildContext context) async {
-    try {
-      final userProfileProvider = context.read<UserProfileProvider>();
-      await userProfileProvider.resetXpAndProgress();
-    } catch (e) {
-      print('UserProfileProvider not available: $e');
-    }
-    
-    try {
-      final storeProvider = context.read<StoreProvider>();
-      await storeProvider.clearAllUnlockedPacks();
-    } catch (e) {
-      print('StoreProvider not available: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Clear Data'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select what you want to clear:',
-              style: TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            
-            // Select All / Clear All buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _selectAll,
-                    child: const Text('Select All'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _clearSelection,
-                    child: const Text('Clear All'),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Options
-            _buildOptionTile(
-              'cards',
-              'All Cards & Decks',
-              'Delete all flashcards and custom decks',
-              Icons.style,
-              Colors.blue,
-            ),
-            _buildOptionTile(
-              'exercises',
-              'All Exercises',
-              'Delete all Dutch word exercises',
-              Icons.quiz,
-              Colors.green,
-            ),
-            _buildOptionTile(
-              'stats',
-              'Stats & Progress',
-              'Reset XP, levels, achievements, and progress',
-              Icons.analytics,
-              Colors.orange,
-            ),
-            _buildOptionTile(
-              'everything',
-              'Everything',
-              'Clear all data (cards, exercises, stats)',
-              Icons.delete_forever,
-              Colors.red,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () => _executeClear(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Clear Selected'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOptionTile(
-    String option,
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-  ) {
-    final isSelected = _selectedOptions.contains(option);
-    
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: CheckboxListTile(
-        title: Text(title),
-        subtitle: Text(subtitle),
-        value: isSelected,
-        onChanged: (bool? value) {
-          _toggleOption(option);
-        },
-        secondary: Icon(
-          icon,
-          color: color,
-        ),
-        activeColor: color,
-      ),
-    );
-  }
-} 
+ 

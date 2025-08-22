@@ -5,6 +5,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
+import '../components/unified_header.dart';
 
 import 'create_word_exercise_view.dart';
 
@@ -75,56 +76,24 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     _initializeShuffledOptions(_currentExerciseIndex, currentExercise);
     
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_wordExercise.targetWord),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: _handleMenuAction,
-            itemBuilder: (context) => [
-              if (widget.showEditDeleteButtons) ...[
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit),
-                      SizedBox(width: 8),
-                      Text('Edit'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-              const PopupMenuItem(
-                value: 'info',
-                child: Row(
-                  children: [
-                    Icon(Icons.info),
-                    SizedBox(width: 8),
-                    Text('Info'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Progress indicator
-          _buildProgressIndicator(),
+          // Header
+          UnifiedHeader(
+            title: 'Exercise',
+            onBack: () => _showCloseConfirmation(),
+            trailing: IconButton(
+              onPressed: () => _showHomeConfirmation(),
+              icon: const Icon(Icons.home),
+              tooltip: 'Go Home',
+            ),
+          ),
           
-          // Exercise content
+          // Progress Bar
+          _buildProgressBar(),
+          
+          // Exercise Content
           Expanded(
             child: _buildExerciseContent(currentExercise),
           ),
@@ -136,9 +105,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     );
   }
 
-  Widget _buildProgressIndicator() {
+  Widget _buildProgressBar() {
+    final percentage = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           Row(
@@ -152,7 +123,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
                 ),
               ),
               Text(
-                'Score: $_correctAnswers/$_totalAnswered',
+                '$percentage%',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -164,7 +135,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           LinearProgressIndicator(
             value: (_currentExerciseIndex + 1) / _wordExercise.exercises.length,
             backgroundColor: Colors.grey.withOpacity(0.3),
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
         ],
       ),
@@ -249,7 +220,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             exercise.prompt,
             style: const TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.left,
             enableInteractiveSelection: true,
@@ -308,11 +279,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _showAnswer ? null : () {
-                setState(() {
-                  _selectedAnswer = option;
-                });
-              },
+              onTap: _showAnswer ? null : () => _selectAnswer(option, exercise),
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -381,11 +348,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _showAnswer ? null : () {
-                setState(() {
-                  _selectedAnswer = option;
-                });
-              },
+              onTap: _showAnswer ? null : () => _selectAnswer(option, exercise),
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(16),
@@ -1132,5 +1095,61 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     }
   }
 
+  void _showCloseConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('End Exercise?'),
+        content: const Text('Are you sure you want to end this exercise?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('End Exercise'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHomeConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Return to Home?'),
+        content: const Text('Are you sure you want to return to the home screen? This will end your current exercise.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: const Text('Go Home'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _selectAnswer(String option, WordExercise exercise) {
+    setState(() {
+      _selectedAnswer = option;
+      _showAnswer = true;
+      _totalAnswered++;
+      if (option == exercise.correctAnswer) {
+        _correctAnswers++;
+      }
+    });
+  }
 
 } 

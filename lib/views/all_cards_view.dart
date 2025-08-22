@@ -109,14 +109,26 @@ class _AllCardsViewState extends State<AllCardsView> {
             'No cards found',
             style: TextStyle(
               fontSize: 18,
+              fontWeight: FontWeight.w500,
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Try adjusting your search or add some cards',
+            'Create your first card to get started',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _addNewCard(),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Your First Card'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],
@@ -798,7 +810,7 @@ class _AllCardsViewState extends State<AllCardsView> {
           ),
           const Spacer(),
           const Text(
-            'All Cards',
+            'Cards',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,

@@ -39,16 +39,16 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: widget.rule.title,
-            onBack: () => Navigator.of(context).pop(),
-            trailing: IconButton(
-              onPressed: () => _startPractice(),
-              icon: const Icon(Icons.quiz),
-              tooltip: 'Practice this rule',
+                      // Header
+            UnifiedHeader(
+              title: 'Grammar',
+              onBack: () => Navigator.of(context).pop(),
+              trailing: IconButton(
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                icon: const Icon(Icons.home),
+                tooltip: 'Go Home',
+              ),
             ),
-          ),
           
           // Rule Info
           Container(
@@ -56,48 +56,20 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Progress indicator (moved to the right)
-                Row(
-                  children: [
-                    const Spacer(),
-                    Consumer<DutchGrammarProvider>(
-                      builder: (context, provider, child) {
-                        final progress = provider.getRuleProgressPercentage(widget.rule.id);
-                        final completedCount = provider.getRuleProgress(widget.rule.id);
-                        final totalExercises = widget.rule.exercises.length;
-                        
-                        return Row(
-                          children: [
-                            if (totalExercises > 0) ...[
-                              Text(
-                                '$completedCount/$totalExercises',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 60,
-                                child: LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    progress >= 0.8 ? Colors.green : 
-                                    progress >= 0.5 ? Colors.orange : 
-                                    Colors.blue,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
+
                 
                 const SizedBox(height: 16),
+                
+                // Rule Title
+                Text(
+                  widget.rule.title,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 
                 // Key Points
                 if (widget.rule.keyPoints.isNotEmpty) ...[
@@ -121,9 +93,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                           textAlign: TextAlign.left, 
                           enableInteractiveSelection: true, 
                           showCursor: false,
-                          contextMenuBuilder: (context, editableTextState) {
-                            return const SizedBox.shrink(); // Hide context menu
-                          },
                         )),
                       ],
                     ),
@@ -177,6 +146,18 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
     );
   }
 
+  void _startPractice() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => DutchGrammarExerciseView(
+          exercises: widget.rule.exercises,
+          ruleTitle: widget.rule.title,
+          ruleId: widget.rule.id,
+        ),
+      ),
+    );
+  }
+
   Widget _buildExplanationTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -192,9 +173,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
             textAlign: TextAlign.left,
             enableInteractiveSelection: true,
             showCursor: false,
-            contextMenuBuilder: (context, editableTextState) {
-              return const SizedBox.shrink(); // Hide context menu
-            },
           ),
           
           if (widget.rule.relatedRules.isNotEmpty) ...[
@@ -256,9 +234,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                   textAlign: TextAlign.left,
                   enableInteractiveSelection: true,
                   showCursor: false,
-                  contextMenuBuilder: (context, editableTextState) {
-                    return const SizedBox.shrink(); // Hide context menu
-                  },
                 ),
                 
                 const SizedBox(height: 8),
@@ -274,9 +249,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                   textAlign: TextAlign.left,
                   enableInteractiveSelection: true,
                   showCursor: false,
-                  contextMenuBuilder: (context, editableTextState) {
-                    return const SizedBox.shrink(); // Hide context menu
-                  },
                 ),
                 
                 if (example.breakdown != null) ...[
@@ -297,9 +269,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                       textAlign: TextAlign.left,
                       enableInteractiveSelection: true,
                       showCursor: false,
-                      contextMenuBuilder: (context, editableTextState) {
-                        return const SizedBox.shrink(); // Hide context menu
-                      },
                     ),
                   ),
                 ],
@@ -336,36 +305,25 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
   Widget _buildExercisesTab() {
     return Column(
       children: [
-        // Exercise count and start button
+        // Exercise count
         Container(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${widget.rule.exercises.length} Exercises',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Practice this grammar rule with interactive exercises',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+              Text(
+                '${widget.rule.exercises.length} Exercises',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: () => _startPractice(),
-                icon: const Icon(Icons.quiz),
-                label: const Text('Start'),
+              const SizedBox(height: 4),
+              Text(
+                'Exercises for this grammar rule',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
               ),
             ],
           ),
@@ -401,8 +359,31 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => _startSingleExercise(exercise, index),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (action) => _handleExerciseAction(action, exercise, index),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 16),
+                            SizedBox(width: 8),
+                            Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 16, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -516,28 +497,54 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
 
   // Removed type and level chips as requested by user
 
-  void _startPractice() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DutchGrammarExerciseView(
-          exercises: widget.rule.exercises,
-          ruleTitle: widget.rule.title,
-          ruleId: widget.rule.id,
-        ),
+
+
+  void _handleExerciseAction(String action, GrammarExercise exercise, int index) {
+    switch (action) {
+      case 'edit':
+        _editExercise(exercise, index);
+        break;
+      case 'delete':
+        _showDeleteExerciseConfirmation(exercise, index);
+        break;
+    }
+  }
+
+  void _editExercise(GrammarExercise exercise, int index) {
+    // TODO: Navigate to exercise edit view
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Edit exercise functionality coming soon!')),
+    );
+  }
+
+  void _showDeleteExerciseConfirmation(GrammarExercise exercise, int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Exercise'),
+        content: Text('Are you sure you want to delete this exercise?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteExercise(exercise, index);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
 
-  void _startSingleExercise(GrammarExercise exercise, int index) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DutchGrammarExerciseView(
-          exercises: [exercise],
-          ruleTitle: widget.rule.title,
-          ruleId: widget.rule.id,
-          startIndex: 0,
-        ),
-      ),
+  void _deleteExercise(GrammarExercise exercise, int index) {
+    // TODO: Implement delete exercise functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Delete exercise functionality coming soon!')),
     );
   }
 

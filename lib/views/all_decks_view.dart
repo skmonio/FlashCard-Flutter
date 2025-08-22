@@ -75,7 +75,7 @@ class _AllDecksViewState extends State<AllDecksView> {
           ),
           const Spacer(),
           const Text(
-            'All Decks',
+            'Decks',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,

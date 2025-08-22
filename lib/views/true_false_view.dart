@@ -1096,7 +1096,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                           child: const Text('Done'),
                         ),
                       ),

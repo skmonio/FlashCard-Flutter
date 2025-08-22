@@ -5,6 +5,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
+import '../components/unified_header.dart';
 
 class DutchWordsPracticeView extends StatefulWidget {
   final String deckId;
@@ -94,17 +95,24 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     final currentExercise = _shuffledExercises[_currentExerciseIndex];
     
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Practice: ${widget.deckName}'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Progress indicator
-          _buildProgressIndicator(),
+          // Header
+          UnifiedHeader(
+            title: 'Exercise',
+            onBack: () => _showCloseConfirmation(),
+            trailing: IconButton(
+              onPressed: () => _showHomeConfirmation(),
+              icon: const Icon(Icons.home),
+              tooltip: 'Go Home',
+            ),
+          ),
           
-          // Exercise content
+          // Progress Bar
+          _buildProgressBar(),
+          
+          // Exercise Content
           Expanded(
             child: _buildExerciseContent(currentExercise),
           ),
@@ -116,9 +124,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     );
   }
 
-  Widget _buildProgressIndicator() {
+  Widget _buildProgressBar() {
+    final percentage = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           Row(
@@ -132,7 +142,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
                 ),
               ),
               Text(
-                'Score: $_correctAnswers/$_totalAnswered',
+                '$percentage%',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -220,6 +230,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
                 setState(() {
                   _selectedAnswer = option;
                 });
+                // Immediately check the answer
+                _checkAnswer();
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
@@ -794,5 +806,50 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     );
   }
 
+  void _showCloseConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('End Practice?'),
+        content: const Text('Are you sure you want to end this practice session?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('End Practice'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHomeConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Return to Home?'),
+        content: const Text('Are you sure you want to return to the home screen? This will end your current practice session.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: const Text('Go Home'),
+          ),
+        ],
+      ),
+    );
+  }
 
 } 

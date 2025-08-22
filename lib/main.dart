@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-// import 'package:firebase_auth/firebase_auth.dart';  // Temporarily disabled
-// import 'package:cloud_firestore/cloud_firestore.dart';  // Temporarily disabled
-// import 'package:firebase_storage/firebase_storage.dart';  // Temporarily disabled
-import 'dart:io' show Platform;
 import 'providers/flashcard_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/bubble_word_provider.dart';
@@ -19,17 +14,6 @@ import 'views/app_initialization_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase
-  try {
-    await Firebase.initializeApp();
-    print('✅ Firebase initialized successfully');
-    
-    // Firebase Auth, Firestore, and Storage temporarily disabled due to web compatibility issues
-    print('ℹ️ Firebase Auth, Firestore, and Storage temporarily disabled');
-  } catch (e) {
-    print('❌ Firebase initialization failed: $e');
-  }
   
   // Initialize performance service for battery and memory optimization
   PerformanceService().initialize();

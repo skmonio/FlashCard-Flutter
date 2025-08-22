@@ -8,6 +8,7 @@ import 'cards_view.dart';
 import 'store_view.dart';
 import 'settings_view.dart';
 import '../components/bottom_navigation_view.dart';
+import '../components/main_header.dart';
 
 class MainNavigationView extends StatefulWidget {
   const MainNavigationView({super.key});
@@ -68,19 +69,28 @@ class _MainNavigationViewState extends State<MainNavigationView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _selectedTabIndex = index;
-          });
-        },
-                       children: const [
-                 HomeView(),
-                 CardsView(),
-                 StoreView(),
-                 SettingsView(),
-               ],
+      body: Column(
+        children: [
+          // Fixed Header
+          const MainHeader(),
+          
+          // Page Content
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() {
+                  _selectedTabIndex = index;
+                });
+              },
+              children: const [
+                HomeView(),
+                CardsView(),
+                SettingsView(),
+              ],
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationView(
         selectedTabIndex: _selectedTabIndex,
@@ -88,4 +98,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       ),
     );
   }
+
+
 } 

@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/phrase_provider.dart';
+import '../providers/dutch_word_exercise_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
-import 'add_card_view.dart';
-import 'add_deck_view.dart';
 import 'all_cards_view.dart';
 import 'all_decks_view.dart';
-import 'create_word_exercise_view.dart';
 import 'photo_import_view.dart';
-import 'add_phrase_view.dart';
 import 'phrases_list_view.dart';
+import 'dutch_words_view.dart';
+import 'dutch_grammar_rules_view.dart';
+import 'bubble_word_map_selection_view.dart';
+import 'store_view.dart';
 
 class CardsView extends StatefulWidget {
   const CardsView({super.key});
@@ -29,59 +30,19 @@ class _CardsViewState extends State<CardsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Header - wrapped in SafeArea to avoid system UI
-          SafeArea(
-            child: _buildHeader(context),
-          ),
-          
-          // Main content
-          Expanded(
-            child: Consumer<FlashcardProvider>(
-              builder: (context, provider, child) {
-                if (provider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: Consumer<FlashcardProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                return _buildContent(context, provider);
-              },
-            ),
-          ),
-        ],
+          return _buildContent(context, provider);
+        },
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // Profile button placeholder
-          const SizedBox(width: 48),
-          const Spacer(),
-          // Title
-          const Text(
-            'Taal Trek',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          // How to Add Cards button
-          TextButton(
-            onPressed: () => _showCardsInfo(context),
-            child: const Text(
-              'Help',
-              style: TextStyle(fontSize: 12, color: Colors.blue),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildContent(BuildContext context, FlashcardProvider provider) {
     return SingleChildScrollView(
@@ -99,6 +60,10 @@ class _CardsViewState extends State<CardsView> {
           
           // View Section
           _buildViewSection(context, provider),
+          const SizedBox(height: 20),
+          
+          // Resources Section
+          _buildResourcesSection(),
         ],
       ),
     );
@@ -214,7 +179,7 @@ class _CardsViewState extends State<CardsView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Add',
+          'Import',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.grey[600],
@@ -222,46 +187,9 @@ class _CardsViewState extends State<CardsView> {
         ),
         const SizedBox(height: 12),
         
-        // Add New Card
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ElevatedButton(
-            onPressed: () => _showAddCardDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.orange.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.add_card,
-                  color: Colors.orange,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Add New Card',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
-        
         // Import from Photo
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton(
             onPressed: () => _showPhotoImportDialog(context),
             style: ElevatedButton.styleFrom(
@@ -284,114 +212,6 @@ class _CardsViewState extends State<CardsView> {
                 const SizedBox(width: 12),
                 Text(
                   'Import from Photo',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
-        
-        // Add New Deck
-        Container(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _showAddDeckDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.purple.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.folder_open,
-                  color: Colors.purple,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Add New Deck',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 12),
-        
-        // Add Exercise
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ElevatedButton(
-            onPressed: () => _showAddExerciseDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.green.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.quiz,
-                  color: Colors.green,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Add Exercise',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
-        
-        // Add a Phrase
-        Container(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _showAddPhraseDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.teal.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.translate,
-                  color: Colors.teal,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Add a Phrase',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),
@@ -445,12 +265,12 @@ class _CardsViewState extends State<CardsView> {
                   size: 24,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'View All Cards',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                                    Text(
+                      'Cards',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                 const Spacer(),
                 Text(
                   '(${allCards.length})',
@@ -487,12 +307,12 @@ class _CardsViewState extends State<CardsView> {
                   size: 24,
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'View All Decks',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                                    Text(
+                      'Decks',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                 const Spacer(),
                 Text(
                   '(${allDecks.length})',
@@ -503,6 +323,53 @@ class _CardsViewState extends State<CardsView> {
               ],
             ),
           ),
+        ),
+        
+        // View All Exercises
+        Consumer<DutchWordExerciseProvider>(
+          builder: (context, exerciseProvider, child) {
+            final allExercises = exerciseProvider.wordExercises;
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton(
+                onPressed: () => _viewAllExercises(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  elevation: 2,
+                  shadowColor: Colors.indigo.withOpacity(0.2),
+                  padding: const EdgeInsets.all(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.quiz,
+                      color: Colors.indigo,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                                         Text(
+                       'Exercises',
+                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                         fontWeight: FontWeight.w500,
+                       ),
+                     ),
+                    const Spacer(),
+                    Text(
+                      '(${allExercises.length})',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
         
         // View All Phrases
@@ -532,7 +399,7 @@ class _CardsViewState extends State<CardsView> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'View All Phrases',
+                      'Phrases',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w500,
                       ),
@@ -554,35 +421,128 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
-  void _showAddCardDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddCardView(),
-      ),
-    );
-  }
 
-  void _showAddDeckDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddDeckView(),
-      ),
-    );
-  }
 
-  void _showAddExerciseDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const CreateWordExerciseView(),
-      ),
-    );
-  }
-
-  void _showAddPhraseDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddPhraseView(),
-      ),
+  Widget _buildResourcesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Resources',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        // Grammar Rules
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ElevatedButton(
+            onPressed: () => _navigateToGrammar(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              elevation: 2,
+              shadowColor: Colors.indigo.withOpacity(0.2),
+              padding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.language,
+                  color: Colors.indigo,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Grammar Rules',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+        
+        // Bubble Word
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ElevatedButton(
+            onPressed: () => _navigateToBubbleWord(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              elevation: 2,
+              shadowColor: Colors.purple.withOpacity(0.2),
+              padding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.bubble_chart,
+                  color: Colors.purple,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Bubble Word',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+        
+        // Store
+        Container(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => _navigateToStore(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              elevation: 2,
+              shadowColor: Colors.orange.withOpacity(0.2),
+              padding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.store,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Store',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -610,10 +570,42 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
+  void _viewAllExercises(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const DutchWordsView(),
+      ),
+    );
+  }
+
   void _viewAllPhrases(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const PhrasesListView(),
+      ),
+    );
+  }
+
+  void _navigateToGrammar(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const DutchGrammarRulesView(),
+      ),
+    );
+  }
+
+  void _navigateToBubbleWord(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const BubbleWordMapSelectionView(),
+      ),
+    );
+  }
+
+  void _navigateToStore(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const StoreView(),
       ),
     );
   }

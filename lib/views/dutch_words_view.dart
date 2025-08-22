@@ -5,8 +5,6 @@ import '../models/dutch_word_exercise.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'dutch_words_deck_view.dart';
 import 'create_word_exercise_view.dart';
-import 'import_word_exercises_view.dart';
-import 'export_word_exercises_view.dart';
 
 class DutchWordsView extends StatefulWidget {
   const DutchWordsView({super.key});
@@ -17,8 +15,9 @@ class DutchWordsView extends StatefulWidget {
 
 class _DutchWordsViewState extends State<DutchWordsView> {
   String _searchQuery = '';
+  String _sortOption = 'A-Z';
   bool _isSelectionMode = false;
-  Set<String> _selectedDeckIds = {};
+  Set<String> _selectedExerciseIds = {};
   bool _selectAll = false;
 
   @override
@@ -31,12 +30,18 @@ class _DutchWordsViewState extends State<DutchWordsView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dutch Words'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        actions: _isSelectionMode ? _buildSelectionActions() : _buildHeaderActions(),
+          return Scaffold(
+        appBar: AppBar(
+          title: const Text('Exercises'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: Colors.black,
+          actions: _isSelectionMode ? _buildSelectionActions() : _buildHeaderActions(),
+        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToCreateExercise(),
+        tooltip: 'Add Exercise',
+        child: const Icon(Icons.add),
       ),
       body: Consumer<DutchWordExerciseProvider>(
         builder: (context, provider, child) {
@@ -66,9 +71,6 @@ class _DutchWordsViewState extends State<DutchWordsView> {
               // Search and filter section
               _buildSearchAndFilterSection(),
               
-              // Action buttons (only show when not in selection mode)
-              if (!_isSelectionMode) _buildActionButtons(),
-              
               // Exercises list
               Expanded(
                 child: filteredExercises.isEmpty
@@ -83,13 +85,13 @@ class _DutchWordsViewState extends State<DutchWordsView> {
   }
 
   List<Widget> _buildHeaderActions() {
-    return [
-      IconButton(
-        onPressed: () => _showInfo(),
-        icon: const Icon(Icons.info_outline),
-        tooltip: 'Info',
-      ),
-    ];
+          return [
+        IconButton(
+          onPressed: _toggleSelectionMode,
+          icon: const Icon(Icons.select_all),
+          tooltip: 'Select',
+        ),
+      ];
   }
 
   List<Widget> _buildSelectionActions() {
@@ -99,13 +101,13 @@ class _DutchWordsViewState extends State<DutchWordsView> {
         onPressed: () {
           setState(() {
             if (_selectAll) {
-              _selectedDeckIds.clear();
+              _selectedExerciseIds.clear();
               _selectAll = false;
             } else {
               final provider = context.read<DutchWordExerciseProvider>();
               final exercises = _getFilteredExercises(provider);
-              final deckIds = _getDeckIdsFromExercises(exercises);
-              _selectedDeckIds = deckIds.toSet();
+              final exerciseIds = _getExerciseIdsFromExercises(exercises);
+              _selectedExerciseIds = exerciseIds.toSet();
               _selectAll = true;
             }
           });
@@ -115,7 +117,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
       ),
       
       // Delete Selected
-      if (_selectedDeckIds.isNotEmpty)
+      if (_selectedExerciseIds.isNotEmpty)
         IconButton(
           onPressed: () => _showDeleteSelectedDialog(),
           icon: const Icon(Icons.delete, color: Colors.red),
@@ -123,7 +125,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
         ),
       
       // Selection Count
-      if (_selectedDeckIds.isNotEmpty)
+      if (_selectedExerciseIds.isNotEmpty)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
@@ -131,124 +133,124 @@ class _DutchWordsViewState extends State<DutchWordsView> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            '${_selectedDeckIds.length}',
+            '${_selectedExerciseIds.length}',
             style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
           ),
         ),
     ];
   }
 
-  Set<String> _getDeckIdsFromExercises(List<DutchWordExercise> exercises) {
-    final Set<String> deckIds = {};
+  Set<String> _getExerciseIdsFromExercises(List<DutchWordExercise> exercises) {
+    final Set<String> exerciseIds = {};
     for (final exercise in exercises) {
-      deckIds.add(exercise.deckId);
+      exerciseIds.add(exercise.id);
     }
-    return deckIds;
+    return exerciseIds;
   }
 
   Widget _buildSearchAndFilterSection() {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Search bar
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Search words...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                      icon: const Icon(Icons.clear),
-                    )
-                  : null,
-              border: const OutlineInputBorder(),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Selection Mode Toggle
-          Row(
-            children: [
-              Expanded(child: Container()), // Spacer
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isSelectionMode = !_isSelectionMode;
-                    if (!_isSelectionMode) {
-                      _selectedDeckIds.clear();
-                      _selectAll = false;
-                    }
-                  });
-                },
-                icon: Icon(
-                  _isSelectionMode ? Icons.close : Icons.select_all,
-                  color: _isSelectionMode ? Colors.red : Colors.green,
-                ),
-                tooltip: _isSelectionMode ? 'Exit Selection' : 'Select Decks',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
+          // Search bar
           Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ImportWordExercisesView(
-                      onImportComplete: () {
-                        // Refresh the view when import is complete
-                        setState(() {});
-                      },
-                    ),
-                  ),
-                );
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search exercises...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
               },
-              icon: const Icon(Icons.file_upload),
-              label: const Text('Import'),
             ),
           ),
           
           const SizedBox(width: 12),
           
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ExportWordExercisesView(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.file_download),
-              label: const Text('Export'),
-            ),
-          ),
+                     // Sort Button
+           PopupMenuButton<String>(
+             onSelected: (value) {
+               setState(() {
+                 _sortOption = value;
+               });
+             },
+             itemBuilder: (context) => [
+               const PopupMenuItem(
+                 value: 'A-Z',
+                 child: Row(
+                   children: [
+                     Icon(Icons.arrow_upward),
+                     SizedBox(width: 8),
+                     Text('A-Z'),
+                   ],
+                 ),
+               ),
+               const PopupMenuItem(
+                 value: 'Z-A',
+                 child: Row(
+                   children: [
+                     Icon(Icons.arrow_downward),
+                     SizedBox(width: 8),
+                     Text('Z-A'),
+                   ],
+                 ),
+               ),
+             ],
+             child: Container(
+               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+               decoration: BoxDecoration(
+                 border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                 borderRadius: BorderRadius.circular(12),
+               ),
+               child: Row(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   Icon(
+                     _sortOption == 'A-Z' ? Icons.arrow_upward : Icons.arrow_downward,
+                     size: 20,
+                     color: Colors.grey[600],
+                   ),
+                   const SizedBox(width: 8),
+                   Text(
+                     _sortOption,
+                     style: TextStyle(
+                       color: Colors.grey[600],
+                       fontSize: 14,
+                     ),
+                   ),
+                   const SizedBox(width: 4),
+                   Icon(
+                     Icons.arrow_drop_down,
+                     size: 20,
+                     color: Colors.grey[600],
+                   ),
+                 ],
+               ),
+             ),
+           ),
         ],
       ),
     );
   }
+
+
 
   Widget _buildStatisticsCards(DutchWordExerciseProvider provider) {
     // Removed statistics cards as requested
@@ -289,43 +291,26 @@ class _DutchWordsViewState extends State<DutchWordsView> {
   }
 
   Widget _buildExercisesList(List<DutchWordExercise> exercises) {
-    // Group exercises by deck
-    final Map<String, List<DutchWordExercise>> deckGroups = {};
-    for (final exercise in exercises) {
-      if (!deckGroups.containsKey(exercise.deckId)) {
-        deckGroups[exercise.deckId] = [];
-      }
-      deckGroups[exercise.deckId]!.add(exercise);
-    }
-
-    final deckIds = deckGroups.keys.toList()..sort();
-    
-    // Filter out empty decks
-    final nonEmptyDeckIds = deckIds.where((deckId) => deckGroups[deckId]!.isNotEmpty).toList();
-
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: nonEmptyDeckIds.length,
+      itemCount: exercises.length,
       itemBuilder: (context, index) {
-        final deckId = nonEmptyDeckIds[index];
-        final deckExercises = deckGroups[deckId]!;
-        final deckName = deckExercises.first.deckName;
-        final totalExercises = deckExercises.fold<int>(0, (sum, exercise) => sum + exercise.exercises.length);
-        final isSelected = _selectedDeckIds.contains(deckId);
+        final exercise = exercises[index];
+        final isSelected = _selectedExerciseIds.contains(exercise.id);
         
         return Card(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8),
           child: InkWell(
-            onTap: _isSelectionMode ? () => _toggleDeckSelection(deckId) : () => _openDeck(deckId, deckName, deckExercises),
+            onTap: _isSelectionMode ? () => _toggleExerciseSelection(exercise.id) : () => _openExercise(exercise),
             onLongPress: () {
               setState(() {
                 _isSelectionMode = true;
-                _selectedDeckIds.add(deckId);
+                _selectedExerciseIds.add(exercise.id);
               });
             },
             child: Container(
               decoration: BoxDecoration(
-                border: isSelected ? Border.all(color: Colors.green, width: 2) : null,
+                border: isSelected ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ListTile(
@@ -335,21 +320,21 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                     if (_isSelectionMode)
                       Checkbox(
                         value: isSelected,
-                        onChanged: (value) => _toggleDeckSelection(deckId),
+                        onChanged: (value) => _toggleExerciseSelection(exercise.id),
                         activeColor: Colors.green,
                       ),
                     Container(
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: Colors.indigo.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(25),
                       ),
                       child: Center(
                         child: Text(
-                          '${_calculateLearningPercentage(deckExercises)}%',
+                          '${exercise.learningProgress.learningPercentage.toInt()}%',
                           style: TextStyle(
-                            color: Colors.blue[700],
+                            color: Colors.indigo[700],
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                           ),
@@ -358,16 +343,35 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                     ),
                   ],
                 ),
-                title: Text(
-                  deckName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        exercise.targetWord,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
                 ),
-                subtitle: Text(
-                  '${deckExercises.length} words • $totalExercises exercises',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exercise.wordTranslation,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${exercise.exercises.length} exercises • ${exercise.deckName}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -375,11 +379,11 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                     if (!_isSelectionMode) ...[
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => _showEditDeckDialog(context, deckId, deckName),
+                        onPressed: () => _editExercise(exercise),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _showDeleteDeckDialog(context, deckId, deckName, deckExercises),
+                        onPressed: () => _showDeleteExerciseDialog(context, exercise),
                       ),
                       const Icon(Icons.arrow_forward_ios),
                     ],
@@ -461,6 +465,36 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     );
   }
 
+
+
+  void _showDeleteExerciseDialog(BuildContext context, DutchWordExercise exercise) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Exercise'),
+        content: Text(
+          'Are you sure you want to delete the exercise for "${exercise.targetWord}"?\n\n'
+          'This will permanently delete ${exercise.exercises.length} exercises.\n\n'
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.read<DutchWordExerciseProvider>().deleteWordExercise(exercise.id);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showDeleteDeckDialog(BuildContext context, String deckId, String deckName, List<DutchWordExercise> deckExercises) {
     showDialog(
       context: context,
@@ -530,7 +564,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.text_fields,
+            Icons.quiz,
             size: 64,
             color: Colors.grey.withOpacity(0.5),
           ),
@@ -539,17 +573,29 @@ class _DutchWordsViewState extends State<DutchWordsView> {
             'No word exercises found',
             style: TextStyle(
               fontSize: 18,
+              fontWeight: FontWeight.w500,
               color: Colors.grey.withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Create your first word exercise or import some examples',
+            'Create your first word exercise to get started',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.withOpacity(0.5),
             ),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _navigateToCreateExercise(),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Your First Exercise'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
           ),
         ],
       ),
@@ -557,7 +603,16 @@ class _DutchWordsViewState extends State<DutchWordsView> {
   }
 
   List<DutchWordExercise> _getFilteredExercises(DutchWordExerciseProvider provider) {
-    return provider.searchWordExercises(_searchQuery);
+    var exercises = provider.searchWordExercises(_searchQuery);
+    
+    // Sort exercises
+    if (_sortOption == 'A-Z') {
+      exercises.sort((a, b) => a.targetWord.toLowerCase().compareTo(b.targetWord.toLowerCase()));
+    } else if (_sortOption == 'Z-A') {
+      exercises.sort((a, b) => b.targetWord.toLowerCase().compareTo(a.targetWord.toLowerCase()));
+    }
+    
+    return exercises;
   }
 
   int _calculateLearningPercentage(List<DutchWordExercise> exercises) {
@@ -610,15 +665,49 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     }
   }
 
-  void _toggleDeckSelection(String deckId) {
+  void _toggleSelectionMode() {
     setState(() {
-      if (_selectedDeckIds.contains(deckId)) {
-        _selectedDeckIds.remove(deckId);
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedExerciseIds.clear();
         _selectAll = false;
-      } else {
-        _selectedDeckIds.add(deckId);
       }
     });
+  }
+
+  void _toggleExerciseSelection(String exerciseId) {
+    setState(() {
+      if (_selectedExerciseIds.contains(exerciseId)) {
+        _selectedExerciseIds.remove(exerciseId);
+        _selectAll = false;
+      } else {
+        _selectedExerciseIds.add(exerciseId);
+      }
+    });
+  }
+
+
+
+  void _openExercise(DutchWordExercise exercise) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DutchWordExerciseDetailView(
+          wordExercise: exercise,
+        ),
+      ),
+    );
+  }
+
+  void _editExercise(DutchWordExercise exercise) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateWordExerciseView(
+          editingExercise: exercise,
+        ),
+      ),
+    );
   }
 
   void _openDeck(String deckId, String deckName, List<DutchWordExercise> deckExercises) {
@@ -635,27 +724,27 @@ class _DutchWordsViewState extends State<DutchWordsView> {
   }
 
   void _showDeleteSelectedDialog() {
-    if (_selectedDeckIds.isEmpty) return;
+    if (_selectedExerciseIds.isEmpty) return;
 
     final provider = context.read<DutchWordExerciseProvider>();
-    final selectedDecks = <String, List<DutchWordExercise>>{};
-    int totalWords = 0;
+    final selectedExercises = <DutchWordExercise>[];
     int totalExercises = 0;
 
-    for (final deckId in _selectedDeckIds) {
-      final exercises = provider.getExercisesByDeck(deckId);
-      selectedDecks[deckId] = exercises;
-      totalWords += exercises.length;
-      totalExercises += exercises.fold<int>(0, (sum, exercise) => sum + exercise.exercises.length);
+    for (final exerciseId in _selectedExerciseIds) {
+      final exercise = provider.getWordExercise(exerciseId);
+      if (exercise != null) {
+        selectedExercises.add(exercise);
+        totalExercises += exercise.exercises.length;
+      }
     }
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Selected Decks'),
+        title: const Text('Delete Selected Exercises'),
         content: Text(
-          'Are you sure you want to delete ${_selectedDeckIds.length} deck(s)?\n\n'
-          'This will permanently delete $totalWords words and $totalExercises exercises.\n\n'
+          'Are you sure you want to delete ${_selectedExerciseIds.length} exercise(s)?\n\n'
+          'This will permanently delete $totalExercises individual exercises.\n\n'
           'This action cannot be undone.',
         ),
         actions: [
@@ -666,7 +755,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              _deleteSelectedDecks();
+              _deleteSelectedExercises();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
@@ -676,27 +765,34 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     );
   }
 
-  void _deleteSelectedDecks() {
+  void _deleteSelectedExercises() {
     final provider = context.read<DutchWordExerciseProvider>();
-    final selectedCount = _selectedDeckIds.length;
+    final selectedCount = _selectedExerciseIds.length;
     
-    for (final deckId in _selectedDeckIds) {
-      final exercisesToDelete = provider.getExercisesByDeck(deckId);
-      for (final exercise in exercisesToDelete) {
-        provider.deleteWordExercise(exercise.id);
-      }
+    for (final exerciseId in _selectedExerciseIds) {
+      provider.deleteWordExercise(exerciseId);
     }
     
     setState(() {
-      _selectedDeckIds.clear();
+      _selectedExerciseIds.clear();
       _selectAll = false;
       _isSelectionMode = false;
     });
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$selectedCount deck(s) deleted successfully'),
+        content: Text('$selectedCount exercise(s) deleted successfully'),
         backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+
+
+  void _navigateToCreateExercise() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const CreateWordExerciseView(),
       ),
     );
   }
@@ -711,7 +807,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           '• Tap on a deck to practice its exercises\n'
           '• Long press to enter selection mode\n'
           '• Use the selection mode to delete multiple decks\n'
-          '• Import/export your exercises for backup',
+          '• Use the + button to create new exercises',
         ),
         actions: [
           TextButton(
