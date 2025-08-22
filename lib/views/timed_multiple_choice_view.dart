@@ -65,6 +65,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
+  
+  // Flag to track if view is disposed
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -76,13 +79,13 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     // Set time based on difficulty
     switch (widget.difficulty) {
       case TimedDifficulty.easy:
-        _timeRemaining = 10;
-        break;
-      case TimedDifficulty.medium:
         _timeRemaining = 7;
         break;
-      case TimedDifficulty.hard:
+      case TimedDifficulty.medium:
         _timeRemaining = 5;
+        break;
+      case TimedDifficulty.hard:
+        _timeRemaining = 3;
         break;
     }
     _totalTime = _timeRemaining;
@@ -99,6 +102,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
 
   @override
   void dispose() {
+    // Mark as disposed
+    _isDisposed = true;
+    
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
@@ -138,7 +144,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       
       // Auto progress after showing the answer
       Timer(const Duration(milliseconds: 1500), () {
-        if (mounted) {
+        if (mounted && !_isDisposed) {
           if (_currentIndex < _currentCards.length - 1) {
             _goToNextQuestion();
           } else {
@@ -147,7 +153,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
             setState(() {
               _showingResults = true;
             });
-            SoundManager().playCompleteSound();
+            if (!_isDisposed) {
+              SoundManager().playCompleteSound();
+            }
           }
         }
       });
@@ -300,7 +308,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     
     // Auto progress after a short delay
     Timer(const Duration(milliseconds: 800), () {
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         if (_currentIndex < _currentCards.length - 1) {
           _goToNextQuestion();
         } else {
@@ -309,7 +317,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
           setState(() {
             _showingResults = true;
           });
-          SoundManager().playCompleteSound();
+          if (!_isDisposed) {
+            SoundManager().playCompleteSound();
+          }
         }
       }
     });
@@ -402,7 +412,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
         _showingResults = true;
       });
       // Play completion sound when test is finished
-      SoundManager().playCompleteSound();
+      if (!_isDisposed) {
+        SoundManager().playCompleteSound();
+      }
     }
   }
 
@@ -524,7 +536,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
               border: Border.all(color: timerColor),
             ),
             child: Text(
-              '$_timeRemaining s',
+              '$_timeRemaining',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

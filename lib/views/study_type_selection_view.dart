@@ -46,6 +46,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   
   // New settings for flipped mode
   String _flippedMode = 'normal'; // 'normal', 'flipped', 'mixed'
+  
+  // Timed mode settings
+  bool _useTimedMode = false;
+  TimedDifficulty _selectedTimedDifficulty = TimedDifficulty.medium;
 
   @override
   Widget build(BuildContext context) {
@@ -141,18 +145,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           () => _navigateToNormalStudy(),
         ),
         
-        // Timed Study Option - for memory games, test mode, true/false, and word scramble
-        if (widget.gameMode == GameMode.game || widget.gameMode == GameMode.test || widget.gameMode == GameMode.trueFalse || widget.gameMode == GameMode.bubbleWord) ...[
-          const SizedBox(height: 20),
-          _buildStudyTypeCard(
-            'Timed Study',
-            'Race against the clock',
-            'Complete challenges before time runs out',
-            Icons.timer,
-            Colors.red,
-            () => _navigateToTimedStudy(),
-          ),
-        ],
+
         const SizedBox(height: 20),
         
         // Card count selector (for all modes except those with settings)
@@ -369,34 +362,59 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         );
         break;
       case GameMode.test:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MultipleChoiceView(
-              cards: studyCards,
-              title: 'Quick Test',
-              autoProgress: _autoProgress,
-              useLivesMode: _useLivesMode,
-              customLives: _useLivesMode ? _selectedLives : null,
-              startFlipped: _getStartFlipped(),
-              useMixedMode: _getUseMixedMode(),
+        if (_useTimedMode) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedMultipleChoiceView(
+                cards: studyCards,
+                title: 'Timed Test',
+                difficulty: _selectedTimedDifficulty,
+                startFlipped: _getStartFlipped(),
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MultipleChoiceView(
+                cards: studyCards,
+                title: 'Quick Test',
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+                startFlipped: _getStartFlipped(),
+                useMixedMode: _getUseMixedMode(),
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.trueFalse:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => TrueFalseView(
-              cards: studyCards,
-              title: 'Quick True or False',
-              autoProgress: _autoProgress,
-              useLivesMode: _useLivesMode,
-              customLives: _selectedLives,
-              startFlipped: _getStartFlipped(),
-              useMixedMode: _getUseMixedMode(),
+        if (_useTimedMode) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedTrueFalseView(
+                cards: studyCards,
+                title: 'Timed True or False',
+                difficulty: _selectedTimedDifficulty,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TrueFalseView(
+                cards: studyCards,
+                title: 'Quick True or False',
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _selectedLives,
+                startFlipped: _getStartFlipped(),
+                useMixedMode: _getUseMixedMode(),
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.write:
         Navigator.of(context).push(
@@ -411,28 +429,72 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         );
         break;
       case GameMode.game:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MemoryGameView(
-              cards: studyCards,
-              startFlipped: _getStartFlipped(),
+        if (_useTimedMode) {
+          // Calculate time based on difficulty and card count
+          int secondsPerPair;
+          switch (_selectedTimedDifficulty) {
+            case TimedDifficulty.easy:
+              secondsPerPair = 5; // 5 seconds per pair - more challenging
+              break;
+            case TimedDifficulty.medium:
+              secondsPerPair = 3; // 3 seconds per pair - challenging
+              break;
+            case TimedDifficulty.hard:
+              secondsPerPair = 2; // 2 seconds per pair - very challenging
+              break;
+          }
+          
+          // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
+          final totalPairs = (studyCards.length / 2).ceil();
+          final totalTimeSeconds = totalPairs * secondsPerPair;
+          
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MemoryGameView(
+                cards: studyCards,
+                startFlipped: _getStartFlipped(),
+                timedMode: true,
+                timeLimitSeconds: totalTimeSeconds,
+                difficulty: _selectedTimedDifficulty.name,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MemoryGameView(
+                cards: studyCards,
+                startFlipped: _getStartFlipped(),
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.bubbleWord:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => WordScrambleView(
-              cards: studyCards,
-              title: 'Quick Jumble',
-              startFlipped: _getStartFlipped(),
-              autoProgress: _autoProgress,
-              useLivesMode: _useLivesMode,
-              customLives: _selectedLives,
+        if (_useTimedMode) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedWordScrambleView(
+                cards: studyCards,
+                title: 'Timed Word Scramble',
+                difficulty: _selectedTimedDifficulty,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => WordScrambleView(
+                cards: studyCards,
+                title: 'Quick Jumble',
+                startFlipped: _getStartFlipped(),
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _selectedLives,
+              ),
+            ),
+          );
+        }
         break;
     }
   }
@@ -463,6 +525,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         useLivesMode: _useLivesMode,
         customLives: _useLivesMode ? _selectedLives : null,
         useMixedMode: _getUseMixedMode(),
+        useTimedMode: _useTimedMode,
+        timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
       ),
     );
   }
@@ -493,6 +557,12 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 // Lives Mode (for test, true/false, jumble modes)
                 if (_shouldShowLivesMode()) ...[
                   _buildLivesModeSetting(setState),
+                  const SizedBox(height: 16),
+                ],
+                
+                // Timed Mode (for test, true/false, jumble modes)
+                if (_shouldShowTimedMode()) ...[
+                  _buildTimedModeSetting(setState),
                   const SizedBox(height: 16),
                 ],
                 
@@ -545,6 +615,13 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord;
+  }
+  
+  bool _shouldShowTimedMode() {
+    return widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.trueFalse || 
+           widget.gameMode == GameMode.bubbleWord ||
+           widget.gameMode == GameMode.game;
   }
   
   Widget _buildFlippedModeSetting(StateSetter setState) {
@@ -659,17 +736,25 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             ),
             Switch(
               value: _useLivesMode,
-              onChanged: (value) {
+              onChanged: _useTimedMode ? null : (value) {
                 setState(() {
                   _useLivesMode = value;
                   if (!value) {
                     _selectedLives = 2; // Reset to default
+                  }
+                  // Disable timed mode if lives mode is enabled
+                  if (value) {
+                    _useTimedMode = false;
                   }
                 });
                 this.setState(() {
                   _useLivesMode = value;
                   if (!value) {
                     _selectedLives = 2; // Reset to default
+                  }
+                  // Disable timed mode if lives mode is enabled
+                  if (value) {
+                    _useTimedMode = false;
                   }
                 });
               },
@@ -706,6 +791,72 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
   
+  Widget _buildTimedModeSetting(StateSetter setState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.timer, size: 20, color: Colors.blue),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Timed Mode',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Switch(
+              value: _useTimedMode,
+              onChanged: _useLivesMode ? null : (value) {
+                setState(() {
+                  _useTimedMode = value;
+                  if (!value) {
+                    _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
+                  }
+                });
+                this.setState(() {
+                  _useTimedMode = value;
+                  if (!value) {
+                    _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+        if (_useTimedMode) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'Select Difficulty:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTimedDifficultyButton('Easy', TimedDifficulty.easy, Colors.green, setState),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTimedDifficultyButton('Medium', TimedDifficulty.medium, Colors.orange, setState),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildTimedDifficultyButton('Hard', TimedDifficulty.hard, Colors.red, setState),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+  
   Widget _buildDifficultyButton(String label, int lives, Color color, StateSetter setState) {
     final isSelected = _selectedLives == lives;
     return GestureDetector(
@@ -728,6 +879,52 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         ),
         child: Text(
           '$label ($lives)',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: isSelected ? Colors.white : color,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildTimedDifficultyButton(String label, TimedDifficulty difficulty, Color color, StateSetter setState) {
+    final isSelected = _selectedTimedDifficulty == difficulty;
+    String timeText;
+    switch (difficulty) {
+      case TimedDifficulty.easy:
+        timeText = '7s';
+        break;
+      case TimedDifficulty.medium:
+        timeText = '5s';
+        break;
+      case TimedDifficulty.hard:
+        timeText = '3s';
+        break;
+    }
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTimedDifficulty = difficulty;
+        });
+        this.setState(() {
+          _selectedTimedDifficulty = difficulty;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : color.withOpacity(0.3),
+          ),
+        ),
+        child: Text(
+          '$label ($timeText)',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: isSelected ? Colors.white : color,
@@ -832,86 +1029,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  void _navigateToTimedStudy() {
-    final provider = context.read<FlashcardProvider>();
-    final allCards = provider.cards;
-    
-    if (allCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards available. Please add some cards first.')),
-      );
-      return;
-    }
-    
-    // Handle different game modes
-    switch (widget.gameMode) {
-      case GameMode.test:
-        // Show difficulty selection dialog for test mode
-        _showTimedTestDifficultyDialog(allCards);
-        break;
-      case GameMode.trueFalse:
-        // Show difficulty selection dialog for true/false mode
-        _showTimedTrueFalseDifficultyDialog(allCards);
-        break;
-      case GameMode.bubbleWord:
-        // Show difficulty selection dialog for word scramble mode
-        _showTimedWordScrambleDifficultyDialog(allCards);
-        break;
-      default:
-        // Show difficulty selection dialog for memory games
-        _showTimedDifficultyDialog(allCards);
-        break;
-    }
-  }
 
-  void _showTimedDifficultyDialog(List<FlashCard> allCards) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Choose Difficulty'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Select the difficulty level for your timed challenge:'),
-            SizedBox(height: 16),
-            Text('• Easy: Relaxed pace with plenty of time'),
-            Text('• Medium: Balanced challenge'),
-            Text('• Hard: Race against the clock'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedStudy(allCards, 'easy');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Easy - 8 seconds per pair'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedStudy(allCards, 'medium');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Medium - 5 seconds per pair'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedStudy(allCards, 'hard');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hard - 3 seconds per pair'),
-          ),
-        ],
-      ),
-    );
-  }
+
+
 
   void _showTimedTestDifficultyDialog(List<FlashCard> allCards) {
     showDialog(
@@ -967,16 +1087,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     int secondsPerPair;
     switch (difficulty) {
       case 'easy':
-        secondsPerPair = 8; // 8 seconds per pair - relaxed pace
+        secondsPerPair = 5; // 5 seconds per pair - more challenging
         break;
       case 'medium':
-        secondsPerPair = 5; // 5 seconds per pair - balanced challenge
+        secondsPerPair = 3; // 3 seconds per pair - challenging
         break;
       case 'hard':
-        secondsPerPair = 3; // 3 seconds per pair - challenging but achievable
+        secondsPerPair = 2; // 2 seconds per pair - very challenging
         break;
       default:
-        secondsPerPair = 5;
+        secondsPerPair = 3;
     }
     
     // Shuffle and take a subset of cards
@@ -1029,9 +1149,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           children: [
             Text('Select the difficulty level for your timed true/false test:'),
             SizedBox(height: 16),
-            Text('• Easy: 10 seconds per question'),
-            Text('• Medium: 7 seconds per question'),
-            Text('• Hard: 5 seconds per question'),
+            Text('• Easy: 7 seconds per question'),
+            Text('• Medium: 5 seconds per question'),
+            Text('• Hard: 3 seconds per question'),
           ],
         ),
         actions: [
@@ -1045,7 +1165,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedTrueFalse(allCards, TimedDifficulty.easy);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Easy - 10s'),
+            child: const Text('Easy - 7s'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1053,7 +1173,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedTrueFalse(allCards, TimedDifficulty.medium);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Medium - 7s'),
+            child: const Text('Medium - 5s'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1061,7 +1181,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedTrueFalse(allCards, TimedDifficulty.hard);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hard - 5s'),
+            child: const Text('Hard - 3s'),
           ),
         ],
       ),
@@ -1078,9 +1198,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           children: [
             Text('Select the difficulty level for your timed word scramble test:'),
             SizedBox(height: 16),
-            Text('• Easy: 10 seconds per question'),
-            Text('• Medium: 7 seconds per question'),
-            Text('• Hard: 5 seconds per question'),
+            Text('• Easy: 7 seconds per question'),
+            Text('• Medium: 5 seconds per question'),
+            Text('• Hard: 3 seconds per question'),
           ],
         ),
         actions: [
@@ -1094,7 +1214,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedWordScramble(allCards, TimedDifficulty.easy);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Easy - 10s'),
+            child: const Text('Easy - 7s'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1102,7 +1222,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedWordScramble(allCards, TimedDifficulty.medium);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Medium - 7s'),
+            child: const Text('Medium - 5s'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1110,7 +1230,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _startTimedWordScramble(allCards, TimedDifficulty.hard);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hard - 5s'),
+            child: const Text('Hard - 3s'),
           ),
         ],
       ),
@@ -1162,6 +1282,8 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool useMixedMode;
+  final bool useTimedMode;
+  final TimedDifficulty? timedDifficulty;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -1173,6 +1295,8 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.useMixedMode = false,
+    this.useTimedMode = false,
+    this.timedDifficulty,
   });
 
   @override
@@ -1263,34 +1387,59 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         );
         break;
       case GameMode.test:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MultipleChoiceView(
-              cards: allSelectedCards,
-              title: title,
-              autoProgress: widget.autoProgress,
-              useLivesMode: widget.useLivesMode,
-              customLives: widget.customLives,
-              startFlipped: widget.startFlipped,
-              useMixedMode: widget.useMixedMode,
+        if (widget.useTimedMode && widget.timedDifficulty != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedMultipleChoiceView(
+                cards: allSelectedCards,
+                title: title,
+                difficulty: widget.timedDifficulty!,
+                startFlipped: widget.startFlipped,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MultipleChoiceView(
+                cards: allSelectedCards,
+                title: title,
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.customLives,
+                startFlipped: widget.startFlipped,
+                useMixedMode: widget.useMixedMode,
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.trueFalse:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => TrueFalseView(
-              cards: allSelectedCards,
-              title: title,
-              autoProgress: widget.autoProgress,
-              useLivesMode: widget.useLivesMode,
-              customLives: widget.customLives,
-              startFlipped: widget.startFlipped,
-              useMixedMode: widget.useMixedMode,
+        if (widget.useTimedMode && widget.timedDifficulty != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedTrueFalseView(
+                cards: allSelectedCards,
+                title: title,
+                difficulty: widget.timedDifficulty!,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TrueFalseView(
+                cards: allSelectedCards,
+                title: title,
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.customLives,
+                startFlipped: widget.startFlipped,
+                useMixedMode: widget.useMixedMode,
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.write:
         Navigator.of(context).push(
@@ -1305,28 +1454,72 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         );
         break;
       case GameMode.game:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MemoryGameView(
-              cards: allSelectedCards,
-              startFlipped: widget.startFlipped,
+        if (widget.useTimedMode && widget.timedDifficulty != null) {
+          // Calculate time based on difficulty and card count
+          int secondsPerPair;
+          switch (widget.timedDifficulty!) {
+            case TimedDifficulty.easy:
+              secondsPerPair = 5; // 5 seconds per pair - more challenging
+              break;
+            case TimedDifficulty.medium:
+              secondsPerPair = 3; // 3 seconds per pair - challenging
+              break;
+            case TimedDifficulty.hard:
+              secondsPerPair = 2; // 2 seconds per pair - very challenging
+              break;
+          }
+          
+          // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
+          final totalPairs = (allSelectedCards.length / 2).ceil();
+          final totalTimeSeconds = totalPairs * secondsPerPair;
+          
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MemoryGameView(
+                cards: allSelectedCards,
+                startFlipped: widget.startFlipped,
+                timedMode: true,
+                timeLimitSeconds: totalTimeSeconds,
+                difficulty: widget.timedDifficulty!.name,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => MemoryGameView(
+                cards: allSelectedCards,
+                startFlipped: widget.startFlipped,
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.bubbleWord:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => WordScrambleView(
-              cards: allSelectedCards,
-              title: title,
-              startFlipped: widget.startFlipped,
-              autoProgress: widget.autoProgress,
-              useLivesMode: widget.useLivesMode,
-              customLives: widget.customLives,
+        if (widget.useTimedMode && widget.timedDifficulty != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedWordScrambleView(
+                cards: allSelectedCards,
+                title: title,
+                difficulty: widget.timedDifficulty!,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => WordScrambleView(
+                cards: allSelectedCards,
+                title: title,
+                startFlipped: widget.startFlipped,
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.customLives,
+              ),
+            ),
+          );
+        }
         break;
     }
   }
