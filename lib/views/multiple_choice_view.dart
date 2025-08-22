@@ -550,10 +550,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                
-                // Lives display (if using lives mode) - centered
+                // Lives display (if using lives mode)
                 if (_useLivesMode) 
-                  Center(child: _buildLivesDisplay()),
+                  _buildLivesDisplay(),
               ],
             ),
           ),
@@ -728,32 +727,34 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Widget _buildLivesDisplay() {
     if (!_useLivesMode) return const SizedBox.shrink();
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.favorite,
-            color: Colors.red,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Lives: $_lives/$_maxLives',
-            style: const TextStyle(
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.favorite,
               color: Colors.red,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
+              size: 20,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              'Lives: $_lives/$_maxLives',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

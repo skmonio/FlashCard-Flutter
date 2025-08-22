@@ -344,12 +344,10 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _answerWords.map((word) => _buildWordChip(word, true)).toList(),
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _answerWords.map((word) => _buildWordChip(word, true)).toList(),
                 ),
               ],
             ),

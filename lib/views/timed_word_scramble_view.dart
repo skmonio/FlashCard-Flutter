@@ -61,6 +61,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
+  
+  // Flag to track if view is disposed
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -72,16 +75,16 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
     // Set timer based on difficulty
     switch (widget.difficulty) {
       case TimedDifficulty.easy:
-        _timeRemaining = 10;
-        _totalTime = 10;
-        break;
-      case TimedDifficulty.medium:
         _timeRemaining = 7;
         _totalTime = 7;
         break;
-      case TimedDifficulty.hard:
+      case TimedDifficulty.medium:
         _timeRemaining = 5;
         _totalTime = 5;
+        break;
+      case TimedDifficulty.hard:
+        _timeRemaining = 3;
+        _totalTime = 3;
         break;
     }
     
@@ -97,6 +100,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
 
   @override
   void dispose() {
+    // Mark as disposed
+    _isDisposed = true;
+    
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
@@ -161,7 +167,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
     
     // Auto progress after showing the answer
     Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         _goToNextQuestion();
       }
     });
@@ -378,7 +384,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
       setState(() {
         _showingResults = true;
       });
-      SoundManager().playCompleteSound();
+      if (!_isDisposed) {
+        SoundManager().playCompleteSound();
+      }
     }
   }
 

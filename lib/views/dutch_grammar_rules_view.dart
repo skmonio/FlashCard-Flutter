@@ -214,33 +214,38 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              // Header
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      rule.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Text(
+              // Percentage on the left (like cards and decks)
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: _getAccuracyColor(accuracy).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: Center(
+                  child: Text(
                     '${(accuracy * 100).toInt()}%',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
                       color: _getAccuracyColor(accuracy),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
-                ],
+                ),
               ),
-              
-
+              const SizedBox(width: 16),
+              // Rule title
+              Expanded(
+                child: Text(
+                  rule.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ],
           ),
         ),

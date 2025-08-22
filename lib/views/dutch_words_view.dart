@@ -373,20 +373,29 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                     ),
                   ],
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!_isSelectionMode) ...[
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => _editExercise(exercise),
+                trailing: _isSelectionMode ? null : PopupMenuButton<String>(
+                  onSelected: (value) => _handleExerciseAction(value, exercise),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 16),
+                          SizedBox(width: 8),
+                          Text('Edit Exercise'),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _showDeleteExerciseDialog(context, exercise),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 16, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete Exercise', style: TextStyle(color: Colors.red)),
+                        ],
                       ),
-                      const Icon(Icons.arrow_forward_ios),
-                    ],
+                    ),
                   ],
                 ),
               ),
@@ -708,6 +717,17 @@ class _DutchWordsViewState extends State<DutchWordsView> {
         ),
       ),
     );
+  }
+
+  void _handleExerciseAction(String action, DutchWordExercise exercise) {
+    switch (action) {
+      case 'edit':
+        _editExercise(exercise);
+        break;
+      case 'delete':
+        _showDeleteExerciseDialog(context, exercise);
+        break;
+    }
   }
 
   void _openDeck(String deckId, String deckName, List<DutchWordExercise> deckExercises) {
