@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:io';
-// import 'package:image_picker/image_picker.dart';  // Temporarily disabled for Firebase compatibility
+import 'package:image_picker/image_picker.dart';
 import '../providers/user_profile_provider.dart';
 
 class EditProfileView extends StatefulWidget {
@@ -17,7 +17,7 @@ class _EditProfileViewState extends State<EditProfileView> {
   late TextEditingController _usernameController;
   String _selectedAvatar = 'person';
   String? _profileImageData;
-  // final ImagePicker _picker = ImagePicker();  // Temporarily disabled for Firebase compatibility
+  final ImagePicker _picker = ImagePicker();
 
   final List<Map<String, dynamic>> _avatarOptions = [
     {'name': 'person.crop.circle.fill', 'icon': Icons.person, 'label': 'Person'},
@@ -302,7 +302,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                 title: const Text('Take Photo'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage('camera');
+                  _pickImage(ImageSource.camera);
                 },
               ),
               ListTile(
@@ -310,7 +310,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                 title: const Text('Choose from Gallery'),
                 onTap: () {
                   Navigator.pop(context);
-                  _pickImage('gallery');
+                  _pickImage(ImageSource.gallery);
                 },
               ),
             ],
@@ -320,14 +320,30 @@ class _EditProfileViewState extends State<EditProfileView> {
     );
   }
 
-  Future<void> _pickImage(dynamic source) async {
-    // Temporarily disabled for Firebase compatibility
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image picker temporarily disabled for Firebase compatibility'),
-        backgroundColor: Colors.orange,
-      ),
-    );
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _profileImageData = base64Encode(bytes);
+          _selectedAvatar = ''; // Clear avatar when image is selected
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to pick image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _removeProfileImage() {

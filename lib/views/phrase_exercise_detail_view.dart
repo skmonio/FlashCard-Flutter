@@ -68,11 +68,12 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     
     if (exercises.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(_phrase.phrase),
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
-        ),
+              appBar: AppBar(
+        title: Text(_phrase.phrase),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black,
+      ),
         body: const Center(
           child: Text('No exercises available for this phrase'),
         ),
@@ -89,62 +90,36 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     
     return Scaffold(
       appBar: AppBar(
-        title: Text(_phrase.phrase),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+        title: const Text('Exercise'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black,
         actions: [
-          PopupMenuButton<String>(
-            onSelected: _handleMenuAction,
-            itemBuilder: (context) => [
-              if (widget.showEditDeleteButtons) ...[
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit),
-                      SizedBox(width: 8),
-                      Text('Edit'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete'),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Progress bar
-            _buildProgressBar(exercises.length),
-            
-            // Main content
-            Padding(
+      body: Column(
+        children: [
+          // Progress bar
+          _buildProgressBar(exercises.length),
+          
+          // Main content
+          Expanded(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Exercise content
-                  _buildExerciseContent(currentExercise),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Navigation buttons
-                  _buildNavigationButtons(exercises.length),
-                ],
-              ),
+              child: _buildExerciseContent(currentExercise),
             ),
-          ],
-        ),
+          ),
+          
+          // Navigation buttons at bottom
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: _buildNavigationButtons(exercises.length),
+          ),
+        ],
       ),
     );
   }
@@ -221,51 +196,26 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     return Column(
       children: [
         // Question prompt
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.teal.withValues(alpha: 0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+        Column(
+          children: [
+            Text(
+              exercise['prompt'],
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Text(
-                exercise['prompt'],
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              exercise['question'],
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.teal.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
-                ),
-                child: Text(
-                  exercise['question'],
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
         
         const SizedBox(height: 24),
@@ -371,33 +321,38 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   Widget _buildSentenceBuilderOptions(Map<String, dynamic> exercise) {
     return Column(
       children: [
-        // Selected words
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.teal.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your Answer:',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.teal[700],
+        // Selected words - bigger container
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 120),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.teal.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Answer:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.teal[700],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _answerWords.map((word) => _buildWordChip(word, true)).toList(),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _answerWords.map((word) => _buildWordChip(word, true)).toList(),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         
@@ -865,16 +820,6 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   }
 
   String _getCheckAnswerButtonText() {
-    final exercises = _generateExercises();
-    final currentExercise = exercises[_currentExerciseIndex];
-    if (currentExercise['type'] == 'sentence_builder') {
-      final correctOrder = currentExercise['correctOrder'] as List<String>;
-      final remaining = correctOrder.length - _answerWords.length;
-      if (remaining > 0) {
-        return 'Add $remaining more word${remaining == 1 ? '' : 's'}';
-      }
-      return 'Check Answer';
-    }
     return 'Check Answer';
   }
 }

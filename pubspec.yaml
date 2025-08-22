@@ -53,20 +53,14 @@ dependencies:
   # File handling
   file_picker: ^8.0.0+1
   path_provider: ^2.1.1
-  # image_picker: ^1.0.7  # Temporarily disabled for Firebase compatibility
-  # google_mlkit_commons: ^0.11.0  # Temporarily disabled for Firebase compatibility
+  image_picker: ^1.0.7
+  google_mlkit_commons: ^0.11.0
   
   # OCR and Text Recognition
-  # google_mlkit_text_recognition: ^0.15.0  # Temporarily disabled for Firebase compatibility
+  google_mlkit_text_recognition: ^0.15.0
   
   # UI Components
   flex_color_picker: ^3.3.0
-  
-  # Firebase (temporarily commented out for testing)
-  firebase_core: ^2.24.2
-  # firebase_auth: ^4.15.3  # Temporarily disabled due to web compatibility issues
-  # cloud_firestore: ^4.13.6  # Temporarily disabled due to web compatibility issues
-  # firebase_storage: ^11.5.6  # Temporarily disabled due to web compatibility issues
 
 dev_dependencies:
   flutter_test:
@@ -82,7 +76,17 @@ dev_dependencies:
   # App icon generation
   flutter_launcher_icons: ^0.13.1
 
-
+dependency_overrides:
+  google_mlkit_commons:
+    git:
+      url: https://github.com/bharat-biradar/Google-Ml-Kit-plugin.git
+      path: packages/google_mlkit_commons
+      ref: master
+  google_mlkit_text_recognition:
+    git:
+      url: https://github.com/bharat-biradar/Google-Ml-Kit-plugin.git
+      path: packages/google_mlkit_text_recognition
+      ref: master
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

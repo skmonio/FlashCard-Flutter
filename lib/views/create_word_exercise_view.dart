@@ -69,8 +69,9 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.editingExercise != null ? 'Edit Exercise' : 'Exercise'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.black,
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -487,8 +488,9 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
             
             const SizedBox(height: 16),
             
-            // Correct answer (not needed for multiple choice)
-            if (_exerciseTypes[index] != ExerciseType.multipleChoice)
+            // Correct answer (not needed for multiple choice or fill in blank)
+            if (_exerciseTypes[index] != ExerciseType.multipleChoice && 
+                _exerciseTypes[index] != ExerciseType.fillInBlank)
               TextFormField(
                 controller: _correctAnswerControllers[index],
                 decoration: const InputDecoration(
@@ -504,7 +506,8 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                 },
               ),
             
-            if (_exerciseTypes[index] != ExerciseType.multipleChoice)
+            if (_exerciseTypes[index] != ExerciseType.multipleChoice && 
+                _exerciseTypes[index] != ExerciseType.fillInBlank)
               const SizedBox(height: 16),
             
             // Explanation (optional)
@@ -542,15 +545,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (_exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice)
-                  Text(
-                    'First option is the correct answer',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
+
               ],
             ),
             TextButton.icon(
@@ -570,7 +565,8 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                   child: TextFormField(
                     controller: options[optionIndex],
                     decoration: InputDecoration(
-                      labelText: _exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice && optionIndex == 0
+                      labelText: (_exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice || 
+                                  _exerciseTypes[exerciseIndex] == ExerciseType.fillInBlank) && optionIndex == 0
                           ? 'Correct Answer (Option 1)'
                           : 'Option ${optionIndex + 1}',
                       border: const OutlineInputBorder(),
@@ -798,8 +794,9 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         // For sentence building, split the correct answer into individual words
         correctAnswer = _correctAnswerControllers[i].text;
         options = correctAnswer.split(' ').where((String word) => word.isNotEmpty).toList();
-      } else if (_exerciseTypes[i] == ExerciseType.multipleChoice) {
-        // For multiple choice, first option is the correct answer
+      } else if (_exerciseTypes[i] == ExerciseType.multipleChoice || 
+                 _exerciseTypes[i] == ExerciseType.fillInBlank) {
+        // For multiple choice and fill in blank, first option is the correct answer
         options = _optionControllers[i].map((c) => c.text).toList();
         correctAnswer = options.isNotEmpty ? options[0] : '';
       } else {

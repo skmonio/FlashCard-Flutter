@@ -21,7 +21,7 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
   late TabController _tabController;
   String _selectedDifficulty = 'all';
   String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
+  String _sortOption = 'A-Z';
   
   // Pagination for search results
   static const int _searchResultsPerPage = 50;
@@ -44,118 +44,125 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
   @override
   void dispose() {
     _tabController.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Vocabulary Store'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Card Packs'),
-            Tab(text: 'Exercises'),
-            Tab(text: 'Sentences'),
-          ],
-        ),
-      ),
-      body: Consumer<StoreProvider>(
-        builder: (context, storeProvider, child) {
-          if (storeProvider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (storeProvider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: Column(
+        children: [
+          // Header
+          SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.grey[400],
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.arrow_back),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading store',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  const Spacer(),
+                  const Text(
+                    'Store',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    storeProvider.error!,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => storeProvider.initialize(),
-                    child: const Text('Retry'),
-                  ),
+                  const Spacer(),
+                  const SizedBox(width: 48), // Balance the back button
                 ],
               ),
-            );
-          }
+            ),
+          ),
+          
+          // Tab Bar
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: Theme.of(context).colorScheme.primary,
+              labelColor: Theme.of(context).colorScheme.primary,
+              unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              tabs: const [
+                Tab(text: 'Cards'),
+                Tab(text: 'Exercises'),
+                Tab(text: 'Phrases'),
+              ],
+            ),
+          ),
+                // Content
+          Expanded(
+            child: Consumer<StoreProvider>(
+              builder: (context, storeProvider, child) {
+                if (storeProvider.isLoading) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
 
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search for words...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                              _searchController.clear();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                if (storeProvider.error != null) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading store',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          storeProvider.error!,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => storeProvider.initialize(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase();
-                      // Reset pagination when search query changes
-                      _currentSearchPage = 0;
-                      _allSearchResults.clear();
-                      _hasMoreSearchResults = false;
-                    });
-                  },
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
+                  );
+                }
+
+                return Column(
                   children: [
-                    _buildPackList(storeProvider.getPacksByCategory('vocabulary')),
-                    _buildPackList(storeProvider.getPacksByCategory('exercises')),
-                    _buildPackList(storeProvider.getPacksByCategory('sentences')),
+                    // Search and filter section
+                    _buildSearchAndFilterSection(),
+                    
+                    // Tab content
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildPackList(storeProvider.getPacksByCategory('vocabulary')),
+                          _buildPackList(storeProvider.getPacksByCategory('exercises')),
+                          _buildPackList(storeProvider.getPacksByCategory('sentences')),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -192,11 +199,19 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
       );
     }
 
+    // Apply sorting
+    final sortedPacks = List<StorePack>.from(packs);
+    if (_sortOption == 'A-Z') {
+      sortedPacks.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else if (_sortOption == 'Z-A') {
+      sortedPacks.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: packs.length,
+      itemCount: sortedPacks.length,
       itemBuilder: (context, index) {
-        final pack = packs[index];
+        final pack = sortedPacks[index];
         return _buildPackCard(pack);
       },
     );
@@ -1146,4 +1161,113 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
     return result;
   }
 
+  Widget _buildSearchAndFilterSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          // Search bar
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search store...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _searchQuery = '';
+                            // Reset pagination when search query changes
+                            _currentSearchPage = 0;
+                            _allSearchResults.clear();
+                            _hasMoreSearchResults = false;
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.toLowerCase();
+                  // Reset pagination when search query changes
+                  _currentSearchPage = 0;
+                  _allSearchResults.clear();
+                  _hasMoreSearchResults = false;
+                });
+              },
+            ),
+          ),
+          
+          const SizedBox(width: 12),
+          
+          // Sort Button
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              setState(() {
+                _sortOption = value;
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'A-Z',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_upward),
+                    SizedBox(width: 8),
+                    Text('A-Z'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Z-A',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_downward),
+                    SizedBox(width: 8),
+                    Text('Z-A'),
+                  ],
+                ),
+              ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _sortOption == 'A-Z' ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 20,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _sortOption,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 20,
+                    color: Colors.grey[600],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

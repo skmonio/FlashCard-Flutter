@@ -203,9 +203,6 @@ class _StudyViewState extends State<StudyView> {
                     textAlign: TextAlign.center,
                     enableInteractiveSelection: true,
                     showCursor: false,
-                    contextMenuBuilder: (context, editableTextState) {
-                      return const SizedBox.shrink(); // Hide context menu
-                    },
                   ),
                   if (card.article.isNotEmpty && !_isFlipped) ...[
                     const SizedBox(height: 8),

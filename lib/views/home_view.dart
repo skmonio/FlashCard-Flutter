@@ -5,15 +5,13 @@ import '../models/deck.dart';
 import 'study_type_selection_view.dart';
 import 'memory_game_view.dart';
 import 'bubble_word_view.dart';
-import 'bubble_word_map_selection_view.dart';
+
 import 'advanced_study_view.dart';
 import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'writing_view.dart';
 import 'word_scramble_view.dart';
-import 'dutch_grammar_rules_view.dart';
 
-import 'user_profile_view.dart';
 import '../services/sample_data_service.dart';
 import 'shuffle_cards_view.dart';
 
@@ -31,70 +29,19 @@ class _HomeViewState extends State<HomeView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Header with streak and title - wrapped in SafeArea to avoid system UI
-          SafeArea(
-            child: _buildHeader(),
-          ),
-          
-          // Main content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Flash Card Studies Section
-                  _buildFlashCardStudiesSection(),
-                  
-                  // Resources Section
-                  _buildResourcesSection(),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Flash Card Studies Section
+            _buildFlashCardStudiesSection(),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Stack(
-        children: [
-          // Centered Title
-          Center(
-            child: const Text(
-              'Taal Trek',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          
 
-          
-          // Right side - Profile button
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              icon: const Icon(Icons.person),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const UserProfileView(),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildFlashCardStudiesSection() {
     return Column(
@@ -163,37 +110,7 @@ class _HomeViewState extends State<HomeView> {
 
 
 
-  Widget _buildResourcesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 24),
-        Text(
-          'Resources',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-          ),
-        ),
-        const SizedBox(height: 16),
 
-        _buildMenuButton(
-          'Grammar Rules',
-          Icons.language,
-          Colors.indigo,
-          () => _navigateToGrammar(context),
-        ),
-        const SizedBox(height: 12),
-        _buildMenuButton(
-          'Bubble Word',
-          Icons.bubble_chart,
-          Colors.purple,
-          () => _navigateToBubbleWord(context),
-        ),
-      ],
-    );
-  }
 
   Widget _buildMenuButton(String title, IconData icon, Color color, VoidCallback onTap) {
     return Container(
@@ -323,21 +240,7 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  void _navigateToBubbleWord(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const BubbleWordMapSelectionView(),
-      ),
-    );
-  }
 
-  void _navigateToGrammar(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const DutchGrammarRulesView(),
-      ),
-    );
-  }
 
 
 

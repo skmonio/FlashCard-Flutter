@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import '../providers/phrase_provider.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
+import '../models/phrase.dart';
 
 class AddPhraseView extends StatefulWidget {
-  const AddPhraseView({super.key});
+  final Phrase? editingPhrase;
+  
+  const AddPhraseView({super.key, this.editingPhrase});
 
   @override
   State<AddPhraseView> createState() => _AddPhraseViewState();
@@ -17,6 +20,16 @@ class _AddPhraseViewState extends State<AddPhraseView> {
   final _formKey = GlobalKey<FormState>();
   bool _isTranslating = false;
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill fields if editing
+    if (widget.editingPhrase != null) {
+      _phraseController.text = widget.editingPhrase!.phrase;
+      _translationController.text = widget.editingPhrase!.translation;
+    }
+  }
 
   @override
   void dispose() {
@@ -70,18 +83,28 @@ class _AddPhraseViewState extends State<AddPhraseView> {
     });
 
     try {
-      await context.read<PhraseProvider>().addPhrase(
-        _phraseController.text.trim(),
-        _translationController.text.trim(),
-      );
+      if (widget.editingPhrase != null) {
+        // Update existing phrase
+        await context.read<PhraseProvider>().updatePhrase(
+          widget.editingPhrase!.id,
+          _phraseController.text.trim(),
+          _translationController.text.trim(),
+        );
+      } else {
+        // Add new phrase
+        await context.read<PhraseProvider>().addPhrase(
+          _phraseController.text.trim(),
+          _translationController.text.trim(),
+        );
+      }
 
       HapticService().successFeedback();
       SoundManager().playCompleteSound();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Phrase added successfully!'),
+          SnackBar(
+            content: Text(widget.editingPhrase != null ? 'Phrase updated successfully!' : 'Phrase added successfully!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -91,7 +114,7 @@ class _AddPhraseViewState extends State<AddPhraseView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving phrase: $e'),
+            content: Text('Error ${widget.editingPhrase != null ? 'updating' : 'saving'} phrase: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -107,7 +130,7 @@ class _AddPhraseViewState extends State<AddPhraseView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Phrase'),
+        title: Text(widget.editingPhrase != null ? 'Edit Phrase' : 'Add Phrase'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),

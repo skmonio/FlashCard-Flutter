@@ -14,7 +14,8 @@ class DutchGrammarRulesView extends StatefulWidget {
 }
 
 class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
-  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _sortOption = 'A-Z';
 
   @override
   void initState() {
@@ -25,12 +26,6 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -38,21 +33,11 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
         children: [
           // Header
           UnifiedHeader(
-            title: 'Grammar Rules',
+            title: 'Grammar',
             onBack: () => Navigator.of(context).pop(),
             trailing: PopupMenuButton<String>(
               onSelected: _handleMenuAction,
               itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'practice',
-                  child: Row(
-                    children: [
-                      Icon(Icons.quiz),
-                      SizedBox(width: 8),
-                      Text('Practice All'),
-                    ],
-                  ),
-                ),
                 const PopupMenuItem(
                   value: 'export',
                   child: Row(
@@ -87,14 +72,14 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
             ),
           ),
           
-          // Search and Filters
-          _buildSearchAndFilters(),
+          // Search and filter section
+          _buildSearchAndFilterSection(),
           
           // Rules List
           Expanded(
             child: Consumer<DutchGrammarProvider>(
               builder: (context, provider, child) {
-                final rules = provider.filteredRules;
+                final rules = _getFilteredAndSortedRules(provider);
                 
                 if (rules.isEmpty) {
                   return _buildEmptyState();
@@ -112,58 +97,106 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _startPractice(),
-        icon: const Icon(Icons.quiz),
-        label: const Text('Practice'),
-      ),
+
     );
   }
 
-  Widget _buildSearchAndFilters() {
+  Widget _buildSearchAndFilterSection() {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Column(
+      child: Row(
         children: [
-          // Search Bar
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search grammar rules...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        context.read<DutchGrammarProvider>().filterRules(
-                          searchQuery: '',
-                        );
-                      },
-                      icon: const Icon(Icons.clear),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          // Search bar
+          Expanded(
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search grammar',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceVariant,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
             ),
-            onChanged: (value) {
-              context.read<DutchGrammarProvider>().filterRules(
-                searchQuery: value,
-              );
-            },
           ),
           
-          const SizedBox(height: 12),
+          const SizedBox(width: 12),
           
-          // Filters
-          Row(
-            children: [
-
-              
-              
+          // Sort Button
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              setState(() {
+                _sortOption = value;
+              });
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'A-Z',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_upward),
+                    SizedBox(width: 8),
+                    Text('A-Z'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'Z-A',
+                child: Row(
+                  children: [
+                    Icon(Icons.arrow_downward),
+                    SizedBox(width: 8),
+                    Text('Z-A'),
+                  ],
+                ),
+              ),
             ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _sortOption == 'A-Z' ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 20,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _sortOption,
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 20,
+                    color: Colors.grey[600],
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -172,10 +205,7 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
 
   Widget _buildRuleCard(DutchGrammarRule rule, DutchGrammarProvider provider) {
     final progress = provider.getRuleProgressPercentage(rule.id);
-    final completedCount = provider.getRuleProgress(rule.id);
-    final totalExercises = rule.exercises.length;
     final accuracy = provider.getRuleAccuracy(rule.id);
-    final statistics = provider.getRuleStudyStatistics(rule.id);
     
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -191,125 +221,26 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
               Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          rule.title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        
-                        // Statistics summary
-                        if (statistics['totalSessions'] > 0) ...[
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.history,
-                                size: 14,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${statistics['totalSessions']} sessions',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Icon(
-                                Icons.trending_up,
-                                size: 14,
-                                color: _getAccuracyColor(accuracy),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${(accuracy * 100).toInt()}%',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: _getAccuracyColor(accuracy),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
+                    child: Text(
+                      rule.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: () => _showRuleHistory(rule),
-                        icon: const Icon(Icons.history),
-                        tooltip: 'View study history',
-                      ),
-                      IconButton(
-                        onPressed: () => _startRulePractice(rule),
-                        icon: const Icon(Icons.quiz),
-                        tooltip: 'Practice this rule',
-                      ),
-                    ],
+                  Text(
+                    '${(accuracy * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _getAccuracyColor(accuracy),
+                    ),
                   ),
                 ],
               ),
               
-              const SizedBox(height: 12),
-              
-              // Progress
-              if (totalExercises > 0) ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          progress >= 0.8 ? Colors.green : 
-                          progress >= 0.5 ? Colors.orange : 
-                          Colors.blue,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '$completedCount/$totalExercises',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-              ],
-              
-              // Key points preview
-              if (rule.keyPoints.isNotEmpty) ...[
-                Text(
-                  'Key Points:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  rule.keyPoints.take(2).join(', '),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+
             ],
           ),
         ),
@@ -323,273 +254,7 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
     return Colors.red;
   }
 
-  Widget _buildHistorySheet(DutchGrammarRule rule) {
-    final provider = context.read<DutchGrammarProvider>();
-    final history = provider.getRecentStudyHistory(rule.id);
-    final statistics = provider.getRuleStudyStatistics(rule.id);
-    
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Text(
-                  'Study History',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-          ),
-          
-          // Statistics summary
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Overall Statistics',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _buildStatItem(
-                            'Sessions',
-                            '${statistics['totalSessions']}',
-                            Icons.history,
-                          ),
-                          const SizedBox(width: 16),
-                          _buildStatItem(
-                            'Questions',
-                            '${statistics['totalQuestions']}',
-                            Icons.quiz,
-                          ),
-                          const SizedBox(width: 16),
-                          _buildStatItem(
-                            'Accuracy',
-                            '${(statistics['overallAccuracy'] * 100).toInt()}%',
-                            Icons.trending_up,
-                            color: _getAccuracyColor(statistics['overallAccuracy']),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // History list
-          Expanded(
-            child: history.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 48,
-                          color: Colors.grey.withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No study history yet',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Complete exercises to see your progress',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: history.length,
-                    itemBuilder: (context, index) {
-                      final session = history[index];
-                      return _buildHistoryItem(session);
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildStatItem(String label, String value, IconData icon, {Color? color}) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: color ?? Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color ?? Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHistoryItem(GrammarStudySession session) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Date
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatDate(session.date),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  _formatTime(session.date),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-            
-            const Spacer(),
-            
-            // Session details
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.quiz,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${session.totalQuestions} questions',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.trending_up,
-                      size: 16,
-                      color: _getAccuracyColor(session.accuracy),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${(session.accuracy * 100).toInt()}%',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _getAccuracyColor(session.accuracy),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-    
-    if (difference.inDays == 0) {
-      return 'Today';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
-  }
-
-  String _formatTime(DateTime date) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
 
   Widget _buildEmptyState() {
     return Center(
@@ -617,25 +282,21 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
             ),
           ),
           const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _searchController.clear();
-              });
-              context.read<DutchGrammarProvider>().clearFilters();
-            },
-            child: const Text('Clear Search'),
-          ),
+                      ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _searchQuery = '';
+                });
+                context.read<DutchGrammarProvider>().clearFilters();
+              },
+              child: const Text('Clear Search'),
+            ),
         ],
       ),
     );
   }
 
-  void _applyFilters() {
-    context.read<DutchGrammarProvider>().filterRules(
-      searchQuery: _searchController.text,
-    );
-  }
+
 
   void _openRuleDetail(DutchGrammarRule rule) {
     Navigator.of(context).push(
@@ -645,51 +306,12 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
     );
   }
 
-  void _startRulePractice(DutchGrammarRule rule) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DutchGrammarExerciseView(
-          exercises: rule.exercises,
-          ruleTitle: rule.title,
-          ruleId: rule.id,
-        ),
-      ),
-    );
-  }
 
-  void _showRuleHistory(DutchGrammarRule rule) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _buildHistorySheet(rule),
-    );
-  }
-
-  void _startPractice() {
-    final provider = context.read<DutchGrammarProvider>();
-    final exercises = provider.getMixedExercises(count: 10);
-    
-    if (exercises.isNotEmpty) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => DutchGrammarExerciseView(
-            exercises: exercises,
-            ruleTitle: 'Mixed Practice',
-            ruleId: 'mixed_practice',
-          ),
-        ),
-      );
-    }
-  }
 
   void _handleMenuAction(String action) {
     final provider = context.read<DutchGrammarProvider>();
     
     switch (action) {
-      case 'practice':
-        _startPractice();
-        break;
       case 'export':
         _exportProgress(provider);
         break;
@@ -744,5 +366,26 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
         ],
       ),
     );
+  }
+
+  List<DutchGrammarRule> _getFilteredAndSortedRules(DutchGrammarProvider provider) {
+    var filteredRules = List<DutchGrammarRule>.from(provider.allRules);
+    
+    // Filter by search query
+    if (_searchQuery.isNotEmpty) {
+      filteredRules = filteredRules.where((rule) =>
+        rule.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        rule.explanation.toLowerCase().contains(_searchQuery.toLowerCase())
+      ).toList();
+    }
+    
+    // Sort rules
+    if (_sortOption == 'A-Z') {
+      filteredRules.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    } else if (_sortOption == 'Z-A') {
+      filteredRules.sort((a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()));
+    }
+    
+    return filteredRules;
   }
 }

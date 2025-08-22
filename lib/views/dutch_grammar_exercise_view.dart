@@ -101,42 +101,16 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
 
                   
                   // Question
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                      ),
+                  SelectableText(
+                    currentExercise.question,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      height: 1.4,
                     ),
-                    child: SelectableText(
-                      currentExercise.question,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
-                      textAlign: TextAlign.left,
-                      enableInteractiveSelection: true,
-                      showCursor: false,
-                      contextMenuBuilder: (context, editableTextState) {
-                        return AdaptiveTextSelectionToolbar(
-                          anchors: editableTextState.contextMenuAnchors,
-                          children: [
-                            CupertinoButton(
-                              child: const Text('Copy'),
-                              onPressed: () {
-                                final selectedText = editableTextState.textEditingValue.selection.textInside(editableTextState.textEditingValue.text);
-                                Clipboard.setData(ClipboardData(text: selectedText));
-                                editableTextState.hideToolbar();
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                    textAlign: TextAlign.left,
+                    enableInteractiveSelection: true,
+                    showCursor: false,
                   ),
                   
                   const SizedBox(height: 24),
