@@ -88,6 +88,8 @@ class XpService {
   /// Get level up message
   String getLevelUpMessage(WordLevel newLevel) {
     switch (newLevel) {
+      case WordLevel.level0:
+        return "A new word to learn!";
       case WordLevel.level1:
         return "Welcome to the journey!";
       case WordLevel.level2:
@@ -114,52 +116,56 @@ class XpService {
   /// Get level color for UI
   int getLevelColor(WordLevel level) {
     switch (level) {
-      case WordLevel.level1:
+      case WordLevel.level0:
         return 0xFF9E9E9E; // Grey
-      case WordLevel.level2:
+      case WordLevel.level1:
         return 0xFF4CAF50; // Green
-      case WordLevel.level3:
+      case WordLevel.level2:
         return 0xFF2196F3; // Blue
-      case WordLevel.level4:
+      case WordLevel.level3:
         return 0xFF9C27B0; // Purple
-      case WordLevel.level5:
+      case WordLevel.level4:
         return 0xFFFF9800; // Orange
-      case WordLevel.level6:
+      case WordLevel.level5:
         return 0xFFF44336; // Red
-      case WordLevel.level7:
+      case WordLevel.level6:
         return 0xFFE91E63; // Pink
-      case WordLevel.level8:
+      case WordLevel.level7:
         return 0xFF673AB7; // Deep Purple
-      case WordLevel.level9:
+      case WordLevel.level8:
         return 0xFF3F51B5; // Indigo
+      case WordLevel.level9:
+        return 0xFF000000; // Black
       case WordLevel.level10:
-        return 0xFF000000; // Black (with gold shimmer effect)
+        return 0xFFFFD700; // Gold
     }
   }
 
   /// Get level icon for UI
   String getLevelIcon(WordLevel level) {
     switch (level) {
-      case WordLevel.level1:
+      case WordLevel.level0:
         return "🌱";
-      case WordLevel.level2:
+      case WordLevel.level1:
         return "🌿";
-      case WordLevel.level3:
+      case WordLevel.level2:
         return "🌳";
-      case WordLevel.level4:
+      case WordLevel.level3:
         return "🏔️";
-      case WordLevel.level5:
+      case WordLevel.level4:
         return "⭐";
-      case WordLevel.level6:
+      case WordLevel.level5:
         return "🌟";
-      case WordLevel.level7:
+      case WordLevel.level6:
         return "💫";
-      case WordLevel.level8:
+      case WordLevel.level7:
         return "✨";
-      case WordLevel.level9:
+      case WordLevel.level8:
         return "🔥";
-      case WordLevel.level10:
+      case WordLevel.level9:
         return "👑";
+      case WordLevel.level10:
+        return "💎";
     }
   }
 

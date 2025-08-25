@@ -948,8 +948,8 @@ class _WritingViewState extends State<WritingView> {
       // Add XP to the word's learning mastery
       xpService.addXPToWord(card.learningMastery, "writing", 1);
       
-      // Track XP gained for this word in this session
-      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+      // Track XP gained for this word in this session (add for multiple appearances in same session)
+      _xpGainedPerWord[card.id] = xpGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
@@ -966,12 +966,17 @@ class _WritingViewState extends State<WritingView> {
   }
   
   void _showWordProgress() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          studiedWords: _studiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          studiedWords: sessionStudiedWords,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -997,8 +1002,12 @@ class _WritingViewState extends State<WritingView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
+              
+              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
+            
+            // Session data has been reset, ready for new game
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
@@ -1008,4 +1017,6 @@ class _WritingViewState extends State<WritingView> {
       ),
     );
   }
+  
+
 }

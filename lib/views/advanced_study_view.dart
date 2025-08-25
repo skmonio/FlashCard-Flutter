@@ -840,19 +840,21 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     final xpService = XpService();
     
     // For advanced study, we'll use a generic "study" exercise type
-    // Calculate XP based on combo (streak)
-    final xpGained = xpService.calculateWordXP('study', _combo);
-    
-    // Award XP to the word's learning mastery
+    // Award XP to the word's learning mastery (this handles daily diminishing returns)
     xpService.addXPToWord(card.learningMastery, 'study', _combo);
     
-    // Track XP gained for this word in this session
-    _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+    // Get the actual XP gained (after diminishing returns)
+    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+        : 0;
+    
+    // Track XP gained for this word in this session (add for multiple appearances in same session)
+          _xpGainedPerWord[card.id] = actualXPGained;
     
     // Store the mastery for display
     _wordMastery[card.id] = card.learningMastery;
     
-    print('🔍 AdvancedStudyView: Awarded $xpGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
+    print('🔍 AdvancedStudyView: Awarded $actualXPGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
   }
 
   Future<void> _addCardToReview(FlashCard card) async {
@@ -1132,7 +1134,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                     _buildStatCard('Known', _knownCards.length.toString(), Icons.check_circle, Colors.green),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                      AnimatedXpCounter(xpGained: _gameSession.xpGained)),
+                      AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
                     const SizedBox(height: 16),
                     _buildStatCard('Unknown', _unknownCards.length.toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
@@ -1264,12 +1266,17 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _showWordProgress() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart study session
@@ -1299,6 +1306,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _sessionStartTime = DateTime.now();
               _sessionXP = 0;
               
+              // Continue same daily session (don't reset daily attempts)
+              
               // Reset UI state
               _showingResults = false;
               _isShowingFront = !widget.startFlipped;
@@ -1320,6 +1329,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                 _dealController.forward();
               }
             });
+            
+            // Session data has been reset, ready for new game
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
@@ -1369,9 +1380,12 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _awardXp() {
-    if (_gameSession.xpGained > 0) {
+    // Calculate total XP from actual word XP gained
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    
+    if (totalXPGained > 0) {
       final userProfileProvider = context.read<UserProfileProvider>();
-      XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: false);
+      userProfileProvider.addXp(totalXPGained);
     }
     
     // Update session statistics
@@ -1388,4 +1402,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     // Update streak based on study activity (Duolingo-style)
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
   }
+  
+
 } 

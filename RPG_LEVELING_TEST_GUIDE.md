@@ -16,15 +16,17 @@
 2. **Check Word Levels**
    - After completing a session, go to your word list
    - Look for level indicators (🌱, 🌿, 🌳, etc.) next to words
-   - Words should start at Level 1 (🌱) with 0 XP
+   - Words should start at Level 0 (🌱) with 0 XP
 
 3. **Verify XP Accumulation**
    - Complete more exercises with the same words
    - Words should gain XP and potentially level up
-   - Level 2 (🌿) requires 101 XP
-   - Level 3 (🌳) requires 251 XP
-   - Level 4 (🏔️) requires 501 XP
-   - Level 5 (⭐) requires 751 XP
+   - Level 0 (🌱) = 0 XP (starting level)
+   - Level 1 (🌿) requires 1-25 XP
+   - Level 2 (🌳) requires 26-75 XP
+   - Level 3 (🏔️) requires 76-150 XP
+   - Level 4 (⭐) requires 151-250 XP
+   - Level 5 (🌟) requires 251-400 XP
 
 ### **Test Scenario 2: Different Exercise Types**
 
@@ -51,12 +53,27 @@ Test that different exercise types award different XP:
    - Check that words gain extra XP during streaks
    - Example: Multiple choice with 3-streak = 15 XP (10 + 5)
 
-### **Test Scenario 4: Level Up Celebrations**
+### **Test Scenario 4: Daily Diminishing Returns**
+
+1. **Test Daily XP Limits**
+   - Study the same word multiple times in one day
+   - First attempt: 10 XP
+   - Second attempt: 9 XP
+   - Third attempt: 8 XP
+   - Continue until 0 XP (after 10 attempts)
+   - The word should not gain any more XP for that day
+
+2. **Test Daily Reset**
+   - Wait until the next day
+   - Study the same word again
+   - It should start fresh with 10 XP again
+
+### **Test Scenario 5: Level Up Celebrations**
 
 1. **Trigger a Level Up**
-   - Get a word to exactly 100 XP (end of Level 1)
+   - Get a word to exactly 25 XP (end of Level 1)
    - Answer one more question correctly
-   - The word should level up to Level 2 (🌿)
+   - The word should level up to Level 2 (🌳)
 
 2. **Check Level Up History**
    - The system should record when the level up occurred

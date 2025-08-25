@@ -969,7 +969,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                     _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                      AnimatedXpCounter(xpGained: _gameSession.xpGained)),
+                      AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
                     
                     // Swipe hint if XP was gained
                     if (_xpGainedPerWord.values.isNotEmpty) ...[
@@ -1171,9 +1171,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
 
   void _awardXp() {
-    if (!widget.shuffleMode && _gameSession.xpGained > 0) {
+    // Calculate total XP from actual word XP gained
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    
+    if (!widget.shuffleMode && totalXPGained > 0) {
       final userProfileProvider = context.read<UserProfileProvider>();
-      XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: widget.shuffleMode);
+      userProfileProvider.addXp(totalXPGained);
     }
     
     // Update session statistics
@@ -1194,18 +1197,22 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     // Only award XP for correct answers
     if (isCorrect) {
       final xpService = XpService();
-      final xpGained = xpService.calculateWordXP("word_scramble", 1);
       
-      // Add XP to the word's learning mastery
+      // Add XP to the word's learning mastery (this handles daily diminishing returns)
       xpService.addXPToWord(card.learningMastery, "word_scramble", 1);
       
-      // Track XP gained for this word in this session
-      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+      // Get the actual XP gained (after diminishing returns)
+      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+          : 0;
+      
+      // Track XP gained for this word in this session (add for multiple appearances in same session)
+      _xpGainedPerWord[card.id] = actualXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
       
-      print('🔍 WordScrambleView: Awarded $xpGained XP to word "${card.word}" (Correct: $isCorrect)');
+      print('🔍 WordScrambleView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
     } else {
       print('🔍 WordScrambleView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }
@@ -1217,12 +1224,17 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
   
   void _showWordProgress() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          studiedWords: _studiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          studiedWords: sessionStudiedWords,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1255,8 +1267,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
+              
+              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
+            
+            // Session data has been reset, ready for new game
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
@@ -1266,4 +1282,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       ),
     );
   }
+  
+
 }
