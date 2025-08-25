@@ -14,6 +14,7 @@ import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 
 import '../components/animated_xp_counter.dart';
+import '../components/word_progress_display.dart';
 
 class MemoryGameView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -59,6 +60,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
   Timer? _timer;
   int _remainingTimeSeconds = 0;
   bool _isTimedMode = false;
+  
+  // RPG word progress tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
   // Old replacement queue system removed
   // Old processing replacements flag removed
 
@@ -789,6 +795,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
         matchedFirstCard.state = CardState.matched;
         matchedSecondCard.state = CardState.matched;
       });
+      
+      // Award XP to both matched cards for RPG system
+      _awardXPToWord(matchedFirstCard.originalCard, true);
+      _awardXPToWord(matchedSecondCard.originalCard, true);
 
       // Count each matched pair as one card processed
       _totalCardsProcessed++;
@@ -820,6 +830,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
       _updateCardLearningProgress(_secondCard!.originalCard, false).catchError((e) {
         print('🔍 MemoryGameView: Error in background update: $e');
       });
+      
+      // Award XP to both mismatched cards for RPG system (0 XP for incorrect)
+      _awardXPToWord(_firstCard!.originalCard, false);
+      _awardXPToWord(_secondCard!.originalCard, false);
       
       // In shuffle mode, end the game immediately on incorrect match
       if (widget.shuffleMode && widget.onComplete != null) {
@@ -1117,109 +1131,172 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Header
-          SafeArea(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_ios),
-                    iconSize: 20,
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'Memory Game Complete',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          // Swipe right to show word progress
+          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
+            _showWordProgress();
+          }
+        },
+        child: Column(
+          children: [
+            // Header
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios),
+                      iconSize: 20,
                     ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 48), // Balance the layout
-                ],
+                    const Spacer(),
+                    const Text(
+                      'Memory Game Complete',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    const SizedBox(width: 48), // Balance the layout
+                  ],
+                ),
               ),
             ),
-          ),
-          
-          // Results content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  // Efficiency percentage circle
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: efficiency >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                             efficiency >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                             Colors.red.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$efficiency%',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: efficiency >= 80 ? Colors.green : 
-                                 efficiency >= 60 ? Colors.orange : 
-                                 Colors.red,
+            
+            // Results content - Make it scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    
+                    // Efficiency percentage circle
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: efficiency >= 80 ? Colors.green.withValues(alpha: 0.1) : 
+                               efficiency >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
+                               Colors.red.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$efficiency%',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: efficiency >= 80 ? Colors.green : 
+                                   efficiency >= 60 ? Colors.orange : 
+                                   Colors.red,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Session stats
-                  _buildStatCard('Cards Processed', '$_totalCardsProcessed', Icons.check_circle, Colors.green),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Total Moves', '$_moves', Icons.touch_app, Colors.blue),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Correct Matches', '$_matches', Icons.check_circle, Colors.green),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Incorrect Matches', '${_moves - _matches}', Icons.cancel, Colors.red),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Efficiency', '$efficiency%', Icons.analytics, Colors.orange),
-                  const SizedBox(height: 16),
-                  _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                    AnimatedXpCounter(xpGained: _gameSession.xpGained)),
-                  const SizedBox(height: 48),
-                  
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _gameComplete = false;
-                              _resetGame();
-                            });
-                          },
-                          child: const Text('Play Again'),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Session stats
+                    _buildStatCard('Cards Processed', '$_totalCardsProcessed', Icons.check_circle, Colors.green),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Total Moves', '$_moves', Icons.touch_app, Colors.blue),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Correct Matches', '$_matches', Icons.check_circle, Colors.green),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Incorrect Matches', '${_moves - _matches}', Icons.cancel, Colors.red),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Efficiency', '$efficiency%', Icons.analytics, Colors.orange),
+                    const SizedBox(height: 16),
+                    _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
+                      AnimatedXpCounter(xpGained: _gameSession.xpGained)),
+                    
+                    // Swipe hint if XP was gained
+                    if (_xpGainedPerWord.values.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                          child: const Text('Done'),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.swipe_right,
+                              color: Colors.amber,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Swipe right to view word progress',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.amber.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                    
+                    const SizedBox(height: 32),
+                    
+                    const SizedBox(height: 20), // Bottom padding
+                  ],
+                ),
+              ),
+            ),
+            
+            // Fixed footer with action buttons
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _gameComplete = false;
+                          _resetGame();
+                          
+                          // Reset RPG tracking
+                          _xpGainedPerWord.clear();
+                          _wordMastery.clear();
+                          _studiedWords.clear();
+                        });
+                      },
+                      child: const Text('Play Again'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      child: const Text('Done'),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1261,8 +1338,61 @@ class _MemoryGameViewState extends State<MemoryGameView>
       ),
     );
   }
-
-
+  
+  void _awardXPToWord(FlashCard card, bool isCorrect) {
+    // Only award XP for correct answers
+    if (isCorrect) {
+      final xpService = XpService();
+      final xpGained = xpService.calculateWordXP("memory", 1);
+      
+      // Add XP to the word's learning mastery
+      xpService.addXPToWord(card.learningMastery, "memory", 1);
+      
+      // Track XP gained for this word in this session
+      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+      
+      // Store the word mastery for display
+      _wordMastery[card.id] = card.learningMastery;
+      
+      print('🔍 MemoryGameView: Awarded $xpGained XP to word "${card.word}" (Correct: $isCorrect)');
+    } else {
+      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+    }
+    
+    // Track studied words (regardless of correctness)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+    }
+  }
+  
+  void _showWordProgress() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+          studiedWords: _studiedWords,
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart game
+            setState(() {
+              _gameComplete = false;
+              _resetGame();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class MemoryCard {

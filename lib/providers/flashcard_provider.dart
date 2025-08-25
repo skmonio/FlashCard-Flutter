@@ -5,6 +5,8 @@ import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
+import '../services/dutch_grammar_exercise_generator.dart';
+import '../providers/dutch_word_exercise_provider.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final FlashcardService _service = FlashcardService();
@@ -125,6 +127,7 @@ class FlashcardProvider extends ChangeNotifier {
     required String word,
     String? definition,
     String? example,
+    String? exampleTranslation,
     Set<String>? deckIds,
     String article = '',
     String? plural,
@@ -138,6 +141,7 @@ class FlashcardProvider extends ChangeNotifier {
         word: word,
         definition: definition ?? '',
         example: example ?? '',
+        exampleTranslation: exampleTranslation ?? '',
         deckIds: deckIds,
         article: article,
         plural: plural ?? '',
@@ -145,9 +149,17 @@ class FlashcardProvider extends ChangeNotifier {
         futureTense: futureTense ?? '',
         pastParticiple: pastParticiple ?? '',
       );
-      // Refresh the cards list from the service instead of trying to modify the unmodifiable list
+      
+      // Refresh the cards list from the service
       _cards = _service.cards;
       print('Provider: Card created and refreshed. Total cards: ${_cards.length}');
+      
+      // Auto-generate grammar exercises if grammar data is provided
+      if (card != null && (article.isNotEmpty || (plural != null && plural!.isNotEmpty) || 
+          (exampleTranslation != null && exampleTranslation!.isNotEmpty && card.example.isNotEmpty))) {
+        await _generateGrammarExercisesForCard(card);
+      }
+      
       notifyListeners();
       return card;
     } catch (e) {
@@ -157,11 +169,112 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
   
+  /// Generate grammar exercises for a card and add them to the Dutch word exercise provider
+  Future<void> _generateGrammarExercisesForCard(FlashCard card) async {
+    try {
+      print('Provider: Generating grammar exercises for card: ${card.word}');
+      
+      // Generate grammar exercises
+      final grammarExercises = DutchGrammarExerciseGenerator.generateGrammarExercises(card);
+      
+      if (grammarExercises.isNotEmpty) {
+        print('Provider: Generated ${grammarExercises.length} grammar exercises');
+        
+        // Get the Dutch word exercise provider
+        final dutchProvider = DutchWordExerciseProvider();
+        await dutchProvider.initialize();
+        
+        // Check if there's already an exercise for this word
+        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+        
+        if (existingExercise != null) {
+          // Check for existing grammar exercises to avoid duplicates
+          final existingGrammarExercises = existingExercise.exercises.where((exercise) {
+            return exercise.prompt.contains('De or Het') || 
+                   exercise.prompt.contains('plural form') ||
+                   exercise.prompt.contains('Build the correct Dutch sentence');
+          }).toList();
+          
+          // Filter out exercises that already exist
+          final newGrammarExercises = grammarExercises.where((newExercise) {
+            return !existingGrammarExercises.any((existing) {
+              // Check if this type of exercise already exists
+              if (newExercise.prompt.contains('De or Het') && existing.prompt.contains('De or Het')) {
+                return true; // Article exercise already exists
+              }
+              if (newExercise.prompt.contains('plural form') && existing.prompt.contains('plural form')) {
+                return true; // Plural exercise already exists
+              }
+              if (newExercise.prompt.contains('Build the correct Dutch sentence') && existing.prompt.contains('Build the correct Dutch sentence')) {
+                return true; // Sentence builder exercise already exists
+              }
+              return false;
+            });
+          }).toList();
+          
+          if (newGrammarExercises.isNotEmpty) {
+            // Add only new exercises to existing word exercise
+            final updatedExercise = DutchWordExercise(
+              id: existingExercise.id,
+              targetWord: existingExercise.targetWord,
+              wordTranslation: existingExercise.wordTranslation,
+              deckId: existingExercise.deckId,
+              deckName: existingExercise.deckName,
+              category: existingExercise.category,
+              difficulty: existingExercise.difficulty,
+              exercises: [...existingExercise.exercises, ...newGrammarExercises],
+              createdAt: existingExercise.createdAt,
+              isUserCreated: existingExercise.isUserCreated,
+              learningProgress: existingExercise.learningProgress,
+            );
+            
+            await dutchProvider.updateWordExercise(updatedExercise);
+            print('Provider: Updated existing exercise with ${newGrammarExercises.length} new grammar exercises');
+          } else {
+            print('Provider: No new grammar exercises to add (all already exist)');
+          }
+        } else {
+          // Create new word exercise
+          final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
+          final deckName = getDeck(deckId)?.name ?? 'Default';
+          
+          final newWordExercise = DutchWordExercise(
+            id: card.id,
+            targetWord: card.word,
+            wordTranslation: card.definition,
+            deckId: deckId,
+            deckName: deckName,
+            category: WordCategory.common,
+            difficulty: ExerciseDifficulty.beginner,
+            exercises: grammarExercises,
+            createdAt: DateTime.now(),
+            isUserCreated: true,
+            learningProgress: LearningProgress(),
+          );
+          
+          await dutchProvider.addWordExercise(newWordExercise);
+          print('Provider: Created new word exercise with ${grammarExercises.length} grammar exercises');
+        }
+      }
+    } catch (e) {
+      print('Provider: Error generating grammar exercises: $e');
+      // Don't throw the error as this is not critical for card creation
+    }
+  }
+  
   Future<bool> updateCard(FlashCard card) async {
     try {
       await _service.updateCard(card);
       // Refresh the cards list from the service
       _cards = _service.cards;
+      
+      // Auto-generate grammar exercises if grammar data is provided
+      if ((card.article != null && card.article!.isNotEmpty) || 
+          (card.plural != null && card.plural!.isNotEmpty) ||
+          (card.example.isNotEmpty && card.exampleTranslation.isNotEmpty)) {
+        await _generateGrammarExercisesForCard(card);
+      }
+      
       notifyListeners();
       return true;
     } catch (e) {

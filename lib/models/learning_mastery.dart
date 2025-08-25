@@ -19,6 +19,64 @@ enum LearningState {
   expert         // 20+ correct answers with high accuracy
 }
 
+enum WordLevel {
+  level1(1, "Beginner", 0, 10, 0, 25),
+  level2(2, "Novice", 11, 20, 26, 75),
+  level3(3, "Intermediate", 21, 30, 76, 150),
+  level4(4, "Advanced", 31, 40, 151, 250),
+  level5(5, "Mastered", 41, 50, 251, 400),
+  level6(6, "Expert", 51, 60, 401, 600),
+  level7(7, "Legendary", 61, 70, 601, 850),
+  level8(8, "Mythic", 71, 80, 851, 1150),
+  level9(9, "Divine", 81, 90, 1151, 1500),
+  level10(10, "Transcendent", 91, 100, 1501, 2000);
+  
+  const WordLevel(this.level, this.title, this.minPercentage, this.maxPercentage, this.minXP, this.maxXP);
+  final int level;
+  final String title;
+  final int minPercentage;
+  final int maxPercentage;
+  final int minXP;
+  final int maxXP;
+  
+  static WordLevel fromPercentage(double percentage) {
+    final int percent = percentage.round();
+    for (final level in WordLevel.values) {
+      if (percent >= level.minPercentage && percent <= level.maxPercentage) {
+        return level;
+      }
+    }
+    return WordLevel.level1;
+  }
+  
+  static WordLevel fromXP(int xp) {
+    for (final level in WordLevel.values) {
+      if (xp >= level.minXP && xp <= level.maxXP) {
+        return level;
+      }
+    }
+    return WordLevel.level1;
+  }
+  
+  static WordLevel fromLevel(int level) {
+    return WordLevel.values.firstWhere(
+      (l) => l.level == level,
+      orElse: () => WordLevel.level1,
+    );
+  }
+  
+  // Get progress within current level (0.0 to 1.0) - for percentage system
+  double getProgressWithinLevel(double percentage) {
+    final int percent = percentage.round();
+    if (percent <= minPercentage) return 0.0;
+    if (percent >= maxPercentage) return 1.0;
+    
+    final levelRange = maxPercentage - minPercentage;
+    final progressInLevel = percent - minPercentage;
+    return progressInLevel / levelRange;
+  }
+}
+
 class LearningMastery {
   // Game-specific correct answers
   int easyCorrect = 0;      // Multiple choice correct
@@ -41,6 +99,16 @@ class LearningMastery {
   DateTime? nextReviewDate;
   int totalReviews = 0;
   
+  // RPG-style leveling system
+  int currentXP = 0;
+  int currentLevel = 1;
+  List<DateTime> levelUpHistory = [];
+  List<Map<String, dynamic>> exerciseHistory = []; // Track exercise types and XP gained
+  
+  // Daily game tracking to prevent gaming the system
+  Map<String, int> dailyGameAttempts = {}; // exerciseType -> attempts today
+  DateTime? lastGameResetDate; // When daily attempts were last reset
+  
   LearningMastery({
     this.easyCorrect = 0,
     this.mediumCorrect = 0,
@@ -57,7 +125,15 @@ class LearningMastery {
     this.srsLevel = 0,
     this.nextReviewDate,
     this.totalReviews = 0,
-  });
+    this.currentXP = 0,
+    this.currentLevel = 1,
+    List<DateTime>? levelUpHistory,
+    List<Map<String, dynamic>>? exerciseHistory,
+    Map<String, int>? dailyGameAttempts,
+    this.lastGameResetDate,
+  }) : levelUpHistory = levelUpHistory ?? [],
+       exerciseHistory = exerciseHistory ?? [],
+       dailyGameAttempts = dailyGameAttempts ?? {};
   
   // MARK: - Computed Properties
   
@@ -96,24 +172,35 @@ class LearningMastery {
     return LearningState.expert;
   }
   
-  /// Enhanced learning percentage with mastery requirements
+  /// Learning percentage directly based on XP (simplified system)
   double get learningPercentage {
-    if (totalAttempts == 0) return 0.0;
+    // Direct mapping: XP to percentage
+    // 1000 XP total = 100% learned
+    // Each 10 XP = 1% learned
     
-    // 1. Weighted accuracy based on game difficulty
-    double weightedAccuracy = _calculateWeightedAccuracy();
+    final currentXP = currentXPWithDecay;
+    final percentage = (currentXP / 10.0).clamp(0.0, 100.0);
     
-    // 2. Apply mastery requirements
-    double masteryBonus = _calculateMasteryBonus();
+    return percentage;
+  }
+  
+  /// Get current XP with time decay applied
+  int get currentXPWithDecay {
+    if (lastReviewDate == null) return currentXP;
     
-    // 3. Apply time decay
-    double decayFactor = _calculateDecayFactor();
+    final daysSinceReview = DateTime.now().difference(lastReviewDate!).inDays;
     
-    // 4. Apply SRS level bonus
-    double srsBonus = _calculateSRSBonus();
+    // No decay for first 3 days
+    if (daysSinceReview <= 3) return currentXP;
     
-    return (weightedAccuracy * masteryBonus * decayFactor * srsBonus)
-           .clamp(0.0, 100.0);
+    // Decay rate: 3 XP per day after 3 days (reduced from 5)
+    final decayDays = daysSinceReview - 3;
+    final decayAmount = decayDays * 3; // 3 XP per day
+    
+    final decayedXP = currentXP - decayAmount;
+    
+    // Minimum 0 XP (can't go below 0)
+    return decayedXP.clamp(0, currentXP);
   }
   
   /// Check if item is due for review
@@ -162,6 +249,124 @@ class LearningMastery {
     return nextReviewDate!.difference(now).inDays;
   }
   
+  // MARK: - RPG Leveling System
+  
+  /// Get current word level based on learning percentage (for card list)
+  WordLevel get wordLevel => WordLevel.fromPercentage(learningPercentage);
+  
+  /// Get current word level based on XP (for RPG system) - with decay applied
+  WordLevel get rpgWordLevel => WordLevel.fromXP(currentXPWithDecay);
+  
+  /// Get progress within current level (0.0 to 1.0) - for card list
+  double get levelProgress {
+    final level = wordLevel;
+    return level.getProgressWithinLevel(learningPercentage);
+  }
+  
+  /// Get XP progress within current level (0.0 to 1.0) - for RPG system
+  double get rpgLevelProgress {
+    final level = rpgWordLevel;
+    final xpInLevel = currentXPWithDecay - level.minXP;
+    final xpNeededForLevel = level.maxXP - level.minXP;
+    return xpNeededForLevel > 0 ? xpInLevel / xpNeededForLevel : 1.0;
+  }
+  
+  /// Get percentage needed for next level
+  int get percentageNeededForNextLevel {
+    final currentLevel = wordLevel;
+    if (currentLevel == WordLevel.level10) return 0; // Max level
+    final nextLevel = WordLevel.fromLevel(currentLevel.level + 1);
+    return nextLevel.minPercentage - learningPercentage.round();
+  }
+  
+  /// Get XP needed for next level (for RPG system)
+  int get xpNeededForNextLevel {
+    final currentLevel = rpgWordLevel;
+    if (currentLevel == WordLevel.level10) return 0; // Max level
+    final nextLevel = WordLevel.fromLevel(currentLevel.level + 1);
+    return nextLevel.minXP - currentXPWithDecay;
+  }
+  
+  /// Check if word can level up
+  bool get canLevelUp {
+    return learningPercentage >= wordLevel.maxPercentage;
+  }
+  
+  /// Reset daily game attempts if it's a new day
+  void _resetDailyAttemptsIfNeeded() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    if (lastGameResetDate == null || 
+        DateTime(lastGameResetDate!.year, lastGameResetDate!.month, lastGameResetDate!.day) != today) {
+      dailyGameAttempts.clear();
+      lastGameResetDate = now;
+    }
+  }
+  
+  /// Get XP for a game attempt (with daily diminishing returns)
+  int getXPForGame(String exerciseType) {
+    _resetDailyAttemptsIfNeeded();
+    
+    final attempts = dailyGameAttempts[exerciseType] ?? 0;
+    
+    // First attempt: 10 XP, then -1 each time
+    final baseXP = 10 - attempts;
+    
+    // Minimum 0 XP
+    return baseXP.clamp(0, 10);
+  }
+  
+  /// Record a game attempt and return XP gained
+  int recordGameAttempt(String exerciseType) {
+    _resetDailyAttemptsIfNeeded();
+    
+    final xpGained = getXPForGame(exerciseType);
+    
+    // Increment daily attempts
+    dailyGameAttempts[exerciseType] = (dailyGameAttempts[exerciseType] ?? 0) + 1;
+    
+    return xpGained;
+  }
+  
+  /// Add XP and handle level ups
+  void addXP(int xp, String exerciseType) {
+    final previousLevel = currentLevel;
+    currentXP += xp;
+    currentLevel = wordLevel.level;
+    
+    // Record exercise history
+    exerciseHistory.add({
+      'timestamp': DateTime.now().toIso8601String(),
+      'exerciseType': exerciseType,
+      'xpGained': xp,
+      'totalXP': currentXP,
+    });
+    
+    // Check for level up
+    if (currentLevel > previousLevel) {
+      levelUpHistory.add(DateTime.now());
+    }
+  }
+  
+  /// Get recent exercise history (last 10 entries)
+  List<Map<String, dynamic>> get recentExerciseHistory {
+    return exerciseHistory.take(10).toList();
+  }
+  
+  /// Get total XP gained today
+  int get xpGainedToday {
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    
+    return exerciseHistory
+        .where((entry) {
+          final timestamp = DateTime.parse(entry['timestamp']);
+          return timestamp.isAfter(todayStart);
+        })
+        .fold(0, (sum, entry) => sum + (entry['xpGained'] as int));
+  }
+  
   // MARK: - Private Methods
   
   /// Calculate weighted accuracy based on game difficulty
@@ -195,7 +400,7 @@ class LearningMastery {
     }
   }
   
-  /// Calculate time decay factor
+  /// Calculate time decay factor (old method - kept for compatibility)
   double _calculateDecayFactor() {
     if (lastReviewDate == null) return 1.0;
     
@@ -209,6 +414,26 @@ class LearningMastery {
     final decayFactor = 1.0 - (weeksSinceReview * 0.03);
     
     return decayFactor.clamp(0.5, 1.0); // Minimum 50% retention (improved from 30%)
+  }
+  
+  /// Apply time decay to learning percentage
+  /// Cards lose percentage over time if not reviewed
+  double _applyTimeDecay(double basePercentage) {
+    if (lastReviewDate == null) return basePercentage;
+    
+    final daysSinceReview = DateTime.now().difference(lastReviewDate!).inDays;
+    
+    // No decay for first 3 days
+    if (daysSinceReview <= 3) return basePercentage;
+    
+    // Decay rate: 1% per day after 3 days (reduced from 2%)
+    final decayDays = daysSinceReview - 3;
+    final decayAmount = decayDays * 1.0; // 1% per day
+    
+    final decayedPercentage = basePercentage - decayAmount;
+    
+    // Minimum 0% (can't go below 0)
+    return decayedPercentage.clamp(0.0, 100.0);
   }
   
   /// Calculate SRS level bonus
@@ -322,6 +547,13 @@ class LearningMastery {
       'srsLevel': srsLevel,
       'nextReviewDate': nextReviewDate?.toIso8601String(),
       'totalReviews': totalReviews,
+      // RPG fields
+      'currentXP': currentXP,
+      'currentLevel': currentLevel,
+      'levelUpHistory': levelUpHistory.map((date) => date.toIso8601String()).toList(),
+      'exerciseHistory': exerciseHistory,
+      'dailyGameAttempts': dailyGameAttempts,
+      'lastGameResetDate': lastGameResetDate?.toIso8601String(),
     };
   }
   
@@ -346,6 +578,21 @@ class LearningMastery {
           ? DateTime.parse(json['nextReviewDate']) 
           : null,
       totalReviews: json['totalReviews'] ?? 0,
+      // RPG fields
+      currentXP: json['currentXP'] ?? 0,
+      currentLevel: json['currentLevel'] ?? 1,
+      levelUpHistory: (json['levelUpHistory'] as List<dynamic>?)
+          ?.map((date) => DateTime.parse(date))
+          .toList() ?? [],
+      exerciseHistory: (json['exerciseHistory'] as List<dynamic>?)
+          ?.map((entry) => Map<String, dynamic>.from(entry))
+          .toList() ?? [],
+      dailyGameAttempts: (json['dailyGameAttempts'] as Map<String, dynamic>?)
+          ?.map((key, value) => MapEntry(key, value as int))
+          ?? {},
+      lastGameResetDate: json['lastGameResetDate'] != null 
+          ? DateTime.parse(json['lastGameResetDate']) 
+          : null,
     );
   }
   
@@ -366,6 +613,12 @@ class LearningMastery {
     int? srsLevel,
     DateTime? nextReviewDate,
     int? totalReviews,
+    int? currentXP,
+    int? currentLevel,
+    List<DateTime>? levelUpHistory,
+    List<Map<String, dynamic>>? exerciseHistory,
+    Map<String, int>? dailyGameAttempts,
+    DateTime? lastGameResetDate,
   }) {
     return LearningMastery(
       easyCorrect: easyCorrect ?? this.easyCorrect,
@@ -383,6 +636,13 @@ class LearningMastery {
       srsLevel: srsLevel ?? this.srsLevel,
       nextReviewDate: nextReviewDate ?? this.nextReviewDate,
       totalReviews: totalReviews ?? this.totalReviews,
+      currentXP: currentXP ?? this.currentXP,
+      currentLevel: currentLevel ?? this.currentLevel,
+      levelUpHistory: levelUpHistory ?? this.levelUpHistory,
+      exerciseHistory: exerciseHistory ?? this.exerciseHistory,
+      dailyGameAttempts: dailyGameAttempts ?? this.dailyGameAttempts,
+      lastGameResetDate: lastGameResetDate ?? this.lastGameResetDate,
     );
   }
 }
+

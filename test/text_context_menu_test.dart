@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flashcard_app/components/text_context_menu.dart';
+import 'package:taal_trek_dutch/components/text_context_menu.dart';
 
 void main() {
   group('TextContextMenu', () {

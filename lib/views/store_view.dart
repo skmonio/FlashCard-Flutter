@@ -508,6 +508,16 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
                             color: Colors.grey[600],
                           ),
                         ),
+                        if (card.exampleTranslation.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            card.exampleTranslation,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
                       ],
                       const SizedBox(height: 8),
                       Text(

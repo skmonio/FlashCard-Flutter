@@ -5,6 +5,8 @@ import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
+import '../components/word_progress_display.dart';
+import '../services/xp_service.dart';
 
 enum StudyMode {
   multipleChoice,
@@ -44,6 +46,12 @@ class _StudyViewState extends State<StudyView> {
   bool _isCorrect = false;
   bool _showResult = false;
   List<FlashCard> _currentCards = [];
+  
+  // RPG tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
+  int _consecutiveCorrect = 0;
 
   @override
   void initState() {
@@ -722,12 +730,27 @@ class _StudyViewState extends State<StudyView> {
       _totalAnswers++;
     });
 
-    // Update the card's SRS data
+    // Update consecutive correct count for streak bonuses
+    if (isCorrect) {
+      _consecutiveCorrect++;
+    } else {
+      _consecutiveCorrect = 0;
+    }
+
+    // Update the card's SRS data and award XP
     final currentCard = _currentCards[_currentCardIndex];
     if (isCorrect) {
       currentCard.markCorrect(GameDifficulty.medium);
+      
+      // Award XP to the word
+      _awardXPToWord(currentCard);
     } else {
       currentCard.markIncorrect(GameDifficulty.medium);
+    }
+
+    // Track studied words
+    if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+      _studiedWords.add(currentCard);
     }
 
     // Save the updated card
@@ -748,6 +771,44 @@ class _StudyViewState extends State<StudyView> {
         }
       }
     });
+  }
+
+  void _awardXPToWord(FlashCard card) {
+    final xpService = XpService();
+    
+    // Determine exercise type based on study mode
+    String exerciseType;
+    switch (widget.studyMode) {
+      case StudyMode.multipleChoice:
+        exerciseType = 'multiple_choice';
+        break;
+      case StudyMode.wordScramble:
+        exerciseType = 'word_scramble';
+        break;
+      case StudyMode.writing:
+        exerciseType = 'writing';
+        break;
+      case StudyMode.trueFalse:
+        exerciseType = 'true_false';
+        break;
+      case StudyMode.lookCoverCheck:
+        exerciseType = 'multiple_choice'; // Default for look-cover-check
+        break;
+    }
+    
+    // Calculate XP for this word
+    final xpGained = xpService.calculateWordXP(exerciseType, _consecutiveCorrect);
+    
+    // Award XP to the word's learning mastery
+    xpService.addXPToWord(card.learningMastery, exerciseType, _consecutiveCorrect);
+    
+    // Track XP gained for this word in this session
+    _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+    
+    // Store the mastery for display
+    _wordMastery[card.id] = card.learningMastery;
+    
+    print('🔍 StudyView: Awarded $xpGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
   }
 
   void _showResults() {
@@ -793,6 +854,17 @@ class _StudyViewState extends State<StudyView> {
             _buildStatCard('Known', _correctAnswers.toString(), Icons.check_circle, Colors.green),
             const SizedBox(height: 8),
             _buildStatCard('Unknown', (_currentCards.length - _correctAnswers).toString(), Icons.cancel, Colors.red),
+            
+            // Add XP summary if any XP was gained
+            if (_xpGainedPerWord.values.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildStatCard(
+                'Total XP Gained', 
+                '${_xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp)}',
+                Icons.star,
+                Colors.amber,
+              ),
+            ],
           ],
         ),
         actions: [
@@ -803,7 +875,28 @@ class _StudyViewState extends State<StudyView> {
             },
             child: const Text('Finish'),
           ),
+          // Add button to view word progress if XP was gained
+          if (_xpGainedPerWord.values.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showWordProgress();
+              },
+              child: const Text('View Progress'),
+            ),
         ],
+      ),
+    );
+  }
+
+  void _showWordProgress() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          studiedWords: _studiedWords,
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+        ),
       ),
     );
   }

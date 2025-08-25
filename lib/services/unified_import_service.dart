@@ -272,6 +272,7 @@ class UnifiedImportService {
         word: wordData['word'],
         definition: wordData['definition'],
         example: wordData['example'] ?? '', // Optional field
+        exampleTranslation: wordData['exampleTranslation'] ?? '', // Optional field
         article: wordData['article'] ?? '', // Optional field
         plural: wordData['plural'] ?? '', // Optional field
         pastTense: wordData['pastTense'] ?? '', // Optional field

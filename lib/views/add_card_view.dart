@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
+import '../providers/dutch_word_exercise_provider.dart';
 import '../components/unified_header.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
@@ -26,6 +27,7 @@ class _AddCardViewState extends State<AddCardView> {
   final _wordController = TextEditingController();
   final _definitionController = TextEditingController();
   final _exampleController = TextEditingController();
+  final _exampleTranslationController = TextEditingController();
   final _pluralController = TextEditingController();
   final _pastTenseController = TextEditingController();
   final _futureTenseController = TextEditingController();
@@ -34,6 +36,7 @@ class _AddCardViewState extends State<AddCardView> {
   String _selectedArticle = '';
   List<String> _selectedDeckIds = [];
   bool _isLoading = false;
+  bool _isTranslatingExample = false;
   final TranslationService _translationService = TranslationService();
 
   @override
@@ -46,6 +49,7 @@ class _AddCardViewState extends State<AddCardView> {
       _wordController.text = card.word;
       _definitionController.text = card.definition;
       _exampleController.text = card.example ?? '';
+      _exampleTranslationController.text = card.exampleTranslation ?? '';
       _pluralController.text = card.plural ?? '';
       _pastTenseController.text = card.pastTense ?? '';
       _futureTenseController.text = card.futureTense ?? '';
@@ -70,6 +74,12 @@ class _AddCardViewState extends State<AddCardView> {
         // This will trigger a rebuild to update the save button state
       });
     });
+    
+    _exampleController.addListener(() {
+      setState(() {
+        // This will trigger a rebuild to update the translate button state
+      });
+    });
   }
 
   @override
@@ -77,6 +87,7 @@ class _AddCardViewState extends State<AddCardView> {
     _wordController.dispose();
     _definitionController.dispose();
     _exampleController.dispose();
+    _exampleTranslationController.dispose();
     _pluralController.dispose();
     _pastTenseController.dispose();
     _futureTenseController.dispose();
@@ -233,6 +244,48 @@ class _AddCardViewState extends State<AddCardView> {
                       validator: (value) {
                         if (value != null && value.length > 300) {
                           return 'Example must be 300 characters or less';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Translate Example Sentence Button
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _exampleController.text.trim().isEmpty ? null : _translateExampleSentence,
+                            icon: _isTranslatingExample ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ) : const Icon(Icons.translate, size: 16),
+                            label: Text(_isTranslatingExample ? 'Translating...' : 'Translate Sentence'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Example Translation
+                    TextFormField(
+                      controller: _exampleTranslationController,
+                      maxLines: 2,
+                      maxLength: 300,
+                      decoration: const InputDecoration(
+                        labelText: 'Example Translation',
+                        hintText: 'e.g., I live in a big house.',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.translate),
+                        counterText: '',
+                      ),
+                      validator: (value) {
+                        if (value != null && value.length > 300) {
+                          return 'Example translation must be 300 characters or less';
                         }
                         return null;
                       },
@@ -633,6 +686,53 @@ class _AddCardViewState extends State<AddCardView> {
     }
   }
 
+  void _translateExampleSentence() async {
+    final dutchSentence = _exampleController.text.trim();
+    if (dutchSentence.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Dutch sentence to translate')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isTranslatingExample = true;
+    });
+
+    try {
+      final translation = await _translationService.translateDutchToEnglish(dutchSentence);
+      
+      if (mounted) {
+        setState(() {
+          _exampleTranslationController.text = translation ?? '';
+          _isTranslatingExample = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Translated: "$dutchSentence" → "$translation"'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isTranslatingExample = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Translation failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   bool _canSave() {
     return _wordController.text.trim().isNotEmpty && 
            _selectedDeckIds.isNotEmpty;
@@ -711,6 +811,7 @@ class _AddCardViewState extends State<AddCardView> {
           word: _wordController.text.trim(),
           definition: _definitionController.text.trim().isEmpty ? null : _definitionController.text.trim(),
           example: _exampleController.text.trim().isEmpty ? null : _exampleController.text.trim(),
+          exampleTranslation: _exampleTranslationController.text.trim().isEmpty ? null : _exampleTranslationController.text.trim(),
           deckIds: _selectedDeckIds.toSet(),
           successCount: widget.cardToEdit!.successCount,
           dateCreated: widget.cardToEdit!.dateCreated,
@@ -727,6 +828,10 @@ class _AddCardViewState extends State<AddCardView> {
         await provider.updateCard(updatedCard);
         
         if (mounted) {
+          // Refresh the Dutch word exercise provider to show new exercises immediately
+          final dutchProvider = context.read<DutchWordExerciseProvider>();
+          await dutchProvider.initialize();
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Card updated successfully!')),
           );
@@ -738,6 +843,7 @@ class _AddCardViewState extends State<AddCardView> {
           word: _wordController.text.trim(),
           definition: _definitionController.text.trim().isEmpty ? null : _definitionController.text.trim(),
           example: _exampleController.text.trim().isEmpty ? null : _exampleController.text.trim(),
+          exampleTranslation: _exampleTranslationController.text.trim().isEmpty ? null : _exampleTranslationController.text.trim(),
           article: _selectedArticle,
           plural: _pluralController.text.trim().isEmpty ? '' : _pluralController.text.trim(),
           pastTense: _pastTenseController.text.trim().isEmpty ? '' : _pastTenseController.text.trim(),
@@ -747,6 +853,10 @@ class _AddCardViewState extends State<AddCardView> {
         );
         
         if (mounted) {
+          // Refresh the Dutch word exercise provider to show new exercises immediately
+          final dutchProvider = context.read<DutchWordExerciseProvider>();
+          await dutchProvider.initialize();
+          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Card added successfully!')),
           );

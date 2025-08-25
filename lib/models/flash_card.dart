@@ -7,6 +7,7 @@ class FlashCard {
   String word;
   String definition; // Translation
   String example;
+  String exampleTranslation; // Translation of the example sentence
   Set<String> deckIds;
   int successCount;
   DateTime dateCreated;
@@ -30,6 +31,7 @@ class FlashCard {
     required this.word,
     String? definition,
     String? example,
+    String? exampleTranslation,
     Set<String>? deckIds,
     this.successCount = 0,
     DateTime? dateCreated,
@@ -45,6 +47,7 @@ class FlashCard {
     id = id ?? const Uuid().v4(),
     definition = definition ?? '',
     example = example ?? '',
+    exampleTranslation = exampleTranslation ?? '',
     deckIds = deckIds ?? {},
     dateCreated = dateCreated ?? DateTime.now(),
     lastModified = lastModified ?? DateTime.now(),
@@ -120,6 +123,7 @@ class FlashCard {
       'word': word,
       'definition': definition,
       'example': example,
+      'exampleTranslation': exampleTranslation,
       'deckIds': deckIds.toList(),
       'successCount': successCount,
       'dateCreated': dateCreated.toIso8601String(),
@@ -140,6 +144,7 @@ class FlashCard {
       word: json['word'] ?? '',
       definition: json['definition'] ?? '',
       example: json['example'] ?? '',
+      exampleTranslation: json['exampleTranslation'] ?? '',
       deckIds: Set<String>.from(json['deckIds'] ?? []),
       successCount: json['successCount'] ?? 0,
       dateCreated: json['dateCreated'] != null 
@@ -166,6 +171,7 @@ class FlashCard {
     String? word,
     String? definition,
     String? example,
+    String? exampleTranslation,
     Set<String>? deckIds,
     int? successCount,
     DateTime? dateCreated,
@@ -183,6 +189,7 @@ class FlashCard {
       word: word ?? this.word,
       definition: definition ?? this.definition,
       example: example ?? this.example,
+      exampleTranslation: exampleTranslation ?? this.exampleTranslation,
       deckIds: deckIds ?? this.deckIds,
       successCount: successCount ?? this.successCount,
       dateCreated: dateCreated ?? this.dateCreated,

@@ -154,7 +154,11 @@ class PhraseProvider with ChangeNotifier {
   
   // Generate sentence builder exercise
   Map<String, dynamic> generateSentenceBuilderExercise(Phrase targetPhrase) {
-    final words = targetPhrase.phrase.split(' ');
+    // Clean the sentence: remove punctuation and convert to lowercase for exercise
+    final cleanedSentence = _cleanSentenceForExercise(targetPhrase.phrase);
+    
+    // Split the cleaned sentence into words
+    final words = cleanedSentence.split(' ').where((word) => word.isNotEmpty).toList();
     final shuffledWords = List<String>.from(words)..shuffle();
     
     return {
@@ -166,6 +170,20 @@ class PhraseProvider with ChangeNotifier {
       'explanation': 'The correct order is: "${targetPhrase.phrase}".',
       'phraseId': targetPhrase.id,
     };
+  }
+  
+  /// Clean a sentence for exercise use (remove punctuation, convert to lowercase)
+  String _cleanSentenceForExercise(String sentence) {
+    // Remove common punctuation marks
+    String cleaned = sentence.replaceAll(RegExp(r'[.!?;:,]'), '');
+    
+    // Convert to lowercase
+    cleaned = cleaned.toLowerCase();
+    
+    // Remove extra whitespace
+    cleaned = cleaned.trim().replaceAll(RegExp(r'\s+'), ' ');
+    
+    return cleaned;
   }
   
   // Get random phrase for exercise
