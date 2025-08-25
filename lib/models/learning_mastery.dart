@@ -20,16 +20,17 @@ enum LearningState {
 }
 
 enum WordLevel {
-  level1(1, "Beginner", 0, 10, 0, 25),
-  level2(2, "Novice", 11, 20, 26, 75),
-  level3(3, "Intermediate", 21, 30, 76, 150),
-  level4(4, "Advanced", 31, 40, 151, 250),
-  level5(5, "Mastered", 41, 50, 251, 400),
-  level6(6, "Expert", 51, 60, 401, 600),
-  level7(7, "Legendary", 61, 70, 601, 850),
-  level8(8, "Mythic", 71, 80, 851, 1150),
-  level9(9, "Divine", 81, 90, 1151, 1500),
-  level10(10, "Transcendent", 91, 100, 1501, 2000);
+  level0(0, "Seed", 0, 0, 0, 0),
+  level1(1, "Beginner", 1, 10, 1, 30),
+  level2(2, "Novice", 11, 20, 31, 70),
+  level3(3, "Intermediate", 21, 30, 71, 130),
+  level4(4, "Advanced", 31, 40, 131, 210),
+  level5(5, "Mastered", 41, 50, 211, 310),
+  level6(6, "Expert", 51, 60, 311, 430),
+  level7(7, "Legendary", 61, 70, 431, 570),
+  level8(8, "Mythic", 71, 80, 571, 730),
+  level9(9, "Divine", 81, 90, 731, 910),
+  level10(10, "Transcendent", 91, 100, 911, 1100);
   
   const WordLevel(this.level, this.title, this.minPercentage, this.maxPercentage, this.minXP, this.maxXP);
   final int level;
@@ -46,7 +47,7 @@ enum WordLevel {
         return level;
       }
     }
-    return WordLevel.level1;
+    return WordLevel.level0;
   }
   
   static WordLevel fromXP(int xp) {
@@ -55,13 +56,13 @@ enum WordLevel {
         return level;
       }
     }
-    return WordLevel.level1;
+    return WordLevel.level0;
   }
   
   static WordLevel fromLevel(int level) {
     return WordLevel.values.firstWhere(
       (l) => l.level == level,
-      orElse: () => WordLevel.level1,
+      orElse: () => WordLevel.level0,
     );
   }
   
@@ -101,7 +102,7 @@ class LearningMastery {
   
   // RPG-style leveling system
   int currentXP = 0;
-  int currentLevel = 1;
+  int currentLevel = 0;
   List<DateTime> levelUpHistory = [];
   List<Map<String, dynamic>> exerciseHistory = []; // Track exercise types and XP gained
   
@@ -126,7 +127,7 @@ class LearningMastery {
     this.nextReviewDate,
     this.totalReviews = 0,
     this.currentXP = 0,
-    this.currentLevel = 1,
+    this.currentLevel = 0,
     List<DateTime>? levelUpHistory,
     List<Map<String, dynamic>>? exerciseHistory,
     Map<String, int>? dailyGameAttempts,
@@ -172,14 +173,14 @@ class LearningMastery {
     return LearningState.expert;
   }
   
-  /// Learning percentage directly based on XP (simplified system)
+  /// Learning percentage directly based on XP (reasonable progression system)
   double get learningPercentage {
-    // Direct mapping: XP to percentage
-    // 1000 XP total = 100% learned
-    // Each 10 XP = 1% learned
+    // Reasonable progression: XP to percentage
+    // 1100 XP total = 100% learned (slightly more than original 1000)
+    // Each 11 XP = 1% learned (slightly more than original 10)
     
     final currentXP = currentXPWithDecay;
-    final percentage = (currentXP / 10.0).clamp(0.0, 100.0);
+    final percentage = (currentXP / 11.0).clamp(0.0, 100.0);
     
     return percentage;
   }
@@ -304,6 +305,14 @@ class LearningMastery {
     }
   }
   
+  /// Force reset daily attempts (for "Study Again" functionality)
+  void resetDailyAttempts() {
+    print('🔍 LearningMastery: resetDailyAttempts called - before clear: $dailyGameAttempts');
+    dailyGameAttempts.clear();
+    lastGameResetDate = DateTime.now();
+    print('🔍 LearningMastery: resetDailyAttempts called - after clear: $dailyGameAttempts');
+  }
+  
   /// Get XP for a game attempt (with daily diminishing returns)
   int getXPForGame(String exerciseType) {
     _resetDailyAttemptsIfNeeded();
@@ -314,17 +323,26 @@ class LearningMastery {
     final baseXP = 10 - attempts;
     
     // Minimum 0 XP
-    return baseXP.clamp(0, 10);
+    final finalXP = baseXP.clamp(0, 10);
+    
+    print('🔍 LearningMastery: getXPForGame - exerciseType: $exerciseType, attempts: $attempts, baseXP: $baseXP, finalXP: $finalXP');
+    
+    return finalXP;
   }
   
   /// Record a game attempt and return XP gained
   int recordGameAttempt(String exerciseType) {
     _resetDailyAttemptsIfNeeded();
     
+    final currentAttempts = dailyGameAttempts[exerciseType] ?? 0;
+    print('🔍 LearningMastery: recordGameAttempt - exerciseType: $exerciseType, current attempts: $currentAttempts');
+    
     final xpGained = getXPForGame(exerciseType);
     
     // Increment daily attempts
-    dailyGameAttempts[exerciseType] = (dailyGameAttempts[exerciseType] ?? 0) + 1;
+    dailyGameAttempts[exerciseType] = currentAttempts + 1;
+    
+    print('🔍 LearningMastery: recordGameAttempt - exerciseType: $exerciseType, xpGained: $xpGained, dailyAttempts after: ${dailyGameAttempts[exerciseType]}');
     
     return xpGained;
   }
@@ -531,7 +549,7 @@ class LearningMastery {
   // MARK: - JSON Serialization
   
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'easyCorrect': easyCorrect,
       'mediumCorrect': mediumCorrect,
       'hardCorrect': hardCorrect,
@@ -555,9 +573,18 @@ class LearningMastery {
       'dailyGameAttempts': dailyGameAttempts,
       'lastGameResetDate': lastGameResetDate?.toIso8601String(),
     };
+    
+    print('🔍 LearningMastery: toJson - dailyGameAttempts: $dailyGameAttempts');
+    return json;
   }
   
   factory LearningMastery.fromJson(Map<String, dynamic> json) {
+    final dailyGameAttempts = (json['dailyGameAttempts'] as Map<String, dynamic>?)
+        ?.map((key, value) => MapEntry(key, value as int))
+        ?? {};
+    
+    print('🔍 LearningMastery: fromJson - dailyGameAttempts: $dailyGameAttempts');
+    
     return LearningMastery(
       easyCorrect: json['easyCorrect'] ?? 0,
       mediumCorrect: json['mediumCorrect'] ?? 0,
@@ -580,16 +607,14 @@ class LearningMastery {
       totalReviews: json['totalReviews'] ?? 0,
       // RPG fields
       currentXP: json['currentXP'] ?? 0,
-      currentLevel: json['currentLevel'] ?? 1,
+      currentLevel: json['currentLevel'] ?? 0,
       levelUpHistory: (json['levelUpHistory'] as List<dynamic>?)
           ?.map((date) => DateTime.parse(date))
           .toList() ?? [],
       exerciseHistory: (json['exerciseHistory'] as List<dynamic>?)
           ?.map((entry) => Map<String, dynamic>.from(entry))
           .toList() ?? [],
-      dailyGameAttempts: (json['dailyGameAttempts'] as Map<String, dynamic>?)
-          ?.map((key, value) => MapEntry(key, value as int))
-          ?? {},
+      dailyGameAttempts: dailyGameAttempts,
       lastGameResetDate: json['lastGameResetDate'] != null 
           ? DateTime.parse(json['lastGameResetDate']) 
           : null,

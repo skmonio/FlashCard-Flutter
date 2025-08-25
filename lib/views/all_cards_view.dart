@@ -6,6 +6,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
+import '../services/xp_service.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
 import 'add_card_view.dart';
@@ -692,75 +693,132 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
   void _showCardDetails(FlashCard card) {
+    // Get the fresh card data from the provider to ensure we have the latest XP and learning progress
+    final provider = context.read<FlashcardProvider>();
+    final freshCard = provider.getCard(card.id) ?? card;
+    
+    final xpService = XpService();
+    final wordLevel = freshCard.learningMastery.rpgWordLevel;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
             Text(
-              card.article.isNotEmpty ? '${card.article} ' : '',
+              freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.primary,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Expanded(child: Text(card.word)),
+            Expanded(child: Text(freshCard.word)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              card.definition,
-              style: const TextStyle(fontSize: 16),
-            ),
-            if (card.example.isNotEmpty) ...[
-              const SizedBox(height: 16),
+                      children: [
               Text(
-                'Example:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                freshCard.definition,
+                style: const TextStyle(fontSize: 16),
               ),
-              const SizedBox(height: 4),
-              Text(
-                card.example,
-                style: const TextStyle(fontStyle: FontStyle.italic),
-              ),
-              if (card.exampleTranslation.isNotEmpty) ...[
-                const SizedBox(height: 4),
+              if (freshCard.example.isNotEmpty) ...[
+                const SizedBox(height: 16),
                 Text(
-                  card.exampleTranslation,
+                  'Example:',
                   style: TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  freshCard.example,
+                  style: const TextStyle(fontStyle: FontStyle.italic),
+                ),
+                if (freshCard.exampleTranslation.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    freshCard.exampleTranslation,
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ],
-            ],
-            if (card.plural.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Plural: ${card.plural}',
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
+              if (freshCard.plural.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Plural: ${freshCard.plural}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
             const SizedBox(height: 16),
+            
+            // Card Level and XP Section
+            Row(
+              children: [
+                Text(
+                  'Card Level: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  xpService.getLevelIcon(wordLevel),
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Level ${wordLevel.level} (${wordLevel.title})',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Current XP: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.learningMastery.currentXPWithDecay}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (freshCard.learningMastery.xpNeededForNextLevel > 0) ...[
+                  Text(
+                    ' / ${wordLevel.maxXP} (${freshCard.learningMastery.xpNeededForNextLevel} to next level)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // SRS Level
             Row(
               children: [
                 Text('SRS Level: '),
                 Tooltip(
-                  message: _getSRSDescription(card.srsLevel),
+                  message: _getSRSDescription(freshCard.srsLevel),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getSRSColor(card.srsLevel),
+                      color: _getSRSColor(freshCard.srsLevel),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      card.srsLevel.toString(),
+                      freshCard.srsLevel.toString(),
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -768,18 +826,24 @@ class _AllCardsViewState extends State<AllCardsView> {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Learning Progress: ${card.learningPercentage ?? 0}%'),
+            
+            // Learning Progress
+            Text('Learning Progress: ${freshCard.learningPercentage ?? 0}%'),
             const SizedBox(height: 8),
-            Text('Times Shown: ${card.timesShown}'),
-            Text('Times Correct: ${card.timesCorrect}'),
-            Text('Consecutive Correct: ${card.consecutiveCorrect}'),
+            
+            // Study Statistics
+            Text('Times Shown: ${freshCard.timesShown}'),
+            Text('Times Correct: ${freshCard.timesCorrect}'),
+            Text('Consecutive Correct: ${freshCard.consecutiveCorrect}'),
+            
+            // Ease Factor
             Row(
               children: [
                 Text('Ease Factor: '),
                 Tooltip(
                   message: 'Affects how quickly review intervals increase. Higher values (2.5) mean longer intervals, lower values (1.3) mean more frequent reviews.',
                   child: Text(
-                    '${card.easeFactor.toStringAsFixed(2)}',
+                    '${freshCard.easeFactor.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

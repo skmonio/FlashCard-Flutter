@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import '../providers/flashcard_provider.dart';
+import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
@@ -796,23 +797,32 @@ class _StudyViewState extends State<StudyView> {
         break;
     }
     
-    // Calculate XP for this word
-    final xpGained = xpService.calculateWordXP(exerciseType, _consecutiveCorrect);
-    
-    // Award XP to the word's learning mastery
+    // Award XP to the word's learning mastery (this handles daily diminishing returns)
     xpService.addXPToWord(card.learningMastery, exerciseType, _consecutiveCorrect);
     
-    // Track XP gained for this word in this session
-    _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+    // Get the actual XP gained (after diminishing returns)
+    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+        : 0;
+    
+          // Track XP gained for this word in this session (add for multiple appearances in same session)
+      _xpGainedPerWord[card.id] = actualXPGained;
     
     // Store the mastery for display
     _wordMastery[card.id] = card.learningMastery;
     
-    print('🔍 StudyView: Awarded $xpGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
+    print('🔍 StudyView: Awarded $actualXPGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
   }
 
   void _showResults() {
     final accuracy = _currentCards.isNotEmpty ? (_correctAnswers / _currentCards.length * 100).toInt() : 0;
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    
+    // Award profile XP based on actual word XP gained
+    if (totalXPGained > 0) {
+      final userProfileProvider = context.read<UserProfileProvider>();
+      userProfileProvider.addXp(totalXPGained);
+    }
     
     showDialog(
       context: context,
@@ -856,11 +866,11 @@ class _StudyViewState extends State<StudyView> {
             _buildStatCard('Unknown', (_currentCards.length - _correctAnswers).toString(), Icons.cancel, Colors.red),
             
             // Add XP summary if any XP was gained
-            if (_xpGainedPerWord.values.isNotEmpty) ...[
+            if (totalXPGained > 0) ...[
               const SizedBox(height: 16),
               _buildStatCard(
                 'Total XP Gained', 
-                '${_xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp)}',
+                '$totalXPGained',
                 Icons.star,
                 Colors.amber,
               ),
@@ -876,7 +886,7 @@ class _StudyViewState extends State<StudyView> {
             child: const Text('Finish'),
           ),
           // Add button to view word progress if XP was gained
-          if (_xpGainedPerWord.values.isNotEmpty)
+          if (totalXPGained > 0)
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
@@ -890,12 +900,45 @@ class _StudyViewState extends State<StudyView> {
   }
 
   void _showWordProgress() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart study session
+            setState(() {
+              _currentCardIndex = 0;
+              _correctAnswers = 0;
+              _totalAnswers = 0;
+              _showAnswer = false;
+              _isFlipped = widget.startFlipped;
+              _consecutiveCorrect = 0;
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+              
+              // Continue same daily session (don't reset daily attempts)
+            });
+            
+            _generateMultipleChoiceOptions();
+            _generateScrambledWord();
+            
+            // Session data has been reset, ready for new game
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to previous screen
+          },
         ),
       ),
     );
@@ -938,4 +981,6 @@ class _StudyViewState extends State<StudyView> {
       ),
     );
   }
+  
+
 } 

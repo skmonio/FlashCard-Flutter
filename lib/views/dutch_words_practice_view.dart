@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
+import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
+import '../components/word_progress_display.dart';
+import '../services/xp_service.dart';
 
 class DutchWordsPracticeView extends StatefulWidget {
   final String deckId;
@@ -46,6 +49,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   Map<int, String?> _selectedAnswers = {};
   Map<int, List<String>> _sentenceAnswers = {};
   Map<int, List<String>> _sentenceAvailable = {};
+  
+  // RPG word progress tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
 
   @override
   void initState() {
@@ -625,6 +633,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     // Sync progress to main FlashCard
     await _syncProgressToFlashCard(wordExerciseId, isCorrect);
     
+    // Award XP to word for RPG system
+    if (isCorrect) {
+      await _awardXPToWord(wordExerciseId, isCorrect);
+    }
+    
     // Force refresh of providers to ensure UI updates
     dutchProvider.notifyListeners();
     flashcardProvider.notifyListeners();
@@ -742,6 +755,13 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
 
   void _showCompletionDialog() {
     final percentage = (_correctAnswers / _totalAnswered * 100).round();
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    
+    // Award profile XP based on actual word XP gained
+    if (totalXPGained > 0) {
+      final userProfileProvider = context.read<UserProfileProvider>();
+      userProfileProvider.addXp(totalXPGained);
+    }
     
     showDialog(
       context: context,
@@ -754,6 +774,16 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
             Text('You got $_correctAnswers out of $_totalAnswered correct'),
             const SizedBox(height: 8),
             Text('Score: $percentage%'),
+            if (totalXPGained > 0) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Total XP Gained: $totalXPGained',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (percentage >= 80)
               const Text(
@@ -780,9 +810,20 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
             },
             child: const Text('Finish'),
           ),
+          if (totalXPGained > 0)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showWordProgress();
+              },
+              child: const Text('View Progress'),
+            ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
+              
+              // Continue same daily session (don't reset daily attempts)
+              
               setState(() {
                 _currentExerciseIndex = 0;
                 _selectedAnswer = null;
@@ -796,6 +837,12 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
                 _selectedAnswers.clear();
                 _sentenceAnswers.clear();
                 _sentenceAvailable.clear();
+                
+                // Reset RPG tracking for this session only
+                _xpGainedPerWord.clear();
+                _wordMastery.clear();
+                _studiedWords.clear();
+                
                 _initializePractice();
               });
             },
@@ -850,6 +897,156 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         ],
       ),
     );
+  }
+  
+  Future<void> _awardXPToWord(String wordExerciseId, bool isCorrect) async {
+    if (!isCorrect) return;
+    
+    try {
+      final dutchProvider = context.read<DutchWordExerciseProvider>();
+      final flashcardProvider = context.read<FlashcardProvider>();
+      
+      // Find the word exercise
+      final wordExercise = dutchProvider.wordExercises.firstWhere(
+        (exercise) => exercise.id == wordExerciseId,
+        orElse: () => DutchWordExercise(
+          id: '',
+          targetWord: '',
+          wordTranslation: '',
+          deckId: '',
+          deckName: '',
+          category: WordCategory.common,
+          difficulty: ExerciseDifficulty.beginner,
+          exercises: [],
+          createdAt: DateTime.now(),
+          isUserCreated: true,
+        ),
+      );
+      
+      if (wordExercise.id.isEmpty) {
+        print('🔍 Word exercise not found for ID: $wordExerciseId');
+        return;
+      }
+      
+      // Find the corresponding FlashCard
+      final flashCard = flashcardProvider.cards.firstWhere(
+        (card) => card.word.toLowerCase() == wordExercise.targetWord.toLowerCase(),
+        orElse: () => FlashCard(
+          id: '',
+          word: '',
+          definition: '',
+          example: '',
+        ),
+      );
+      
+      if (flashCard.id.isEmpty) {
+        print('🔍 FlashCard not found for word: ${wordExercise.targetWord}');
+        return;
+      }
+      
+      // Get the current exercise to determine the exercise type
+      final currentExercise = _shuffledExercises[_currentExerciseIndex];
+      final exerciseType = _getExerciseTypeString(currentExercise.type);
+      
+      print('🔍 DutchWordsPracticeView: Exercise type: $exerciseType');
+      print('🔍 DutchWordsPracticeView: Daily attempts before XP: ${flashCard.learningMastery.dailyGameAttempts}');
+      
+      final xpService = XpService();
+      
+      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      xpService.addXPToWord(flashCard.learningMastery, exerciseType, 1);
+      
+      print('🔍 DutchWordsPracticeView: Daily attempts after XP: ${flashCard.learningMastery.dailyGameAttempts}');
+      
+      // Get the actual XP gained (after diminishing returns)
+      final actualXPGained = flashCard.learningMastery.exerciseHistory.isNotEmpty 
+          ? flashCard.learningMastery.exerciseHistory.last['xpGained'] as int 
+          : 0;
+      
+      // Track XP gained for this word in this session (replace for multiple appearances in same session)
+      _xpGainedPerWord[flashCard.id] = actualXPGained;
+      
+      // Store the word mastery for display
+      _wordMastery[flashCard.id] = flashCard.learningMastery;
+      
+      // Track studied words
+      if (!_studiedWords.any((word) => word.id == flashCard.id)) {
+        _studiedWords.add(flashCard);
+      }
+      
+      print('🔍 DutchWordsPracticeView: Awarded $actualXPGained XP to word "${flashCard.word}" (Correct: $isCorrect)');
+      
+      // Update the card in the provider
+      await flashcardProvider.updateCard(flashCard);
+      
+    } catch (e) {
+      print('🔍 DutchWordsPracticeView: Error awarding XP: $e');
+    }
+  }
+  
+  void _showWordProgress() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          onStudyAgain: () async {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart practice (continue same daily session)
+            
+            setState(() {
+              _currentExerciseIndex = 0;
+              _selectedAnswer = null;
+              _showAnswer = false;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _answerWords = [];
+              _availableWords = [];
+              _shuffledOptions.clear();
+              _answeredQuestions.clear();
+              _selectedAnswers.clear();
+              _sentenceAnswers.clear();
+              _sentenceAvailable.clear();
+              
+              // Reset RPG tracking for this session only
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+              
+              _initializePractice();
+            });
+            
+            // Session data has been reset, ready for new game
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to previous screen
+          },
+        ),
+      ),
+    );
+  }
+  
+
+  
+
+  
+  /// Convert ExerciseType enum to string for XP service
+  String _getExerciseTypeString(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.multipleChoice:
+        return 'multiple_choice';
+      case ExerciseType.fillInBlank:
+        return 'fill_in_blank';
+      case ExerciseType.sentenceBuilding:
+        return 'sentence_building';
+    }
   }
 
 } 
