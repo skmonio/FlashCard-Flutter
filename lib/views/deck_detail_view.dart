@@ -307,6 +307,17 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
+                  if (card.exampleTranslation.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      card.exampleTranslation,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 4),
                 Row(
@@ -815,6 +826,16 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                 card.example,
                 style: const TextStyle(fontStyle: FontStyle.italic),
               ),
+              if (card.exampleTranslation.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  card.exampleTranslation,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ],
             if (card.plural.isNotEmpty) ...[
               const SizedBox(height: 16),

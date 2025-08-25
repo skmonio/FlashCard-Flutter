@@ -7,6 +7,7 @@ import '../providers/user_profile_provider.dart';
 import '../providers/phrase_provider.dart';
 import '../providers/dutch_grammar_provider.dart';
 import '../components/unified_header.dart';
+import '../models/learning_mastery.dart';
 
 class ClearDataView extends StatefulWidget {
   const ClearDataView({super.key});
@@ -217,6 +218,36 @@ class _ClearDataViewState extends State<ClearDataView> {
     } catch (e) {
       print('DutchGrammarProvider not available: $e');
     }
+    
+    // Clear individual word RPG progress (XP and learning mastery)
+    try {
+      final flashcardProvider = context.read<FlashcardProvider>();
+      final cards = List.from(flashcardProvider.cards);
+      for (final card in cards) {
+        // Reset the learning mastery for each card
+        final resetMastery = LearningMastery(
+          easyCorrect: 0,
+          mediumCorrect: 0,
+          hardCorrect: 0,
+          expertCorrect: 0,
+          easyAttempts: 0,
+          mediumAttempts: 0,
+          hardAttempts: 0,
+          expertAttempts: 0,
+          currentXP: 0,
+          currentLevel: 1,
+          levelUpHistory: [],
+          exerciseHistory: [],
+          dailyGameAttempts: {},
+          lastGameResetDate: null,
+        );
+        
+        final updatedCard = card.copyWith(learningMastery: resetMastery);
+        await flashcardProvider.updateCard(updatedCard);
+      }
+    } catch (e) {
+      print('Error clearing word RPG progress: $e');
+    }
   }
 
   @override
@@ -325,7 +356,7 @@ class _ClearDataViewState extends State<ClearDataView> {
                   _buildOptionTile(
                     'stats',
                     'Stats & Progress',
-                    'Reset XP, levels, achievements, and progress',
+                    'Reset XP, levels, achievements, and word RPG progress',
                     Icons.analytics,
                     Colors.orange,
                   ),

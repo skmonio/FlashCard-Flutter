@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:flashcard_app/providers/dutch_grammar_provider.dart';
-import 'package:flashcard_app/models/dutch_grammar_rule.dart';
+import 'package:taal_trek_dutch/providers/dutch_grammar_provider.dart';
+import 'package:taal_trek_dutch/models/dutch_grammar_rule.dart';
 
 void main() {
   group('Dutch Grammar History Tracking', () {

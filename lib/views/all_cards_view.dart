@@ -729,6 +729,16 @@ class _AllCardsViewState extends State<AllCardsView> {
                 card.example,
                 style: const TextStyle(fontStyle: FontStyle.italic),
               ),
+              if (card.exampleTranslation.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  card.exampleTranslation,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ],
             if (card.plural.isNotEmpty) ...[
               const SizedBox(height: 16),

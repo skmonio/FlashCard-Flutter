@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flashcard_app/views/shuffle_cards_view.dart';
+import 'package:taal_trek_dutch/views/shuffle_cards_view.dart';
 
 void main() {
   group('ShuffleCardsView Persistence', () {

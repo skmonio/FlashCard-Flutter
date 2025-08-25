@@ -14,6 +14,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
+import '../components/word_progress_display.dart';
 import '../utils/game_difficulty_helper.dart';
 import 'add_card_view.dart';
 
@@ -74,6 +75,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   
   // Auto progress timer
   Timer? _autoProgressTimer;
+  
+  // RPG word progress tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
 
   @override
   void initState() {
@@ -281,6 +287,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     // Track XP for the answer
     XpService.recordAnswer(_gameSession, isCorrect);
+    
+    // Award XP to word for RPG system
+    _awardXPToWord(currentCard, isCorrect);
     
     setState(() {
       _selectedAnswer = index;
@@ -839,126 +848,186 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-        children: [
-          // Small header - matching study view
-          SafeArea(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_ios),
-                    iconSize: 20,
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'Test Complete',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          // Swipe right to show word progress
+          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
+            _showWordProgress();
+          }
+        },
+        child: Column(
+          children: [
+            // Small header - matching study view
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back_ios),
+                      iconSize: 20,
                     ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 48), // Balance the layout
-                ],
+                    const Spacer(),
+                    const Text(
+                      'Test Complete',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    const SizedBox(width: 48), // Balance the layout
+                  ],
+                ),
               ),
             ),
-          ),
-          
-          // Results content
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Score
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                             accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                             Colors.red.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$accuracy%',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: accuracy >= 80 ? Colors.green : 
-                                 accuracy >= 60 ? Colors.orange : 
-                                 Colors.red,
+            
+            // Results content - Make it scrollable
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    
+                    // Score
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
+                               accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
+                               Colors.red.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '$accuracy%',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: accuracy >= 80 ? Colors.green : 
+                                   accuracy >= 60 ? Colors.orange : 
+                                   Colors.red,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Stats
-                  _buildStatCard('Questions', _totalAnswered.toString(), Icons.quiz),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
-                  const SizedBox(height: 16),
-                  _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
-                  
-
-                  const SizedBox(height: 16),
-                  _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                    AnimatedXpCounter(xpGained: _gameSession.xpGained)),
-                  const SizedBox(height: 48),
-                  
-                  // Action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _currentIndex = 0;
-                              _correctAnswers = 0;
-                              _totalAnswered = 0;
-                              _showingResults = false;
-                              _answered = false;
-                              _selectedAnswer = null;
-                              _gameSession.reset(); // Reset XP tracking
-                              
-                              // Reset lives if using lives mode
-                              if (_useLivesMode) {
-                                _lives = _maxLives;
-                              }
-                              
-                              // Reset all navigation state
-                              _answeredQuestions.clear();
-                              _correctAnswersMap.clear();
-                              _questionOptions.clear();
-                              _correctAnswerIndices.clear();
-                              _questionModes.clear();
-                            });
-                            _generateQuestion();
-                          },
-                          child: const Text('Test Again'),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Stats
+                    _buildStatCard('Questions', _totalAnswered.toString(), Icons.quiz),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
+                    const SizedBox(height: 16),
+                    _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                    const SizedBox(height: 16),
+                    _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
+                      AnimatedXpCounter(xpGained: _gameSession.xpGained)),
+                    
+                    // Swipe hint if XP was gained
+                    if (_xpGainedPerWord.values.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                          child: const Text('Done'),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.swipe_right,
+                              color: Colors.amber,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Swipe right to view word progress',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.amber.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
+                    
+                    const SizedBox(height: 32),
+                    
+                    const SizedBox(height: 20), // Bottom padding
+                  ],
+                ),
+              ),
+            ),
+            
+            // Fixed footer with action buttons
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _currentIndex = 0;
+                          _correctAnswers = 0;
+                          _totalAnswered = 0;
+                          _showingResults = false;
+                          _answered = false;
+                          _selectedAnswer = null;
+                          _gameSession.reset(); // Reset XP tracking
+                          
+                          // Reset lives if using lives mode
+                          if (_useLivesMode) {
+                            _lives = _maxLives;
+                          }
+                          
+                          // Reset all navigation state
+                          _answeredQuestions.clear();
+                          _correctAnswersMap.clear();
+                          _questionOptions.clear();
+                          _correctAnswerIndices.clear();
+                          _questionModes.clear();
+                          
+                          // Reset RPG tracking
+                          _xpGainedPerWord.clear();
+                          _wordMastery.clear();
+                          _studiedWords.clear();
+                        });
+                        _generateQuestion();
+                      },
+                      child: const Text('Test Again'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      child: const Text('Done'),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1065,5 +1134,78 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     // Update streak based on study activity (Duolingo-style)
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
+  }
+  
+  void _awardXPToWord(FlashCard card, bool isCorrect) {
+    // Only award XP for correct answers
+    if (isCorrect) {
+      final xpService = XpService();
+      final xpGained = xpService.calculateWordXP("test", 1);
+      
+      // Add XP to the word's learning mastery
+      xpService.addXPToWord(card.learningMastery, "test", 1);
+      
+      // Track XP gained for this word in this session
+      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + xpGained;
+      
+      // Store the word mastery for display
+      _wordMastery[card.id] = card.learningMastery;
+      
+      print('🔍 MultipleChoiceView: Awarded $xpGained XP to word "${card.word}" (Correct: $isCorrect)');
+    } else {
+      print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+    }
+    
+    // Track studied words (regardless of correctness)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+    }
+  }
+  
+  void _showWordProgress() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+          studiedWords: _studiedWords,
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart test
+            setState(() {
+              _currentIndex = 0;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _showingResults = false;
+              _answered = false;
+              _selectedAnswer = null;
+              _gameSession.reset(); // Reset XP tracking
+              
+              // Reset lives if using lives mode
+              if (_useLivesMode) {
+                _lives = _maxLives;
+              }
+              
+              // Reset all navigation state
+              _answeredQuestions.clear();
+              _correctAnswersMap.clear();
+              _questionOptions.clear();
+              _correctAnswerIndices.clear();
+              _questionModes.clear();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+            _generateQuestion();
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+          },
+        ),
+      ),
+    );
   }
 } 

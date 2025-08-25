@@ -720,6 +720,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     print('🔍 DutchWordExerciseDetailView: Checking answer for word "${_wordExercise.targetWord}", exercise $_currentExerciseIndex');
     print('🔍 DutchWordExerciseDetailView: Exercise prompt: "${currentExercise.prompt}"');
     print('🔍 DutchWordExerciseDetailView: Correct answer: "${currentExercise.correctAnswer}"');
+    print('🔍 DutchWordExerciseDetailView: Selected answer: "$_selectedAnswer"');
     
     bool isCorrect = false;
     
@@ -728,7 +729,8 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       final userAnswer = _answerWords.join(' ');
       isCorrect = userAnswer == currentExercise.correctAnswer;
     } else {
-      // For other exercise types, check the selected answer
+      // For multiple choice and fill in blank, check if the selected answer matches the correct answer
+      // Since options are shuffled, we need to compare the actual text values
       isCorrect = _selectedAnswer == currentExercise.correctAnswer;
     }
     
@@ -1142,14 +1144,14 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   }
 
   void _selectAnswer(String option, WordExercise exercise) {
+    if (_showAnswer) return; // Don't allow changes after answering
+    
     setState(() {
       _selectedAnswer = option;
-      _showAnswer = true;
-      _totalAnswered++;
-      if (option == exercise.correctAnswer) {
-        _correctAnswers++;
-      }
     });
+    
+    // Use the proper answer checking method
+    _checkAnswer();
   }
 
 } 
