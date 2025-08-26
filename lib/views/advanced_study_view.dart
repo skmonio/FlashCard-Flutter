@@ -787,9 +787,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       case SwipeDirection.up: // Review
         // Add card to review deck
         _addCardToReview(currentCard);
-        // Award XP for review action (treat as correct answer)
-        XpService.recordAnswer(_gameSession, true);
-        _updateCardLearningProgress(currentCard, true);
+        // No XP for review actions - these are cards that need more study
         break;
       case SwipeDirection.down: // Skip
         _skippedCards.add(currentCard.id);
