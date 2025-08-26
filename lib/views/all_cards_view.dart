@@ -6,7 +6,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
-import '../services/xp_service.dart';
+
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
 import 'add_card_view.dart';
@@ -170,60 +170,68 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   Widget _buildSearchSortBar() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          // Search bar
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search cards...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        _onSearchChanged('');
-                      },
-                      icon: const Icon(Icons.clear),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          // Search Bar
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search cards...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          _onSearchChanged('');
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
-            onChanged: _onSearchChanged,
           ),
-          const SizedBox(height: 12),
-          // Sort options
-          Row(
-            children: [
-              const Text('Sort by: '),
-              Expanded(
-                child: DropdownButton<SortOption>(
-                  value: _sortOption,
-                  isExpanded: true,
-                  items: SortOption.values.map((option) {
-                    return DropdownMenuItem(
-                      value: option,
-                      child: Text(_getSortOptionText(option)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _sortOption = value;
-                      });
-                    }
-                  },
+          const SizedBox(width: 12),
+          // Sort Button
+          PopupMenuButton<SortOption>(
+            onSelected: (value) {
+              setState(() {
+                _sortOption = value;
+              });
+            },
+            itemBuilder: (context) => SortOption.values.map((option) {
+              return PopupMenuItem(
+                value: option,
+                child: Row(
+                  children: [
+                    Icon(_getSortIcon(option)),
+                    const SizedBox(width: 8),
+                    Text(_getSortOptionText(option)),
+                  ],
                 ),
+              );
+            }).toList(),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
               ),
-              IconButton(
-                onPressed: _showSortInfo,
-                icon: const Icon(Icons.info_outline),
-                tooltip: 'Sort Info',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_getSortIcon(_sortOption), size: 16),
+                  const SizedBox(width: 4),
+                  Text(_getSortOptionText(_sortOption)),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -469,6 +477,27 @@ class _AllCardsViewState extends State<AllCardsView> {
         return 'Date Created';
       case SortOption.lastModified:
         return 'Last Modified';
+    }
+  }
+
+  IconData _getSortIcon(SortOption option) {
+    switch (option) {
+      case SortOption.wordAZ:
+        return Icons.arrow_upward;
+      case SortOption.wordZA:
+        return Icons.arrow_downward;
+      case SortOption.definitionAZ:
+        return Icons.arrow_upward;
+      case SortOption.definitionZA:
+        return Icons.arrow_downward;
+      case SortOption.srsLevel:
+        return Icons.timeline;
+      case SortOption.learningPercentage:
+        return Icons.trending_up;
+      case SortOption.dateCreated:
+        return Icons.calendar_today;
+      case SortOption.lastModified:
+        return Icons.update;
     }
   }
 
@@ -1050,35 +1079,5 @@ class _AllCardsViewState extends State<AllCardsView> {
     });
   }
 
-  void _showSortInfo() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sort Options'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('• Word (A-Z/Z-A): Sort alphabetically by word'),
-            SizedBox(height: 8),
-            Text('• Definition (A-Z/Z-A): Sort alphabetically by definition'),
-            SizedBox(height: 8),
-            Text('• SRS Level: Sort by spaced repetition level'),
-            SizedBox(height: 8),
-            Text('• Learning Progress: Sort by learning percentage'),
-            SizedBox(height: 8),
-            Text('• Date Created: Sort by creation date'),
-            SizedBox(height: 8),
-            Text('• Last Modified: Sort by last modification date'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+
 } 

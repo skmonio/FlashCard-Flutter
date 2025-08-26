@@ -860,7 +860,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                       ),
                     ),
                     const Spacer(),
-                    const SizedBox(width: 48), // Balance the layout
+                    IconButton(
+                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      icon: const Icon(Icons.home),
+                      iconSize: 20,
+                    ),
                   ],
                 ),
               ),
