@@ -998,7 +998,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           wordMastery: sessionWordMastery,
           onStudyAgain: () async {
             Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart practice (continue same daily session)
+            // Reset and restart practice
             
             setState(() {
               _currentExerciseIndex = 0;

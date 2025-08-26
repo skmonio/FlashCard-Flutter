@@ -812,6 +812,7 @@ class _WritingViewState extends State<WritingView> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
@@ -1002,8 +1003,6 @@ class _WritingViewState extends State<WritingView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
             

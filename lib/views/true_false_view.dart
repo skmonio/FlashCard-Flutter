@@ -1142,6 +1142,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
@@ -1363,8 +1364,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
             

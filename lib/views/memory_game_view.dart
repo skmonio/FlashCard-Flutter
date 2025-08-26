@@ -1275,6 +1275,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        
                         setState(() {
                           _gameComplete = false;
                           _resetGame();
@@ -1395,8 +1396,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             
             // Session data has been reset, ready for new game

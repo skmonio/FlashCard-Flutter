@@ -926,8 +926,6 @@ class _StudyViewState extends State<StudyView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             
             _generateMultipleChoiceOptions();

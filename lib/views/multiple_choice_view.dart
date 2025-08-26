@@ -985,6 +985,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        print('🔍 MultipleChoiceView: Test Again button pressed');
+                        
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
@@ -1144,6 +1146,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     if (isCorrect) {
       final xpService = XpService();
       
+      print('🔍 MultipleChoiceView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+      
       // Add XP to the word's learning mastery (this handles daily diminishing returns)
       xpService.addXPToWord(card.learningMastery, "test", 1);
       
@@ -1158,7 +1162,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
       
-      print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
+      print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }
@@ -1209,8 +1213,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
             
