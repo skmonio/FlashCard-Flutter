@@ -452,11 +452,11 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // Update learning progress in the provider
-    _updateCardLearningProgress(currentCard, isCorrect);
-    
     // Award XP to word for RPG system
     _awardXPToWord(currentCard, isCorrect);
+    
+    // Update the card in the provider to save the XP changes
+    _updateCardInProvider(currentCard);
     
     setState(() {
       _selectedAnswer = answer;
@@ -499,33 +499,16 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     }
   }
 
-  Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
+  Future<void> _updateCardInProvider(FlashCard card) async {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Get game difficulty for true/false
-      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('true false');
-      
-      // Create updated card with new learning mastery
-      final updatedCard = card.copyWith(
-        learningMastery: card.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty
-      if (wasCorrect) {
-        updatedCard.markCorrect(difficulty);
-      } else {
-        updatedCard.markIncorrect(difficulty);
-      }
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 TrueFalseView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
+      // Update the card in the provider to save the XP changes
+      await provider.updateCard(card);
+      print('🔍 TrueFalseView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 TrueFalseView: Error updating learning progress: $e');
+      print('🔍 TrueFalseView: Error updating card in provider: $e');
     }
   }
 

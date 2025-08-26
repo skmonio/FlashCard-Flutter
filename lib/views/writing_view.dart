@@ -246,11 +246,11 @@ class _WritingViewState extends State<WritingView> {
           _correctAnswersMap[_currentIndex] = true;
           _answeredQuestions[_currentIndex] = _displayWord;
           
-                // Update learning progress - marked as correct
-      _updateCardLearningProgress(true);
-      
-      // Award XP to word for RPG system
-      _awardXPToWord(_currentCards[_currentIndex], true);
+                // Award XP to word for RPG system
+          _awardXPToWord(_currentCards[_currentIndex], true);
+          
+          // Update the card in the provider to save the XP changes
+          _updateCardInProvider(_currentCards[_currentIndex]);
         }
       } else {
         // Wrong guess
@@ -266,11 +266,11 @@ class _WritingViewState extends State<WritingView> {
           _correctAnswersMap[_currentIndex] = false;
           _answeredQuestions[_currentIndex] = _displayWord;
           
-          // Update learning progress - marked as incorrect
-          _updateCardLearningProgress(false);
-          
           // Award XP to word for RPG system
           _awardXPToWord(_currentCards[_currentIndex], false);
+          
+          // Update the card in the provider to save the XP changes
+          _updateCardInProvider(_currentCards[_currentIndex]);
         }
       }
     });
@@ -309,34 +309,16 @@ class _WritingViewState extends State<WritingView> {
     return true; // All letters have been guessed
   }
 
-  Future<void> _updateCardLearningProgress(bool wasCorrect) async {
+  Future<void> _updateCardInProvider(FlashCard card) async {
     try {
-      final currentCard = _currentCards[_currentIndex];
       final provider = context.read<FlashcardProvider>();
       
-      // Get game difficulty for writing
-      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('writing');
-      
-      // Create updated card with new learning mastery
-      final updatedCard = currentCard.copyWith(
-        learningMastery: currentCard.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty
-      if (wasCorrect) {
-        updatedCard.markCorrect(difficulty);
-      } else {
-        updatedCard.markIncorrect(difficulty);
-      }
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 WritingView: Updated learning progress for "${currentCard.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(currentCard, wasCorrect);
+      // Update the card in the provider to save the XP changes
+      await provider.updateCard(card);
+      print('🔍 WritingView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 WritingView: Error updating learning progress: $e');
+      print('🔍 WritingView: Error updating card in provider: $e');
     }
   }
 

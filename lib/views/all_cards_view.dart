@@ -318,31 +318,9 @@ class _AllCardsViewState extends State<AllCardsView> {
                 ),
               ],
             ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    card.word,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                if (card.article.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      card.article,
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-              ],
+            title: Text(
+              card.word,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,28 +344,42 @@ class _AllCardsViewState extends State<AllCardsView> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.timeline, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      'SRS Level ${card.srsLevel}',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.schedule, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      _getNextReviewText(card),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                Consumer<DutchWordExerciseProvider>(
+                  builder: (context, dutchProvider, child) {
+                    final exercise = dutchProvider.getWordExerciseByWord(card.word);
+                    final exerciseCount = exercise?.exercises.length ?? 0;
+                    
+                    if (exerciseCount > 0) {
+                      return Row(
+                        children: [
+                          Icon(Icons.quiz, size: 14, color: Colors.green[600]),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              color: Colors.green[600],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      return Row(
+                        children: [
+                          Icon(Icons.quiz_outlined, size: 14, color: Colors.grey[400]),
+                          const SizedBox(width: 4),
+                          Text(
+                            'No exercises',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                  },
                 ),
               ],
             ),
@@ -990,7 +982,26 @@ class _AllCardsViewState extends State<AllCardsView> {
                 Text('Past Participle: ${card.pastParticiple}'),
               ],
               const SizedBox(height: 16),
+              Consumer<DutchWordExerciseProvider>(
+                builder: (context, dutchProvider, child) {
+                  final exercise = dutchProvider.getWordExerciseByWord(card.word);
+                  final exerciseCount = exercise?.exercises.length ?? 0;
+                  
+                  if (exerciseCount > 0) {
+                    return Text(
+                      'Exercises: $exerciseCount',
+                      style: TextStyle(
+                        color: Colors.green[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              const SizedBox(height: 8),
               Text('SRS Level: ${card.srsLevel}'),
+              Text('Next Review: ${_getNextReviewText(card)}'),
               Text('Learning Progress: ${card.learningPercentage}%'),
               Text('Success Count: ${card.successCount}'),
               Text('Created: ${DateFormat('MMM dd, yyyy').format(card.dateCreated)}'),

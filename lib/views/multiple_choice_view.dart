@@ -282,14 +282,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       HapticService().errorFeedback();
     }
     
-    // Update learning progress in the provider
-    _updateCardLearningProgress(currentCard, isCorrect);
-    
     // Track XP for the answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
     // Award XP to word for RPG system
     _awardXPToWord(currentCard, isCorrect);
+    
+    // Update the card in the provider to save the XP changes
+    _updateCardInProvider(currentCard);
     
     setState(() {
       _selectedAnswer = index;
@@ -349,33 +349,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     }
   }
 
-  Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
+  Future<void> _updateCardInProvider(FlashCard card) async {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Get game difficulty for multiple choice
-      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('multiple choice');
-      
-      // Create updated card with new learning mastery
-      final updatedCard = card.copyWith(
-        learningMastery: card.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty
-      if (wasCorrect) {
-        updatedCard.markCorrect(difficulty);
-      } else {
-        updatedCard.markIncorrect(difficulty);
-      }
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 MultipleChoiceView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
+      // Update the card in the provider to save the XP changes
+      await provider.updateCard(card);
+      print('🔍 MultipleChoiceView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 MultipleChoiceView: Error updating learning progress: $e');
+      print('🔍 MultipleChoiceView: Error updating card in provider: $e');
     }
   }
 
