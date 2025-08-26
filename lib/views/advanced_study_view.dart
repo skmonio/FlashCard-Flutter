@@ -787,6 +787,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       case SwipeDirection.up: // Review
         // Add card to review deck
         _addCardToReview(currentCard);
+        // Award XP for review action (treat as correct answer)
+        XpService.recordAnswer(_gameSession, true);
+        _updateCardLearningProgress(currentCard, true);
         break;
       case SwipeDirection.down: // Skip
         _skippedCards.add(currentCard.id);
@@ -803,36 +806,26 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
   Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
     try {
-      final provider = context.read<FlashcardProvider>();
-      
-      // Update the card's learning progress
-      final updatedCard = card.copyWith(
-        learningMastery: card.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty (assuming medium for advanced study)
+      // Award XP to the word for RPG system (only for correct answers)
       if (wasCorrect) {
-        updatedCard.markCorrect(GameDifficulty.medium);
-        
-        // Award XP to the word for correct answer
-        _awardXPToWord(updatedCard);
-      } else {
-        updatedCard.markIncorrect(GameDifficulty.medium);
+        _awardXPToWord(card);
       }
       
       // Track studied words
-      if (!_studiedWords.any((word) => word.id == updatedCard.id)) {
-        _studiedWords.add(updatedCard);
+      if (!_studiedWords.any((word) => word.id == card.id)) {
+        _studiedWords.add(card);
       }
       
-      await provider.updateCard(updatedCard);
-      print('🔍 AdvancedStudyView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
+      // Update the card in the provider to save the XP changes
+      final provider = context.read<FlashcardProvider>();
+      await provider.updateCard(card);
+      print('🔍 AdvancedStudyView: Updated card "${card.word}" in provider - wasCorrect: $wasCorrect, current XP: ${card.learningMastery.currentXP}');
       
       // Also sync to Dutch words if this card exists there
       await _syncToDutchWords(card, wasCorrect);
       
     } catch (e) {
-      print('🔍 AdvancedStudyView: Error updating learning progress: $e');
+      print('🔍 AdvancedStudyView: Error updating card in provider: $e');
     }
   }
 
@@ -1088,7 +1081,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                       ),
                     ),
                     const Spacer(),
-                    const SizedBox(width: 48), // Balance the layout
+                    IconButton(
+                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      icon: const Icon(Icons.home),
+                      iconSize: 20,
+                    ),
                   ],
                 ),
               ),
