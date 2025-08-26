@@ -1306,8 +1306,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _sessionStartTime = DateTime.now();
               _sessionXP = 0;
               
-              // Continue same daily session (don't reset daily attempts)
-              
               // Reset UI state
               _showingResults = false;
               _isShowingFront = !widget.startFlipped;

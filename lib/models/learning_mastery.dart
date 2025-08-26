@@ -110,6 +110,9 @@ class LearningMastery {
   Map<String, int> dailyGameAttempts = {}; // exerciseType -> attempts today
   DateTime? lastGameResetDate; // When daily attempts were last reset
   
+  // Getter for debugging
+  Map<String, int> get dailyAttemptsDebug => Map.from(dailyGameAttempts);
+  
   LearningMastery({
     this.easyCorrect = 0,
     this.mediumCorrect = 0,
@@ -307,10 +310,11 @@ class LearningMastery {
   
   /// Force reset daily attempts (for "Study Again" functionality)
   void resetDailyAttempts() {
-    print('🔍 LearningMastery: resetDailyAttempts called - before clear: $dailyGameAttempts');
+    print('🔍 LearningMastery: resetDailyAttempts called - before clear: $dailyAttemptsDebug');
     dailyGameAttempts.clear();
-    lastGameResetDate = DateTime.now();
-    print('🔍 LearningMastery: resetDailyAttempts called - after clear: $dailyGameAttempts');
+    // Set to yesterday so _resetDailyAttemptsIfNeeded() will think it's a new day
+    lastGameResetDate = DateTime.now().subtract(const Duration(days: 1));
+    print('🔍 LearningMastery: resetDailyAttempts called - after clear: $dailyAttemptsDebug, lastGameResetDate: $lastGameResetDate');
   }
   
   /// Get XP for a game attempt (with daily diminishing returns)
@@ -583,7 +587,24 @@ class LearningMastery {
         ?.map((key, value) => MapEntry(key, value as int))
         ?? {};
     
-    print('🔍 LearningMastery: fromJson - dailyGameAttempts: $dailyGameAttempts');
+    final lastGameResetDate = json['lastGameResetDate'] != null 
+        ? DateTime.parse(json['lastGameResetDate']) 
+        : null;
+    
+    print('🔍 LearningMastery: fromJson - dailyGameAttempts: $dailyGameAttempts, lastGameResetDate: $lastGameResetDate');
+    
+    // Check if we need to reset daily attempts (it's a new day)
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final shouldReset = lastGameResetDate == null || 
+        DateTime(lastGameResetDate.year, lastGameResetDate.month, lastGameResetDate.day) != today;
+    
+    final finalDailyGameAttempts = shouldReset ? <String, int>{} : dailyGameAttempts;
+    final finalLastGameResetDate = shouldReset ? now : lastGameResetDate;
+    
+    if (shouldReset) {
+      print('🔍 LearningMastery: fromJson - Resetting daily attempts for new day');
+    }
     
     return LearningMastery(
       easyCorrect: json['easyCorrect'] ?? 0,
@@ -614,10 +635,8 @@ class LearningMastery {
       exerciseHistory: (json['exerciseHistory'] as List<dynamic>?)
           ?.map((entry) => Map<String, dynamic>.from(entry))
           .toList() ?? [],
-      dailyGameAttempts: dailyGameAttempts,
-      lastGameResetDate: json['lastGameResetDate'] != null 
-          ? DateTime.parse(json['lastGameResetDate']) 
-          : null,
+      dailyGameAttempts: finalDailyGameAttempts,
+      lastGameResetDate: finalLastGameResetDate,
     );
   }
   

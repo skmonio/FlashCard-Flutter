@@ -1029,6 +1029,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
+                        
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
@@ -1267,8 +1268,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
-              
-              // Continue same daily session (don't reset daily attempts)
             });
             _generateQuestion();
             
