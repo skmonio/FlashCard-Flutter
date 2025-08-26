@@ -19,6 +19,19 @@ enum LearningState {
   expert         // 20+ correct answers with high accuracy
 }
 
+// NEW: Quality rating system for SuperMemo SM-2
+enum AnswerQuality {
+  completeBlackout(0),    // Total blank - couldn't recall at all
+  incorrect(1),           // Wrong answer - remembered incorrectly
+  hard(2),                // Hard to remember - struggled but got it
+  good(3),                // Good response - recalled with some effort
+  easy(4),                // Easy to remember - recalled easily
+  perfect(5);             // Perfect response - immediate recall
+  
+  const AnswerQuality(this.value);
+  final int value;
+}
+
 enum WordLevel {
   level0(0, "Seed", 0, 0, 0, 0),
   level1(1, "Beginner", 1, 10, 1, 30),
@@ -91,7 +104,12 @@ class LearningMastery {
   int hardAttempts = 0;
   int expertAttempts = 0;
   
-  // SRS and timing data
+  // NEW: SuperMemo SM-2 specific fields
+  int repetitions = 0;      // Number of successful repetitions
+  int lapses = 0;           // Number of times forgotten (quality < 3)
+  int interval = 1;         // Current interval in days (SM-2 style)
+  
+  // Legacy SRS fields (kept for backward compatibility)
   DateTime? lastReviewDate;
   int consecutiveCorrect = 0;
   int consecutiveIncorrect = 0;
@@ -135,6 +153,10 @@ class LearningMastery {
     List<Map<String, dynamic>>? exerciseHistory,
     Map<String, int>? dailyGameAttempts,
     this.lastGameResetDate,
+    // NEW: SuperMemo SM-2 fields
+    this.repetitions = 0,
+    this.lapses = 0,
+    this.interval = 1,
   }) : levelUpHistory = levelUpHistory ?? [],
        exerciseHistory = exerciseHistory ?? [],
        dailyGameAttempts = dailyGameAttempts ?? {};
@@ -207,7 +229,9 @@ class LearningMastery {
     return decayedXP.clamp(0, currentXP);
   }
   
-  /// Check if item is due for review
+  // NEW: SuperMemo SM-2 computed properties
+  
+  /// Check if item is due for review (SM-2 style)
   bool get isDueForReview {
     if (nextReviewDate == null) return true;
     return DateTime.now().isAfter(nextReviewDate!);
@@ -215,35 +239,22 @@ class LearningMastery {
   
   /// Check if item is new (never reviewed)
   bool get isNew {
-    return srsLevel == 0 && totalReviews == 0;
+    return repetitions == 0 && totalReviews == 0;
   }
   
-  /// Check if item is in learning phase
+  /// Check if item is in learning phase (repetitions 1-2)
   bool get isLearning {
-    return srsLevel >= 1 && srsLevel <= 3;
+    return repetitions >= 1 && repetitions <= 2;
   }
   
-  /// Check if item is in review phase
+  /// Check if item is in review phase (repetitions 3+)
   bool get isReviewing {
-    return srsLevel >= 4;
+    return repetitions >= 3;
   }
   
-  /// Get current interval in days
+  /// Get current interval in days (SM-2 style)
   int get currentInterval {
-    switch (srsLevel) {
-      case 0: return 0; // New item
-      case 1: return 1; // 1 day
-      case 2: return 3; // 3 days (improved from 6)
-      case 3: return 7; // 1 week (improved from 15)
-      case 4: return 14; // 2 weeks
-      case 5: return 30; // 1 month
-      case 6: return 60; // 2 months
-      case 7: return 120; // 4 months
-      case 8: return 240; // 8 months
-      case 9: return 365; // 1 year
-      case 10: return 730; // 2 years
-      default: return (pow(easeFactor, srsLevel - 3)).round();
-    }
+    return interval;
   }
   
   /// Get days until next review
@@ -291,9 +302,108 @@ class LearningMastery {
     return nextLevel.minXP - currentXPWithDecay;
   }
   
-  /// Check if word can level up
-  bool get canLevelUp {
-    return learningPercentage >= wordLevel.maxPercentage;
+  // MARK: - SuperMemo SM-2 Methods
+  
+  /// NEW: Process answer using SuperMemo SM-2 algorithm
+  /// This replaces the old markCorrect/markIncorrect methods
+  void processAnswer(GameDifficulty difficulty, AnswerQuality quality) {
+    _incrementAttempts(difficulty);
+    
+    // Update legacy fields for backward compatibility
+    totalReviews++;
+    lastReviewDate = DateTime.now();
+    
+    // Update consecutive counters
+    if (quality.value >= 3) {
+      _incrementCorrect(difficulty);
+      consecutiveCorrect++;
+      consecutiveIncorrect = 0;
+    } else {
+      consecutiveIncorrect++;
+      consecutiveCorrect = 0;
+    }
+    
+    // SuperMemo SM-2 algorithm
+    if (quality.value < 3) {
+      // Lapse: forgot the item
+      _handleLapse();
+    } else {
+      // Success: remembered the item
+      _handleSuccess(quality);
+    }
+    
+    // Calculate next review date
+    nextReviewDate = DateTime.now().add(Duration(days: interval));
+    
+    // Update legacy SRS level for backward compatibility
+    _updateLegacySRSLevel();
+  }
+  
+  /// Handle successful recall (quality >= 3)
+  void _handleSuccess(AnswerQuality quality) {
+    repetitions++;
+    
+    // Calculate new interval based on repetitions
+    if (repetitions == 1) {
+      interval = 1;
+    } else if (repetitions == 2) {
+      interval = 6;
+    } else {
+      interval = (interval * easeFactor).round();
+    }
+    
+    // Update ease factor using SuperMemo SM-2 formula
+    easeFactor = _calculateNewEaseFactor(quality.value, easeFactor);
+  }
+  
+  /// Handle lapse (quality < 3)
+  void _handleLapse() {
+    lapses++;
+    repetitions = 0;
+    interval = 1;
+    
+    // Graduated ease factor reduction
+    if (lapses == 1) {
+      easeFactor = (easeFactor - 0.2).clamp(1.3, 2.5);
+    } else {
+      easeFactor = (easeFactor - 0.15).clamp(1.3, 2.5);
+    }
+  }
+  
+  /// Calculate new ease factor using SuperMemo SM-2 formula
+  double _calculateNewEaseFactor(int quality, double oldEaseFactor) {
+    // SM-2 formula: EF' = EF + (0.1 - (5-q) * (0.08 + (5-q) * 0.02))
+    double newEaseFactor = oldEaseFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+    return newEaseFactor.clamp(1.3, 2.5);
+  }
+  
+  /// Update legacy SRS level for backward compatibility
+  void _updateLegacySRSLevel() {
+    // Map repetitions to legacy SRS levels
+    if (repetitions == 0) {
+      srsLevel = 0;
+    } else if (repetitions == 1) {
+      srsLevel = 1;
+    } else if (repetitions == 2) {
+      srsLevel = 2;
+    } else {
+      // For higher repetitions, use a formula that approximates the old system
+      srsLevel = (repetitions + 1).clamp(3, 10);
+    }
+  }
+  
+  // MARK: - Legacy Methods (for backward compatibility)
+  
+  /// Legacy method - now delegates to processAnswer
+  void markCorrect(GameDifficulty difficulty) {
+    // Default to "good" quality for legacy calls
+    processAnswer(difficulty, AnswerQuality.good);
+  }
+  
+  /// Legacy method - now delegates to processAnswer
+  void markIncorrect(GameDifficulty difficulty) {
+    // Default to "incorrect" quality for legacy calls
+    processAnswer(difficulty, AnswerQuality.incorrect);
   }
   
   /// Reset daily game attempts if it's a new day
@@ -393,53 +503,17 @@ class LearningMastery {
   
   /// Calculate weighted accuracy based on game difficulty
   double _calculateWeightedAccuracy() {
-    if (totalAttempts == 0) return 0.0;
+    final totalWeightedAttempts = (easyAttempts * GameDifficulty.easy.weight) + 
+                                 (mediumAttempts * GameDifficulty.medium.weight) + 
+                                 (hardAttempts * GameDifficulty.hard.weight) + 
+                                 (expertAttempts * GameDifficulty.expert.weight);
     
-    double weightedCorrect = totalWeightedScore;
-    double weightedTotal = (easyAttempts * GameDifficulty.easy.weight) + 
-                          (mediumAttempts * GameDifficulty.medium.weight) + 
-                          (hardAttempts * GameDifficulty.hard.weight) + 
-                          (expertAttempts * GameDifficulty.expert.weight);
+    if (totalWeightedAttempts == 0) return 0.0;
     
-    return weightedTotal > 0 ? weightedCorrect / weightedTotal : 0.0;
-  }
-  
-  /// Calculate mastery bonus based on current state
-  double _calculateMasteryBonus() {
-    switch (currentState) {
-      case LearningState.newCard:
-        return 0.3; // 30% cap for new items
-      case LearningState.learning:
-        return 0.6; // 60% cap for learning items
-      case LearningState.reviewing:
-        return 0.8; // 80% cap for reviewing items
-      case LearningState.familiar:
-        return 0.9; // 90% cap for familiar items
-      case LearningState.mastered:
-        return 0.95; // 95% cap for mastered items
-      case LearningState.expert:
-        return 1.0; // 100% cap for expert items
-    }
-  }
-  
-  /// Calculate time decay factor (old method - kept for compatibility)
-  double _calculateDecayFactor() {
-    if (lastReviewDate == null) return 1.0;
-    
-    final daysSinceReview = DateTime.now().difference(lastReviewDate!).inDays;
-    
-    // No decay for first 7 days
-    if (daysSinceReview <= 7) return 1.0;
-    
-    // Gradual decay after 7 days: 3% per week (improved from 5%)
-    final weeksSinceReview = (daysSinceReview - 7) / 7.0;
-    final decayFactor = 1.0 - (weeksSinceReview * 0.03);
-    
-    return decayFactor.clamp(0.5, 1.0); // Minimum 50% retention (improved from 30%)
+    return totalWeightedScore / totalWeightedAttempts;
   }
   
   /// Apply time decay to learning percentage
-  /// Cards lose percentage over time if not reviewed
   double _applyTimeDecay(double basePercentage) {
     if (lastReviewDate == null) return basePercentage;
     
@@ -464,54 +538,6 @@ class LearningMastery {
     if (srsLevel >= 8) return 1.1; // 10% bonus for high SRS levels
     if (srsLevel >= 5) return 1.05; // 5% bonus for medium SRS levels
     return 1.0; // No bonus for low SRS levels
-  }
-  
-  // MARK: - SRS Methods
-  
-  /// Mark answer as correct for specific game difficulty
-  void markCorrect(GameDifficulty difficulty) {
-    _incrementAttempts(difficulty);
-    _incrementCorrect(difficulty);
-    
-    consecutiveCorrect++;
-    consecutiveIncorrect = 0;
-    totalReviews++;
-    lastReviewDate = DateTime.now();
-    
-    // Update SRS level
-    if (srsLevel < 10) {
-      srsLevel++;
-    }
-    
-    // Calculate next review date
-    final interval = currentInterval;
-    nextReviewDate = DateTime.now().add(Duration(days: interval));
-    
-    // Update ease factor (improved algorithm)
-    if (consecutiveCorrect >= 3) {
-      easeFactor = (easeFactor + 0.1).clamp(1.3, 2.5);
-    }
-  }
-  
-  /// Mark answer as incorrect for specific game difficulty
-  void markIncorrect(GameDifficulty difficulty) {
-    _incrementAttempts(difficulty);
-    
-    consecutiveIncorrect++;
-    consecutiveCorrect = 0;
-    totalReviews++;
-    lastReviewDate = DateTime.now();
-    
-    // Reset SRS level to 1 if it was higher
-    if (srsLevel > 1) {
-      srsLevel = 1;
-    }
-    
-    // Calculate next review date (1 day for incorrect)
-    nextReviewDate = DateTime.now().add(const Duration(days: 1));
-    
-    // Decrease ease factor
-    easeFactor = (easeFactor - 0.2).clamp(1.3, 2.5);
   }
   
   /// Helper method to increment attempts for specific difficulty
@@ -576,9 +602,12 @@ class LearningMastery {
       'exerciseHistory': exerciseHistory,
       'dailyGameAttempts': dailyGameAttempts,
       'lastGameResetDate': lastGameResetDate?.toIso8601String(),
+      // NEW: SuperMemo SM-2 fields
+      'repetitions': repetitions,
+      'lapses': lapses,
+      'interval': interval,
     };
     
-    print('🔍 LearningMastery: toJson - dailyGameAttempts: $dailyGameAttempts');
     return json;
   }
   
@@ -637,6 +666,10 @@ class LearningMastery {
           .toList() ?? [],
       dailyGameAttempts: finalDailyGameAttempts,
       lastGameResetDate: finalLastGameResetDate,
+      // NEW: SuperMemo SM-2 fields
+      repetitions: json['repetitions'] ?? 0,
+      lapses: json['lapses'] ?? 0,
+      interval: json['interval'] ?? 1,
     );
   }
   
@@ -663,6 +696,10 @@ class LearningMastery {
     List<Map<String, dynamic>>? exerciseHistory,
     Map<String, int>? dailyGameAttempts,
     DateTime? lastGameResetDate,
+    // NEW: SuperMemo SM-2 fields
+    int? repetitions,
+    int? lapses,
+    int? interval,
   }) {
     return LearningMastery(
       easyCorrect: easyCorrect ?? this.easyCorrect,
@@ -686,6 +723,10 @@ class LearningMastery {
       exerciseHistory: exerciseHistory ?? this.exerciseHistory,
       dailyGameAttempts: dailyGameAttempts ?? this.dailyGameAttempts,
       lastGameResetDate: lastGameResetDate ?? this.lastGameResetDate,
+      // NEW: SuperMemo SM-2 fields
+      repetitions: repetitions ?? this.repetitions,
+      lapses: lapses ?? this.lapses,
+      interval: interval ?? this.interval,
     );
   }
 }
