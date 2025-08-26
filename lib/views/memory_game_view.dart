@@ -779,11 +779,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
       
       // Track XP for correct match
       XpService.recordAnswer(_gameSession, true);
-      
-      // Update learning progress for the matched card
-      _updateCardLearningProgress(_firstCard!.originalCard, true).catchError((e) {
-        print('🔍 MemoryGameView: Error in background update: $e');
-      });
 
       // Store references to the matched cards
       final matchedFirstCard = _firstCard!;
@@ -799,6 +794,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Award XP to both matched cards for RPG system
       _awardXPToWord(matchedFirstCard.originalCard, true);
       _awardXPToWord(matchedSecondCard.originalCard, true);
+      
+      // Update the cards in the provider to save the XP changes
+      _updateCardInProvider(matchedFirstCard.originalCard);
+      _updateCardInProvider(matchedSecondCard.originalCard);
 
       // Count each matched pair as one card processed
       _totalCardsProcessed++;
@@ -823,17 +822,13 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Track XP for incorrect match (0 XP)
       XpService.recordAnswer(_gameSession, false);
       
-      // Update learning progress for the mismatched cards (as incorrect attempts)
-      _updateCardLearningProgress(_firstCard!.originalCard, false).catchError((e) {
-        print('🔍 MemoryGameView: Error in background update: $e');
-      });
-      _updateCardLearningProgress(_secondCard!.originalCard, false).catchError((e) {
-        print('🔍 MemoryGameView: Error in background update: $e');
-      });
-      
       // Award XP to both mismatched cards for RPG system (0 XP for incorrect)
       _awardXPToWord(_firstCard!.originalCard, false);
       _awardXPToWord(_secondCard!.originalCard, false);
+      
+      // Update the cards in the provider to save the XP changes
+      _updateCardInProvider(_firstCard!.originalCard);
+      _updateCardInProvider(_secondCard!.originalCard);
       
       // In shuffle mode, end the game immediately on incorrect match
       if (widget.shuffleMode && widget.onComplete != null) {
@@ -984,30 +979,16 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
   // Old _processReplacementQueue method removed - using simplified _replaceMatchedCards instead
 
-  Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
+  Future<void> _updateCardInProvider(FlashCard card) async {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Update the card's learning progress
-      final updatedCard = card.copyWith(
-        learningMastery: card.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty (assuming medium for memory game)
-      if (wasCorrect) {
-        updatedCard.markCorrect(GameDifficulty.medium);
-      } else {
-        updatedCard.markIncorrect(GameDifficulty.medium);
-      }
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 MemoryGameView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
+      // Update the card in the provider to save the XP changes
+      await provider.updateCard(card);
+      print('🔍 MemoryGameView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 MemoryGameView: Error updating learning progress: $e');
+      print('🔍 MemoryGameView: Error updating card in provider: $e');
     }
   }
 

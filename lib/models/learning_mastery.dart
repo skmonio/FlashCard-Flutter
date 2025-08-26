@@ -465,7 +465,7 @@ class LearningMastery {
   void addXP(int xp, String exerciseType) {
     final previousLevel = currentLevel;
     currentXP += xp;
-    currentLevel = wordLevel.level;
+    currentLevel = rpgWordLevel.level;
     
     // Record exercise history
     exerciseHistory.add({

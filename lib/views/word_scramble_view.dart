@@ -252,11 +252,11 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // Update learning progress in the provider
-    _updateCardLearningProgress(currentCard, isCorrect);
-    
     // Award XP to word for RPG system
     _awardXPToWord(currentCard, isCorrect);
+    
+    // Update the card in the provider to save the XP changes
+    _updateCardInProvider(currentCard);
     
     setState(() {
       _answered = true;
@@ -298,33 +298,16 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     }
   }
 
-  Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
+  Future<void> _updateCardInProvider(FlashCard card) async {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      // Get game difficulty for word scramble
-      final difficulty = GameDifficultyHelper.getDifficultyForGameMode('word scramble');
-      
-      // Create updated card with new learning mastery
-      final updatedCard = card.copyWith(
-        learningMastery: card.learningMastery.copyWith(),
-      );
-      
-      // Update learning mastery based on difficulty
-      if (wasCorrect) {
-        updatedCard.markCorrect(difficulty);
-      } else {
-        updatedCard.markIncorrect(difficulty);
-      }
-      
-      await provider.updateCard(updatedCard);
-      print('🔍 WordScrambleView: Updated learning progress for "${card.word}" - wasCorrect: $wasCorrect, difficulty: ${difficulty.name}, new percentage: ${updatedCard.learningPercentage}%');
-      
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
+      // Update the card in the provider to save the XP changes
+      await provider.updateCard(card);
+      print('🔍 WordScrambleView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 WordScrambleView: Error updating learning progress: $e');
+      print('🔍 WordScrambleView: Error updating card in provider: $e');
     }
   }
 
