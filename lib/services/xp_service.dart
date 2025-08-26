@@ -9,21 +9,29 @@ class XpService {
   factory XpService() => _instance;
   XpService._internal();
 
-  // XP rewards for different exercise types (simplified)
+  // XP rewards for different exercise types (by complexity)
   static const Map<String, int> exerciseXPRewards = {
-    'multiple_choice': 10,
-    'true_false': 10,
+    // Easy exercises (basic recognition)
+    'multiple_choice': 5,
+    'true_false': 5,
+    'memory': 5,
+    
+    // Medium exercises (recall and application)
     'word_scramble': 10,
-    'writing': 10,
-    'sentence_building': 10,
     'de_het': 10,
     'plural': 10,
     'fill_in_blank': 10,
-    'study': 10, // For advanced study mode
+    'sentence_building': 10,
     'test': 10, // For test mode
-    'timed_multiple_choice': 10,
-    'timed_true_false': 10,
-    'timed_word_scramble': 10,
+    
+    // Hard exercises (production and recall)
+    'writing': 15,
+    'study': 15, // For advanced study mode
+    
+    // Timed exercises (pressure + complexity)
+    'timed_multiple_choice': 8,
+    'timed_true_false': 8,
+    'timed_word_scramble': 12,
   };
 
   // No streak bonuses - simple XP system
