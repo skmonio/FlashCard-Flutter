@@ -97,6 +97,7 @@ class FlashCard {
   int get consecutiveIncorrect => learningMastery.consecutiveIncorrect;
   double get easeFactor => learningMastery.easeFactor;
   DateTime? get lastReviewDate => learningMastery.lastReviewDate;
+  DateTime? get nextReviewDate => learningMastery.nextReviewDate;
   int get totalReviews => learningMastery.totalReviews;
   
   // MARK: - Enhanced SRS Methods
