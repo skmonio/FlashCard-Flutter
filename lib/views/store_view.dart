@@ -72,7 +72,11 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
                     ),
                   ),
                   const Spacer(),
-                  const SizedBox(width: 48), // Balance the back button
+                  IconButton(
+                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                    icon: const Icon(Icons.home),
+                    iconSize: 20,
+                  ),
                 ],
               ),
             ),
