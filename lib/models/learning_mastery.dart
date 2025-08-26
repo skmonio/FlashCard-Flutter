@@ -198,16 +198,19 @@ class LearningMastery {
     return LearningState.expert;
   }
   
-  /// Learning percentage directly based on XP (reasonable progression system)
+  /// Learning percentage based on XP with SRS bonus
   double get learningPercentage {
-    // Reasonable progression: XP to percentage
-    // 1100 XP total = 100% learned (slightly more than original 1000)
-    // Each 11 XP = 1% learned (slightly more than original 10)
-    
+    // Base percentage from XP
     final currentXP = currentXPWithDecay;
-    final percentage = (currentXP / 11.0).clamp(0.0, 100.0);
+    final basePercentage = (currentXP / 11.0).clamp(0.0, 100.0);
     
-    return percentage;
+    // SRS bonus: +5% per SRS level (max +50% at level 10)
+    final srsBonus = (srsLevel * 5.0).clamp(0.0, 50.0);
+    
+    // Final percentage: base + bonus, capped at 100%
+    final finalPercentage = (basePercentage + srsBonus).clamp(0.0, 100.0);
+    
+    return finalPercentage;
   }
   
   /// Get current XP with time decay applied
