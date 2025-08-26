@@ -50,6 +50,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   // Timed mode settings
   bool _useTimedMode = false;
   TimedDifficulty _selectedTimedDifficulty = TimedDifficulty.medium;
+  
+  // SRS settings
+  bool _useSRSFiltering = true; // Default to SRS on
 
   @override
   Widget build(BuildContext context) {
@@ -343,9 +346,21 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       return;
     }
     
+    // Apply SRS filtering if enabled
+    List<FlashCard> filteredCards;
+    if (_useSRSFiltering) {
+      // Sort by due status: due cards first, then not due
+      final dueCards = allCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      // Show all cards regardless of SRS status
+      filteredCards = allCards;
+    }
+    
     // Shuffle and take a subset of cards for quick study
-    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
-    final cardCount = _selectedCardCount >= 50 ? allCards.length : _selectedCardCount;
+    final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
+    final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
     final studyCards = shuffledCards.take(cardCount).toList();
     
     // Navigate based on game mode
@@ -527,6 +542,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         useMixedMode: _getUseMixedMode(),
         useTimedMode: _useTimedMode,
         timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+        useSRSFiltering: _useSRSFiltering,
       ),
     );
   }
@@ -568,6 +584,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 
                 // Number of Cards (for all modes)
                 _buildCardCountSetting(setState),
+                const SizedBox(height: 16),
+                
+                // SRS Filtering (for all modes)
+                _buildSRSFilteringSetting(setState),
               ],
             ),
           ),
@@ -983,6 +1003,50 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
+  Widget _buildSRSFilteringSetting(StateSetter setState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.schedule, size: 20),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'SRS Filtering',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Switch(
+              value: _useSRSFiltering,
+              onChanged: (value) {
+                setState(() {
+                  _useSRSFiltering = value;
+                });
+                this.setState(() {
+                  _useSRSFiltering = value;
+                });
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _useSRSFiltering 
+            ? 'Show cards based on SRS schedule (due cards first)'
+            : 'Show all cards regardless of SRS schedule',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showGameInfo(BuildContext context) {
     String title = '';
     String content = '';
@@ -1284,6 +1348,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool useMixedMode;
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
+  final bool useSRSFiltering;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -1297,6 +1362,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     this.useMixedMode = false,
     this.useTimedMode = false,
     this.timedDifficulty,
+    required this.useSRSFiltering,
   });
 
   @override
@@ -1359,11 +1425,23 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       return;
     }
 
+    // Apply SRS filtering if enabled
+    List<FlashCard> filteredCards;
+    if (widget.useSRSFiltering) {
+      // Sort by due status: due cards first, then not due
+      final dueCards = allSelectedCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allSelectedCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      // Show all cards regardless of SRS status
+      filteredCards = allSelectedCards;
+    }
+
     // Shuffle and limit cards if needed
-    allSelectedCards.shuffle();
-    final cardCount = widget.selectedCardCount >= 50 ? allSelectedCards.length : widget.selectedCardCount;
-    if (allSelectedCards.length > cardCount) {
-      allSelectedCards = allSelectedCards.take(cardCount).toList();
+    filteredCards.shuffle();
+    final cardCount = widget.selectedCardCount >= 50 ? filteredCards.length : widget.selectedCardCount;
+    if (filteredCards.length > cardCount) {
+      filteredCards = filteredCards.take(cardCount).toList();
     }
 
     Navigator.of(context).pop();
@@ -1379,7 +1457,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => AdvancedStudyView(
-              cards: allSelectedCards,
+              cards: filteredCards,
               startFlipped: widget.startFlipped,
               title: title,
             ),
@@ -1391,7 +1469,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => TimedMultipleChoiceView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 difficulty: widget.timedDifficulty!,
                 startFlipped: widget.startFlipped,
@@ -1402,7 +1480,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => MultipleChoiceView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 autoProgress: widget.autoProgress,
                 useLivesMode: widget.useLivesMode,
@@ -1419,7 +1497,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => TimedTrueFalseView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 difficulty: widget.timedDifficulty!,
               ),
@@ -1429,7 +1507,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => TrueFalseView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 autoProgress: widget.autoProgress,
                 useLivesMode: widget.useLivesMode,
@@ -1470,13 +1548,13 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           }
           
           // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
-          final totalPairs = (allSelectedCards.length / 2).ceil();
+          final totalPairs = (filteredCards.length / 2).ceil();
           final totalTimeSeconds = totalPairs * secondsPerPair;
           
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => MemoryGameView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 startFlipped: widget.startFlipped,
                 timedMode: true,
                 timeLimitSeconds: totalTimeSeconds,
@@ -1488,7 +1566,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => MemoryGameView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 startFlipped: widget.startFlipped,
               ),
             ),
@@ -1500,7 +1578,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => TimedWordScrambleView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 difficulty: widget.timedDifficulty!,
               ),
@@ -1510,7 +1588,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => WordScrambleView(
-                cards: allSelectedCards,
+                cards: filteredCards,
                 title: title,
                 startFlipped: widget.startFlipped,
                 autoProgress: widget.autoProgress,
