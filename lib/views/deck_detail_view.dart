@@ -29,6 +29,7 @@ class DeckDetailView extends StatefulWidget {
 class _DeckDetailViewState extends State<DeckDetailView> {
   String _searchQuery = '';
   String _sortBy = 'word'; // word, definition, dateCreated, srsLevel
+  bool _showOnlyParentCards = false; // Track whether to show only parent deck cards
 
   @override
   Widget build(BuildContext context) {
@@ -122,96 +123,174 @@ class _DeckDetailViewState extends State<DeckDetailView> {
 
   Widget _buildSearchAndSort() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          // Search Bar
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Search cards...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                      icon: const Icon(Icons.clear),
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceVariant,
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          
-          // Sort Options
+          // Search and Sort Row
           Row(
             children: [
-              Text(
-                'Sort by: ',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              // Search Bar
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search cards...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _searchQuery = '';
+                              });
+                            },
+                            icon: const Icon(Icons.clear),
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
                 ),
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+              const SizedBox(width: 12),
+              // Sort Button
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  setState(() {
+                    _sortBy = value;
+                  });
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'word',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.sort_by_alpha),
+                        const SizedBox(width: 8),
+                        const Text('Word A-Z'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'definition',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.sort_by_alpha),
+                        const SizedBox(width: 8),
+                        const Text('Definition A-Z'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'dateCreated',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time),
+                        const SizedBox(width: 8),
+                        const Text('Date Added'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'srsLevel',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.trending_up),
+                        const SizedBox(width: 8),
+                        const Text('SRS Level'),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildSortChip('word', 'Word'),
-                      _buildSortChip('definition', 'Definition'),
-                      _buildSortChip('dateCreated', 'Date Added'),
-                      _buildSortChip('srsLevel', 'SRS Level'),
+                      Icon(_getSortIcon(_sortBy), size: 16),
+                      const SizedBox(width: 4),
+                      Text(_getSortOptionText(_sortBy)),
                     ],
                   ),
                 ),
               ),
             ],
           ),
+          
+          // View Mode Toggle (only for parent decks)
+          if (!widget.deck.isSubDeck) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'View: ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildViewModeChip('all', 'All Cards', !_showOnlyParentCards),
+                const SizedBox(width: 8),
+                _buildViewModeChip('parent', 'Parent Only', _showOnlyParentCards),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildSortChip(String value, String label) {
-    final isSelected = _sortBy == value;
-    
+  Widget _buildViewModeChip(String value, String label, bool isSelected) {
     Widget chip = FilterChip(
       label: Text(label),
       selected: isSelected,
       onSelected: (selected) {
         setState(() {
-          _sortBy = value;
+          _showOnlyParentCards = value == 'parent';
         });
       },
     );
     
-    // Add tooltip for SRS Level
-    if (value == 'srsLevel') {
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Tooltip(
-          message: 'Sort by learning progress level (0 = new, 10 = mastered)',
-          child: chip,
-        ),
-      );
+    return chip;
+  }
+  
+  IconData _getSortIcon(String sortBy) {
+    switch (sortBy) {
+      case 'word':
+      case 'definition':
+        return Icons.sort_by_alpha;
+      case 'dateCreated':
+        return Icons.access_time;
+      case 'srsLevel':
+        return Icons.trending_up;
+      default:
+        return Icons.sort_by_alpha;
     }
-    
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: chip,
-    );
+  }
+
+  String _getSortOptionText(String sortBy) {
+    switch (sortBy) {
+      case 'word':
+        return 'Word A-Z';
+      case 'definition':
+        return 'Definition A-Z';
+      case 'dateCreated':
+        return 'Date Added';
+      case 'srsLevel':
+        return 'SRS Level';
+      default:
+        return 'Word A-Z';
+    }
   }
 
   Widget _buildEmptyState() {
@@ -298,28 +377,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(card.definition),
-                if (card.example.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    card.example,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  if (card.exampleTranslation.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      card.exampleTranslation,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ],
-                ],
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -466,8 +523,17 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   List<FlashCard> _getFilteredAndSortedCards(FlashcardProvider provider) {
-    // Get cards from the deck including all sub-decks
-    var cards = provider.getCardsForDeckWithSubDecks(widget.deck.id);
+    // Get cards based on the current view mode
+    List<FlashCard> cards;
+    if (widget.deck.isSubDeck) {
+      // For sub-decks, always show only their own cards
+      cards = provider.getCardsForDeck(widget.deck.id);
+    } else {
+      // For parent decks, show either only parent cards or all cards including sub-decks
+      cards = _showOnlyParentCards 
+          ? provider.getCardsForDeck(widget.deck.id)
+          : provider.getCardsForDeckWithSubDecks(widget.deck.id);
+    }
 
     // Filter by search query
     if (_searchQuery.isNotEmpty) {
@@ -592,42 +658,46 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       return;
     }
     
-    // Create Dutch word exercises from the deck cards, checking for existing exercises first
-    final exercises = deckCards.map((card) {
+    // Only use existing exercises - don't auto-generate new ones
+    final exercises = <DutchWordExercise>[];
+    int wordsWithoutExercises = 0;
+    
+    for (final card in deckCards) {
       // Check if there's already an existing exercise for this card
       final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
       
-      if (existingExercise != null) {
+      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
         // Use existing exercise if found
         print('🔍 DeckDetailView: Found existing exercise for "${card.word}" with ${existingExercise.exercises.length} exercises');
-        return existingExercise;
+        exercises.add(existingExercise);
       } else {
-        // Create a new exercise if none exists
-        print('🔍 DeckDetailView: Created new exercise for "${card.word}" with 1 exercise');
-        return DutchWordExercise(
-          id: card.id,
-          targetWord: card.word,
-          wordTranslation: card.definition,
-          deckId: widget.deck.id,
-          deckName: widget.deck.name,
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [
-            WordExercise(
-              id: '${card.id}_exercise_1',
-              type: ExerciseType.multipleChoice,
-              prompt: 'Translate "${card.word}" to English',
-              correctAnswer: card.definition,
-              options: [card.definition, 'Incorrect option 1', 'Incorrect option 2', 'Incorrect option 3'],
-              explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
-              difficulty: ExerciseDifficulty.beginner,
-            ),
-          ],
-          createdAt: card.dateCreated,
-          isUserCreated: true,
-        );
+        // Count words without exercises
+        wordsWithoutExercises++;
+        print('🔍 DeckDetailView: No exercises found for "${card.word}"');
       }
-    }).toList();
+    }
+    
+    // Show message if some words don't have exercises
+    if (wordsWithoutExercises > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have exercises. You can add exercises by editing individual cards.'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    
+    // Only proceed if we have exercises to study
+    if (exercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No exercises available in this deck. Please add exercises to cards first.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     
     // Navigate to the Dutch words practice view
     Navigator.of(context).push(
@@ -681,13 +751,24 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   void _editCard(FlashCard card) {
+    // Get the fresh card data from the provider to ensure we have the latest version
+    final provider = context.read<FlashcardProvider>();
+    final freshCard = provider.cards.firstWhere((c) => c.id == card.id);
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AddCardView(
-          cardToEdit: card,
+          cardToEdit: freshCard,
         ),
       ),
-    );
+    ).then((result) {
+      // Refresh the UI if card was updated
+      if (result == true) {
+        setState(() {
+          // Trigger rebuild to show updated card information
+        });
+      }
+    });
   }
 
   void _deleteCard(FlashCard card) {
@@ -787,6 +868,84 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         ),
       ),
     );
+  }
+
+  List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
+    // Start with the correct answer
+    final options = <String>[targetCard.definition];
+    
+    // Get all cards from the provider
+    final provider = context.read<FlashcardProvider>();
+    final allCards = provider.cards;
+    
+    // Get other definitions, prioritizing the preferred deck if specified
+    List<String> otherDefinitions = [];
+    
+    if (preferredDeckId != null) {
+      // First, try to get definitions from the preferred deck
+      final deckCards = allCards.where((card) => 
+        card.id != targetCard.id && 
+        card.definition.isNotEmpty &&
+        card.deckIds.contains(preferredDeckId)
+      ).map((card) => card.definition).toList();
+      
+      otherDefinitions.addAll(deckCards);
+    }
+    
+    // If we don't have enough options, add from all other cards
+    if (otherDefinitions.length < 5) {
+      final remainingCards = allCards.where((card) => 
+        card.id != targetCard.id && 
+        card.definition.isNotEmpty &&
+        !otherDefinitions.contains(card.definition)
+      ).map((card) => card.definition).toList();
+      
+      otherDefinitions.addAll(remainingCards);
+    }
+    
+    // Shuffle and take up to 5 more options (to make 6 total)
+    otherDefinitions.shuffle();
+    final additionalOptions = otherDefinitions.take(5).toList();
+    
+    // Add the additional options
+    options.addAll(additionalOptions);
+    
+    // If we don't have enough options from other cards, add some generic but realistic options
+    while (options.length < 6) {
+      final genericOptions = [
+        'to walk',
+        'to eat',
+        'to sleep',
+        'to work',
+        'to play',
+        'to read',
+        'to write',
+        'to speak',
+        'to listen',
+        'to watch',
+        'to buy',
+        'to sell',
+        'to give',
+        'to take',
+        'to come',
+        'to go',
+        'to see',
+        'to know',
+        'to think',
+        'to feel',
+      ];
+      
+      final randomOption = genericOptions[DateTime.now().millisecondsSinceEpoch % genericOptions.length];
+      if (!options.contains(randomOption)) {
+        options.add(randomOption);
+      }
+    }
+    
+    // Shuffle the final options
+    options.shuffle();
+    
+    // Ensure we have exactly 6 options
+    return options.take(6).toList();
   }
 
   void _showCardDetails(FlashCard card) {
@@ -952,6 +1111,13 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _editCard(card);
+            },
+            child: const Text('Edit'),
           ),
         ],
       ),

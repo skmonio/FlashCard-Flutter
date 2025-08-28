@@ -8,7 +8,7 @@ import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
-import '../utils/game_difficulty_helper.dart';
+
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
 
@@ -62,6 +62,9 @@ class _WritingViewState extends State<WritingView> {
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+
+  // Custom keyboard letters
+  List<String> _keyboardLetters = [];
 
   @override
   void initState() {
@@ -124,7 +127,37 @@ class _WritingViewState extends State<WritingView> {
     
     print('🔍 WritingView: Refreshed cards from provider');
   }
-
+  
+  void _generateKeyboardLetters() {
+    // Get unique letters from the correct answer
+    final Set<String> answerLetters = {};
+    for (int i = 0; i < _correctAnswer.length; i++) {
+      final char = _correctAnswer[i];
+      if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+        answerLetters.add(char.toUpperCase());
+      }
+    }
+    
+    // Add some extra common letters to make the keyboard more useful
+    final extraLetters = ['A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'N', 'L', 'C', 'D', 'P', 'M', 'H', 'G', 'B', 'F', 'K', 'W', 'V', 'X', 'Y', 'Z', 'J', 'Q'];
+    
+    // Combine answer letters with some extra letters
+    final Set<String> allLetters = {...answerLetters};
+    
+    // Add extra letters (but not too many to keep the keyboard manageable)
+    final random = Random();
+    final targetSize = answerLetters.length + 8; // Aim for answer letters + 8 extra
+    
+    while (allLetters.length < targetSize && extraLetters.isNotEmpty) {
+      final randomIndex = random.nextInt(extraLetters.length);
+      allLetters.add(extraLetters[randomIndex]);
+      extraLetters.removeAt(randomIndex);
+    }
+    
+    // Convert to list and shuffle
+    _keyboardLetters = allLetters.toList()..shuffle(random);
+  }
+  
   void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
@@ -150,10 +183,39 @@ class _WritingViewState extends State<WritingView> {
       // Load existing question data
       _isQuestionMode = _questionModes[_currentIndex]!;
       _correctAnswer = _correctAnswersText[_currentIndex]!;
-      _displayWord = _answeredQuestions[_currentIndex]!;
       _userAnswer = _answeredQuestions[_currentIndex]!;
       _answered = true;
       _textController.text = _userAnswer;
+      
+      // Regenerate keyboard letters for this question
+      _generateKeyboardLetters();
+      
+      // Reconstruct the letter tracking sets based on the stored answer
+      _guessedLetters.clear();
+      _revealedLetters.clear();
+      
+      // If the question was answered correctly, all letters should be revealed
+      if (_correctAnswersMap[_currentIndex] == true) {
+        for (int i = 0; i < _correctAnswer.length; i++) {
+          final char = _correctAnswer[i];
+          if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+            _revealedLetters.add(char.toUpperCase());
+          }
+        }
+      } else {
+        // If answered incorrectly, we need to determine which letters were guessed
+        // For now, we'll show the complete answer since we don't track individual guesses
+        for (int i = 0; i < _correctAnswer.length; i++) {
+          final char = _correctAnswer[i];
+          if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+            _revealedLetters.add(char.toUpperCase());
+          }
+        }
+      }
+      
+      // Show the complete answer
+      _displayWord = _correctAnswer;
+      
       return;
     }
 
@@ -170,8 +232,15 @@ class _WritingViewState extends State<WritingView> {
     // Get correct answer
     _correctAnswer = _isQuestionMode ? currentCard.word : currentCard.definition;
     
-    // Create display word with underscores
-    _displayWord = _correctAnswer.replaceAll(RegExp(r'[a-zA-Z]'), '_');
+    // Clear letter tracking sets FIRST to prevent any prefilling
+    _guessedLetters.clear();
+    _revealedLetters.clear();
+    
+    // Generate custom keyboard letters
+    _generateKeyboardLetters();
+    
+    // Initialize display word with underscores
+    _updateDisplayWord();
     
     // Store question data for future reference
     _correctAnswersText[_currentIndex] = _correctAnswer;
@@ -182,8 +251,6 @@ class _WritingViewState extends State<WritingView> {
       _lives = 5;
       _userAnswer = '';
       _textController.clear();
-      _guessedLetters.clear();
-      _revealedLetters.clear();
     });
   }
 
@@ -262,7 +329,8 @@ class _WritingViewState extends State<WritingView> {
         if (_lives <= 0) {
           _answered = true;
           _totalAnswered++;
-          _displayWord = _correctAnswer; // Show the correct answer
+          // Show the complete correct answer
+          _displayWord = _correctAnswer;
           _correctAnswersMap[_currentIndex] = false;
           _answeredQuestions[_currentIndex] = _displayWord;
           
@@ -355,6 +423,9 @@ class _WritingViewState extends State<WritingView> {
   }
 
   void _goToPreviousQuestion() {
+    // Only allow navigation if the question is answered
+    if (!_answered) return;
+    
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
@@ -364,6 +435,9 @@ class _WritingViewState extends State<WritingView> {
   }
 
   void _goToNextQuestion() {
+    // Only allow navigation if the question is answered
+    if (!_answered) return;
+    
     if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
@@ -440,10 +514,10 @@ class _WritingViewState extends State<WritingView> {
             ),
           ),
           
-          // Question area
+          // Scrollable play area
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), // Reduced top padding
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(
                 children: [
                   // Question text above card
@@ -456,19 +530,19 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16), // Reduced spacing
+                  const SizedBox(height: 16),
                   
                   // Card with white background and colored outline
                   Container(
                     width: double.infinity,
-                    height: 200, // Reduced height
-                    padding: const EdgeInsets.all(24), // Reduced padding
+                    height: 200,
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20), // Slightly smaller radius
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: _getCardBorderColor(currentCard),
-                        width: 4, // Slightly thinner border
+                        width: 4,
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -487,7 +561,7 @@ class _WritingViewState extends State<WritingView> {
                       child: Text(
                         _isQuestionMode ? currentCard.definition : currentCard.word,
                         style: const TextStyle(
-                          fontSize: 32, // Smaller font size
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                         ),
@@ -496,134 +570,89 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                   
-                  const SizedBox(height: 20), // Reduced spacing
+                  const SizedBox(height: 16),
                   
-                  // Lives indicator
+                  // Navigation buttons (always visible, greyed out when not available)
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: index < _lives ? Colors.red : Colors.grey.withValues(alpha: 0.3),
-                          shape: BoxShape.circle,
+                    children: [
+                      // Back button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: (_answered && _currentIndex > 0) ? _goToPreviousQuestion : null,
+                          icon: const Icon(Icons.arrow_back, size: 16),
+                          label: const Text('Back'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: (_answered && _currentIndex > 0) ? Colors.blue : Colors.grey,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
                         ),
-                      );
-                    }),
+                      ),
+                      const SizedBox(width: 12),
+                      // Next/Finish button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: (_answered && _currentIndex < _currentCards.length - 1) ? _goToNextQuestion : null,
+                          icon: const Icon(Icons.arrow_forward, size: 16),
+                          label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: (_answered && _currentIndex < _currentCards.length - 1) ? Colors.green : Colors.grey,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   
                   const SizedBox(height: 16),
                   
                   // Display word with underscores
-                  GestureDetector(
-                    onTap: () {
-                      if (!_answered) {
-                        FocusScope.of(context).requestFocus(FocusNode());
-                        _textController.clear();
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                        ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: _displayWord.split('').map((char) {
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            width: 25,
-                            height: 35,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Center(
-                              child: Text(
-                                char,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: _displayWord.split('').map((char) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          width: 25,
+                          height: 35,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Center(
+                            child: Text(
+                              char,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   
-                  const SizedBox(height: 16),
-                  
-                  // Hidden text field for keyboard input (like Swift app)
-                  if (!_answered)
-                    Opacity(
-                      opacity: 0,
-                      child: TextField(
-                        controller: _textController,
-                        autofocus: true,
-                        onChanged: (value) {
-                          // Process each character typed
-                          if (value.isNotEmpty) {
-                            final lastChar = value[value.length - 1];
-                            if (RegExp(r'[a-zA-Z]').hasMatch(lastChar)) {
-                              _guessLetter(lastChar);
-                            }
-                            // Clear the text field after processing
-                            _textController.clear();
-                          }
-                        },
-                      ),
-                    ),
-                  
-                  // Navigation buttons (only show if question is answered)
-                  if (_answered)
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        children: [
-                          // Back button
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                              icon: const Icon(Icons.arrow_back, size: 18),
-                              label: const Text('Back'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Next/Finish button
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: _goToNextQuestion,
-                              icon: const Icon(Icons.arrow_forward, size: 18),
-                              label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  // Add some bottom padding to ensure content doesn't get hidden behind keyboard
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
           ),
+          
+          // Custom keyboard (fixed at bottom) - only show when not answered
+          if (!_answered) _buildCustomKeyboard(),
         ],
       ),
     );
@@ -1003,5 +1032,109 @@ class _WritingViewState extends State<WritingView> {
     );
   }
   
+  Widget _buildCustomKeyboard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), // Added bottom padding for gap
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Keyboard title
+          Text(
+            _answered ? 'Final answer' : 'Tap letters to guess',
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Keyboard grid
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: _keyboardLetters.map((letter) {
+              final isGuessed = _guessedLetters.contains(letter);
+              final isRevealed = _revealedLetters.contains(letter);
+              final isInAnswer = _correctAnswer.toUpperCase().contains(letter);
+              
+              Color buttonColor;
+              Color textColor;
+              
+              if (_answered) {
+                // Question is answered - show final state
+                if (isInAnswer) {
+                  // Letter is in the answer - green
+                  buttonColor = Colors.green;
+                  textColor = Colors.white;
+                } else {
+                  // Letter is not in the answer - grey
+                  buttonColor = Colors.grey.withValues(alpha: 0.3);
+                  textColor = Colors.grey.shade600;
+                }
+              } else if (isRevealed) {
+                // Correct guess - green
+                buttonColor = Colors.green;
+                textColor = Colors.white;
+              } else if (isGuessed) {
+                // Wrong guess - red
+                buttonColor = Colors.red;
+                textColor = Colors.white;
+              } else {
+                // Not guessed yet - default
+                buttonColor = Theme.of(context).colorScheme.surfaceVariant;
+                textColor = Theme.of(context).colorScheme.onSurface;
+              }
+              
+              return GestureDetector(
+                onTap: () {
+                  if (!isGuessed && !isRevealed && !_answered) {
+                    _guessLetter(letter);
+                  }
+                },
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: buttonColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      letter,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
 }

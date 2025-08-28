@@ -26,15 +26,9 @@ class DutchWordExerciseProvider extends ChangeNotifier {
       
       print('🔍 Provider: initialize - After loading, have ${_wordExercises.length} exercises');
       
-      // Add example data if no exercises exist
-      if (_wordExercises.isEmpty) {
-        print('🔍 Provider: initialize - No exercises found, adding example data');
-        _wordExercises.addAll(DutchWordExerciseExamples.examples);
-        await _saveToStorage();
-        print('🔍 Provider: initialize - Added ${DutchWordExerciseExamples.examples.length} example exercises');
-      } else {
-        print('🔍 Provider: initialize - Found existing exercises, not adding examples');
-      }
+      // Note: Automatic example exercise generation has been disabled
+      // Exercises are now only created when explicitly requested by the user
+      print('🔍 Provider: initialize - No automatic example exercises added');
     } catch (e) {
       print('🔍 Provider: initialize - Error: $e');
       _error = 'Failed to initialize: $e';

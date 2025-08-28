@@ -65,6 +65,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+  // Track cards that have been incorrectly matched for partial XP rewards
+  Set<String> _incorrectlyMatchedCards = {};
   // Old replacement queue system removed
   // Old processing replacements flag removed
 
@@ -822,6 +824,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Track XP for incorrect match (0 XP)
       XpService.recordAnswer(_gameSession, false);
       
+      // Track these cards as incorrectly matched for potential partial XP later
+      _incorrectlyMatchedCards.add(_firstCard!.originalCard.id);
+      _incorrectlyMatchedCards.add(_secondCard!.originalCard.id);
+      print('🔍 MemoryGameView: Tracked incorrect match for cards: "${_firstCard!.originalCard.word}" and "${_secondCard!.originalCard.word}"');
+      
       // Award XP to both mismatched cards for RPG system (0 XP for incorrect)
       _awardXPToWord(_firstCard!.originalCard, false);
       _awardXPToWord(_secondCard!.originalCard, false);
@@ -1082,6 +1089,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
       _matches = 0;
       _gameComplete = false;
       _gameSession.reset(); // Reset XP tracking
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+      _incorrectlyMatchedCards.clear();
       _initializeGame();
     });
   }
@@ -1333,6 +1345,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
     if (isCorrect) {
       final xpService = XpService();
       
+      // Check if this card was previously incorrectly matched
+      final wasPreviouslyIncorrect = _incorrectlyMatchedCards.contains(card.id);
+      
       // Add XP to the word's learning mastery (this handles daily diminishing returns)
       xpService.addXPToWord(card.learningMastery, "memory", 1);
       
@@ -1341,13 +1356,31 @@ class _MemoryGameViewState extends State<MemoryGameView>
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
+      // If card was previously incorrect, award partial XP (half of normal amount)
+      final finalXPGained = wasPreviouslyIncorrect ? (actualXPGained / 2).round() : actualXPGained;
+      
+      // If we're giving partial XP, we need to adjust the card's XP manually
+      if (wasPreviouslyIncorrect && finalXPGained != actualXPGained) {
+        // Remove the full XP that was added and add the partial XP instead
+        card.learningMastery.currentXP -= actualXPGained;
+        card.learningMastery.currentXP += finalXPGained;
+        
+        // Update the last exercise history entry
+        if (card.learningMastery.exerciseHistory.isNotEmpty) {
+          card.learningMastery.exerciseHistory.last['xpGained'] = finalXPGained;
+        }
+      }
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = actualXPGained;
+      _xpGainedPerWord[card.id] = finalXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
       
-      print('🔍 MemoryGameView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
+      // Remove from incorrectly matched set since it's now correctly matched
+      _incorrectlyMatchedCards.remove(card.id);
+      
+      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect${wasPreviouslyIncorrect ? ', was previously incorrect' : ''})');
     } else {
       print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }
@@ -1381,6 +1414,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
+              _incorrectlyMatchedCards.clear();
             });
             
             // Session data has been reset, ready for new game

@@ -645,8 +645,22 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
   void _goToPreviousCard() {
     if (_currentIndex > 0) {
+      // Get the previous card index
+      final previousIndex = _currentIndex - 1;
+      
+      // Remove the current card from tracking sets since we're going back
+      final currentCard = _currentCards[_currentIndex];
+      _knownCards.remove(currentCard.id);
+      _unknownCards.remove(currentCard.id);
+      _skippedCards.remove(currentCard.id);
+      
+      // Remove from history tracking
+      _knownHistory.remove(_currentIndex);
+      _unknownHistory.remove(_currentIndex);
+      _skippedHistory.remove(_currentIndex);
+      
       setState(() {
-        _currentIndex--;
+        _currentIndex = previousIndex;
         _dragOffset = Offset.zero;
         _swipeDirection = SwipeDirection.none;
         _swipeIntensity = 0;
@@ -661,6 +675,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _dealController.reset();
         _dealController.forward();
       });
+      
+      // Update the previous card's state based on its last action
+      // This will be handled when the user swipes again on this card
     }
   }
 
@@ -760,6 +777,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     if (_nextCardActive) return;
     
     final currentCard = _currentCards[_currentIndex];
+    
+    // Remove any previous state for this card
+    _knownCards.remove(currentCard.id);
+    _unknownCards.remove(currentCard.id);
+    _skippedCards.remove(currentCard.id);
+    _knownHistory.remove(_currentIndex);
+    _unknownHistory.remove(_currentIndex);
+    _skippedHistory.remove(_currentIndex);
     
     // Save to history
     _cardHistory.add(_currentIndex);

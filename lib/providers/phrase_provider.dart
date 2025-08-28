@@ -167,7 +167,7 @@ class PhraseProvider with ChangeNotifier {
       'question': 'Translate: "${targetPhrase.translation}"',
       'correctOrder': words,
       'availableWords': shuffledWords,
-      'explanation': 'The correct order is: "${targetPhrase.phrase}".',
+      'explanation': '${targetPhrase.phrase}',
       'phraseId': targetPhrase.id,
     };
   }

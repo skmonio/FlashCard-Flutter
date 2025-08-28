@@ -57,112 +57,80 @@ Test that different exercise types award different XP:
 
 1. **Test Daily XP Limits**
    - Study the same word multiple times in one day
-   - First attempt: 10 XP
-   - Second attempt: 9 XP
-   - Third attempt: 8 XP
-   - Continue until 0 XP (after 10 attempts)
-   - The word should not gain any more XP for that day
+   - First attempt: Full XP (e.g., 10 XP for multiple choice)
+   - Second attempt: Reduced XP (e.g., 9 XP)
+   - Third attempt: Further reduced (e.g., 8 XP)
+   - Continue until XP reaches 0
 
-2. **Test Daily Reset**
-   - Wait until the next day
-   - Study the same word again
-   - It should start fresh with 10 XP again
+2. **Verify Daily Reset**
+   - Wait until the next day or manually reset daily attempts
+   - XP should return to full amount for the first attempt
 
-### **Test Scenario 5: Level Up Celebrations**
+### **Test Scenario 5: Memory Game Partial XP (NEW)**
 
-1. **Trigger a Level Up**
-   - Get a word to exactly 25 XP (end of Level 1)
-   - Answer one more question correctly
-   - The word should level up to Level 2 (🌳)
+1. **Test Incorrect Match Tracking**
+   - Start a "Remember Your Cards" game
+   - Intentionally make an incorrect match (select two cards that don't match)
+   - Check the console logs for: "Tracked incorrect match for cards: [word1] and [word2]"
+   - The cards should be tracked internally for partial XP
 
-2. **Check Level Up History**
-   - The system should record when the level up occurred
-   - You should see the new level immediately
+2. **Test Partial XP Award**
+   - After making an incorrect match, continue playing
+   - When you eventually match one of those cards correctly
+   - Check the console logs for: "Awarded [X] XP to word [word] (Correct: true, was previously incorrect)"
+   - The XP should be half of the normal amount (e.g., 2-3 XP instead of 5 XP)
 
-### **Test Scenario 5: Progress Tracking**
+3. **Verify Partial XP Logic**
+   - Normal correct match: Full XP (e.g., 5 XP)
+   - Previously incorrect card now correctly matched: Half XP (e.g., 2-3 XP)
+   - This encourages learning from mistakes while still rewarding correct matches
 
-1. **Check Progress Bars**
-   - Words should show progress within their current level
-   - Progress should be 0.0 to 1.0 within each level
-   - Colors should change based on progress (red → orange → green)
+4. **Test Multiple Incorrect Attempts**
+   - Make the same card incorrect multiple times
+   - When finally matched correctly, it should still get partial XP
+   - The partial XP is based on the current daily diminishing returns
 
-2. **Check XP Needed**
-   - The system should calculate how much XP is needed for the next level
-   - Example: At 50 XP, need 51 more for Level 2
+5. **Test Game Reset**
+   - Complete a memory game with some incorrect matches
+   - Start a new game with the same cards
+   - Previously incorrect cards should start fresh (no partial XP tracking)
 
-### **Test Scenario 6: Data Persistence**
+### **Test Scenario 6: Word Progress Display**
 
-1. **Save and Reload**
-   - Complete some exercises and gain XP
-   - Close the app completely
-   - Reopen the app
-   - Verify that word levels and XP are preserved
+1. **Check Word Progress Screen**
+   - After completing any exercise, swipe right on the results screen
+   - You should see a detailed breakdown of XP gained per word
+   - Words should show their current level and XP progress
 
-2. **Check Exercise History**
-   - The system should track recent exercise history
-   - Should show exercise type, XP gained, and timestamp
+2. **Test Study Again Feature**
+   - From the word progress screen, tap "Study Again"
+   - The game should reset and start fresh
+   - All tracking should be cleared for the new session
 
-### **Expected Results**
+### **Test Scenario 7: Level Up Notifications**
 
-✅ **Level Progression:**
-- Level 1 (🌱): 0-100 XP - "Beginner"
-- Level 2 (🌿): 101-250 XP - "Novice"  
-- Level 3 (🌳): 251-500 XP - "Intermediate"
-- Level 4 (🏔️): 501-750 XP - "Advanced"
-- Level 5 (⭐): 751-1000 XP - "Mastered"
-- Level 6 (🌟): 1001-1500 XP - "Expert"
-- Level 7 (💫): 1501-2500 XP - "Legendary"
-- Level 8 (✨): 2501-5000 XP - "Mythic"
-- Level 9 (🔥): 5001-10000 XP - "Divine"
-- Level 10 (👑): 10001+ XP - "Transcendent"
+1. **Trigger Level Ups**
+   - Study words until they level up
+   - You should see level up notifications
+   - Check that the word's level indicator changes in the word list
 
-✅ **UI Indicators:**
-- Level icons should appear next to words
-- Progress bars should show level progress
-- Colors should change based on progress
-- Level-up animations (when implemented)
+2. **Verify Level Progression**
+   - Words should progress through levels: 🌱 → 🌿 → 🌳 → 🏔️ → ⭐ → 🌟
+   - Each level requires more XP than the previous
 
-✅ **Data Integrity:**
-- XP should persist between app sessions
-- Level calculations should be accurate
-- Exercise history should be maintained
-- No duplicate exercises should be created
+### **Debugging Tips**
 
-### **Troubleshooting**
+- Check console logs for XP-related messages starting with "🔍"
+- Look for messages about XP being awarded, daily attempts, and level ups
+- If XP isn't working, check that the UserProfileProvider is properly initialized
+- Verify that cards have proper LearningMastery objects attached
 
-If tests fail:
+### **Expected Behavior Summary**
 
-1. **Check Console Logs**
-   - Look for XP calculation messages
-   - Verify exercise types are being recognized
-
-2. **Verify Data Models**
-   - Ensure `LearningMastery` has RPG fields
-   - Check that `XPService` is properly integrated
-
-3. **Test Individual Components**
-   - Run the automated tests: `flutter test test/rpg_leveling_test.dart`
-   - All 21 tests should pass
-
-### **Next Steps for Full Implementation**
-
-Once manual testing confirms the backend works:
-
-1. **UI Integration**
-   - Add level icons to word displays
-   - Create progress bars for level progress
-   - Add level-up celebration animations
-
-2. **End Screen Enhancement**
-   - Add swipe-right gesture after study sessions
-   - Show word level progress summary
-   - Display XP gained during session
-
-3. **User Experience**
-   - Add sound effects for level ups
-   - Create motivational messages
-   - Show streak bonuses in real-time
-
----
-
-**Note:** This system is designed to make learning more engaging by giving users a sense of progress and achievement for each individual word, similar to character progression in RPG games.
+- **Correct answers**: Full XP based on exercise type
+- **Incorrect answers**: 0 XP
+- **Memory game incorrect matches**: Tracked for partial XP when eventually matched correctly
+- **Streaks**: Bonus XP for consecutive correct answers
+- **Daily limits**: Diminishing returns for repeated attempts
+- **Level ups**: Automatic progression through word levels
+- **Persistence**: XP and levels saved between sessions

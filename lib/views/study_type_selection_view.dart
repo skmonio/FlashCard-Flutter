@@ -1383,7 +1383,10 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     _totalSelectedCards = 0;
     for (final deckId in _selectedDeckIds) {
       final deck = widget.decks.firstWhere((d) => d.id == deckId);
-      final deckCards = widget.provider.getCardsForDeck(deck.id);
+      // For parent decks, include sub-deck cards; for sub-decks, only their own cards
+      final deckCards = deck.isSubDeck 
+          ? widget.provider.getCardsForDeck(deck.id)
+          : widget.provider.getCardsForDeckWithSubDecks(deck.id);
       _totalSelectedCards += deckCards.length;
     }
   }
@@ -1413,7 +1416,10 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     
     for (final deckId in _selectedDeckIds) {
       final deck = widget.decks.firstWhere((d) => d.id == deckId);
-      final deckCards = widget.provider.getCardsForDeck(deck.id);
+      // For parent decks, include sub-deck cards; for sub-decks, only their own cards
+      final deckCards = deck.isSubDeck 
+          ? widget.provider.getCardsForDeck(deck.id)
+          : widget.provider.getCardsForDeckWithSubDecks(deck.id);
       allSelectedCards.addAll(deckCards);
       selectedDeckNames.add(deck.name);
     }
@@ -1643,7 +1649,10 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 itemCount: widget.decks.length,
                 itemBuilder: (context, index) {
                   final deck = widget.decks[index];
-                  final deckCards = widget.provider.getCardsForDeck(deck.id);
+                  // For parent decks, include sub-deck cards; for sub-decks, only their own cards
+                  final deckCards = deck.isSubDeck 
+                      ? widget.provider.getCardsForDeck(deck.id)
+                      : widget.provider.getCardsForDeckWithSubDecks(deck.id);
                   final isSelected = _selectedDeckIds.contains(deck.id);
                   
                   return Card(
