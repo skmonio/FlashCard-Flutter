@@ -415,7 +415,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     return Column(
       children: [
         Text(
-          'Arrange the words to form the correct sentence:',
+          '',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey[600],

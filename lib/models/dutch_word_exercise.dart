@@ -442,7 +442,7 @@ extension DutchWordExerciseExamples on DutchWordExercise {
           WordExercise(
             id: '1-3',
             type: ExerciseType.sentenceBuilding,
-            prompt: 'Arrange the words to form a sentence using "terecht":',
+            prompt: 'Build the correct Dutch sentence: He was justifiably angry.',
             options: ['hij', 'was', 'terecht', 'boos'],
             correctAnswer: 'hij was terecht boos',
             explanation: 'This sentence means "He was justifiably angry." The word order is correct in Dutch.',
@@ -478,7 +478,7 @@ extension DutchWordExerciseExamples on DutchWordExercise {
           WordExercise(
             id: '1-7',
             type: ExerciseType.sentenceBuilding,
-            prompt: 'Arrange the words to say "The criticism was justified":',
+            prompt: 'Build the correct Dutch sentence: The criticism was justified.',
             options: ['de', 'kritiek', 'was', 'terecht'],
             correctAnswer: 'de kritiek was terecht',
             explanation: 'This sentence means "The criticism was justified." The word order follows Dutch grammar rules.',

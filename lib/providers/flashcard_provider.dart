@@ -154,11 +154,8 @@ class FlashcardProvider extends ChangeNotifier {
       _cards = _service.cards;
       print('Provider: Card created and refreshed. Total cards: ${_cards.length}');
       
-      // Auto-generate grammar exercises if grammar data is provided
-      if (card != null && (article.isNotEmpty || (plural != null && plural!.isNotEmpty) || 
-          (exampleTranslation != null && exampleTranslation!.isNotEmpty && card.example.isNotEmpty))) {
-        await _generateGrammarExercisesForCard(card);
-      }
+      // Note: Automatic grammar exercise generation has been disabled
+      // Exercises are now only created when explicitly requested by the user
       
       notifyListeners();
       return card;
@@ -180,7 +177,9 @@ class FlashcardProvider extends ChangeNotifier {
       if (grammarExercises.isNotEmpty) {
         print('Provider: Generated ${grammarExercises.length} grammar exercises');
         
-        // Get the Dutch word exercise provider
+        // Get the Dutch word exercise provider from the global instance
+        // Note: This should be called from a context where DutchWordExerciseProvider is available
+        // For now, we'll create a new instance and initialize it
         final dutchProvider = DutchWordExerciseProvider();
         await dutchProvider.initialize();
         
@@ -268,12 +267,8 @@ class FlashcardProvider extends ChangeNotifier {
       // Refresh the cards list from the service
       _cards = _service.cards;
       
-      // Auto-generate grammar exercises if grammar data is provided
-      if ((card.article != null && card.article!.isNotEmpty) || 
-          (card.plural != null && card.plural!.isNotEmpty) ||
-          (card.example.isNotEmpty && card.exampleTranslation.isNotEmpty)) {
-        await _generateGrammarExercisesForCard(card);
-      }
+      // Note: Automatic grammar exercise generation has been disabled
+      // Exercises are now only created when explicitly requested by the user
       
       notifyListeners();
       return true;

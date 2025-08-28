@@ -203,7 +203,7 @@ class DutchGrammarExerciseGenerator {
       prompt: 'Build the correct Dutch sentence: ${card.exampleTranslation}',
       options: shuffledWords,
       correctAnswer: cleanedSentence, // Use cleaned sentence as answer
-      explanation: 'The correct Dutch sentence is: "${card.example}".',
+      explanation: '${card.example}',
       difficulty: ExerciseDifficulty.beginner,
     );
   }

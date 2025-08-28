@@ -6,6 +6,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
+import '../services/xp_service.dart';
 
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
@@ -273,6 +274,19 @@ class _AllCardsViewState extends State<AllCardsView> {
             style: Theme.of(context).textTheme.bodyMedium,
             textAlign: TextAlign.center,
           ),
+          if (_searchQuery.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _addSearchedWord(),
+              icon: const Icon(Icons.add),
+              label: Text('Add "${_searchQuery}"'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -326,70 +340,82 @@ class _AllCardsViewState extends State<AllCardsView> {
                 ),
               ],
             ),
-            title: Text(
-              card.word,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            title: Row(
               children: [
-                Text(card.definition),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        _getDeckNames(card, provider),
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                Text(
+                  card.article.isNotEmpty ? '${card.article} ' : '',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Consumer<DutchWordExerciseProvider>(
-                  builder: (context, dutchProvider, child) {
-                    final exercise = dutchProvider.getWordExerciseByWord(card.word);
-                    final exerciseCount = exercise?.exercises.length ?? 0;
-                    
-                    if (exerciseCount > 0) {
-                      return Row(
-                        children: [
-                          Icon(Icons.quiz, size: 14, color: Colors.green[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                            style: TextStyle(
-                              color: Colors.green[600],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      );
-                    } else {
-                      return Row(
-                        children: [
-                          Icon(Icons.quiz_outlined, size: 14, color: Colors.grey[400]),
-                          const SizedBox(width: 4),
-                          Text(
-                            'No exercises',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                  },
+                Expanded(
+                  child: Text(
+                    card.word,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
+            ),
+            subtitle: Consumer<DutchWordExerciseProvider>(
+              builder: (context, dutchProvider, child) {
+                final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+                final exerciseCount = existingExercise?.exercises.length ?? 0;
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(card.definition),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _getDeckNames(card, provider),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          'Added: ${_formatDate(card.dateCreated)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        if (exerciseCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
             trailing: _isSelectionMode ? null : PopupMenuButton<String>(
               onSelected: (value) => _handleCardAction(value, card, provider),
@@ -683,13 +709,24 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   void _editCard(FlashCard card) {
     try {
+      // Get the fresh card data from the provider to ensure we have the latest version
+      final provider = context.read<FlashcardProvider>();
+      final freshCard = provider.cards.firstWhere((c) => c.id == card.id);
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => AddCardView(
-            cardToEdit: card,
+            cardToEdit: freshCard,
           ),
         ),
-      );
+      ).then((result) {
+        // Refresh the UI if card was updated
+        if (result == true) {
+          setState(() {
+            // Trigger rebuild to show updated card information
+          });
+        }
+      });
     } catch (e) {
       print('🔍 AllCardsView: Error navigating to edit card: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -972,71 +1009,220 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
   void _showCardDetails(FlashCard card) {
+    // Get the fresh card data from the provider to ensure we have the latest XP and learning progress
+    final provider = context.read<FlashcardProvider>();
+    final freshCard = provider.getCard(card.id) ?? card;
+    
+    final xpService = XpService();
+    final wordLevel = freshCard.learningMastery.rpgWordLevel;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(card.word),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (card.article.isNotEmpty) ...[
-                Text('Article: ${card.article}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-              ],
-              Text('Definition: ${card.definition}'),
-              if (card.example.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Example: ${card.example}'),
-              ],
-              if (card.exampleTranslation.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text('Translation: ${card.exampleTranslation}', style: TextStyle(color: Colors.grey[600])),
-              ],
-              if (card.plural.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Plural: ${card.plural}'),
-              ],
-              if (card.pastTense.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Past Tense: ${card.pastTense}'),
-              ],
-              if (card.futureTense.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Future Tense: ${card.futureTense}'),
-              ],
-              if (card.pastParticiple.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('Past Participle: ${card.pastParticiple}'),
-              ],
-              const SizedBox(height: 16),
-              Consumer<DutchWordExerciseProvider>(
-                builder: (context, dutchProvider, child) {
-                  final exercise = dutchProvider.getWordExerciseByWord(card.word);
-                  final exerciseCount = exercise?.exercises.length ?? 0;
-                  
-                  if (exerciseCount > 0) {
-                    return Text(
-                      'Exercises: $exerciseCount',
-                      style: TextStyle(
-                        color: Colors.green[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
+        title: Row(
+          children: [
+            Text(
+              freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: 8),
-              Text('SRS Level: ${card.srsLevel}'),
-              Text('Next Review: ${_getNextReviewText(card)}'),
-              Text('Learning Progress: ${card.learningPercentage}%'),
-              Text('Success Count: ${card.successCount}'),
-              Text('Created: ${DateFormat('MMM dd, yyyy').format(card.dateCreated)}'),
-              Text('Last Modified: ${DateFormat('MMM dd, yyyy').format(card.lastModified)}'),
+            ),
+            Expanded(child: Text(freshCard.word)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              freshCard.definition,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 4),
+                Text(
+                  'Decks: ${_getDeckNames(freshCard, provider)}',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            if (freshCard.example.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Example:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                freshCard.example,
+                style: const TextStyle(fontStyle: FontStyle.italic),
+              ),
+              if (freshCard.exampleTranslation.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  freshCard.exampleTranslation,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ],
-          ),
+            if (freshCard.plural.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Plural: ${freshCard.plural}',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+            const SizedBox(height: 16),
+            
+            // Card Level and XP Section
+            Row(
+              children: [
+                Text(
+                  'Card Level: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  xpService.getLevelIcon(wordLevel),
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Level ${wordLevel.level} (${wordLevel.title})',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Current XP: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.learningMastery.currentXPWithDecay}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Learning Progress: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.learningPercentage}%',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'SRS Level: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.srsLevel}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Next Review: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    _getNextReviewText(freshCard),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Success Count: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.successCount}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Created: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM dd, yyyy').format(freshCard.dateCreated),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text(
+                  'Last Modified: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM dd, yyyy').format(freshCard.lastModified),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -1079,5 +1265,40 @@ class _AllCardsViewState extends State<AllCardsView> {
     });
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays < 30) {
+      final weeks = (difference.inDays / 7).floor();
+      return '$weeks week${weeks == 1 ? '' : 's'} ago';
+    } else {
+      return DateFormat('MMM dd').format(date);
+    }
+  }
+
+  void _addSearchedWord() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddCardView(
+          preFilledWord: _searchQuery,
+        ),
+      ),
+    ).then((result) {
+      // Refresh the search results if a card was added
+      if (result == true) {
+        setState(() {
+          // Clear cache to force refresh
+          _cachedFilteredCards = null;
+        });
+      }
+    });
+  }
 
 } 

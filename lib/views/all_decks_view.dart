@@ -990,42 +990,46 @@ class _AllDecksViewState extends State<AllDecksView> {
       return;
     }
     
-    // Create Dutch word exercises from the deck cards, checking for existing exercises first
-    final exercises = deckCards.map((card) {
+    // Only use existing exercises - don't auto-generate new ones
+    final exercises = <DutchWordExercise>[];
+    int wordsWithoutExercises = 0;
+    
+    for (final card in deckCards) {
       // Check if there's already an existing exercise for this card
       final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
       
-      if (existingExercise != null) {
+      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
         // Use existing exercise if found
         print('🔍 AllDecksView: Found existing exercise for "${card.word}" with ${existingExercise.exercises.length} exercises');
-        return existingExercise;
+        exercises.add(existingExercise);
       } else {
-        // Create a new exercise if none exists
-        print('🔍 AllDecksView: Created new exercise for "${card.word}" with 1 exercise');
-        return DutchWordExercise(
-          id: card.id,
-          targetWord: card.word,
-          wordTranslation: card.definition,
-          deckId: deck.id,
-          deckName: deck.name,
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [
-            WordExercise(
-              id: '${card.id}_exercise_1',
-              type: ExerciseType.multipleChoice,
-              prompt: 'Translate "${card.word}" to English',
-              correctAnswer: card.definition,
-              options: [card.definition, 'Incorrect option 1', 'Incorrect option 2', 'Incorrect option 3'],
-              explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
-              difficulty: ExerciseDifficulty.beginner,
-            ),
-          ],
-          createdAt: card.dateCreated,
-          isUserCreated: true,
-        );
+        // Count words without exercises
+        wordsWithoutExercises++;
+        print('🔍 AllDecksView: No exercises found for "${card.word}"');
       }
-    }).toList();
+    }
+    
+    // Show message if some words don't have exercises
+    if (wordsWithoutExercises > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have exercises. You can add exercises by editing individual cards.'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    
+    // Only proceed if we have exercises to study
+    if (exercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No exercises available in this deck. Please add exercises to cards first.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     
     // Navigate to the Dutch words practice view
     Navigator.of(context).push(
@@ -1037,6 +1041,84 @@ class _AllDecksViewState extends State<AllDecksView> {
         ),
       ),
     );
+  }
+
+  List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
+    // Start with the correct answer
+    final options = <String>[targetCard.definition];
+    
+    // Get all cards from the provider
+    final provider = context.read<FlashcardProvider>();
+    final allCards = provider.cards;
+    
+    // Get other definitions, prioritizing the preferred deck if specified
+    List<String> otherDefinitions = [];
+    
+    if (preferredDeckId != null) {
+      // First, try to get definitions from the preferred deck
+      final deckCards = allCards.where((card) => 
+        card.id != targetCard.id && 
+        card.definition.isNotEmpty &&
+        card.deckIds.contains(preferredDeckId)
+      ).map((card) => card.definition).toList();
+      
+      otherDefinitions.addAll(deckCards);
+    }
+    
+    // If we don't have enough options, add from all other cards
+    if (otherDefinitions.length < 5) {
+      final remainingCards = allCards.where((card) => 
+        card.id != targetCard.id && 
+        card.definition.isNotEmpty &&
+        !otherDefinitions.contains(card.definition)
+      ).map((card) => card.definition).toList();
+      
+      otherDefinitions.addAll(remainingCards);
+    }
+    
+    // Shuffle and take up to 5 more options (to make 6 total)
+    otherDefinitions.shuffle();
+    final additionalOptions = otherDefinitions.take(5).toList();
+    
+    // Add the additional options
+    options.addAll(additionalOptions);
+    
+    // If we don't have enough options from other cards, add some generic but realistic options
+    while (options.length < 6) {
+      final genericOptions = [
+        'to walk',
+        'to eat',
+        'to sleep',
+        'to work',
+        'to play',
+        'to read',
+        'to write',
+        'to speak',
+        'to listen',
+        'to watch',
+        'to buy',
+        'to sell',
+        'to give',
+        'to take',
+        'to come',
+        'to go',
+        'to see',
+        'to know',
+        'to think',
+        'to feel',
+      ];
+      
+      final randomOption = genericOptions[DateTime.now().millisecondsSinceEpoch % genericOptions.length];
+      if (!options.contains(randomOption)) {
+        options.add(randomOption);
+      }
+    }
+    
+    // Shuffle the final options
+    options.shuffle();
+    
+    // Ensure we have exactly 6 options
+    return options.take(6).toList();
   }
 
   void _showDeleteDeckDialog(BuildContext context, Deck deck) {

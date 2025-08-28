@@ -261,15 +261,13 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: SelectableText(
+                      child: Text(
                         option,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                         ),
                         textAlign: TextAlign.left,
-                        enableInteractiveSelection: true,
-                        showCursor: false,
                       ),
                     ),
                   ],
@@ -311,7 +309,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     return Column(
       children: [
         Text(
-          'Arrange the words to form the correct sentence:',
+          '',
           style: TextStyle(
             fontSize: 16,
             color: Colors.grey[600],
