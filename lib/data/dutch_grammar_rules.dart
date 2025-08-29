@@ -29,6 +29,7 @@ class DutchGrammarRulesDatabase {
       'negation_a2.json',
       'worden_werden_a2.json',
       'verbs_fixed_prepositions_b1.json',
+      'connecting_words_b1.json',
     ];
 
     for (final fileName in jsonFiles) {

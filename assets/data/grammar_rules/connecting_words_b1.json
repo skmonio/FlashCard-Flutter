@@ -1,0 +1,369 @@
+{
+  "id": "connecting_words_b1",
+  "title": "Connecting Words (Verbindingswoorden)",
+  "type": "sentenceStructure",
+  "level": "b1",
+  "explanation": "Connecting words (verbindingswoorden) help you link ideas and create coherent sentences in Dutch. They show relationships between different parts of your text.\n\nKey categories:\n• DOEL (Purpose): daarvoor/hiervoor, om ... te ..., zodat\n• GEVOLG (Consequence): daardoor/hierdoor, als gevolg van, zodat, daarom, dus\n• MANIER OF MIDDEL (Manner or means): daarmee/hiermee, door middel van, met behulp van\n• OORZAAK OF REDEN (Cause or reason): doordat, omdat, want, namelijk, door, in verband met\n• OPSOMMING (Enumeration): bovendien, daarnaast, en, ook, naast, verder, zowel ... als ..., ten eerste, ten tweede enz., ten slotte\n• SAMENVATTING OF CONCLUSIE (Summary or conclusion): kortom, met andere woorden, dus\n• TEGENSTELLING (Contrast): maar, toch, echter, daarentegen, in tegenstelling tot, enerzijds, anderzijds, aan de ene kant, aan de andere kant\n• TIJD EN VOLGORDE (Time and sequence): vroeger, nu, tegenwoordig, later, eerst, dan, daarna, vervolgens, ten slotte, terwijl, voordat, nadat, inmiddels\n• VOORBEELD (Example): bijvoorbeeld, onder andere, zoals, zo\n• VOORWAARDE (Condition): als",
+  "keyPoints": [
+    "Connecting words show relationships between ideas",
+    "They help create coherent and logical text",
+    "Different categories serve different purposes",
+    "Some words can belong to multiple categories",
+    "Context determines the exact meaning",
+    "Practice helps you use them naturally"
+  ],
+  "examples": [
+    {
+      "dutch": "Ik ga naar de winkel omdat ik melk nodig heb.",
+      "english": "I'm going to the store because I need milk.",
+      "breakdown": "omdat = because (cause/reason)"
+    },
+    {
+      "dutch": "Het regent hard, daarom blijf ik thuis.",
+      "english": "It's raining hard, therefore I'm staying home.",
+      "breakdown": "daarom = therefore (consequence)"
+    },
+    {
+      "dutch": "Ik hou van koffie, echter mijn broer drinkt alleen thee.",
+      "english": "I like coffee, however my brother only drinks tea.",
+      "breakdown": "echter = however (contrast)"
+    },
+    {
+      "dutch": "Ik studeer hard zodat ik goed kan slagen.",
+      "english": "I study hard so that I can pass well.",
+      "breakdown": "zodat = so that (purpose)"
+    },
+    {
+      "dutch": "Ik ga naar de bibliotheek. Bovendien ga ik ook naar de winkel.",
+      "english": "I'm going to the library. Moreover, I'm also going to the store.",
+      "breakdown": "bovendien = moreover (enumeration)"
+    },
+    {
+      "dutch": "Kortom, het was een geweldige dag.",
+      "english": "In short, it was a great day.",
+      "breakdown": "kortom = in short (summary/conclusion)"
+    },
+    {
+      "dutch": "Bijvoorbeeld, je kunt 'omdat' gebruiken voor een reden.",
+      "english": "For example, you can use 'omdat' for a reason.",
+      "breakdown": "bijvoorbeeld = for example (example)"
+    },
+    {
+      "dutch": "Als het regent, blijf ik thuis.",
+      "english": "If it rains, I stay home.",
+      "breakdown": "als = if (condition)"
+    }
+  ],
+  "exercises": [
+    {
+      "question": "What does 'bijvoorbeeld' mean in English?",
+      "options": ["because", "example", "however", "therefore"],
+      "correctAnswer": 1,
+      "explanation": "'Bijvoorbeeld' means 'for example' or 'example' in English. It's used to introduce examples.",
+      "hint": "Think about introducing examples in a sentence"
+    },
+    {
+      "question": "What does 'daarom' mean in English?",
+      "options": ["because", "therefore", "however", "for example"],
+      "correctAnswer": 1,
+      "explanation": "'Daarom' means 'therefore' or 'that's why' in English. It indicates a consequence.",
+      "hint": "This word shows a result or consequence"
+    },
+    {
+      "question": "What does 'omdat' mean in English?",
+      "options": ["therefore", "however", "because", "for example"],
+      "correctAnswer": 2,
+      "explanation": "'Omdat' means 'because' in English. It introduces a reason or cause.",
+      "hint": "This word introduces a reason"
+    },
+    {
+      "question": "What does 'echter' mean in English?",
+      "options": ["because", "therefore", "however", "for example"],
+      "correctAnswer": 2,
+      "explanation": "'Echter' means 'however' in English. It introduces a contrast or exception.",
+      "hint": "This word shows a contrast or exception"
+    },
+    {
+      "question": "Which category does 'daarom' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tegenstelling (contrast)"],
+      "correctAnswer": 1,
+      "explanation": "'Daarom' belongs to the 'gevolg' (consequence) category. It means 'therefore' and indicates a result.",
+      "hint": "This word shows what happens as a result"
+    },
+    {
+      "question": "Which category does 'omdat' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tegenstelling (contrast)"],
+      "correctAnswer": 2,
+      "explanation": "'Omdat' belongs to the 'oorzaak of reden' (cause or reason) category. It means 'because' and introduces a reason.",
+      "hint": "This word introduces why something happens"
+    },
+    {
+      "question": "Which category does 'bijvoorbeeld' belong to?",
+      "options": ["voorbeeld (example)", "opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tijd en volgorde (time and sequence)"],
+      "correctAnswer": 0,
+      "explanation": "'Bijvoorbeeld' belongs to the 'voorbeeld' (example) category. It means 'for example' and introduces examples.",
+      "hint": "This word introduces examples"
+    },
+    {
+      "question": "Complete the sentence: 'Ik ga naar de winkel ___ ik heb melk nodig.'",
+      "options": ["omdat", "daarom", "echter", "bijvoorbeeld"],
+      "correctAnswer": 0,
+      "explanation": "The correct answer is 'omdat' (because). The sentence means 'I'm going to the store because I need milk.'",
+      "hint": "You need a word that introduces a reason"
+    },
+    {
+      "question": "Complete the sentence: 'Het regent hard, ___ ik blijf thuis.'",
+      "options": ["omdat", "daarom", "echter", "bijvoorbeeld"],
+      "correctAnswer": 1,
+      "explanation": "The correct answer is 'daarom' (therefore). The sentence means 'It's raining hard, therefore I'm staying home.'",
+      "hint": "You need a word that shows a consequence"
+    },
+    {
+      "question": "Complete the sentence: 'Ik hou van koffie, ___ mijn broer drinkt alleen thee.'",
+      "options": ["omdat", "daarom", "echter", "bijvoorbeeld"],
+      "correctAnswer": 2,
+      "explanation": "The correct answer is 'echter' (however). The sentence means 'I like coffee, however my brother only drinks tea.'",
+      "hint": "You need a word that shows a contrast"
+    },
+    {
+      "question": "What does 'zodat' mean in English?",
+      "options": ["because", "so that", "however", "for example"],
+      "correctAnswer": 1,
+      "explanation": "'Zodat' means 'so that' in English. It indicates purpose or result.",
+      "hint": "This word shows purpose or intended result"
+    },
+    {
+      "question": "What does 'daardoor' mean in English?",
+      "options": ["because of that", "therefore", "however", "for example"],
+      "correctAnswer": 0,
+      "explanation": "'Daardoor' means 'because of that' or 'as a result' in English. It indicates a consequence.",
+      "hint": "This word shows what happens because of something else"
+    },
+    {
+      "question": "What does 'bovendien' mean in English?",
+      "options": ["because", "therefore", "moreover", "however"],
+      "correctAnswer": 2,
+      "explanation": "'Bovendien' means 'moreover' or 'furthermore' in English. It adds additional information.",
+      "hint": "This word adds more information to what was already said"
+    },
+    {
+      "question": "What does 'kortom' mean in English?",
+      "options": ["because", "therefore", "in short", "however"],
+      "correctAnswer": 2,
+      "explanation": "'Kortom' means 'in short' or 'in summary' in English. It introduces a conclusion.",
+      "hint": "This word introduces a summary or conclusion"
+    },
+    {
+      "question": "What does 'daarentegen' mean in English?",
+      "options": ["because", "therefore", "however", "on the other hand"],
+      "correctAnswer": 3,
+      "explanation": "'Daarentegen' means 'on the other hand' in English. It introduces a contrasting point.",
+      "hint": "This word introduces an opposite or contrasting idea"
+    },
+    {
+      "question": "What does 'inmiddels' mean in English?",
+      "options": ["meanwhile", "therefore", "however", "because"],
+      "correctAnswer": 0,
+      "explanation": "'Inmiddels' means 'meanwhile' or 'in the meantime' in English. It indicates time.",
+      "hint": "This word indicates what happens during the same time period"
+    },
+    {
+      "question": "Which category does 'zodat' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tijd en volgorde (time and sequence)"],
+      "correctAnswer": 0,
+      "explanation": "'Zodat' belongs to the 'doel' (purpose) category. It means 'so that' and indicates purpose.",
+      "hint": "This word shows the purpose or goal of an action"
+    },
+    {
+      "question": "Which category does 'bovendien' belong to?",
+      "options": ["opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tegenstelling (contrast)", "voorbeeld (example)"],
+      "correctAnswer": 0,
+      "explanation": "'Bovendien' belongs to the 'opsomming' (enumeration) category. It means 'moreover' and adds to a list.",
+      "hint": "This word adds more items to a list or enumeration"
+    },
+    {
+      "question": "Which category does 'kortom' belong to?",
+      "options": ["opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tegenstelling (contrast)", "voorbeeld (example)"],
+      "correctAnswer": 1,
+      "explanation": "'Kortom' belongs to the 'samenvatting of conclusie' (summary or conclusion) category. It means 'in short' and introduces a summary.",
+      "hint": "This word introduces a summary or conclusion"
+    },
+    {
+      "question": "Which category does 'daarentegen' belong to?",
+      "options": ["opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tegenstelling (contrast)", "voorbeeld (example)"],
+      "correctAnswer": 2,
+      "explanation": "'Daarentegen' belongs to the 'tegenstelling' (contrast) category. It means 'on the other hand' and introduces a contrast.",
+      "hint": "This word introduces an opposite or contrasting idea"
+    },
+    {
+      "question": "What does 'want' mean in English?",
+      "options": ["because", "therefore", "however", "for example"],
+      "correctAnswer": 0,
+      "explanation": "'Want' means 'because' in English. It introduces a reason, similar to 'omdat'.",
+      "hint": "This word introduces a reason, like 'omdat'"
+    },
+    {
+      "question": "What does 'dus' mean in English?",
+      "options": ["because", "therefore", "however", "for example"],
+      "correctAnswer": 1,
+      "explanation": "'Dus' means 'therefore' or 'so' in English. It indicates a conclusion or result.",
+      "hint": "This word shows a conclusion or result"
+    },
+    {
+      "question": "What does 'maar' mean in English?",
+      "options": ["because", "therefore", "but", "for example"],
+      "correctAnswer": 2,
+      "explanation": "'Maar' means 'but' in English. It introduces a contrast or exception.",
+      "hint": "This is one of the most common connecting words"
+    },
+    {
+      "question": "What does 'en' mean in English?",
+      "options": ["because", "therefore", "however", "and"],
+      "correctAnswer": 3,
+      "explanation": "'En' means 'and' in English. It connects similar ideas or adds information.",
+      "hint": "This is the most basic connecting word"
+    },
+    {
+      "question": "What does 'ook' mean in English?",
+      "options": ["because", "therefore", "however", "also"],
+      "correctAnswer": 3,
+      "explanation": "'Ook' means 'also' or 'too' in English. It adds additional information.",
+      "hint": "This word adds more information"
+    },
+    {
+      "question": "What does 'toch' mean in English?",
+      "options": ["because", "therefore", "however", "for example"],
+      "correctAnswer": 2,
+      "explanation": "'Toch' means 'however' or 'nevertheless' in English. It introduces a contrast.",
+      "hint": "This word shows a contrast or exception"
+    },
+    {
+      "question": "What does 'namelijk' mean in English?",
+      "options": ["because", "therefore", "however", "namely"],
+      "correctAnswer": 3,
+      "explanation": "'Namelijk' means 'namely' or 'that is' in English. It introduces an explanation.",
+      "hint": "This word introduces an explanation or clarification"
+    },
+    {
+      "question": "What does 'verder' mean in English?",
+      "options": ["because", "therefore", "however", "furthermore"],
+      "correctAnswer": 3,
+      "explanation": "'Verder' means 'furthermore' or 'moreover' in English. It adds more information.",
+      "hint": "This word adds additional information"
+    },
+    {
+      "question": "What does 'ten slotte' mean in English?",
+      "options": ["because", "therefore", "however", "finally"],
+      "correctAnswer": 3,
+      "explanation": "'Ten slotte' means 'finally' or 'lastly' in English. It introduces the last point.",
+      "hint": "This phrase introduces the final point"
+    },
+    {
+      "question": "What does 'terwijl' mean in English?",
+      "options": ["because", "therefore", "however", "while"],
+      "correctAnswer": 3,
+      "explanation": "'Terwijl' means 'while' in English. It indicates simultaneous actions.",
+      "hint": "This word shows actions happening at the same time"
+    },
+    {
+      "question": "Complete the sentence: 'Ik studeer hard ___ ik goed kan slagen.'",
+      "options": ["omdat", "zodat", "echter", "bijvoorbeeld"],
+      "correctAnswer": 1,
+      "explanation": "The correct answer is 'zodat' (so that). The sentence means 'I study hard so that I can pass well.'",
+      "hint": "You need a word that shows purpose"
+    },
+    {
+      "question": "Complete the sentence: 'Ik ga naar de bibliotheek. ___ ga ik ook naar de winkel.'",
+      "options": ["omdat", "daarom", "bovendien", "echter"],
+      "correctAnswer": 2,
+      "explanation": "The correct answer is 'bovendien' (moreover). The sentence means 'I'm going to the library. Moreover, I'm also going to the store.'",
+      "hint": "You need a word that adds more information"
+    },
+    {
+      "question": "Complete the sentence: '___ het regent, blijf ik thuis.'",
+      "options": ["omdat", "daarom", "echter", "als"],
+      "correctAnswer": 3,
+      "explanation": "The correct answer is 'als' (if). The sentence means 'If it rains, I stay home.'",
+      "hint": "You need a word that introduces a condition"
+    },
+    {
+      "question": "Complete the sentence: 'Ik hou van koffie ___ thee.'",
+      "options": ["omdat", "daarom", "en", "echter"],
+      "correctAnswer": 2,
+      "explanation": "The correct answer is 'en' (and). The sentence means 'I like coffee and tea.'",
+      "hint": "You need a word that connects similar ideas"
+    },
+    {
+      "question": "Complete the sentence: 'Het is laat, ___ ik ga naar bed.'",
+      "options": ["omdat", "daarom", "echter", "als"],
+      "correctAnswer": 1,
+      "explanation": "The correct answer is 'daarom' (therefore). The sentence means 'It's late, therefore I'm going to bed.'",
+      "hint": "You need a word that shows a consequence"
+    },
+    {
+      "question": "Which category does 'want' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tegenstelling (contrast)"],
+      "correctAnswer": 2,
+      "explanation": "'Want' belongs to the 'oorzaak of reden' (cause or reason) category. It means 'because' and introduces a reason.",
+      "hint": "This word introduces a reason"
+    },
+    {
+      "question": "Which category does 'dus' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tegenstelling (contrast)"],
+      "correctAnswer": 1,
+      "explanation": "'Dus' belongs to the 'gevolg' (consequence) category. It means 'therefore' and indicates a result.",
+      "hint": "This word shows a result or conclusion"
+    },
+    {
+      "question": "Which category does 'maar' belong to?",
+      "options": ["doel (purpose)", "gevolg (consequence)", "oorzaak of reden (cause or reason)", "tegenstelling (contrast)"],
+      "correctAnswer": 3,
+      "explanation": "'Maar' belongs to the 'tegenstelling' (contrast) category. It means 'but' and introduces a contrast.",
+      "hint": "This word shows a contrast or exception"
+    },
+    {
+      "question": "Which category does 'en' belong to?",
+      "options": ["opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tegenstelling (contrast)", "voorbeeld (example)"],
+      "correctAnswer": 0,
+      "explanation": "'En' belongs to the 'opsomming' (enumeration) category. It means 'and' and connects similar ideas.",
+      "hint": "This word connects similar ideas"
+    },
+    {
+      "question": "Which category does 'ook' belong to?",
+      "options": ["opsomming (enumeration)", "samenvatting of conclusie (summary or conclusion)", "tegenstelling (contrast)", "voorbeeld (example)"],
+      "correctAnswer": 0,
+      "explanation": "'Ook' belongs to the 'opsomming' (enumeration) category. It means 'also' and adds to a list.",
+      "hint": "This word adds more information to a list"
+    }
+  ],
+  "commonMistakes": [
+    {
+      "incorrect": "Ik ga naar huis omdat ik ben moe.",
+      "correct": "Ik ga naar huis omdat ik moe ben.",
+      "explanation": "In Dutch, the verb 'ben' comes after the adjective 'moe' in subordinate clauses with 'omdat'."
+    },
+    {
+      "incorrect": "Het regent, daarom ik blijf thuis.",
+      "correct": "Het regent, daarom blijf ik thuis.",
+      "explanation": "After 'daarom', the word order is the same as in a main clause (verb before subject)."
+    },
+    {
+      "incorrect": "Ik hou van koffie, maar ik drink ook thee.",
+      "correct": "Ik hou van koffie, maar ik drink ook thee.",
+      "explanation": "This is actually correct! 'Maar' is a coordinating conjunction, so word order stays the same."
+    }
+  ],
+  "tips": [
+    "Practice using connecting words in context, not just in isolation",
+    "Pay attention to word order after different connecting words",
+    "Some connecting words require different sentence structures",
+    "Listen to native speakers to learn natural usage",
+    "Don't translate directly from English - Dutch has different patterns",
+    "Start with the most common ones: omdat, maar, en, ook, omdat"
+  ],
+  "relatedRules": [
+    "wordOrder",
+    "sentenceStructure",
+    "subordinateClauses"
+  ]
+}

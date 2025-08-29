@@ -405,6 +405,8 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
             return _buildExerciseCard(index);
           }),
         ],
+        
+
       ],
     );
   }
@@ -711,6 +713,10 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   }
 
   void _removeExercise(int index) {
+    print('🔍 DEBUG: _removeExercise called with index: $index');
+    print('🔍 DEBUG: Current exercises count before removal: ${_exercises.length}');
+    print('🔍 DEBUG: Is editing existing exercise: ${widget.editingExercise != null}');
+    
     setState(() {
       _exercises.removeAt(index);
       _promptControllers[index].dispose();
@@ -728,17 +734,13 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
       _optionControllers.removeAt(index);
     });
     
+    print('🔍 DEBUG: Exercises count after removal: ${_exercises.length}');
+    
     // If this was the last exercise and we're editing an existing exercise, 
-    // navigate back to create exercise view
+    // auto-save to remove all exercises
     if (_exercises.isEmpty && widget.editingExercise != null) {
-      Navigator.of(context).pop();
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => CreateWordExerciseView(
-            editingExercise: widget.editingExercise,
-          ),
-        ),
-      );
+      print('🔍 DEBUG: No exercises left, auto-saving to remove all exercises');
+      _autoSaveEmptyExercises();
     }
   }
 
@@ -757,66 +759,88 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     }
   }
 
-  void _saveExercise() {
+  void _saveExercise() async {
+    print('🔍 DEBUG: _saveExercise called');
+    print('🔍 DEBUG: Current exercises count: ${_exercises.length}');
+    print('🔍 DEBUG: Is editing existing exercise: ${widget.editingExercise != null}');
+    
     if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    
-    // Validate word selection
-    if (_isPickingExistingWord && _selectedWordId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an existing word'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    
-    if (!_isPickingExistingWord && (_targetWordController.text.isEmpty || _translationController.text.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter both Dutch word and translation'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('🔍 DEBUG: Form validation failed');
       return;
     }
 
-    // Build exercises from form data
-    final exercises = <WordExercise>[];
-    
-    for (int i = 0; i < _exercises.length; i++) {
-      List<String> options;
-      String correctAnswer;
-      
-      if (_exerciseTypes[i] == ExerciseType.sentenceBuilding) {
-        // For sentence building, split the correct answer into individual words
-        correctAnswer = _correctAnswerControllers[i].text;
-        options = correctAnswer.split(' ').where((String word) => word.isNotEmpty).toList();
-      } else if (_exerciseTypes[i] == ExerciseType.multipleChoice || 
-                 _exerciseTypes[i] == ExerciseType.fillInBlank) {
-        // For multiple choice and fill in blank, first option is the correct answer
-        options = _optionControllers[i].map((c) => c.text).toList();
-        correctAnswer = options.isNotEmpty ? options[0] : '';
+    // Allow saving with 0 exercises (to delete all exercises)
+    if (_exercises.isEmpty) {
+      print('🔍 DEBUG: No exercises to save');
+      // If we're editing an existing exercise, we can save with 0 exercises to delete all
+      if (widget.editingExercise != null) {
+        print('🔍 DEBUG: Editing existing exercise with 0 exercises - will delete all');
+        // Continue with empty exercises list to delete all exercises
       } else {
-        // For other exercise types, use the options from the form and separate correct answer
-        options = _optionControllers[i].map((c) => c.text).toList();
-        correctAnswer = _correctAnswerControllers[i].text;
+        print('🔍 DEBUG: New exercise with 0 exercises - showing warning');
+        // For new exercises, require at least one
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please add at least one exercise before saving.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Validate that all exercises have complete data
+    for (int i = 0; i < _exercises.length; i++) {
+      if (_promptControllers[i].text.trim().isEmpty ||
+          _correctAnswerControllers[i].text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exercise ${i + 1} is incomplete. Please fill in all required fields.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
       }
       
+      // For multiple choice, ensure we have at least 2 options including the correct answer
+      if (_exerciseTypes[i] == ExerciseType.multipleChoice) {
+        final nonEmptyOptions = _optionControllers[i]
+            .where((controller) => controller.text.trim().isNotEmpty)
+            .length;
+        
+        if (nonEmptyOptions < 2) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Exercise ${i + 1} needs at least 2 options for multiple choice.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
+    // Create exercises list from controllers
+    final exercises = <WordExercise>[];
+    for (int i = 0; i < _exercises.length; i++) {
+      final options = _optionControllers[i]
+          .map((controller) => controller.text.trim())
+          .where((text) => text.isNotEmpty)
+          .toList();
+      
       exercises.add(WordExercise(
-        id: '${DateTime.now().millisecondsSinceEpoch}_$i',
+        id: _exercises[i].id,
         type: _exerciseTypes[i],
-        prompt: _promptControllers[i].text,
+        prompt: _promptControllers[i].text.trim(),
         options: options,
-        correctAnswer: correctAnswer,
-        explanation: _explanationControllers[i].text,
-        difficulty: ExerciseDifficulty.beginner,
+        correctAnswer: _correctAnswerControllers[i].text.trim(),
+        explanation: _explanationControllers[i].text.trim(),
+        difficulty: _exercises[i].difficulty,
       ));
     }
 
-    // Determine deck information based on selected card
+    String targetWord;
+    String wordTranslation;
     String deckId;
     String deckName;
     
@@ -829,7 +853,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
           word: '',
           definition: '',
           example: '',
-                      deckIds: <String>{},
+          deckIds: <String>{},
             dateCreated: DateTime.now(),
             learningMastery: LearningMastery(),
           article: '',
@@ -847,20 +871,30 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         deckId = 'default';
         deckName = 'Default';
       }
+      
+      targetWord = selectedCard.word;
+      wordTranslation = selectedCard.definition;
     } else {
       // For new words, use default deck
       deckId = 'default';
       deckName = 'Default';
+      targetWord = _targetWordController.text.trim();
+      wordTranslation = _translationController.text.trim();
     }
 
     // Check if there's already an existing exercise for this word
     final provider = context.read<DutchWordExerciseProvider>();
-    final existingExercise = provider.getWordExerciseByWord(_targetWordController.text);
+    final existingExercise = provider.getWordExerciseByWord(targetWord);
+    
+    print('🔍 DEBUG: Target word: $targetWord');
+    print('🔍 DEBUG: Existing exercise found: ${existingExercise != null}');
+    print('🔍 DEBUG: Exercises to save: ${exercises.length}');
     
     DutchWordExercise wordExercise;
     
     if (existingExercise != null) {
-      // Update existing exercise
+      print('🔍 DEBUG: Updating existing exercise with ${exercises.length} exercises');
+      // Update existing exercise - completely replace exercises to allow deletion
       wordExercise = DutchWordExercise(
         id: existingExercise.id,
         targetWord: existingExercise.targetWord,
@@ -869,39 +903,63 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         deckName: existingExercise.deckName,
         category: existingExercise.category,
         difficulty: existingExercise.difficulty,
-        exercises: exercises,
+        exercises: exercises, // Replace with current exercises list
         createdAt: existingExercise.createdAt,
         isUserCreated: existingExercise.isUserCreated,
         learningProgress: existingExercise.learningProgress,
       );
-      provider.updateWordExercise(wordExercise);
+      await provider.updateWordExercise(wordExercise);
+      print('🔍 DEBUG: Exercise updated successfully');
+      
+      if (mounted) {
+        if (exercises.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('All exercises deleted successfully!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Word exercise updated with ${exercises.length} exercise${exercises.length == 1 ? '' : 's'}!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
     } else {
       // Create new exercise
       wordExercise = DutchWordExercise(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        targetWord: _targetWordController.text,
-        wordTranslation: _translationController.text,
+        targetWord: targetWord,
+        wordTranslation: wordTranslation,
         deckId: deckId,
         deckName: deckName,
-        category: WordCategory.common, // Default category
-        difficulty: ExerciseDifficulty.beginner, // Default difficulty
+        category: WordCategory.common,
+        difficulty: ExerciseDifficulty.beginner,
         exercises: exercises,
         createdAt: DateTime.now(),
         isUserCreated: true,
+        learningProgress: LearningProgress(),
       );
-      provider.addWordExercise(wordExercise);
+      
+      await provider.addWordExercise(wordExercise);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Word exercise created with ${exercises.length} exercise${exercises.length == 1 ? '' : 's'}!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     }
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Word exercise "${wordExercise.targetWord}" ${existingExercise != null ? 'updated' : 'created'} successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
     // Navigate back
-    Navigator.of(context).pop();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   void _loadExerciseForEditing() {
@@ -1016,6 +1074,53 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         return 'Sentence Building';
       case ExerciseType.multipleChoice:
         return 'Multiple Choice';
+    }
+  }
+
+  void _autoSaveEmptyExercises() async {
+    print('🔍 DEBUG: _autoSaveEmptyExercises called');
+    
+    if (widget.editingExercise == null) {
+      print('🔍 DEBUG: Not editing existing exercise, skipping auto-save');
+      return;
+    }
+
+    final provider = context.read<DutchWordExerciseProvider>();
+    final existingExercise = provider.getWordExerciseByWord(widget.editingExercise!.targetWord);
+    
+    if (existingExercise != null) {
+      print('🔍 DEBUG: Auto-saving empty exercises for word: ${existingExercise.targetWord}');
+      
+      // Create empty exercise object
+      final emptyExercise = DutchWordExercise(
+        id: existingExercise.id,
+        targetWord: existingExercise.targetWord,
+        wordTranslation: existingExercise.wordTranslation,
+        deckId: existingExercise.deckId,
+        deckName: existingExercise.deckName,
+        category: existingExercise.category,
+        difficulty: existingExercise.difficulty,
+        exercises: <WordExercise>[], // Empty exercises list
+        createdAt: existingExercise.createdAt,
+        isUserCreated: existingExercise.isUserCreated,
+        learningProgress: existingExercise.learningProgress,
+      );
+      
+      await provider.updateWordExercise(emptyExercise);
+      print('🔍 DEBUG: Auto-save completed - all exercises removed');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All exercises removed'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        // Navigate back to refresh the list
+        Navigator.of(context).pop();
+      }
     }
   }
 } 

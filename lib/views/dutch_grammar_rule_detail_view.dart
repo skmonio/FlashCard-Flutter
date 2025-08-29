@@ -93,6 +93,9 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                           textAlign: TextAlign.left, 
                           enableInteractiveSelection: true, 
                           showCursor: false,
+                          contextMenuBuilder: (context, editableTextState) {
+                            return const SizedBox.shrink(); // Hide system context menu
+                          },
                         )),
                       ],
                     ),
@@ -173,6 +176,9 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
             textAlign: TextAlign.left,
             enableInteractiveSelection: true,
             showCursor: false,
+            contextMenuBuilder: (context, editableTextState) {
+              return const SizedBox.shrink(); // Hide system context menu
+            },
           ),
           
           if (widget.rule.relatedRules.isNotEmpty) ...[
@@ -234,6 +240,9 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                   textAlign: TextAlign.left,
                   enableInteractiveSelection: true,
                   showCursor: false,
+                  contextMenuBuilder: (context, editableTextState) {
+                    return const SizedBox.shrink(); // Hide system context menu
+                  },
                 ),
                 
                 const SizedBox(height: 8),
@@ -249,6 +258,9 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                   textAlign: TextAlign.left,
                   enableInteractiveSelection: true,
                   showCursor: false,
+                  contextMenuBuilder: (context, editableTextState) {
+                    return const SizedBox.shrink(); // Hide system context menu
+                  },
                 ),
                 
                 if (example.breakdown != null) ...[
@@ -269,6 +281,9 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                       textAlign: TextAlign.left,
                       enableInteractiveSelection: true,
                       showCursor: false,
+                      contextMenuBuilder: (context, editableTextState) {
+                        return const SizedBox.shrink(); // Hide system context menu
+                      },
                     ),
                   ),
                 ],

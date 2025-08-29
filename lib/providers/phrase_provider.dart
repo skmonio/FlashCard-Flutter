@@ -42,7 +42,11 @@ class PhraseProvider with ChangeNotifier {
   
   // MARK: - CRUD Operations
   
-  Future<void> addPhrase(String phrase, String translation) async {
+  Future<bool> addPhrase(String phrase, String translation) async {
+    // Check for duplicate phrase (but don't prevent creation)
+    final duplicatePhrase = _findDuplicatePhrase(phrase);
+    final isDuplicate = duplicatePhrase != null;
+    
     final newPhrase = Phrase(
       phrase: phrase.trim(),
       translation: translation.trim(),
@@ -51,6 +55,7 @@ class PhraseProvider with ChangeNotifier {
     _phrases.add(newPhrase);
     await _savePhrases();
     notifyListeners();
+    return !isDuplicate; // Return false if duplicate, true if new
   }
   
   Future<void> updatePhrase(String id, String phrase, String translation) async {
@@ -274,5 +279,18 @@ class PhraseProvider with ChangeNotifier {
       'fullyLearned': learnedCount,
       'averagePercentage': averageLearningPercentage,
     };
+  }
+  
+  Phrase? _findDuplicatePhrase(String phrase) {
+    final normalizedPhrase = phrase.trim().toLowerCase();
+    if (normalizedPhrase.isEmpty) return null;
+    
+    try {
+      return _phrases.firstWhere(
+        (p) => p.phrase.toLowerCase() == normalizedPhrase,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 }
