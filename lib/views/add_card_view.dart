@@ -104,21 +104,7 @@ class _AddCardViewState extends State<AddCardView> {
 
   @override
   Widget build(BuildContext context) {
-    // Set default deck to "Uncategorized" if no deck is selected and we're not editing
-    if (_selectedDeckIds.isEmpty && widget.cardToEdit == null && widget.selectedDeck == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final provider = context.read<FlashcardProvider>();
-        final uncategorizedDeck = provider.decks.firstWhere(
-          (deck) => deck.name.toLowerCase() == 'uncategorized',
-          orElse: () => provider.decks.isNotEmpty ? provider.decks.first : Deck(id: '', name: 'Uncategorized'),
-        );
-        if (uncategorizedDeck.id.isNotEmpty && !_selectedDeckIds.contains(uncategorizedDeck.id)) {
-          setState(() {
-            _selectedDeckIds = [uncategorizedDeck.id];
-          });
-        }
-      });
-    }
+    // No longer automatically select "Uncategorized" deck - users must choose
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -139,7 +125,7 @@ class _AddCardViewState extends State<AddCardView> {
                     child: Text(
                       _canSave() 
                           ? (widget.cardToEdit != null ? 'Save' : 'Add')
-                          : (_wordController.text.trim().isEmpty ? 'Enter word' : 'Select deck'),
+                          : (_wordController.text.trim().isEmpty ? 'Enter word' : 'Add'),
                       style: TextStyle(
                         color: _canSave() 
                             ? Theme.of(context).colorScheme.primary 
@@ -761,8 +747,7 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   bool _canSave() {
-    return _wordController.text.trim().isNotEmpty && 
-           _selectedDeckIds.isNotEmpty;
+    return _wordController.text.trim().isNotEmpty;
   }
 
   FlashCard? _findDuplicateCard() {
@@ -803,10 +788,21 @@ class _AddCardViewState extends State<AddCardView> {
     }
     
     if (_selectedDeckIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one deck')),
+      // If no deck is selected, default to "Uncategorized"
+      final provider = context.read<FlashcardProvider>();
+      final uncategorizedDeck = provider.decks.firstWhere(
+        (deck) => deck.name.toLowerCase() == 'uncategorized',
+        orElse: () => Deck(id: '', name: ''),
       );
-      return;
+      
+      if (uncategorizedDeck.id.isNotEmpty) {
+        _selectedDeckIds = [uncategorizedDeck.id];
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select at least one deck')),
+        );
+        return;
+      }
     }
     
     // Check for duplicate card
@@ -926,10 +922,37 @@ class _AddCardViewState extends State<AddCardView> {
                 );
               }
             } else {
-              // Word wasn't changed - no automatic exercise generation
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Card updated successfully!')),
-              );
+              // Word wasn't changed - check if new grammar information was added
+              final newExerciseTypes = _getNewExerciseTypes(widget.cardToEdit!, updatedCard);
+              
+              if (newExerciseTypes.isNotEmpty && mounted) {
+                // Ask user if they want to create exercises for the newly added grammar information
+                final selectedNewExercises = await _showCreateExercisesDialog(
+                  updatedCard.word, 
+                  newExerciseTypes,
+                  message: 'New grammar information was added. Would you like to create exercises for these new features?'
+                );
+                
+                if (selectedNewExercises.isNotEmpty) {
+                  // Create exercises for the new grammar information
+                  await _createSelectedExercises(updatedCard, selectedNewExercises);
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Card updated successfully! ${selectedNewExercises.length} additional exercise${selectedNewExercises.length == 1 ? '' : 's'} created for new grammar information.'),
+                      backgroundColor: Colors.blue,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Card updated successfully!')),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Card updated successfully!')),
+                );
+              }
             }
           } else {
             // No exercises exist for the original word - check if we can create new ones
@@ -1306,6 +1329,29 @@ class _AddCardViewState extends State<AddCardView> {
     }
     
     return exercisesToRemove;
+  }
+
+  /// Get new exercise types that were added to the card
+  List<String> _getNewExerciseTypes(FlashCard originalCard, FlashCard updatedCard) {
+    final newExerciseTypes = <String>[];
+
+    // Check if article was added (not changed, only added)
+    if ((originalCard.article?.isEmpty ?? true) && (updatedCard.article?.isNotEmpty ?? false)) {
+      newExerciseTypes.add('De/Het Article Exercise');
+    }
+
+    // Check if plural was added (not changed, only added)
+    if ((originalCard.plural?.isEmpty ?? true) && (updatedCard.plural?.isNotEmpty ?? false)) {
+      newExerciseTypes.add('Plural Form Exercise');
+    }
+
+    // Check if example and translation were both added (not changed, only added)
+    if ((originalCard.example?.isEmpty ?? true) && (updatedCard.example?.isNotEmpty ?? false) &&
+        (originalCard.exampleTranslation?.isEmpty ?? true) && (updatedCard.exampleTranslation?.isNotEmpty ?? false)) {
+      newExerciseTypes.add('Sentence Building Exercise');
+    }
+
+    return newExerciseTypes;
   }
 
   /// Show exercise selection dialog using a different approach

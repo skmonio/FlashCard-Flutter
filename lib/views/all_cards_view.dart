@@ -37,6 +37,7 @@ class _AllCardsViewState extends State<AllCardsView> {
   bool _isSelectionMode = false;
   Set<String> _selectedCardIds = {};
   bool _selectAll = false;
+  bool _enteredViaSelectAll = false; // Track how selection mode was entered
   late TextEditingController _searchController;
   
   // Performance optimization: Cache filtered results
@@ -51,13 +52,32 @@ class _AllCardsViewState extends State<AllCardsView> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    
+    // Add listener to refresh when provider updates
+    final provider = context.read<FlashcardProvider>();
+    provider.addListener(_onProviderChanged);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
+    
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    
     super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh the UI when cards are updated
+    if (mounted) {
+      setState(() {
+        // Clear cache to force refresh of filtered results
+        _cachedFilteredCards = null;
+      });
+    }
   }
 
   @override
@@ -128,38 +148,25 @@ class _AllCardsViewState extends State<AllCardsView> {
             ),
           ),
           if (_isSelectionMode) ...[
-            TextButton(
-              onPressed: _selectAll ? _deselectAll : _selectAllCards,
-              child: Text(_selectAll ? 'Deselect All' : 'Select All'),
-            ),
-            if (_selectedCardIds.isNotEmpty) ...[
-              TextButton(
-                onPressed: _selectedCardIds.length == 1 ? _editSelectedCard : null,
-                child: const Text('Edit'),
+            if (_selectedCardIds.isNotEmpty)
+              IconButton(
+                onPressed: _showBulkActionsMenu,
+                icon: const Icon(Icons.more_vert),
               ),
-              TextButton(
-                onPressed: _showDeleteConfirmation,
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
             TextButton(
               onPressed: () {
                 setState(() {
                   _isSelectionMode = false;
                   _selectedCardIds.clear();
                   _selectAll = false;
+                  _enteredViaSelectAll = false;
                 });
               },
               child: const Text('Cancel'),
             ),
           ] else ...[
             IconButton(
-              onPressed: () {
-                setState(() {
-                  _isSelectionMode = true;
-                });
-              },
+              onPressed: _showSelectionMenu,
               icon: const Icon(Icons.select_all),
               tooltip: 'Select Cards',
             ),
@@ -723,7 +730,8 @@ class _AllCardsViewState extends State<AllCardsView> {
         // Refresh the UI if card was updated
         if (result == true) {
           setState(() {
-            // Trigger rebuild to show updated card information
+            // Clear cache to force refresh of filtered results
+            _cachedFilteredCards = null;
           });
         }
       });
@@ -1299,6 +1307,183 @@ class _AllCardsViewState extends State<AllCardsView> {
         });
       }
     });
+  }
+
+  void _showSelectionMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Card Selection Options',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.select_all, color: Colors.blue),
+              title: const Text('Select All Cards'),
+              subtitle: const Text('Select all cards in the current view'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _isSelectionMode = true;
+                  _enteredViaSelectAll = true;
+                });
+                _selectAllCards();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.checklist, color: Colors.green),
+              title: const Text('Manual Selection'),
+              subtitle: const Text('Select individual cards by tapping them'),
+              onTap: () {
+                Navigator.pop(context);
+                setState(() {
+                  _isSelectionMode = true;
+                  _enteredViaSelectAll = false;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBulkActionsMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Bulk Actions (${_selectedCardIds.length} selected)',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_selectedCardIds.length == 1)
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.blue),
+                title: const Text('Edit Selected Card'),
+                subtitle: const Text('Edit the selected card'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _editSelectedCard();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Selected Cards'),
+              subtitle: const Text('Permanently delete all selected cards'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteConfirmation();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.orange),
+              title: const Text('Reset Progress'),
+              subtitle: const Text('Reset learning progress for selected cards'),
+              onTap: () {
+                Navigator.pop(context);
+                _showResetProgressConfirmation();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showResetProgressConfirmation() {
+    final provider = context.read<FlashcardProvider>();
+    final selectedCards = _selectedCardIds.map((id) => provider.getCard(id)).whereType<FlashCard>().toList();
+    final cardNames = selectedCards.map((c) => c.word).join(', ');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Progress'),
+        content: Text(
+          'Are you sure you want to reset the learning progress for ${_selectedCardIds.length} card(s)?\n\n'
+          'This will reset SRS level, success count, and learning mastery for:\n$cardNames\n\n'
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resetSelectedCardsProgress();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Reset Progress'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _resetSelectedCardsProgress() async {
+    final provider = context.read<FlashcardProvider>();
+    int successCount = 0;
+    int errorCount = 0;
+
+    for (String cardId in _selectedCardIds) {
+      try {
+        final card = provider.getCard(cardId);
+        if (card != null) {
+          final resetCard = card.copyWith(
+            successCount: 0,
+            learningMastery: LearningMastery(),
+          );
+          await provider.updateCard(resetCard);
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (e) {
+        print('🔍 AllCardsView: Error resetting progress for card $cardId: $e');
+        errorCount++;
+      }
+    }
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedCardIds.clear();
+      _selectAll = false;
+    });
+
+    // Clear cache after reset
+    _cachedFilteredCards = null;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Reset progress for $successCount card${successCount == 1 ? '' : 's'}'
+            '${errorCount > 0 ? ' ($errorCount failed)' : ''}',
+          ),
+          backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+        ),
+      );
+    }
   }
 
 } 

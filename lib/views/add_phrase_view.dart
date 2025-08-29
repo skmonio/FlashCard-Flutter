@@ -92,23 +92,35 @@ class _AddPhraseViewState extends State<AddPhraseView> {
         );
       } else {
         // Add new phrase
-        await context.read<PhraseProvider>().addPhrase(
+        print('🔍 DEBUG: Attempting to add phrase: "${_phraseController.text.trim()}"');
+        final success = await context.read<PhraseProvider>().addPhrase(
           _phraseController.text.trim(),
           _translationController.text.trim(),
         );
-      }
+        
+        print('🔍 DEBUG: Add phrase result: $success');
+        
+        if (!success) {
+          print('🔍 DEBUG: Phrase already exists - showing warning but continuing');
+          // Phrase already exists - show warning but continue to create anyway
+          // The red warning text is already shown inline, no need for SnackBar
+        }
+        
+        // Always continue to show success message and navigate back
+        print('🔍 DEBUG: Phrase added successfully');
+        
+        HapticService().successFeedback();
+        SoundManager().playCompleteSound();
 
-      HapticService().successFeedback();
-      SoundManager().playCompleteSound();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.editingPhrase != null ? 'Phrase updated successfully!' : 'Phrase added successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.editingPhrase != null ? 'Phrase updated successfully!' : 'Phrase added successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -144,6 +156,11 @@ class _AddPhraseViewState extends State<AddPhraseView> {
               // Phrase Input
               TextFormField(
                 controller: _phraseController,
+                onChanged: (value) {
+                  setState(() {
+                    // Trigger rebuild to check for duplicates
+                  });
+                },
                 decoration: const InputDecoration(
                   labelText: 'Dutch Phrase',
                   hintText: 'e.g., Ik vind het niet leuk',
@@ -158,6 +175,33 @@ class _AddPhraseViewState extends State<AddPhraseView> {
                   return null;
                 },
               ),
+              
+              // Duplicate warning
+              if (_phraseController.text.trim().isNotEmpty && _isDuplicatePhrase())
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This phrase already exists',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 16),
 
               // Translate Button
@@ -256,5 +300,28 @@ class _AddPhraseViewState extends State<AddPhraseView> {
         ),
       ),
     );
+  }
+
+  bool _isDuplicatePhrase() {
+    final phrase = _phraseController.text.trim();
+    if (phrase.isEmpty) return false;
+    
+    final provider = context.read<PhraseProvider>();
+    final normalizedPhrase = phrase.toLowerCase();
+    
+    try {
+      final existingPhrase = provider.phrases.firstWhere(
+        (p) => p.phrase.toLowerCase() == normalizedPhrase,
+      );
+      
+      // When editing, don't consider the current phrase as a duplicate
+      if (widget.editingPhrase != null && existingPhrase.id == widget.editingPhrase!.id) {
+        return false;
+      }
+      
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
