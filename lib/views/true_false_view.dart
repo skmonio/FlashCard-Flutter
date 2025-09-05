@@ -996,14 +996,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe right to show word progress
-          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
-            _showWordProgress();
-          }
-        },
-        child: Column(
+      body: Column(
           children: [
             // Small header - matching study view
             SafeArea(
@@ -1175,7 +1168,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             ),
           ],
         ),
-      ),
     );
   }
 

@@ -1128,14 +1128,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe right to show word progress
-          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
-            _showWordProgress();
-          }
-        },
-        child: Column(
+      body: Column(
           children: [
             // Header
             SafeArea(
@@ -1299,7 +1292,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
             ),
           ],
         ),
-      ),
     );
   }
 

@@ -903,14 +903,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe right to show word progress
-          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
-            _showWordProgress();
-          }
-        },
-        child: Column(
+      body: Column(
           children: [
             // Fixed Header - matching Taal Trek header height
             SafeArea(
@@ -1069,7 +1062,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             ),
           ],
         ),
-      ),
     );
   }
 
