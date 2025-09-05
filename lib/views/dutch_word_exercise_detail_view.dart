@@ -907,7 +907,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
-          hideNavigation: false, // Allow swipe for word exercises
+          hideNavigation: true, // Hide back button and swipe for word exercises
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart exercise

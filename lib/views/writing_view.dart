@@ -615,7 +615,7 @@ class _WritingViewState extends State<WritingView> {
                           icon: const Icon(Icons.arrow_forward, size: 16),
                           label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: (_answered && _currentIndex < _currentCards.length - 1) ? Colors.green : Colors.grey,
+                            backgroundColor: _answered ? Colors.green : Colors.grey,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 8),
                           ),
@@ -1007,7 +1007,7 @@ class _WritingViewState extends State<WritingView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: false, // Allow swipe for writing
+          hideNavigation: true, // Hide back button and swipe for writing games
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

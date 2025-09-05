@@ -1230,7 +1230,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: false, // Allow swipe for word scramble
+          hideNavigation: true, // Hide back button and swipe for word scramble games
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

@@ -1323,7 +1323,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: false, // Allow swipe for true/false
+          hideNavigation: true, // Hide back button and swipe for true/false games
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

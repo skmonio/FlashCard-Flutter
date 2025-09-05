@@ -1158,7 +1158,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: false, // Allow swipe for multiple choice
+          hideNavigation: true, // Hide back button and swipe for multiple choice games
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

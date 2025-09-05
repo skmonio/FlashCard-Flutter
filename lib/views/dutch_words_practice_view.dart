@@ -1007,7 +1007,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
-          hideNavigation: false, // Allow swipe for practice sessions
+          hideNavigation: true, // Hide back button and swipe for practice sessions
           onStudyAgain: () async {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart practice

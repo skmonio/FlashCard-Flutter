@@ -796,7 +796,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
-          hideNavigation: false, // Allow swipe for phrase exercises
+          hideNavigation: true, // Hide back button and swipe for phrase exercises
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart exercise
