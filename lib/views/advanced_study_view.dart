@@ -9,7 +9,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/xp_service.dart';
-import '../components/animated_xp_counter.dart';
+
 import '../components/word_progress_display.dart';
 import 'add_card_view.dart';
 
@@ -199,7 +199,15 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     }
 
     if (_showingResults) {
-      return _buildResultsView();
+      // Go directly to word progress instead of showing completion screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showWordProgress();
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     return Scaffold(
@@ -447,7 +455,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           Expanded(
             child: ElevatedButton.icon(
               onPressed: _currentIndex > 0 ? _goToPreviousCard : null,
-              icon: const Icon(Icons.arrow_back, size: 16),
+              icon: const Icon(Icons.arrow_back_ios, size: 16),
               label: const Text('Back'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
@@ -1069,221 +1077,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     );
   }
 
-  Widget _buildResultsView() {
-    final totalCards = _knownCards.length + _unknownCards.length + _skippedCards.length;
-    final accuracy = totalCards > 0 ? (_knownCards.length / totalCards * 100).toInt() : 0;
-    
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe right to show word progress
-          if (details.primaryVelocity! < 0 && _xpGainedPerWord.values.isNotEmpty) {
-            _showWordProgress();
-          }
-        },
-        child: Column(
-          children: [
-            // Header
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios),
-                      iconSize: 20,
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Study Complete',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      icon: const Icon(Icons.home),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Results content - Make it scrollable
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    
-                    // Score circle
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                               accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                               Colors.red.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$accuracy%',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: accuracy >= 80 ? Colors.green : 
-                                   accuracy >= 60 ? Colors.orange : 
-                                   Colors.red,
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Session stats
-                    _buildStatCard('Cards Studied', totalCards.toString(), Icons.school),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Known', _knownCards.length.toString(), Icons.check_circle, Colors.green),
-                    const SizedBox(height: 16),
-                    _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                      AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Unknown', _unknownCards.length.toString(), Icons.cancel, Colors.red),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Skipped', _skippedCards.length.toString(), Icons.skip_next, Colors.orange),
-                    
-                    // Swipe hint if XP was gained
-                    if (_xpGainedPerWord.values.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.swipe_right,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Swipe right to view word progress',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.amber.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    
-                    const SizedBox(height: 32),
-                    
-                    const SizedBox(height: 20), // Bottom padding
-                  ],
-                ),
-              ),
-            ),
-            
-            // Fixed footer with action buttons
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          // Reset all card state
-                          _currentIndex = 0;
-                          _knownCards.clear();
-                          _unknownCards.clear();
-                          _skippedCards.clear();
-                          _combo = 0;
-                          _maxCombo = 0;
-                          
-                          // Reset history tracking
-                          _cardHistory.clear();
-                          _knownHistory.clear();
-                          _unknownHistory.clear();
-                          _skippedHistory.clear();
-                          
-                          // Reset swipe/drag state
-                          _dragOffset = Offset.zero;
-                          _swipeDirection = SwipeDirection.none;
-                          _swipeIntensity = 0;
-                          _nextCardActive = false;
-                          
-                          // Reset session tracking
-                          _gameSession.reset();
-                          _sessionStartTime = DateTime.now();
-                          _sessionXP = 0;
-                          
-                          // Reset UI state
-                          _showingResults = false;
-                          _isShowingFront = !widget.startFlipped;
-                          _selectedCardForEdit = null;
-                          
-                          // Reset all animation controllers
-                          _flipController.reset();
-                          _dealController.reset();
-                          _exitController.reset();
-                          
-                          if (widget.startFlipped) {
-                            _flipController.value = 1.0;
-                          }
-                        });
-                        
-                        // Start initial deal animation for first card
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            _dealController.forward();
-                          }
-                        });
-                      },
-                      child: const Text('Study Again'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      child: const Text('Done'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   void _showWordProgress() {
     // Create copies of the current session data for the display
@@ -1297,6 +1091,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
+          hideNavigation: true, // Hide back button and swipe for advanced study
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart study session
@@ -1352,50 +1147,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, [Color? color, Widget? child]) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color ?? Theme.of(context).colorScheme.primary,
-            size: 24,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          child ?? Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color ?? Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   void _awardXp() {
     // Calculate total XP from actual word XP gained

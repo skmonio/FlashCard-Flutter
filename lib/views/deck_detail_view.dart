@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
@@ -37,54 +37,20 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: widget.deck.name,
-            onBack: () => Navigator.of(context).pop(),
-            trailing: PopupMenuButton<String>(
-              onSelected: _handleMenuAction,
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit),
-                      SizedBox(width: 8),
-                      Text('Edit Deck'),
-                    ],
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'study',
-                  child: Row(
-                    children: [
-                      Icon(Icons.school),
-                      SizedBox(width: 8),
-                      Text('Study Deck'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'export',
-                  child: Row(
-                    children: [
-                      Icon(Icons.download),
-                      SizedBox(width: 8),
-                      Text('Export Deck'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete Deck', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
+              ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -353,17 +319,22 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         ),
         title: Row(
           children: [
-            Text(
-              card.article.isNotEmpty ? '${card.article} ' : '',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w500,
+            if (card.article.isNotEmpty)
+              Flexible(
+                child: Text(
+                  '${card.article} ',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
             Expanded(
               child: Text(
                 card.word,
                 style: const TextStyle(fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -380,27 +351,33 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      'Added: ${_formatDate(card.dateCreated)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                    Flexible(
+                      child: Text(
+                        'Added: ${_formatDate(card.dateCreated)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (exerciseCount > 0) ...[
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.green[700],
-                            fontWeight: FontWeight.w500,
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
@@ -788,7 +765,14 @@ class _DeckDetailViewState extends State<DeckDetailView> {
             onPressed: () async {
               final navigator = Navigator.of(context);
               final provider = context.read<FlashcardProvider>();
+              final exerciseProvider = context.read<DutchWordExerciseProvider>();
+              
+              // Delete the card
               await provider.deleteCard(card.id);
+              
+              // Also delete exercises for this word
+              await exerciseProvider.deleteWordExerciseByWord(card.word);
+              
               if (mounted) {
                 navigator.pop();
                 setState(() {}); // Refresh the list
@@ -1126,5 +1110,86 @@ class _DeckDetailViewState extends State<DeckDetailView> {
 
   String _formatDate(DateTime date) {
     return DateFormat('MM/dd/yyyy').format(date);
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            widget.deck.name,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Menu button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: PopupMenuButton<String>(
+            onSelected: _handleMenuAction,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit),
+                    SizedBox(width: 8),
+                    Text('Edit Deck'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'study',
+                child: Row(
+                  children: [
+                    Icon(Icons.school),
+                    SizedBox(width: 8),
+                    Text('Study Deck'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'export',
+                child: Row(
+                  children: [
+                    Icon(Icons.download),
+                    SizedBox(width: 8),
+                    Text('Export Deck'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete Deck', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 } 

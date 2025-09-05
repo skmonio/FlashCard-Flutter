@@ -5,9 +5,10 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import '../models/dutch_grammar_rule.dart';
 import '../providers/dutch_grammar_provider.dart';
-import '../components/unified_header.dart';
+
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
+import '../utils/sentence_utils.dart';
 
 
 class DutchGrammarExerciseView extends StatefulWidget {
@@ -38,6 +39,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
   int _totalAnswered = 0;
   bool _showingResults = false;
   bool _answered = false;
+  bool _isCorrect = false;
   int? _selectedAnswer;
   final Random _random = Random();
   // Track answers for each exercise
@@ -47,6 +49,13 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
   // Session tracking
   DateTime _sessionStartTime = DateTime.now();
   List<int> _questionResults = []; // 1 for correct, 0 for incorrect
+  
+  // Sentence building variables (per-exercise state management)
+  List<String> _answerWords = [];
+  List<String> _availableWords = [];
+  Map<int, List<String>> _sentenceAnswers = {};
+  Map<int, List<String>> _sentenceAvailable = {};
+  Map<int, List<String>> _shuffledOptions = {};
 
   @override
   void initState() {
@@ -78,14 +87,20 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Exercise',
-            onBack: () => _showCloseConfirmation(),
-            trailing: IconButton(
-              onPressed: () => _showHomeConfirmation(),
-              icon: const Icon(Icons.home),
-              tooltip: 'Go Home',
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -94,47 +109,61 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
           
           // Exercise Content
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-
-                  
-                  // Question
-                  SelectableText(
-                    currentExercise.question,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      height: 1.4,
-                    ),
-                    textAlign: TextAlign.left,
-                    enableInteractiveSelection: true,
-                    showCursor: false,
-                    contextMenuBuilder: (context, editableTextState) {
-                      return const SizedBox.shrink(); // Hide system context menu
-                    },
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Options
-                  Expanded(
-                    child: _buildOptions(currentExercise),
-                  ),
-                  
-                  // Navigation
-                  if (widget.exercises.length > 1 || widget.shuffleMode) ...[
-                    const SizedBox(height: 16),
-                    _buildNavigation(),
-                  ],
-                ],
-              ),
-            ),
+            child: _buildExerciseContent(currentExercise),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildExerciseContent(GrammarExercise exercise) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 24),
+          
+          // Exercise prompt
+          SelectableText(
+            exercise.question,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.left,
+            enableInteractiveSelection: true,
+            showCursor: false,
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Answer options
+          Expanded(
+            child: _buildAnswerOptions(exercise),
+          ),
+          
+          // Answer feedback
+          if (_answered) _buildAnswerFeedback(exercise),
+          
+          // Navigation
+          if (widget.exercises.length > 1 || widget.shuffleMode) ...[
+            const SizedBox(height: 16),
+            _buildNavigation(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnswerOptions(GrammarExercise exercise) {
+    if (exercise.exerciseType == ExerciseType.fillInTheBlank) {
+      return _buildFillInBlankOptions(exercise);
+    } else if (exercise.exerciseType == ExerciseType.sentenceBuilding) {
+      return _buildSentenceBuildingOptions(exercise);
+    } else {
+      return _buildMultipleChoiceOptions(exercise);
+    }
   }
 
   Widget _buildExerciseTypeIndicator(ExerciseType type) {
@@ -169,102 +198,381 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     );
   }
 
-  Widget _buildOptions(GrammarExercise exercise) {
-    switch (exercise.exerciseType) {
-      case ExerciseType.multipleChoice:
-        return _buildMultipleChoiceOptions(exercise);
-      case ExerciseType.trueFalse:
-        return _buildTrueFalseOptions(exercise);
-      case ExerciseType.translation:
-        return _buildMultipleChoiceOptions(exercise);
-      case ExerciseType.fillInTheBlank:
-        return _buildMultipleChoiceOptions(exercise);
-      case ExerciseType.sentenceOrder:
-        return _buildMultipleChoiceOptions(exercise);
-    }
-  }
 
   Widget _buildMultipleChoiceOptions(GrammarExercise exercise) {
-    return ListView.builder(
-      itemCount: exercise.options.length,
-      itemBuilder: (context, index) {
-        final option = exercise.options[index];
-        final isSelected = _selectedAnswer == index;
-        final isCorrect = index == exercise.correctAnswer;
+    return Column(
+      children: exercise.options.map((option) {
+        final isSelected = _selectedAnswer == exercise.options.indexOf(option);
+        final isCorrect = exercise.options.indexOf(option) == exercise.correctAnswer;
         
         Color backgroundColor = Theme.of(context).colorScheme.surface;
         Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
+        bool showCorrect = false;
+        bool showIncorrect = false;
         
         if (_answered) {
           if (isCorrect) {
             backgroundColor = Colors.green.withValues(alpha: 0.1);
             borderColor = Colors.green;
+            showCorrect = true;
           } else if (isSelected && !isCorrect) {
             backgroundColor = Colors.red.withValues(alpha: 0.1);
             borderColor = Colors.red;
+            showIncorrect = true;
           }
         } else if (isSelected) {
-          backgroundColor = Theme.of(context).colorScheme.primary.withValues(alpha: 0.1);
-          borderColor = Theme.of(context).colorScheme.primary;
+          backgroundColor = Colors.blue.withValues(alpha: 0.1);
+          borderColor = Colors.blue;
         }
         
         return Container(
+          width: double.infinity,
           margin: const EdgeInsets.only(bottom: 12),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _answered ? null : () => _selectAnswer(index),
+              onTap: _answered ? null : () => _selectAnswer(exercise.options.indexOf(option)),
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: backgroundColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor, width: 2),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: borderColor.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          String.fromCharCode(65 + index), // A, B, C, D...
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: borderColor,
-                          ),
-                        ),
-                      ),
+                    Icon(
+                      showCorrect ? Icons.check_circle : 
+                      showIncorrect ? Icons.cancel : 
+                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: showCorrect ? Colors.green : 
+                             showIncorrect ? Colors.red : 
+                             isSelected ? Colors.blue : Colors.grey,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         option,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          height: 1.4,
+                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
                         ),
-                        textAlign: TextAlign.left,
                       ),
                     ),
-                    if (_answered && isCorrect)
-                      const Icon(Icons.check_circle, color: Colors.green, size: 24),
-                    if (_answered && isSelected && !isCorrect)
-                      const Icon(Icons.cancel, color: Colors.red, size: 24),
                   ],
                 ),
               ),
             ),
           ),
         );
-      },
+      }).toList(),
     );
+  }
+
+  Widget _buildFillInBlankOptions(GrammarExercise exercise) {
+    return Column(
+      children: exercise.options.map((option) {
+        final isSelected = _selectedAnswer == exercise.options.indexOf(option);
+        final isCorrect = exercise.options.indexOf(option) == exercise.correctAnswer;
+        
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
+        Color borderColor = Theme.of(context).colorScheme.outline.withValues(alpha: 0.3);
+        bool showCorrect = false;
+        bool showIncorrect = false;
+        
+        if (_answered) {
+          if (isCorrect) {
+            backgroundColor = Colors.green.withValues(alpha: 0.1);
+            borderColor = Colors.green;
+            showCorrect = true;
+          } else if (isSelected && !isCorrect) {
+            backgroundColor = Colors.red.withValues(alpha: 0.1);
+            borderColor = Colors.red;
+            showIncorrect = true;
+          }
+        } else if (isSelected) {
+          backgroundColor = Colors.blue.withValues(alpha: 0.1);
+          borderColor = Colors.blue;
+        }
+        
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _answered ? null : () => _selectAnswer(exercise.options.indexOf(option)),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      showCorrect ? Icons.check_circle : 
+                      showIncorrect ? Icons.cancel : 
+                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: showCorrect ? Colors.green : 
+                             showIncorrect ? Colors.red : 
+                             isSelected ? Colors.blue : Colors.grey,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        option,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildSentenceBuildingOptions(GrammarExercise exercise) {
+    // Initialize sentence building state if not already done
+    if (_answered) {
+      // Load saved state for this specific exercise
+      _answerWords = List<String>.from(_sentenceAnswers[_currentIndex] ?? []);
+      _availableWords = List<String>.from(_sentenceAvailable[_currentIndex] ?? []);
+    } else if (_availableWords.isEmpty && _answerWords.isEmpty) {
+      // Initialize fresh state for this specific exercise
+      List<String> wordsToShuffle;
+      if (exercise.exerciseType == ExerciseType.sentenceBuilding) {
+        // For sentence building, use the options (individual words)
+        wordsToShuffle = List<String>.from(exercise.options);
+      } else {
+        // For other exercise types, split the correct answer
+        wordsToShuffle = exercise.options[exercise.correctAnswer].split(' ');
+      }
+      
+      // Store shuffled options for this specific exercise
+      if (!_shuffledOptions.containsKey(_currentIndex)) {
+        _shuffledOptions[_currentIndex] = List<String>.from(wordsToShuffle)..shuffle();
+      }
+      _availableWords = List<String>.from(_shuffledOptions[_currentIndex]!);
+      _answerWords = [];
+    }
+    
+    return Column(
+      children: [
+        Text(
+          '',
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+          ),
+        ),
+        
+        const SizedBox(height: 24),
+        
+        // Answer area (where user builds the sentence)
+        Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 80),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+          ),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _buildAnswerWords(_answerWords),
+          ),
+        ),
+        
+        const SizedBox(height: 24),
+        
+        // Available words area (only show if there are available words)
+        if (_availableWords.isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Available Words:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _buildAvailableWords(_availableWords),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _buildAnswerWords(List<String> words) {
+    return words.map((word) {
+      return GestureDetector(
+        onTap: () => _moveWordToAvailable(word),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.green.withOpacity(0.5)),
+          ),
+          child: Text(
+            word,
+            style: TextStyle(
+              color: Colors.green[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+  
+  List<Widget> _buildAvailableWords(List<String> words) {
+    return words.map((word) {
+      return GestureDetector(
+        onTap: () => _moveWordToAnswer(word),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.blue.withOpacity(0.5)),
+          ),
+          child: Text(
+            word,
+            style: TextStyle(
+              color: Colors.blue[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  void _moveWordToAnswer(String word) {
+    if (_answered) return; // Don't allow changes after answering
+    
+    setState(() {
+      _answerWords.add(word);
+      _availableWords.remove(word);
+    });
+  }
+
+  void _moveWordToAvailable(String word) {
+    if (_answered) return; // Don't allow changes after answering
+    
+    setState(() {
+      _answerWords.remove(word);
+      _availableWords.add(word);
+    });
+  }
+
+  Widget _buildAnswerFeedback(GrammarExercise exercise) {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isCorrect ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _isCorrect ? Colors.green : Colors.red,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _isCorrect ? Icons.check_circle : Icons.cancel,
+                color: _isCorrect ? Colors.green : Colors.red,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _isCorrect ? 'Correct!' : 'Incorrect',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _isCorrect ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            exercise.explanation ?? 'Good job!' + (_isCorrect ? '' : ' Try again!'),
+            style: const TextStyle(fontSize: 16),
+            textAlign: TextAlign.left,
+            enableInteractiveSelection: true,
+            showCursor: false,
+          ),
+          if (!_isCorrect && exercise.exerciseType == ExerciseType.sentenceBuilding) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Correct answer: ${exercise.options[exercise.correctAnswer]}',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.green[700],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _checkSentenceBuildingAnswer() {
+    final currentExercise = widget.exercises[_currentIndex];
+    final correctWords = currentExercise.options[currentExercise.correctAnswer].split(' ');
+    
+    // Use SentenceUtils for flexible comparison (handles duplicate function words)
+    final isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
+    
+    setState(() {
+      _answered = true;
+      _isCorrect = isCorrect;
+      _sentenceAnswers[_currentIndex] = List<String>.from(_answerWords);
+      _sentenceAvailable[_currentIndex] = List<String>.from(_availableWords);
+    });
+
+    if (isCorrect) {
+      HapticService().lightImpact();
+      SoundManager().playCorrectSound();
+    } else {
+      HapticService().heavyImpact();
+      SoundManager().playWrongSound();
+    }
   }
 
   Widget _buildTrueFalseOptions(GrammarExercise exercise) {
@@ -363,7 +671,8 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.exercises.length;
+    final percentage = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -371,13 +680,25 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Exercise ${_currentIndex + 1} of ${widget.exercises.length}'),
-              Text('${(progress * 100).toInt()}%'),
+              Text(
+                'Exercise ${_currentIndex + 1} of ${widget.exercises.length}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '$percentage%',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: progress,
+            value: _currentIndex / widget.exercises.length,
             backgroundColor: Colors.grey.withValues(alpha: 0.2),
             valueColor: AlwaysStoppedAnimation<Color>(
               Theme.of(context).colorScheme.primary,
@@ -389,28 +710,29 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
   }
 
   Widget _buildNavigation() {
+    final currentExercise = widget.exercises[_currentIndex];
+    final isSentenceBuilding = currentExercise.exerciseType == ExerciseType.sentenceBuilding;
+    
     return Row(
       children: [
         Expanded(
-          child: ElevatedButton.icon(
+          child: OutlinedButton(
             onPressed: (_currentIndex > 0 && !widget.shuffleMode) ? _goToPrevious : null,
-            icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Previous'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: (_currentIndex > 0 && !widget.shuffleMode) ? Colors.blue : Colors.grey,
-              foregroundColor: Colors.white,
-            ),
+            child: const Text('Previous'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: ElevatedButton.icon(
-            onPressed: _answered ? _goToNext : null,
-            icon: const Icon(Icons.arrow_forward, size: 16),
-            label: Text(widget.shuffleMode ? 'Complete' : (_currentIndex == widget.exercises.length - 1 ? 'Finish' : 'Next')),
+          child: ElevatedButton(
+            onPressed: isSentenceBuilding ? (_answered ? _goToNext : null) : _goToNext,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _answered ? Colors.green : Colors.grey,
+              backgroundColor: isSentenceBuilding ? (_answered ? Colors.green : Colors.grey) : Colors.green,
               foregroundColor: Colors.white,
+            ),
+            child: Text(
+              isSentenceBuilding 
+                ? (_answered ? (widget.shuffleMode ? 'Complete' : (_currentIndex == widget.exercises.length - 1 ? 'Finish' : 'Next')) : 'Check Answer')
+                : (widget.shuffleMode ? 'Complete' : (_currentIndex == widget.exercises.length - 1 ? 'Finish' : 'Next'))
             ),
           ),
         ),
@@ -425,9 +747,21 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          UnifiedHeader(
-            title: 'Exercise Complete',
-            onBack: () => Navigator.of(context).pop(),
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeaderResults(context),
+            ),
           ),
           
           Expanded(
@@ -549,7 +883,17 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     if (_answered) return;
     
     final currentExercise = widget.exercises[_currentIndex];
-    final isCorrect = index == currentExercise.correctAnswer;
+    bool isCorrect;
+    
+    // Handle different exercise types
+    if (currentExercise.exerciseType == ExerciseType.sentenceBuilding) {
+      // For sentence building, check the answer words
+      final correctWords = currentExercise.options[currentExercise.correctAnswer].split(' ');
+      isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
+    } else {
+      // For multiple choice and fill in blank
+      isCorrect = index == currentExercise.correctAnswer;
+    }
     
     // Provide haptic feedback
     if (isCorrect) {
@@ -577,6 +921,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     setState(() {
       _selectedAnswer = index;
       _answered = true;
+      _isCorrect = isCorrect;
       _totalAnswered++;
       
       if (isCorrect) {
@@ -592,6 +937,10 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
         // Keep the answer state when going back
         _answered = _isExerciseAnswered(_currentIndex);
         _selectedAnswer = _getExerciseAnswer(_currentIndex);
+        
+        // Reset sentence building state for new exercise
+        _answerWords.clear();
+        _availableWords.clear();
       });
     }
   }
@@ -603,6 +952,10 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
         // Keep the answer state when going forward
         _answered = _isExerciseAnswered(_currentIndex);
         _selectedAnswer = _getExerciseAnswer(_currentIndex);
+        
+        // Reset sentence building state for new exercise
+        _answerWords.clear();
+        _availableWords.clear();
       });
     } else {
       // Record the study session
@@ -689,12 +1042,12 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     switch (type) {
       case ExerciseType.multipleChoice:
         return 'Multiple Choice';
-      case ExerciseType.translation:
-        return 'Translation';
       case ExerciseType.fillInTheBlank:
         return 'Fill in the Blank';
-      case ExerciseType.sentenceOrder:
-        return 'Sentence Order';
+      case ExerciseType.sentenceBuilding:
+        return 'Sentence Building';
+      case ExerciseType.translation:
+        return 'Translation';
       case ExerciseType.trueFalse:
         return 'True/False';
     }
@@ -704,12 +1057,12 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     switch (type) {
       case ExerciseType.multipleChoice:
         return Icons.format_list_bulleted;
-      case ExerciseType.translation:
-        return Icons.translate;
       case ExerciseType.fillInTheBlank:
         return Icons.edit;
-      case ExerciseType.sentenceOrder:
+      case ExerciseType.sentenceBuilding:
         return Icons.sort;
+      case ExerciseType.translation:
+        return Icons.translate;
       case ExerciseType.trueFalse:
         return Icons.check_circle_outline;
     }
@@ -719,14 +1072,14 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     switch (type) {
       case ExerciseType.multipleChoice:
         return Colors.blue;
-      case ExerciseType.translation:
-        return Colors.green;
       case ExerciseType.fillInTheBlank:
         return Colors.orange;
-      case ExerciseType.sentenceOrder:
+      case ExerciseType.sentenceBuilding:
         return Colors.purple;
+      case ExerciseType.translation:
+        return Colors.green;
       case ExerciseType.trueFalse:
-        return Colors.teal;
+        return Colors.red;
     }
   }
 
@@ -739,5 +1092,73 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
     return _exerciseAnswers[exerciseIndex];
   }
 
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Exercise',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showCloseConfirmation(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Home button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showHomeConfirmation(),
+            icon: const Icon(Icons.home, color: Colors.black),
+            tooltip: 'Go Home',
+          ),
+        ),
+      ],
+    );
+  }
 
+  Widget _buildCustomHeaderResults(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Exercise Complete',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
+    );
+  }
 }

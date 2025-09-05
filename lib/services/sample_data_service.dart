@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 
 class SampleDataService {
+  static const String _sampleDataKey = 'sample_data_offered';
+  
   static final List<Map<String, String>> _sampleCards = [
     {
       'word': 'huis',
@@ -199,6 +203,58 @@ class SampleDataService {
   static Future<void> addSampleDataIfEmpty(FlashcardProvider provider) async {
     if (provider.cards.isEmpty) {
       await addSampleData(provider);
+    }
+  }
+  
+  // Check if we should show the sample data prompt
+  static Future<bool> shouldShowSampleDataPrompt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasOffered = prefs.getBool(_sampleDataKey);
+    return hasOffered != true; // Return true if we haven't offered yet
+  }
+  
+  // Show sample data prompt dialog
+  static Future<void> showSampleDataPrompt(BuildContext context, FlashcardProvider provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Mark that we've offered sample data
+    await prefs.setBool(_sampleDataKey, true);
+    
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Welcome to Taal Trek!'),
+            content: const Text(
+              'Would you like to start with some sample Dutch vocabulary cards? '
+              'This will help you understand how the app works. You can always add your own cards later.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('No, thanks'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  await addSampleData(provider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sample Dutch vocabulary added! You can now start studying.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Yes, please!'),
+              ),
+            ],
+          );
+        },
+      );
     }
   }
 } 

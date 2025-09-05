@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/dutch_grammar_provider.dart';
 import '../models/dutch_grammar_rule.dart';
-import '../components/unified_header.dart';
+
 import 'dutch_grammar_rule_detail_view.dart';
 import 'dutch_grammar_exercise_view.dart';
 
@@ -31,44 +31,20 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Grammar',
-            onBack: () => Navigator.of(context).pop(),
-            trailing: PopupMenuButton<String>(
-              onSelected: _handleMenuAction,
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'export',
-                  child: Row(
-                    children: [
-                      Icon(Icons.download),
-                      SizedBox(width: 8),
-                      Text('Export Progress'),
-                    ],
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'import',
-                  child: Row(
-                    children: [
-                      Icon(Icons.upload),
-                      SizedBox(width: 8),
-                      Text('Import Progress'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'reset',
-                  child: Row(
-                    children: [
-                      Icon(Icons.refresh, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Text('Reset Progress', style: TextStyle(color: Colors.orange)),
-                    ],
-                  ),
-                ),
-              ],
+              ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -392,5 +368,76 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
     }
     
     return filteredRules;
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Grammar',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Menu button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: PopupMenuButton<String>(
+            onSelected: _handleMenuAction,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'export',
+                child: Row(
+                  children: [
+                    Icon(Icons.download),
+                    SizedBox(width: 8),
+                    Text('Export Progress'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'import',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload),
+                    SizedBox(width: 8),
+                    Text('Import Progress'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'reset',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Reset Progress', style: TextStyle(color: Colors.orange)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

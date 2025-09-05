@@ -5,9 +5,11 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_header.dart';
+
+import '../utils/sentence_utils.dart';
 
 import 'create_word_exercise_view.dart';
+import '../components/word_progress_display.dart';
 
 class DutchWordExerciseDetailView extends StatefulWidget {
   final DutchWordExercise wordExercise;
@@ -53,6 +55,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   Map<int, String?> _selectedAnswers = {};
   Map<int, List<String>> _sentenceAnswers = {};
   Map<int, List<String>> _sentenceAvailable = {};
+  
+  // RPG tracking for comprehensive completion screen
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +86,20 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Exercise',
-            onBack: () => _showCloseConfirmation(),
-            trailing: IconButton(
-              onPressed: () => _showHomeConfirmation(),
-              icon: const Icon(Icons.home),
-              tooltip: 'Go Home',
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -133,7 +146,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: (_currentExerciseIndex + 1) / _wordExercise.exercises.length,
+            value: _currentExerciseIndex / _wordExercise.exercises.length,
             backgroundColor: Colors.grey.withOpacity(0.3),
             valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
@@ -673,39 +686,45 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   }
 
   Widget _buildNavigationButtons() {
+    final currentExercise = _wordExercise.exercises[_currentExerciseIndex];
+    final isSentenceBuilding = currentExercise.type == ExerciseType.sentenceBuilding;
+    
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          if (_currentExerciseIndex > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _currentExerciseIndex--;
-                    _loadExerciseState();
-                  });
-                },
-                child: const Text('Previous'),
-              ),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _currentExerciseIndex > 0 ? () {
+                setState(() {
+                  _currentExerciseIndex--;
+                  _loadExerciseState();
+                });
+              } : null,
+              child: const Text('Previous'),
             ),
-          
-          if (_currentExerciseIndex > 0) const SizedBox(width: 12),
-          
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: _canCheckAnswer() ? () {
+              onPressed: isSentenceBuilding ? (_canCheckAnswer() ? () {
                 if (!_showAnswer) {
                   _checkAnswer();
                 } else {
                   _nextExercise();
                 }
-              } : null,
+              } : null) : () {
+                _nextExercise();
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: isSentenceBuilding ? (_canCheckAnswer() ? Colors.green : Colors.grey) : Colors.green,
                 foregroundColor: Colors.white,
               ),
-              child: Text(_showAnswer ? 'Next' : 'Check Answer'),
+              child: Text(
+                isSentenceBuilding 
+                  ? (_showAnswer ? 'Next' : 'Check Answer')
+                  : (_currentExerciseIndex == _wordExercise.exercises.length - 1 ? 'Finish' : 'Next')
+              ),
             ),
           ),
         ],
@@ -720,14 +739,18 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     print('🔍 DutchWordExerciseDetailView: Checking answer for word "${_wordExercise.targetWord}", exercise $_currentExerciseIndex');
     print('🔍 DutchWordExerciseDetailView: Exercise prompt: "${currentExercise.prompt}"');
     print('🔍 DutchWordExerciseDetailView: Correct answer: "${currentExercise.correctAnswer}"');
-    print('🔍 DutchWordExerciseDetailView: Selected answer: "$_selectedAnswer"');
+    if (currentExercise.type == ExerciseType.sentenceBuilding) {
+      print('🔍 DutchWordExerciseDetailView: Answer words: ${_answerWords.join(' ')}');
+    } else {
+      print('🔍 DutchWordExerciseDetailView: Selected answer: "$_selectedAnswer"');
+    }
     
     bool isCorrect = false;
     
     if (currentExercise.type == ExerciseType.sentenceBuilding) {
-      // For sentence building, check if the answer words form the correct sentence
-      final userAnswer = _answerWords.join(' ');
-      isCorrect = userAnswer == currentExercise.correctAnswer;
+      // Allow flexible placement for duplicate function words
+      final correctWords = currentExercise.correctAnswer.split(' ');
+      isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
       // For multiple choice and fill in blank, check if the selected answer matches the correct answer
       // Since options are shuffled, we need to compare the actual text values
@@ -740,6 +763,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     
     // Sync progress to main FlashCard
     await _syncProgressToFlashCard(isCorrect);
+    
+    // Track studied words and XP for comprehensive completion screen
+    _trackExerciseProgress(isCorrect);
     
     // Force refresh of providers to ensure UI updates
     dutchProvider.notifyListeners();
@@ -791,6 +817,8 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       // Update learning mastery based on difficulty (assuming medium for exercises)
       if (wasCorrect) {
         updatedCard.markCorrect(GameDifficulty.medium);
+        // Add XP for correct answers (with daily decay applied automatically)
+        updatedCard.learningMastery.addXP(5, 'dutch_word_exercise');
       } else {
         updatedCard.markIncorrect(GameDifficulty.medium);
       }
@@ -801,6 +829,36 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       print('🔍 DutchWordExercise learning percentage: ${widget.wordExercise.learningProgress.learningPercentage}%');
     } catch (e) {
       print('🔍 Error syncing progress to FlashCard: $e');
+    }
+  }
+  
+  void _trackExerciseProgress(bool wasCorrect) {
+    // Find the corresponding FlashCard for tracking
+    final flashcardProvider = context.read<FlashcardProvider>();
+    final flashCard = flashcardProvider.cards.firstWhere(
+      (card) => card.word.toLowerCase() == _wordExercise.targetWord.toLowerCase(),
+      orElse: () => FlashCard(
+        id: '',
+        word: '',
+        example: '',
+        definition: '',
+      ),
+    );
+    
+    if (flashCard.id.isNotEmpty) {
+      // Track studied words
+      if (!_studiedWords.any((word) => word.id == flashCard.id)) {
+        _studiedWords.add(flashCard);
+      }
+      
+      // Track word mastery
+      _wordMastery[flashCard.id] = flashCard.learningMastery;
+      
+      // Track XP gained (with daily decay applied)
+      if (wasCorrect) {
+        final nextXp = flashCard.learningMastery.getXPForGame('dutch_word_exercise_detail');
+        _xpGainedPerWord[flashCard.id] = nextXp; // XP that will actually be gained
+      }
     }
   }
 
@@ -827,76 +885,57 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     final percentage = (_correctAnswers / _totalAnswered * 100).round();
     final wasSuccessful = percentage >= 60; // Consider it successful if 60% or higher
     
-    // In single question mode, call callback after each question
+    // Call callback if provided (for single question mode)
     if (widget.singleQuestionMode && widget.onComplete != null) {
       widget.onComplete!(wasSuccessful);
-      return; // Don't show dialog if callback is provided
+      return;
     }
     
-    // Call the onComplete callback if provided (for regular mode)
-    if (widget.onComplete != null) {
-      widget.onComplete!(wasSuccessful);
-      return; // Don't show dialog if callback is provided
-    }
+    // Show comprehensive completion screen
+    _showComprehensiveCompletionScreen();
+  }
+  
+  void _showComprehensiveCompletionScreen() {
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Exercise Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('You got $_correctAnswers out of $_totalAnswered correct'),
-            const SizedBox(height: 8),
-            Text('Score: $percentage%'),
-            const SizedBox(height: 16),
-            if (percentage >= 80)
-              const Text(
-                'Excellent! You know this word well!',
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-              )
-            else if (percentage >= 60)
-              const Text(
-                'Good job! Keep practicing!',
-                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-              )
-            else
-              const Text(
-                'Keep studying this word!',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-              ),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          hideNavigation: false, // Allow swipe for word exercises
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart exercise
+            setState(() {
+              _currentExerciseIndex = 0;
+              _selectedAnswer = null;
+              _showAnswer = false;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _answerWords = [];
+              _availableWords = [];
+              _shuffledOptions.clear();
+              _answeredQuestions.clear();
+              _selectedAnswers.clear();
+              _sentenceAnswers.clear();
+              _sentenceAvailable.clear();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Finish'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              setState(() {
-                _currentExerciseIndex = 0;
-                _selectedAnswer = null;
-                _showAnswer = false;
-                _correctAnswers = 0;
-                _totalAnswered = 0;
-                _answerWords = [];
-                _availableWords = [];
-                _shuffledOptions.clear(); // Clear shuffled options for fresh restart
-                _answeredQuestions.clear();
-                _selectedAnswers.clear();
-                _sentenceAnswers.clear();
-                _sentenceAvailable.clear();
-              });
-            },
-            child: const Text('Restart'),
-          ),
-        ],
       ),
     );
   }
@@ -932,6 +971,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     _selectedAnswers.clear();
     _sentenceAnswers.clear();
     _sentenceAvailable.clear();
+    
+    // Reset RPG tracking
+    _xpGainedPerWord.clear();
+    _wordMastery.clear();
+    _studiedWords.clear();
   }
 
   void _showDeleteWordDialog(BuildContext context) {
@@ -1154,4 +1198,44 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     _checkAnswer();
   }
 
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Exercise',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showCloseConfirmation(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Home button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showHomeConfirmation(),
+            icon: const Icon(Icons.home, color: Colors.black),
+            tooltip: 'Go Home',
+          ),
+        ),
+      ],
+    );
+  }
 } 

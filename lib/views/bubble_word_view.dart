@@ -5,7 +5,7 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import '../providers/bubble_word_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/bubble_word_models.dart';
-import '../components/unified_header.dart';
+
 import '../services/haptic_service.dart';
 
 class BubbleWordView extends StatefulWidget {
@@ -44,11 +44,21 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           backgroundColor: Theme.of(context).colorScheme.surface,
           body: Column(
             children: [
-              // Header
-              UnifiedHeader(
-                title: 'Bubble Words',
-                onBack: () => _showSavePrompt(context),
-                trailing: _buildTrailingMenu(context, provider),
+              // Fixed Header - matching Taal Trek header height
+              SafeArea(
+                child: Container(
+                  height: kToolbarHeight,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: _buildCustomHeader(context, provider),
+                ),
               ),
               
               // Action buttons
@@ -1304,6 +1314,43 @@ class _BubbleWordViewState extends State<BubbleWordView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context, BubbleWordProvider provider) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Bubble Words',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showSavePrompt(context),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Trailing menu
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: _buildTrailingMenu(context, provider),
+        ),
+      ],
     );
   }
 }

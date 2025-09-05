@@ -194,8 +194,20 @@ class DutchGrammarExerciseGenerator {
     // Split the cleaned sentence into words
     final dutchWords = cleanedSentence.split(' ').where((word) => word.isNotEmpty).toList();
     
+    // Validate that we have words to work with
+    if (dutchWords.isEmpty) {
+      throw ArgumentError('Cannot generate sentence builder exercise: no words found in example sentence');
+    }
+    
     // Create shuffled options for the sentence builder
+    // IMPORTANT: The options must exactly match the correct answer words
     final shuffledWords = List<String>.from(dutchWords)..shuffle(_random);
+    
+    // Double-check that options and correct answer match
+    final correctWords = cleanedSentence.split(' ').where((word) => word.isNotEmpty).toList();
+    if (shuffledWords.length != correctWords.length) {
+      throw ArgumentError('Exercise generation error: options count (${shuffledWords.length}) does not match correct answer word count (${correctWords.length})');
+    }
     
     return WordExercise(
       id: '${card.id}_sentencebuilder_${DateTime.now().millisecondsSinceEpoch}',

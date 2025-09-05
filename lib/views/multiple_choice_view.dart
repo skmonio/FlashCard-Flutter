@@ -170,11 +170,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         return;
       }
       
-      setState(() {
-        _showingResults = true;
-      });
       // Play completion sound when test is finished
       SoundManager().playCompleteSound();
+      // Show comprehensive completion screen directly (skip old results screen)
+      _showWordProgress();
       return;
     }
 
@@ -336,10 +335,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   
   /// Show game over screen when all lives are lost
   void _showGameOverScreen() {
-    setState(() {
-      _showingResults = true;
-    });
-    
     // Play game over sound
     SoundManager().playWrongSound();
     
@@ -347,6 +342,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     if (widget.onComplete != null) {
       widget.onComplete!(false);
     }
+    
+    // Show comprehensive completion screen directly (skip old results screen)
+    _showWordProgress();
   }
 
   Future<void> _updateCardInProvider(FlashCard card) async {
@@ -467,12 +465,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     } else {
       // Award XP for the session
       _awardXp();
-      // Show results when on last question and clicking next
-      setState(() {
-        _showingResults = true;
-      });
       // Play completion sound when test is finished
       SoundManager().playCompleteSound();
+      // Show comprehensive completion screen directly (skip old results screen)
+      _showWordProgress();
     }
   }
 
@@ -499,9 +495,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       );
     }
 
-    if (_showingResults) {
-      return _buildResultsView();
-    }
+
 
     final currentCard = _currentCards[_currentIndex];
     final question = _isQuestionMode ? currentCard.word : currentCard.definition;
@@ -618,7 +612,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back, size: 16),
+                          icon: const Icon(Icons.arrow_back_ios, size: 16),
                           label: const Text('Back'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
@@ -1008,7 +1002,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Done'),
                     ),
                   ),
@@ -1096,7 +1090,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.of(context).pop();
             },
             child: const Text('Go Home'),
           ),
@@ -1172,6 +1166,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
+          hideNavigation: false, // Allow swipe for multiple choice
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1207,7 +1202,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

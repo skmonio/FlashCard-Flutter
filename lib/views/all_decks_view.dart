@@ -34,9 +34,21 @@ class _AllDecksViewState extends State<AllDecksView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
+          // Fixed Header - matching Taal Trek header height
           SafeArea(
-            child: _buildHeader(context),
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildHeader(context),
+            ),
           ),
           
           // Search and Sort Bar
@@ -65,40 +77,57 @@ class _AllDecksViewState extends State<AllDecksView> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back),
-          ),
-          const Spacer(),
-          const Text(
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
             'Decks',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
           ),
-          const Spacer(),
-          if (_isSelectionMode) ...[
-            TextButton(
-              onPressed: _cancelSelection,
-              child: const Text('Cancel'),
-            ),
-            if (_selectedDeckIds.isNotEmpty)
-              IconButton(
-                onPressed: _showBulkActionsMenu,
-                icon: const Icon(Icons.more_vert),
-              ),
-          ] else
-            IconButton(
-              onPressed: _toggleSelectionMode,
-              icon: const Icon(Icons.select_all),
-            ),
-        ],
-      ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Selection mode or select button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: _isSelectionMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: _cancelSelection,
+                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
+                    ),
+                    if (_selectedDeckIds.isNotEmpty)
+                      IconButton(
+                        onPressed: _showBulkActionsMenu,
+                        icon: const Icon(Icons.more_vert, color: Colors.black),
+                      ),
+                  ],
+                )
+              : IconButton(
+                  onPressed: _toggleSelectionMode,
+                  icon: const Icon(Icons.select_all, color: Colors.black),
+                ),
+        ),
+      ],
     );
   }
 
@@ -657,7 +686,7 @@ class _AllDecksViewState extends State<AllDecksView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.folder_copy, color: Colors.blue),
+              leading: const Icon(Icons.folder_copy, color: Colors.black),
               title: const Text('Export Selected Decks'),
               subtitle: const Text('Export all selected decks to CSV'),
               onTap: () {

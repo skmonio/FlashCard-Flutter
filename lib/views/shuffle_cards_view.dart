@@ -526,10 +526,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Shuffle'),
-          backgroundColor: Colors.purple,
+          backgroundColor: Colors.grey[600],
           foregroundColor: Colors.white,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_ios),
             onPressed: () {
               // Reset game state when user goes back
               if (_isGameActive) {
@@ -564,13 +564,13 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.1),
+                    color: Colors.grey.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(60),
                   ),
                   child: const Icon(
                     Icons.shuffle,
                     size: 60,
-                    color: Colors.purple,
+                    color: Colors.grey,
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -623,7 +623,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                   child: ElevatedButton(
                     onPressed: _isGameActive ? null : _startGame,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
+                      backgroundColor: Colors.grey[600],
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -836,7 +836,7 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
                   children: [
                     _buildModeToggle('Multiple Choice', ShuffleMode.multipleChoice, Icons.check_circle, Colors.teal),
                     _buildModeToggle('True or False', ShuffleMode.trueFalse, Icons.help_outline, Colors.orange),
-                    _buildModeToggle('Memory Game', ShuffleMode.memoryGame, Icons.psychology, Colors.purple),
+                    _buildModeToggle('Memory Game', ShuffleMode.memoryGame, Icons.psychology, Colors.grey),
                     _buildModeToggle('Word Scramble', ShuffleMode.wordScramble, Icons.text_fields, Colors.blue),
                     _buildModeToggle('Write Your Card', ShuffleMode.writing, Icons.edit, Colors.blue),
                     _buildModeToggle('Words', ShuffleMode.dutchExercise, Icons.school, Colors.green),

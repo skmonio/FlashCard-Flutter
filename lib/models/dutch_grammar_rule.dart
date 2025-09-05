@@ -30,7 +30,7 @@ enum ExerciseType {
   multipleChoice,
   translation,
   fillInTheBlank,
-  sentenceOrder,
+  sentenceBuilding,
   trueFalse,
 }
 

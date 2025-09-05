@@ -506,7 +506,15 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     }
 
     if (_showingResults) {
-      return _buildResultsView();
+      // Go directly to word progress instead of showing completion screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showWordProgress();
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     final currentCard = widget.cards[_currentIndex];
@@ -625,7 +633,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back, size: 16),
+                          icon: const Icon(Icons.arrow_back_ios, size: 16),
                           label: const Text('Back'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
@@ -904,10 +912,21 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         },
         child: Column(
           children: [
-            // Header
-            UnifiedHeader(
-              title: 'Scramble Complete',
-              onBack: () => Navigator.of(context).pop(),
+            // Fixed Header - matching Taal Trek header height
+            SafeArea(
+              child: Container(
+                height: kToolbarHeight,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: _buildCustomHeaderResults(context),
+              ),
             ),
             
             // Results content - Make it scrollable
@@ -1041,7 +1060,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Done'),
                     ),
                   ),
@@ -1145,7 +1164,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.of(context).pop();
             },
             child: const Text('Go Home'),
           ),
@@ -1219,6 +1238,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
+          hideNavigation: false, // Allow swipe for word scramble
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1258,12 +1278,39 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
     );
-  }
-  
+    }
 
+  Widget _buildCustomHeaderResults(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Scramble Complete',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
+    );
+  }
 }

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
-import '../providers/store_provider.dart';
+
 import '../providers/user_profile_provider.dart';
 import '../providers/phrase_provider.dart';
 import '../providers/dutch_grammar_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/learning_mastery.dart';
 
 class ClearDataView extends StatefulWidget {
@@ -205,12 +205,7 @@ class _ClearDataViewState extends State<ClearDataView> {
       print('UserProfileProvider not available: $e');
     }
     
-    try {
-      final storeProvider = context.read<StoreProvider>();
-      await storeProvider.clearAllUnlockedPacks();
-    } catch (e) {
-      print('StoreProvider not available: $e');
-    }
+
     
     try {
       final grammarProvider = context.read<DutchGrammarProvider>();
@@ -256,10 +251,21 @@ class _ClearDataViewState extends State<ClearDataView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Clear Data',
-            onBack: () => Navigator.of(context).pop(),
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
           ),
           
           // Content
@@ -427,6 +433,35 @@ class _ClearDataViewState extends State<ClearDataView> {
         activeColor: color,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Clear Data',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
     );
   }
 }

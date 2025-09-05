@@ -22,13 +22,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Phrases'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.black,
-        actions: _isSelectionMode ? _buildSelectionActions() : _buildHeaderActions(),
-      ),
+      appBar: null,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToAddPhrase(),
         tooltip: 'Add Phrase',
@@ -85,6 +79,23 @@ class _PhrasesListViewState extends State<PhrasesListView> {
           
           return Column(
             children: [
+              // Fixed Header - matching Taal Trek header height
+              SafeArea(
+                child: Container(
+                  height: kToolbarHeight,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: _buildCustomHeader(context),
+                ),
+              ),
+              
               // Search and filter section
               _buildSearchAndFilterSection(),
               
@@ -703,6 +714,62 @@ class _PhrasesListViewState extends State<PhrasesListView> {
     );
   }
 
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Phrases',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Selection mode or select button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: _isSelectionMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () => _toggleSelectionMode(),
+                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
+                    ),
+                    if (_selectedPhraseIds.isNotEmpty)
+                      IconButton(
+                        onPressed: _showBulkActionsMenu,
+                        icon: const Icon(Icons.more_vert, color: Colors.black),
+                      ),
+                  ],
+                )
+              : IconButton(
+                  onPressed: () => _toggleSelectionMode(),
+                  icon: const Icon(Icons.select_all, color: Colors.black),
+                  tooltip: 'Select Phrases',
+                ),
+        ),
+      ],
+    );
+  }
+
   void _toggleSelectionMode() {
     setState(() {
       _isSelectionMode = !_isSelectionMode;
@@ -711,6 +778,38 @@ class _PhrasesListViewState extends State<PhrasesListView> {
         _selectAll = false;
       }
     });
+  }
+
+  void _showBulkActionsMenu() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Bulk Actions (${_selectedPhraseIds.length} selected)',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Selected Phrases'),
+              subtitle: const Text('Permanently delete all selected phrases'),
+              onTap: () {
+                Navigator.pop(context);
+                _showDeleteSelectedDialog();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   void _togglePhraseSelection(String phraseId) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/deck.dart';
 
 class AddDeckView extends StatefulWidget {
@@ -45,9 +45,21 @@ class _AddDeckViewState extends State<AddDeckView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          UnifiedHeader(
-            title: 'Create Deck',
-            onBack: () => Navigator.of(context).pop(),
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -271,5 +283,34 @@ class _AddDeckViewState extends State<AddDeckView> {
     );
 
     Navigator.of(context).pop();
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Create Deck',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
+    );
   }
 } 

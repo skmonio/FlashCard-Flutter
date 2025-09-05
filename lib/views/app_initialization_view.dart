@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
 import 'loading_view.dart';
 import 'main_navigation_view.dart';
+import 'onboarding_view.dart';
 
 class AppInitializationView extends StatefulWidget {
   const AppInitializationView({super.key});
@@ -13,11 +15,13 @@ class AppInitializationView extends StatefulWidget {
 
 class _AppInitializationViewState extends State<AppInitializationView> {
   bool _themeInitialized = false;
+  bool _onboardingCompleted = false;
 
   @override
   void initState() {
     super.initState();
     _initializeTheme();
+    _checkOnboardingStatus();
   }
 
   Future<void> _initializeTheme() async {
@@ -28,6 +32,17 @@ class _AppInitializationViewState extends State<AppInitializationView> {
     if (mounted) {
       setState(() {
         _themeInitialized = true;
+      });
+    }
+  }
+  
+  Future<void> _checkOnboardingStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final completed = prefs.getBool('onboarding_completed') ?? false;
+    
+    if (mounted) {
+      setState(() {
+        _onboardingCompleted = completed;
       });
     }
   }
@@ -56,6 +71,17 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       );
     }
 
+    // Check if user needs onboarding
+    if (!_onboardingCompleted) {
+      return OnboardingView(
+        isFirstTime: true,
+        onOnboardingComplete: () {
+          // When onboarding completes, check the status again and rebuild
+          _checkOnboardingStatus();
+        },
+      );
+    }
+    
     // Once theme is initialized, show the normal loading view
     return LoadingView(
       minimumDisplayTime: const Duration(milliseconds: 1500),

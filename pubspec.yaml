@@ -105,7 +105,7 @@ flutter:
     - assets/images/
     - assets/data/
     - assets/data/grammar_rules/
-    - assets/data/store_packs/
+  
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

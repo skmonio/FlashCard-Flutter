@@ -598,7 +598,15 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     }
 
     if (_showingResults) {
-      return _buildResultsView();
+      // Go directly to word progress instead of showing completion screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showWordProgress();
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     final currentCard = _currentCards[_currentIndex];
@@ -715,7 +723,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back, size: 16),
+                          icon: const Icon(Icons.arrow_back_ios, size: 16),
                           label: const Text('Back'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
@@ -1018,7 +1026,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.home),
                       iconSize: 20,
                     ),
@@ -1323,6 +1331,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
+          hideNavigation: false, // Allow swipe for true/false
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1358,7 +1367,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

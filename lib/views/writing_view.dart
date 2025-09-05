@@ -453,6 +453,17 @@ class _WritingViewState extends State<WritingView> {
     }
   }
 
+  void _finishGame() {
+    // Only allow finishing if the question is answered
+    if (!_answered) return;
+    
+    // Play completion sound when test is finished
+    SoundManager().playCompleteSound();
+    
+    // Go directly to word progress
+    _showWordProgress();
+  }
+
 
 
 
@@ -469,7 +480,15 @@ class _WritingViewState extends State<WritingView> {
     }
 
     if (_showingResults) {
-      return _buildResultsView();
+      // Go directly to word progress instead of showing completion screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showWordProgress();
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     final currentCard = _currentCards[_currentIndex];
@@ -579,7 +598,7 @@ class _WritingViewState extends State<WritingView> {
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: (_answered && _currentIndex > 0) ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back, size: 16),
+                          icon: const Icon(Icons.arrow_back_ios, size: 16),
                           label: const Text('Back'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: (_answered && _currentIndex > 0) ? Colors.blue : Colors.grey,
@@ -592,7 +611,7 @@ class _WritingViewState extends State<WritingView> {
                       // Next/Finish button
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: (_answered && _currentIndex < _currentCards.length - 1) ? _goToNextQuestion : null,
+                          onPressed: _answered ? (_currentIndex == _currentCards.length - 1 ? _finishGame : _goToNextQuestion) : null,
                           icon: const Icon(Icons.arrow_forward, size: 16),
                           label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
                           style: ElevatedButton.styleFrom(
@@ -617,28 +636,31 @@ class _WritingViewState extends State<WritingView> {
                         color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: _displayWord.split('').map((char) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          width: 25,
-                          height: 35,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Center(
-                            child: Text(
-                              char,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: _displayWord.split('').map((char) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            width: 25,
+                            height: 35,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Center(
+                              child: Text(
+                                char,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                   
@@ -859,7 +881,7 @@ class _WritingViewState extends State<WritingView> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Done'),
                     ),
                   ),
@@ -946,7 +968,7 @@ class _WritingViewState extends State<WritingView> {
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.of(context).pop();
             },
             child: const Text('Go Home'),
           ),
@@ -993,6 +1015,7 @@ class _WritingViewState extends State<WritingView> {
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
+          hideNavigation: false, // Allow swipe for writing
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1025,7 +1048,7 @@ class _WritingViewState extends State<WritingView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

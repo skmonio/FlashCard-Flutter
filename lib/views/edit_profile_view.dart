@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:convert';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import '../providers/user_profile_provider.dart';
 
 class EditProfileView extends StatefulWidget {
@@ -14,33 +13,17 @@ class EditProfileView extends StatefulWidget {
 
 class _EditProfileViewState extends State<EditProfileView> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _usernameController;
-  String _selectedAvatar = 'person';
+  final _usernameController = TextEditingController();
+  final _picker = ImagePicker();
+  
+  String _selectedAvatar = '';
   String? _profileImageData;
-  final ImagePicker _picker = ImagePicker();
-
-  final List<Map<String, dynamic>> _avatarOptions = [
-    {'name': 'person.crop.circle.fill', 'icon': Icons.person, 'label': 'Person'},
-    {'name': 'person.crop.circle', 'icon': Icons.person_outline, 'label': 'Person Outline'},
-    {'name': 'person.fill', 'icon': Icons.person, 'label': 'Person Fill'},
-    {'name': 'person', 'icon': Icons.person_outline, 'label': 'Person'},
-    {'name': 'person.2.fill', 'icon': Icons.group, 'label': 'Group'},
-    {'name': 'person.2', 'icon': Icons.group_outlined, 'label': 'Group Outline'},
-    {'name': 'graduationcap.fill', 'icon': Icons.school, 'label': 'Graduation Cap'},
-    {'name': 'graduationcap', 'icon': Icons.school_outlined, 'label': 'Graduation Cap Outline'},
-    {'name': 'book.fill', 'icon': Icons.book, 'label': 'Book'},
-    {'name': 'book', 'icon': Icons.book_outlined, 'label': 'Book Outline'},
-    {'name': 'brain.head.profile', 'icon': Icons.psychology, 'label': 'Brain'},
-    {'name': 'brain', 'icon': Icons.psychology_outlined, 'label': 'Brain Outline'},
-  ];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    final provider = context.read<UserProfileProvider>();
-    _usernameController = TextEditingController(text: provider.username);
-    _selectedAvatar = provider.selectedAvatar;
-    _profileImageData = provider.profileImageData;
+    _loadCurrentProfile();
   }
 
   @override
@@ -49,45 +32,197 @@ class _EditProfileViewState extends State<EditProfileView> {
     super.dispose();
   }
 
+  Future<void> _loadCurrentProfile() async {
+    final provider = context.read<UserProfileProvider>();
+    final profile = provider.profile;
+    
+    if (profile != null) {
+      setState(() {
+        _usernameController.text = profile.username;
+        _selectedAvatar = profile.selectedAvatar;
+        _profileImageData = profile.profileImageData;
+      });
+    }
+  }
+
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _profileImageData = base64Encode(bytes);
+          _selectedAvatar = ''; // Clear avatar when image is selected
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to pick image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _removeProfileImage() {
+    setState(() {
+      _profileImageData = null;
+    });
+  }
+
+  void _saveProfile() async {
+    if (_formKey.currentState!.validate()) {
+      final provider = context.read<UserProfileProvider>();
+      
+      try {
+        await provider.updateUsername(_usernameController.text.trim());
+        await provider.updateAvatar(_selectedAvatar);
+        if (_profileImageData != null) {
+          await provider.updateProfileImage(_profileImageData);
+        } else {
+          await provider.updateProfileImage(null);
+        }
+        
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile updated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update profile: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  IconData _getAvatarIcon(String avatar) {
+    switch (avatar) {
+      case 'person.crop.circle.fill':
+        return Icons.person;
+      case 'person.crop.circle':
+        return Icons.person_outline;
+      case 'person.fill':
+        return Icons.person;
+      case 'person':
+        return Icons.person_outline;
+      case 'person.2.fill':
+        return Icons.group;
+      case 'person.2':
+        return Icons.group_outlined;
+      case 'graduationcap.fill':
+        return Icons.school;
+      case 'graduationcap':
+        return Icons.school_outlined;
+      case 'book.fill':
+        return Icons.book;
+      case 'book':
+        return Icons.book_outlined;
+      case 'brain.head.profile':
+        return Icons.psychology;
+      case 'brain':
+        return Icons.psychology_outlined;
+      default:
+        return Icons.person;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          TextButton(
-            onPressed: _saveProfile,
-            child: const Text(
-              'Save',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      appBar: null,
+      body: Column(
+        children: [
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
+          ),
+          
+          // Form content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Image Section
+                    _buildProfileImageSection(),
+                    
+                    const SizedBox(height: 30),
+                    
+                    // Username Section
+                    _buildUsernameSection(),
+                    
+                    const SizedBox(height: 30),
+                    
+                    // Avatar Selection Section
+                    _buildAvatarSelectionSection(),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Profile Image Section
-              _buildProfileImageSection(),
-              
-              const SizedBox(height: 30),
-              
-              // Username Section
-              _buildUsernameSection(),
-              
-              const SizedBox(height: 30),
-              
-              // Avatar Selection Section
-              _buildAvatarSelectionSection(),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -197,11 +332,11 @@ class _EditProfileViewState extends State<EditProfileView> {
           ),
         ),
         const SizedBox(height: 16),
-        
         TextFormField(
           controller: _usernameController,
           decoration: const InputDecoration(
-            labelText: 'Enter your username',
+            labelText: 'Username',
+            hintText: 'Enter your username',
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.person),
           ),
@@ -209,8 +344,8 @@ class _EditProfileViewState extends State<EditProfileView> {
             if (value == null || value.trim().isEmpty) {
               return 'Please enter a username';
             }
-            if (value.trim().length < 2) {
-              return 'Username must be at least 2 characters';
+            if (value.trim().length < 3) {
+              return 'Username must be at least 3 characters long';
             }
             return null;
           },
@@ -220,6 +355,21 @@ class _EditProfileViewState extends State<EditProfileView> {
   }
 
   Widget _buildAvatarSelectionSection() {
+    final avatars = [
+      'person.crop.circle.fill',
+      'person.crop.circle',
+      'person.fill',
+      'person',
+      'person.2.fill',
+      'person.2',
+      'graduationcap.fill',
+      'graduationcap',
+      'book.fill',
+      'book',
+      'brain.head.profile',
+      'brain',
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -231,190 +381,82 @@ class _EditProfileViewState extends State<EditProfileView> {
           ),
         ),
         const SizedBox(height: 16),
-        
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1,
-          ),
-          itemCount: _avatarOptions.length,
-          itemBuilder: (context, index) {
-            final avatar = _avatarOptions[index];
-            final isSelected = _selectedAvatar == avatar['name'];
-            
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: avatars.map((avatar) {
+            final isSelected = _selectedAvatar == avatar;
             return GestureDetector(
               onTap: () {
                 setState(() {
-                  _selectedAvatar = avatar['name'];
+                  _selectedAvatar = avatar;
                   _profileImageData = null; // Clear profile image when avatar is selected
                 });
               },
               child: Container(
+                width: 60,
+                height: 60,
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  shape: BoxShape.circle,
+                  color: isSelected ? Colors.blue : Colors.grey.withOpacity(0.1),
                   border: Border.all(
-                    color: isSelected ? Colors.blue : Colors.transparent,
-                    width: 2,
+                    color: isSelected ? Colors.blue : Colors.grey.withOpacity(0.3),
+                    width: isSelected ? 3 : 1,
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      avatar['icon'],
-                      size: 32,
-                      color: isSelected ? Colors.blue : Colors.grey[600],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      avatar['label'],
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: isSelected ? Colors.blue : Colors.grey[600],
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                child: Icon(
+                  _getAvatarIcon(avatar),
+                  color: isSelected ? Colors.white : Colors.grey,
+                  size: 30,
                 ),
               ),
             );
-          },
+          }).toList(),
         ),
       ],
     );
   }
 
-  void _showImagePickerOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_camera),
-                title: const Text('Take Photo'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.camera);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Choose from Gallery'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(ImageSource.gallery);
-                },
-              ),
-            ],
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Edit Profile',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
-        );
-      },
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Save button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: TextButton(
+            onPressed: _saveProfile,
+            child: const Text(
+              'Save',
+              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ],
     );
   }
-
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: source,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 80,
-      );
-      
-      if (image != null) {
-        final bytes = await image.readAsBytes();
-        setState(() {
-          _profileImageData = base64Encode(bytes);
-          _selectedAvatar = ''; // Clear avatar when image is selected
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to pick image: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _removeProfileImage() {
-    setState(() {
-      _profileImageData = null;
-    });
-  }
-
-  void _saveProfile() async {
-    if (_formKey.currentState!.validate()) {
-      final provider = context.read<UserProfileProvider>();
-      
-      try {
-        await provider.updateUsername(_usernameController.text.trim());
-        await provider.updateAvatar(_selectedAvatar);
-        if (_profileImageData != null) {
-          await provider.updateProfileImage(_profileImageData);
-        } else {
-          await provider.updateProfileImage(null);
-        }
-        
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to update profile: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
-  IconData _getAvatarIcon(String avatar) {
-    switch (avatar) {
-      case 'person.crop.circle.fill':
-        return Icons.person;
-      case 'person.crop.circle':
-        return Icons.person_outline;
-      case 'person.fill':
-        return Icons.person;
-      case 'person':
-        return Icons.person_outline;
-      case 'person.2.fill':
-        return Icons.group;
-      case 'person.2':
-        return Icons.group_outlined;
-      case 'graduationcap.fill':
-        return Icons.school;
-      case 'graduationcap':
-        return Icons.school_outlined;
-      case 'book.fill':
-        return Icons.book;
-      case 'book':
-        return Icons.book_outlined;
-      case 'brain.head.profile':
-        return Icons.psychology;
-      case 'brain':
-        return Icons.psychology_outlined;
-      default:
-        return Icons.person;
-    }
-  }
-} 
+}

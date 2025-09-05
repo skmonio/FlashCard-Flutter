@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import 'dutch_word_exercise_detail_view.dart';
-import 'dutch_words_deck_view.dart';
+
 import 'create_word_exercise_view.dart';
 
 class DutchWordsView extends StatefulWidget {
@@ -30,14 +30,8 @@ class _DutchWordsViewState extends State<DutchWordsView> {
 
   @override
   Widget build(BuildContext context) {
-          return Scaffold(
-        appBar: AppBar(
-          title: const Text('Exercises'),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: Colors.black,
-          actions: _isSelectionMode ? _buildSelectionActions() : _buildHeaderActions(),
-        ),
+    return Scaffold(
+      appBar: null,
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToCreateExercise(),
         tooltip: 'Add Exercise',
@@ -68,6 +62,23 @@ class _DutchWordsViewState extends State<DutchWordsView> {
 
           return Column(
             children: [
+              // Fixed Header - matching Taal Trek header height
+              SafeArea(
+                child: Container(
+                  height: kToolbarHeight,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: _buildCustomHeader(context),
+                ),
+              ),
+              
               // Search and filter section
               _buildSearchAndFilterSection(),
               
@@ -84,60 +95,61 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     );
   }
 
-  List<Widget> _buildHeaderActions() {
-          return [
-        IconButton(
-          onPressed: _toggleSelectionMode,
-          icon: const Icon(Icons.select_all),
-          tooltip: 'Select',
-        ),
-      ];
+  Widget _buildHeaderActions() {
+    return IconButton(
+      onPressed: _toggleSelectionMode,
+      icon: const Icon(Icons.select_all),
+      tooltip: 'Select',
+    );
   }
 
-  List<Widget> _buildSelectionActions() {
-    return [
-      // Select All Toggle
-      IconButton(
-        onPressed: () {
-          setState(() {
-            if (_selectAll) {
-              _selectedExerciseIds.clear();
-              _selectAll = false;
-            } else {
-              final provider = context.read<DutchWordExerciseProvider>();
-              final exercises = _getFilteredExercises(provider);
-              final exerciseIds = _getExerciseIdsFromExercises(exercises);
-              _selectedExerciseIds = exerciseIds.toSet();
-              _selectAll = true;
-            }
-          });
-        },
-        icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
-        tooltip: _selectAll ? 'Deselect All' : 'Select All',
-      ),
-      
-      // Delete Selected
-      if (_selectedExerciseIds.isNotEmpty)
+  Widget _buildSelectionActions() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Select All Toggle
         IconButton(
-          onPressed: () => _showDeleteSelectedDialog(),
-          icon: const Icon(Icons.delete, color: Colors.red),
-          tooltip: 'Delete Selected',
+          onPressed: () {
+            setState(() {
+              if (_selectAll) {
+                _selectedExerciseIds.clear();
+                _selectAll = false;
+              } else {
+                final provider = context.read<DutchWordExerciseProvider>();
+                final exercises = _getFilteredExercises(provider);
+                final exerciseIds = _getExerciseIdsFromExercises(exercises);
+                _selectedExerciseIds = exerciseIds.toSet();
+                _selectAll = true;
+              }
+            });
+          },
+          icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
+          tooltip: _selectAll ? 'Deselect All' : 'Select All',
         ),
-      
-      // Selection Count
-      if (_selectedExerciseIds.isNotEmpty)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+        
+        // Delete Selected
+        if (_selectedExerciseIds.isNotEmpty)
+          IconButton(
+            onPressed: () => _showDeleteSelectedDialog(),
+            icon: const Icon(Icons.delete, color: Colors.red),
+            tooltip: 'Delete Selected',
           ),
-          child: Text(
-            '${_selectedExerciseIds.length}',
-            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+        
+        // Selection Count
+        if (_selectedExerciseIds.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_selectedExerciseIds.length}',
+              style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-    ];
+      ],
+    );
   }
 
   Set<String> _getExerciseIdsFromExercises(List<DutchWordExercise> exercises) {
@@ -730,18 +742,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     }
   }
 
-  void _openDeck(String deckId, String deckName, List<DutchWordExercise> deckExercises) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DutchWordsDeckView(
-          deckId: deckId,
-          deckName: deckName,
-          exercises: deckExercises,
-        ),
-      ),
-    );
-  }
+
 
   void _showDeleteSelectedDialog() {
     if (_selectedExerciseIds.isEmpty) return;
@@ -836,6 +837,45 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Exercises',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Selection mode or select button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: _isSelectionMode 
+              ? _buildSelectionActions()
+              : _buildHeaderActions(),
+        ),
+      ],
     );
   }
 } 

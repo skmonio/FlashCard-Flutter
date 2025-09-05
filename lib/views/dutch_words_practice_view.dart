@@ -6,9 +6,10 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_header.dart';
+
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
+import '../utils/sentence_utils.dart';
 
 class DutchWordsPracticeView extends StatefulWidget {
   final String deckId;
@@ -106,14 +107,20 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Exercise',
-            onBack: () => _showCloseConfirmation(),
-            trailing: IconButton(
-              onPressed: () => _showHomeConfirmation(),
-              icon: const Icon(Icons.home),
-              tooltip: 'Go Home',
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -160,7 +167,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: (_currentExerciseIndex + 1) / _shuffledExercises.length,
+            value: _currentExerciseIndex / _shuffledExercises.length,
             backgroundColor: Colors.grey.withOpacity(0.3),
             valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
@@ -567,39 +574,45 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   }
 
   Widget _buildNavigationButtons() {
+    final currentExercise = _shuffledExercises[_currentExerciseIndex];
+    final isSentenceBuilding = currentExercise.type == ExerciseType.sentenceBuilding;
+    
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          if (_currentExerciseIndex > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  setState(() {
-                    _currentExerciseIndex--;
-                    _loadExerciseState();
-                  });
-                },
-                child: const Text('Previous'),
-              ),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _currentExerciseIndex > 0 ? () {
+                setState(() {
+                  _currentExerciseIndex--;
+                  _loadExerciseState();
+                });
+              } : null,
+              child: const Text('Previous'),
             ),
-          
-          if (_currentExerciseIndex > 0) const SizedBox(width: 12),
-          
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: _canCheckAnswer() ? () {
+              onPressed: isSentenceBuilding ? (_canCheckAnswer() ? () {
                 if (!_showAnswer) {
                   _checkAnswer();
                 } else {
                   _nextExercise();
                 }
-              } : null,
+              } : null) : () {
+                _nextExercise();
+              },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: isSentenceBuilding ? (_canCheckAnswer() ? Colors.blue : Colors.grey) : Colors.blue,
                 foregroundColor: Colors.white,
               ),
-              child: Text(_showAnswer ? 'Next' : 'Check Answer'),
+              child: Text(
+                isSentenceBuilding 
+                  ? (_showAnswer ? 'Next' : 'Check Answer')
+                  : (_currentExerciseIndex == _shuffledExercises.length - 1 ? 'Finish' : 'Next')
+              ),
             ),
           ),
         ],
@@ -612,9 +625,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     bool isCorrect;
     
     if (currentExercise.type == ExerciseType.sentenceBuilding) {
-      // For sentence building, check if the answer words form the correct sentence
-      final userAnswer = _answerWords.join(' ');
-      isCorrect = userAnswer == currentExercise.correctAnswer;
+      // Allow flexible placement for duplicate function words
+      final correctWords = currentExercise.correctAnswer.split(' ');
+      isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
       // For other exercise types, check the selected answer
       isCorrect = _selectedAnswer == currentExercise.correctAnswer;
@@ -994,6 +1007,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
+          hideNavigation: false, // Allow swipe for practice sessions
           onStudyAgain: () async {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart practice
@@ -1024,7 +1038,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to previous screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
@@ -1047,4 +1061,44 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     }
   }
 
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Exercise',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showCloseConfirmation(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Home button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _showHomeConfirmation(),
+            icon: const Icon(Icons.home, color: Colors.black),
+            tooltip: 'Go Home',
+          ),
+        ),
+      ],
+    );
+  }
 } 

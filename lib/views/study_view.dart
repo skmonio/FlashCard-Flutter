@@ -5,7 +5,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_header.dart';
+
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
 
@@ -119,10 +119,21 @@ class _StudyViewState extends State<StudyView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: widget.title,
-            onBack: () => Navigator.of(context).pop(),
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
           ),
           
           // Progress bar
@@ -768,7 +779,7 @@ class _StudyViewState extends State<StudyView> {
             _generateScrambledWord();
           });
         } else {
-          _showResults();
+          _showWordProgress();
         }
       }
     });
@@ -814,92 +825,16 @@ class _StudyViewState extends State<StudyView> {
     print('🔍 StudyView: Awarded $actualXPGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
   }
 
-  void _showResults() {
-    final accuracy = _currentCards.isNotEmpty ? (_correctAnswers / _currentCards.length * 100).toInt() : 0;
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    
+
+
+  void _showWordProgress() {
     // Award profile XP based on actual word XP gained
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
     if (totalXPGained > 0) {
       final userProfileProvider = context.read<UserProfileProvider>();
       userProfileProvider.addXp(totalXPGained);
     }
     
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Study Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Score circle
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                       accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                       Colors.red.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '$accuracy%',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: accuracy >= 80 ? Colors.green : 
-                           accuracy >= 60 ? Colors.orange : 
-                           Colors.red,
-                  ),
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Stats
-            _buildStatCard('Cards Studied', _currentCards.length.toString(), Icons.school),
-            const SizedBox(height: 8),
-            _buildStatCard('Known', _correctAnswers.toString(), Icons.check_circle, Colors.green),
-            const SizedBox(height: 8),
-            _buildStatCard('Unknown', (_currentCards.length - _correctAnswers).toString(), Icons.cancel, Colors.red),
-            
-            // Add XP summary if any XP was gained
-            if (totalXPGained > 0) ...[
-              const SizedBox(height: 16),
-              _buildStatCard(
-                'Total XP Gained', 
-                '$totalXPGained',
-                Icons.star,
-                Colors.amber,
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Finish'),
-          ),
-          // Add button to view word progress if XP was gained
-          if (totalXPGained > 0)
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showWordProgress();
-              },
-              child: const Text('View Progress'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showWordProgress() {
     // Create copies of the current session data for the display
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
@@ -911,6 +846,7 @@ class _StudyViewState extends State<StudyView> {
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
+          hideNavigation: true, // Hide back button and swipe for study sessions
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart study session
@@ -935,50 +871,39 @@ class _StudyViewState extends State<StudyView> {
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to previous screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, [Color? color]) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color ?? Theme.of(context).colorScheme.primary,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            widget.title,
+            style: const TextStyle(
+              fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: color ?? Theme.of(context).colorScheme.primary,
+              color: Colors.black,
             ),
           ),
-        ],
-      ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
     );
   }
-  
-
 } 

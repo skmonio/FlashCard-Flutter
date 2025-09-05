@@ -31,7 +31,7 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Import/Export'),
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.grey[600],
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(

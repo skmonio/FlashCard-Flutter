@@ -56,53 +56,60 @@ class _HomeViewState extends State<HomeView> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Study your cards',
           Icons.school,
           Colors.teal,
           () => _navigateToStudy(context),
+          'Review your flashcards in a traditional format. Cards are shown one at a time with the Dutch word first, then reveal the English translation.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Test your cards',
           Icons.quiz,
           Colors.orange,
           () => _navigateToTest(context),
+          'Challenge yourself with multiple choice questions. Choose the correct English translation for each Dutch word.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'True or false',
           Icons.help_outline,
           const Color(0xFFFF6B4D),
           () => _navigateToTrueFalse(context),
+          'Test your knowledge with true/false statements. Determine if the Dutch word matches the English translation.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Remember your cards',
           Icons.psychology,
           Colors.orange,
           () => _navigateToMemoryGame(context),
+          'Play a memory matching game. Find pairs of Dutch words and their English translations by remembering their positions.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Jumble your cards',
           Icons.text_fields,
           const Color(0xFFFF6B4D),
           () => _navigateToWordScramble(context),
+          'Unscramble the letters to form Dutch words. Drag and drop letters to spell the correct word.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Write your card',
           Icons.edit,
           Colors.blue,
           () => _navigateToWriting(context),
+          'Practice writing Dutch words from memory. Type the Dutch word that matches the English translation.',
         ),
         const SizedBox(height: 12),
-        _buildMenuButton(
+        _buildMenuButtonWithInfo(
           'Shuffle Your Cards',
           Icons.shuffle,
           Colors.purple,
           () => _navigateToShuffleCards(context),
+          'Randomize the order of your cards for a fresh study experience. Great for breaking up memorization patterns.',
         ),
       ],
     );
@@ -121,6 +128,7 @@ class _HomeViewState extends State<HomeView> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
+            height: 72, // Fixed height to match cards screen
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
@@ -157,10 +165,70 @@ class _HomeViewState extends State<HomeView> {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuButtonWithInfo(String title, IconData icon, Color color, VoidCallback onTap, String description) {
+    return Container(
+      width: double.infinity,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 72, // Fixed height to match cards screen
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.2),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _showStudyModeInfo(context, title, description),
+                  icon: Icon(
+                    Icons.info_outline,
+                    size: 20,
+                    color: color.withOpacity(0.7),
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
@@ -243,6 +311,24 @@ class _HomeViewState extends State<HomeView> {
 
 
 
+
+  void _showStudyModeInfo(BuildContext context, String title, String description) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(description),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Got it!'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _addSampleData(BuildContext context) async {
     final provider = context.read<FlashcardProvider>();

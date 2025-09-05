@@ -436,11 +436,11 @@ class LearningMastery {
     
     final attempts = dailyGameAttempts[exerciseType] ?? 0;
     
-    // First attempt: 10 XP, then -1 each time
-    final baseXP = 10 - attempts;
+    // First attempt: 5 XP, then -1 each time
+    final baseXP = 5 - attempts;
     
     // Minimum 0 XP
-    final finalXP = baseXP.clamp(0, 10);
+    final finalXP = baseXP.clamp(0, 5);
     
     print('🔍 LearningMastery: getXPForGame - exerciseType: $exerciseType, attempts: $attempts, baseXP: $baseXP, finalXP: $finalXP');
     
@@ -467,14 +467,16 @@ class LearningMastery {
   /// Add XP and handle level ups
   void addXP(int xp, String exerciseType) {
     final previousLevel = currentLevel;
+    
+    // Use the XP passed in (which should come from getXPForGame)
     currentXP += xp;
     currentLevel = rpgWordLevel.level;
     
-    // Record exercise history
+    // Record exercise history with actual XP gained
     exerciseHistory.add({
       'timestamp': DateTime.now().toIso8601String(),
       'exerciseType': exerciseType,
-      'xpGained': xp,
+      'xpGained': xp, // Use the XP passed in
       'totalXP': currentXP,
     });
     
@@ -500,6 +502,27 @@ class LearningMastery {
           return timestamp.isAfter(todayStart);
         })
         .fold(0, (sum, entry) => sum + (entry['xpGained'] as int));
+  }
+  
+  /// Get the number of times this word was studied today
+  int get timesStudiedToday {
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    
+    return exerciseHistory
+        .where((entry) {
+          final timestamp = DateTime.parse(entry['timestamp']);
+          return timestamp.isAfter(todayStart);
+        })
+        .length;
+  }
+  
+  /// Calculate XP for next correct answer based on daily decay
+  /// First time: 5 XP, Second: 4 XP, Third: 3 XP, Fourth: 2 XP, Fifth: 1 XP, Sixth+: 0 XP
+  int get nextAnswerXp {
+    final timesToday = timesStudiedToday;
+    if (timesToday >= 5) return 0; // 6th time and beyond = 0 XP
+    return 5 - timesToday; // 5, 4, 3, 2, 1, 0
   }
   
   // MARK: - Private Methods

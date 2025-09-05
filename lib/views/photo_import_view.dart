@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/photo_import_service.dart';
 import '../services/translation_service.dart';
 import '../providers/flashcard_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/deck.dart';
 
 class PhotoImportView extends StatefulWidget {
@@ -51,10 +51,21 @@ class _PhotoImportViewState extends State<PhotoImportView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Photo Import',
-            onBack: () => Navigator.of(context).pop(),
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
           ),
           
           // Content
@@ -836,5 +847,34 @@ class _PhotoImportViewState extends State<PhotoImportView> {
         });
       }
     }
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Photo Import',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
+    );
   }
 }

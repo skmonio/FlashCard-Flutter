@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/dutch_grammar_rule.dart';
 import '../providers/dutch_grammar_provider.dart';
-import '../components/unified_header.dart';
+
 import 'dutch_grammar_exercise_view.dart';
 
 class DutchGrammarRuleDetailView extends StatefulWidget {
@@ -39,16 +39,22 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-                      // Header
-            UnifiedHeader(
-              title: 'Grammar',
-              onBack: () => Navigator.of(context).pop(),
-              trailing: IconButton(
-                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                icon: const Icon(Icons.home),
-                tooltip: 'Go Home',
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
               ),
+              child: _buildCustomHeader(context),
             ),
+          ),
           
           // Rule Info
           Container(
@@ -320,26 +326,34 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
   Widget _buildExercisesTab() {
     return Column(
       children: [
-        // Exercise count
+        // Exercise count and add button
         Container(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '${widget.rule.exercises.length} Exercises',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${widget.rule.exercises.length} Exercises',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Exercises for this grammar rule',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Exercises for this grammar rule',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
+              const SizedBox(width: 8),
             ],
           ),
         ),
@@ -373,31 +387,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (action) => _handleExerciseAction(action, exercise, index),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 16),
-                            SizedBox(width: 8),
-                            Text('Edit'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 16, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               );
@@ -514,54 +503,6 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
 
 
 
-  void _handleExerciseAction(String action, GrammarExercise exercise, int index) {
-    switch (action) {
-      case 'edit':
-        _editExercise(exercise, index);
-        break;
-      case 'delete':
-        _showDeleteExerciseConfirmation(exercise, index);
-        break;
-    }
-  }
-
-  void _editExercise(GrammarExercise exercise, int index) {
-    // TODO: Navigate to exercise edit view
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit exercise functionality coming soon!')),
-    );
-  }
-
-  void _showDeleteExerciseConfirmation(GrammarExercise exercise, int index) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Exercise'),
-        content: Text('Are you sure you want to delete this exercise?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteExercise(exercise, index);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteExercise(GrammarExercise exercise, int index) {
-    // TODO: Implement delete exercise functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Delete exercise functionality coming soon!')),
-    );
-  }
 
   // Removed type and level helper methods as they are no longer needed
 
@@ -569,12 +510,12 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
     switch (type) {
       case ExerciseType.multipleChoice:
         return 'Multiple Choice';
-      case ExerciseType.translation:
-        return 'Translation';
       case ExerciseType.fillInTheBlank:
         return 'Fill in the Blank';
-      case ExerciseType.sentenceOrder:
-        return 'Sentence Order';
+      case ExerciseType.sentenceBuilding:
+        return 'Sentence Building';
+      case ExerciseType.translation:
+        return 'Translation';
       case ExerciseType.trueFalse:
         return 'True/False';
     }
@@ -584,12 +525,12 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
     switch (type) {
       case ExerciseType.multipleChoice:
         return Icons.format_list_bulleted;
-      case ExerciseType.translation:
-        return Icons.translate;
       case ExerciseType.fillInTheBlank:
         return Icons.edit;
-      case ExerciseType.sentenceOrder:
+      case ExerciseType.sentenceBuilding:
         return Icons.sort;
+      case ExerciseType.translation:
+        return Icons.translate;
       case ExerciseType.trueFalse:
         return Icons.check_circle_outline;
     }
@@ -599,14 +540,55 @@ class _DutchGrammarRuleDetailViewState extends State<DutchGrammarRuleDetailView>
     switch (type) {
       case ExerciseType.multipleChoice:
         return Colors.blue;
-      case ExerciseType.translation:
-        return Colors.green;
       case ExerciseType.fillInTheBlank:
         return Colors.orange;
-      case ExerciseType.sentenceOrder:
+      case ExerciseType.sentenceBuilding:
         return Colors.purple;
+      case ExerciseType.translation:
+        return Colors.green;
       case ExerciseType.trueFalse:
-        return Colors.teal;
+        return Colors.red;
     }
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Grammar',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Home button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: const Icon(Icons.home, color: Colors.black),
+            tooltip: 'Go Home',
+          ),
+        ),
+      ],
+    );
   }
 }

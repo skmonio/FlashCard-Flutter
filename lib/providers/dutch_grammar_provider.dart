@@ -375,4 +375,95 @@ class DutchGrammarProvider extends ChangeNotifier {
     
     return recommendations;
   }
+
+  // Exercise editing methods
+  void addExerciseToRule(String ruleId, GrammarExercise exercise) {
+    final ruleIndex = _allRules.indexWhere((rule) => rule.id == ruleId);
+    if (ruleIndex == -1) return;
+
+    final rule = _allRules[ruleIndex];
+    final updatedExercises = List<GrammarExercise>.from(rule.exercises)..add(exercise);
+    
+    final updatedRule = DutchGrammarRule(
+      id: rule.id,
+      title: rule.title,
+      type: rule.type,
+      level: rule.level,
+      explanation: rule.explanation,
+      keyPoints: rule.keyPoints,
+      examples: rule.examples,
+      exercises: updatedExercises,
+      commonMistakes: rule.commonMistakes,
+      tips: rule.tips,
+      relatedRules: rule.relatedRules,
+    );
+
+    _allRules[ruleIndex] = updatedRule;
+    _updateFilteredRules();
+    notifyListeners();
+  }
+
+  void updateExerciseInRule(String ruleId, int exerciseIndex, GrammarExercise updatedExercise) {
+    final ruleIndex = _allRules.indexWhere((rule) => rule.id == ruleId);
+    if (ruleIndex == -1 || exerciseIndex >= _allRules[ruleIndex].exercises.length) return;
+
+    final rule = _allRules[ruleIndex];
+    final updatedExercises = List<GrammarExercise>.from(rule.exercises);
+    updatedExercises[exerciseIndex] = updatedExercise;
+    
+    final updatedRule = DutchGrammarRule(
+      id: rule.id,
+      title: rule.title,
+      type: rule.type,
+      level: rule.level,
+      explanation: rule.explanation,
+      keyPoints: rule.keyPoints,
+      examples: rule.examples,
+      exercises: updatedExercises,
+      commonMistakes: rule.commonMistakes,
+      tips: rule.tips,
+      relatedRules: rule.relatedRules,
+    );
+
+    _allRules[ruleIndex] = updatedRule;
+    _updateFilteredRules();
+    notifyListeners();
+  }
+
+  void deleteExerciseFromRule(String ruleId, int exerciseIndex) {
+    final ruleIndex = _allRules.indexWhere((rule) => rule.id == ruleId);
+    if (ruleIndex == -1 || exerciseIndex >= _allRules[ruleIndex].exercises.length) return;
+
+    final rule = _allRules[ruleIndex];
+    final updatedExercises = List<GrammarExercise>.from(rule.exercises);
+    updatedExercises.removeAt(exerciseIndex);
+    
+    final updatedRule = DutchGrammarRule(
+      id: rule.id,
+      title: rule.title,
+      type: rule.type,
+      level: rule.level,
+      explanation: rule.explanation,
+      keyPoints: rule.keyPoints,
+      examples: rule.examples,
+      exercises: updatedExercises,
+      commonMistakes: rule.commonMistakes,
+      tips: rule.tips,
+      relatedRules: rule.relatedRules,
+    );
+
+    _allRules[ruleIndex] = updatedRule;
+    _updateFilteredRules();
+    notifyListeners();
+  }
+
+  void _updateFilteredRules() {
+    _filteredRules = _allRules.where((rule) {
+      bool matchesSearch = _searchQuery.isEmpty ||
+          rule.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          rule.explanation.toLowerCase().contains(_searchQuery.toLowerCase());
+
+      return matchesSearch;
+    }).toList();
+  }
 }

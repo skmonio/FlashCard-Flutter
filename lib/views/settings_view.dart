@@ -3,10 +3,11 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
-import '../providers/store_provider.dart';
+
 
 import 'unified_import_export_view.dart';
 import 'clear_data_view.dart';
+import 'onboarding_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
 
@@ -214,6 +215,23 @@ class _SettingsViewState extends State<SettingsView> {
                   // TODO: Navigate to help
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Help section coming soon!')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.school),
+                title: const Text('Show Onboarding'),
+                subtitle: const Text('Learn how to use the app'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const OnboardingView(
+                        isFirstTime: false,
+                        onOnboardingComplete: null, // No callback needed for settings
+                      ),
+                    ),
                   );
                 },
               ),

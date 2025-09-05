@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/deck.dart';
 
 class EditDeckView extends StatefulWidget {
@@ -50,21 +50,20 @@ class _EditDeckViewState extends State<EditDeckView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          UnifiedHeader(
-            title: 'Edit Deck',
-            onBack: () => Navigator.of(context).pop(),
-            trailing: TextButton(
-              onPressed: _canSave() ? _updateDeck : null,
-              child: Text(
-                'Save',
-                style: TextStyle(
-                  color: _canSave() 
-                      ? Theme.of(context).colorScheme.primary 
-                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
                 ),
               ),
+              child: _buildCustomHeader(context),
             ),
           ),
           Expanded(
@@ -236,5 +235,54 @@ class _EditDeckViewState extends State<EditDeckView> {
     );
 
     Navigator.of(context).pop();
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Edit Deck',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Save button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: TextButton(
+            onPressed: _canSave() ? _updateDeck : null,
+            child: Text(
+              'Save',
+              style: TextStyle(
+                color: _canSave() 
+                    ? Theme.of(context).colorScheme.primary 
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 } 

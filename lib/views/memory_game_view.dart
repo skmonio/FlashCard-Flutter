@@ -359,7 +359,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
   @override
   Widget build(BuildContext context) {
     if (_gameComplete) {
-      return _buildResultsView();
+      // Show comprehensive completion screen directly (skip old results screen)
+      _showWordProgress();
+      return Container(); // Temporary return while navigating
     }
 
     return Scaffold(
@@ -976,11 +978,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
         return;
       }
       
-      setState(() {
-        _gameComplete = true;
-      });
       // Play completion sound when game is finished
       SoundManager().playCompleteSound();
+      // Show comprehensive completion screen directly (skip old results screen)
+      _showWordProgress();
     }
   }
 
@@ -1157,7 +1158,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.home),
                       iconSize: 20,
                     ),
@@ -1289,7 +1290,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   const SizedBox(width: 16),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Done'),
                     ),
                   ),
@@ -1403,6 +1404,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
+          hideNavigation: true, // Hide back button and swipe for memory games
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart game
@@ -1421,7 +1423,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

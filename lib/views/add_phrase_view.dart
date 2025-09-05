@@ -98,29 +98,31 @@ class _AddPhraseViewState extends State<AddPhraseView> {
           _translationController.text.trim(),
         );
         
-        print('🔍 DEBUG: Add phrase result: $success');
-        
         if (!success) {
-          print('🔍 DEBUG: Phrase already exists - showing warning but continuing');
-          // Phrase already exists - show warning but continue to create anyway
-          // The red warning text is already shown inline, no need for SnackBar
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to add phrase. Please try again.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
         }
-        
-        // Always continue to show success message and navigate back
-        print('🔍 DEBUG: Phrase added successfully');
-        
-        HapticService().successFeedback();
-        SoundManager().playCompleteSound();
+      }
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(widget.editingPhrase != null ? 'Phrase updated successfully!' : 'Phrase added successfully!'),
-              backgroundColor: Colors.green,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.editingPhrase != null 
+                  ? 'Phrase updated successfully!' 
+                  : 'Phrase added successfully!'
             ),
-          );
-          Navigator.pop(context);
-        }
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -132,173 +134,224 @@ class _AddPhraseViewState extends State<AddPhraseView> {
         );
       }
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.editingPhrase != null ? 'Edit Phrase' : 'Add Phrase'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Phrase Input
-              TextFormField(
-                controller: _phraseController,
-                onChanged: (value) {
-                  setState(() {
-                    // Trigger rebuild to check for duplicates
-                  });
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Dutch Phrase',
-                  hintText: 'e.g., Ik vind het niet leuk',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.translate),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a phrase';
-                  }
-                  return null;
-                },
-              ),
-              
-              // Duplicate warning
-              if (_phraseController.text.trim().isNotEmpty && _isDuplicatePhrase())
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+      appBar: null,
+      body: Column(
+        children: [
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.red, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'This phrase already exists',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
+                ),
+              ),
+              child: _buildCustomHeader(context),
+            ),
+          ),
+          
+          // Form content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Phrase Input
+                    TextFormField(
+                      controller: _phraseController,
+                      onChanged: (value) {
+                        setState(() {
+                          // Trigger rebuild to check for duplicates
+                        });
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Dutch Phrase',
+                        hintText: 'e.g., Ik vind het niet leuk',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.translate),
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a phrase';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    // Duplicate warning
+                    if (_phraseController.text.trim().isNotEmpty && _isDuplicatePhrase())
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning, color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'This phrase already exists',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-              // Translate Button
-              ElevatedButton.icon(
-                onPressed: _isTranslating ? null : _translatePhrase,
-                icon: _isTranslating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.translate),
-                label: Text(_isTranslating ? 'Translating...' : 'Translate'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.secondary,
-                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 16),
+                    // Translate Button
+                    ElevatedButton.icon(
+                      onPressed: _isTranslating ? null : _translatePhrase,
+                      icon: _isTranslating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.translate),
+                      label: Text(_isTranslating ? 'Translating...' : 'Translate'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-              // Translation Input
-              TextFormField(
-                controller: _translationController,
-                decoration: const InputDecoration(
-                  labelText: 'English Translation',
-                  hintText: 'e.g., I don\'t like it',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.language),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a translation';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
+                    // Translation Input
+                    TextFormField(
+                      controller: _translationController,
+                      decoration: const InputDecoration(
+                        labelText: 'English Translation',
+                        hintText: 'e.g., I don\'t like it',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.language),
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a translation';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
 
-              // Save Button
-              ElevatedButton.icon(
-                onPressed: _isSaving ? null : _savePhrase,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: Text(_isSaving ? 'Saving...' : 'Save Phrase'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-              const SizedBox(height: 24),
+                    // Save Button
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _savePhrase,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save),
+                      label: Text(_isSaving ? 'Saving...' : 'Save Phrase'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
-              // Info Card
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.info_outline,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'About Phrases',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                    // Info Card
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'About Phrases',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            const Text(
+                              '• Phrases are separate from flashcards and decks\n'
+                              '• Each phrase will have translation and sentence builder exercises\n'
+                              '• Progress is tracked individually for each phrase\n'
+                              '• Use the Translate button for quick translations',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '• Phrases are separate from flashcards and decks\n'
-                        '• Each phrase will have translation and sentence builder exercises\n'
-                        '• Progress is tracked individually for each phrase\n'
-                        '• Use the Translate button for quick translations',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            widget.editingPhrase != null ? 'Edit Phrase' : 'Add Phrase',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
         ),
-      ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+      ],
     );
   }
 
@@ -325,3 +378,4 @@ class _AddPhraseViewState extends State<AddPhraseView> {
     }
   }
 }
+

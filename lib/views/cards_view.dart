@@ -12,7 +12,7 @@ import 'phrases_list_view.dart';
 import 'dutch_words_view.dart';
 import 'dutch_grammar_rules_view.dart';
 import 'bubble_word_map_selection_view.dart';
-import 'store_view.dart';
+
 
 class CardsView extends StatefulWidget {
   const CardsView({super.key});
@@ -73,7 +73,7 @@ class _CardsViewState extends State<CardsView> {
     final allCards = provider.cards;
     final allDecks = provider.getAllDecksHierarchical();
     
-    print('🔍 CardsView: Building stats section with ${allCards.length} cards and ${allDecks.length} decks');
+
     
     // Calculate average learning percentage for cards
     final averageCardProgress = allCards.isEmpty 
@@ -85,7 +85,7 @@ class _CardsViewState extends State<CardsView> {
         ? 0 
         : _calculateOverallDeckProgress(context, allDecks);
     
-    print('🔍 CardsView: Displaying - Cards: ${averageCardProgress}%, Decks: ${averageDeckProgress}%');
+
     
     return Row(
       children: [
@@ -508,40 +508,7 @@ class _CardsViewState extends State<CardsView> {
           ),
         ),
         
-        // Store
-        Container(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _navigateToStore(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.orange.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.store,
-                  color: Colors.orange,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Store',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
+
       ],
     );
   }
@@ -602,13 +569,7 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
-  void _navigateToStore(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const StoreView(),
-      ),
-    );
-  }
+
 
   void _showCardsInfo(BuildContext context) {
     showDialog(
@@ -653,10 +614,7 @@ class _CardsViewState extends State<CardsView> {
   }
   
   int _calculateOverallDeckProgress(BuildContext context, List<Deck> decks) {
-    print('🔍 CardsView: Calculating deck progress for ${decks.length} decks');
-    
     if (decks.isEmpty) {
-      print('🔍 CardsView: No decks, returning 0%');
       return 0;
     }
     
@@ -666,24 +624,17 @@ class _CardsViewState extends State<CardsView> {
     for (final deck in decks) {
       // Get the actual cards for this deck from the provider
       final deckCards = context.read<FlashcardProvider>().getCardsForDeck(deck.id);
-      print('🔍 CardsView: Checking deck "${deck.name}" with ${deckCards.length} cards');
       
       if (deckCards.isNotEmpty) {
         double deckProgress = Deck.calculateLearningPercentage(deck.name, deckCards);
-        print('🔍 CardsView: Deck "${deck.name}" has ${deckProgress}% progress');
         
         if (deckProgress >= 100.0) {
           fullyLearnedDecks++;
-          print('🔍 CardsView: Deck "${deck.name}" is fully learned! (${fullyLearnedDecks} total)');
         }
-      } else {
-        print('🔍 CardsView: Deck "${deck.name}" is empty');
       }
     }
     
     final percentageOfFullyLearnedDecks = (fullyLearnedDecks / decks.length) * 100;
-    print('🔍 CardsView: Final calculation: $fullyLearnedDecks fully learned / ${decks.length} total = ${percentageOfFullyLearnedDecks}%');
-    
     return percentageOfFullyLearnedDecks.round();
   }
 } 

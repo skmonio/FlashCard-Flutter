@@ -5,7 +5,7 @@ import '../providers/theme_provider.dart';
 import '../services/sample_data_service.dart';
 import 'home_view.dart';
 import 'cards_view.dart';
-import 'store_view.dart';
+
 import 'settings_view.dart';
 import '../components/bottom_navigation_view.dart';
 import '../components/main_header.dart';
@@ -26,23 +26,18 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     super.initState();
     // Initialize the providers when the app starts
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Initialize theme provider
-      final themeProvider = context.read<ThemeProvider>();
-      await themeProvider.initialize();
+
       
       // Initialize flashcard provider
       final provider = context.read<FlashcardProvider>();
       await provider.initialize();
       
-      print('Initial cards count: ${provider.cards.length}');
-      print('Initial decks count: ${provider.decks.length}');
+
       
-      // Force load sample data for testing
-      print('Loading sample data...');
-      await SampleDataService.addSampleData(provider);
-      
-      print('After loading - Cards count: ${provider.cards.length}');
-      print('After loading - Decks count: ${provider.decks.length}');
+      // Check if user wants sample data (only show on first launch)
+      if (await SampleDataService.shouldShowSampleDataPrompt()) {
+        await SampleDataService.showSampleDataPrompt(context, provider);
+      }
       
       // Force refresh the UI
       setState(() {});

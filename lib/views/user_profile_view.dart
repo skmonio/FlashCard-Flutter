@@ -47,17 +47,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => _showEditProfile(),
-          ),
-        ],
-      ),
+      appBar: null,
       body: Consumer<UserProfileProvider>(
         builder: (context, profileProvider, child) {
           if (profileProvider.isLoading) {
@@ -81,6 +71,23 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
 
           return Column(
             children: [
+              // Fixed Header - matching Taal Trek header height
+              SafeArea(
+                child: Container(
+                  height: kToolbarHeight,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: _buildCustomHeader(context),
+                ),
+              ),
+              
               // Profile Header
               _buildProfileHeader(profileProvider),
               
@@ -568,5 +575,45 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
   int _getXpForNextLevel(int currentLevel) {
     // XP formula: 100 * level^1.5 (same as in UserProfile model)
     return (100 * pow(currentLevel + 1, 1.5)).round();
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Profile',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Edit button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            icon: const Icon(Icons.edit, color: Colors.black),
+            onPressed: () => _showEditProfile(),
+          ),
+        ),
+      ],
+    );
   }
 } 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../components/unified_header.dart';
+
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 
@@ -60,16 +60,20 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          UnifiedHeader(
-            title: 'Study Type',
-            onBack: () => Navigator.of(context).pop(),
-            trailing: IconButton(
-              onPressed: () => _shouldShowSettings() ? _showSettingsDialog(context) : _showGameInfo(context),
-              icon: Icon(
-                _shouldShowSettings() ? Icons.settings : Icons.info,
-                color: Colors.blue,
+          // Fixed Header - matching Taal Trek header height
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
               ),
+              child: _buildCustomHeader(context),
             ),
           ),
           
@@ -1332,6 +1336,49 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           difficulty: difficulty,
         ),
       ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Study Type',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button with proper padding
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Settings/Info button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => _shouldShowSettings() ? _showSettingsDialog(context) : _showGameInfo(context),
+            icon: Icon(
+              _shouldShowSettings() ? Icons.settings : Icons.info,
+              color: Colors.blue,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/phrase.dart';
 import '../providers/phrase_provider.dart';
+import '../utils/sentence_utils.dart';
+import '../components/word_progress_display.dart';
+import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
 
 class PhraseExerciseDetailView extends StatefulWidget {
   final Phrase phrase;
@@ -50,6 +54,11 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   
   // Cache generated exercises to prevent regeneration
   List<Map<String, dynamic>>? _cachedExercises;
+  
+  // RPG tracking for comprehensive completion screen
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
 
   @override
   Widget build(BuildContext context) {
@@ -429,9 +438,8 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
       final exercises = _generateExercises();
       final currentExercise = exercises[_currentExerciseIndex];
       final correctOrder = currentExercise['correctOrder'] as List<String>;
-      final userAnswer = _answerWords.join(' ');
-      final correctAnswer = correctOrder.join(' ');
-      final isCorrect = userAnswer == correctAnswer;
+      // Use flexible comparison for sentence building to handle capitalization and duplicate word positioning
+      final isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctOrder);
       
       if (isCorrect) {
         backgroundColor = Colors.green.withOpacity(0.2);
@@ -505,7 +513,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         Expanded(
           child: ElevatedButton.icon(
             onPressed: _currentExerciseIndex > 0 ? _goToPrevious : null,
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_ios),
             label: const Text('Previous'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.grey.withValues(alpha: 0.1),
@@ -562,6 +570,11 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
       _sentenceAnswers.clear();
       _sentenceAvailable.clear();
       _cachedExercises = null; // Clear cached exercises
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
     });
   }
 
@@ -658,9 +671,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     final currentExercise = exercises[_currentExerciseIndex];
     final correctOrder = currentExercise['correctOrder'] as List<String>;
     
-    final isCorrect = _answerWords.length == correctOrder.length &&
-        _answerWords.every((word) => correctOrder.contains(word)) &&
-        _answerWords.join(' ') == correctOrder.join(' ');
+    final isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctOrder);
     
     setState(() {
       _showAnswer = true;
@@ -676,10 +687,38 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
       phraseProvider.markPhraseIncorrect(_phrase.id);
     }
     
+    // Track progress for comprehensive completion screen
+    _trackExerciseProgress(isCorrect);
+    
     // Store the answer
     _answeredQuestions[_currentExerciseIndex] = true;
     _sentenceAnswers[_currentExerciseIndex] = List<String>.from(_answerWords);
     _sentenceAvailable[_currentExerciseIndex] = List<String>.from(_availableWords);
+  }
+  
+  void _trackExerciseProgress(bool wasCorrect) {
+    // For phrases, we'll create a simple FlashCard representation for tracking
+    // This could be enhanced to track actual phrase progress
+    final flashCard = FlashCard(
+      id: _phrase.id,
+      word: _phrase.phrase,
+      definition: _phrase.translation,
+      example: _phrase.phrase,
+    );
+    
+    // Track studied phrases
+    if (!_studiedWords.any((word) => word.id == flashCard.id)) {
+      _studiedWords.add(flashCard);
+    }
+    
+    // Track word mastery (simplified for phrases)
+    _wordMastery[flashCard.id] = LearningMastery();
+    
+    // Track XP gained with daily decay (game-based)
+    if (wasCorrect) {
+      final nextXp = flashCard.learningMastery.getXPForGame('phrase_exercise_detail');
+      _xpGainedPerWord[flashCard.id] = nextXp; // XP that will actually be gained
+    }
   }
 
   void _goToPrevious() {
@@ -738,31 +777,60 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         }
       });
     } else {
-      // Exercise complete - navigate back to phrases list
-      final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
-      
-      // Show completion dialog
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Text(accuracy >= 60 ? 'Great Job!' : 'Keep Practicing'),
-          content: Text('You got $_correctAnswers out of $_totalAnswered questions correct (${accuracy}%)'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
-                Navigator.of(context).pop(); // Go back to phrases list
-              },
-              child: const Text('Finish'),
-            ),
-          ],
+      // Exercise complete - show comprehensive completion screen
+      _showComprehensiveCompletionScreen();
+    }
+  }
+  
+  void _showComprehensiveCompletionScreen() {
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          hideNavigation: false, // Allow swipe for phrase exercises
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            // Reset and restart exercise
+            setState(() {
+              _currentExerciseIndex = 0;
+              _selectedAnswer = null;
+              _showAnswer = false;
+              _isCorrect = false;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _answerWords = [];
+              _availableWords = [];
+              _shuffledOptions.clear();
+              _answeredQuestions.clear();
+              _selectedAnswers.clear();
+              _sentenceAnswers.clear();
+              _sentenceAvailable.clear();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+          },
         ),
-      );
-      
-      if (widget.onComplete != null) {
-        widget.onComplete!(accuracy >= 60);
-      }
+      ),
+    );
+    
+    if (widget.onComplete != null) {
+      widget.onComplete!(accuracy >= 60);
     }
   }
 

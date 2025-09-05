@@ -109,6 +109,22 @@ class DutchWordExerciseProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Delete all exercises for a specific word
+  Future<void> deleteWordExerciseByWord(String word) async {
+    print('🔍 Provider: deleteWordExerciseByWord called with word: "$word"');
+    final initialCount = _wordExercises.length;
+    
+    _wordExercises.removeWhere((e) => e.targetWord.toLowerCase() == word.toLowerCase());
+    
+    final deletedCount = initialCount - _wordExercises.length;
+    print('🔍 Provider: Deleted $deletedCount exercises for word "$word"');
+    
+    if (deletedCount > 0) {
+      await _saveToStorage();
+      notifyListeners();
+    }
+  }
+
   // Get a specific word exercise by ID
   DutchWordExercise? getWordExercise(String id) {
     print('🔍 Provider: getWordExercise called with ID: "$id"');

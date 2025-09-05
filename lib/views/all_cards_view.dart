@@ -91,9 +91,21 @@ class _AllCardsViewState extends State<AllCardsView> {
       ),
       body: Column(
         children: [
-          // Header
+          // Fixed Header - matching Taal Trek header height
           SafeArea(
-            child: _buildHeader(context),
+            child: Container(
+              height: kToolbarHeight,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildHeader(context),
+            ),
           ),
           
           // Search and Sort Bar
@@ -131,48 +143,65 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          IconButton(
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Cards',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           ),
-          Expanded(
-            child: Text(
-              'All Cards',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          if (_isSelectionMode) ...[
-            if (_selectedCardIds.isNotEmpty)
-              IconButton(
-                onPressed: _showBulkActionsMenu,
-                icon: const Icon(Icons.more_vert),
-              ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _isSelectionMode = false;
-                  _selectedCardIds.clear();
-                  _selectAll = false;
-                  _enteredViaSelectAll = false;
-                });
-              },
-              child: const Text('Cancel'),
-            ),
-          ] else ...[
-            IconButton(
-              onPressed: _showSelectionMenu,
-              icon: const Icon(Icons.select_all),
-              tooltip: 'Select Cards',
-            ),
-          ],
-        ],
-      ),
+        ),
+        
+        // Right side - Selection mode or select button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: _isSelectionMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_selectedCardIds.isNotEmpty)
+                      IconButton(
+                        onPressed: _showBulkActionsMenu,
+                        icon: const Icon(Icons.more_vert, color: Colors.black),
+                      ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isSelectionMode = false;
+                          _selectedCardIds.clear();
+                          _selectAll = false;
+                          _enteredViaSelectAll = false;
+                        });
+                      },
+                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
+                    ),
+                  ],
+                )
+              : IconButton(
+                  onPressed: _showSelectionMenu,
+                  icon: const Icon(Icons.select_all, color: Colors.black),
+                  tooltip: 'Select Cards',
+                ),
+        ),
+      ],
     );
   }
 
@@ -349,17 +378,22 @@ class _AllCardsViewState extends State<AllCardsView> {
             ),
             title: Row(
               children: [
-                Text(
-                  card.article.isNotEmpty ? '${card.article} ' : '',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w500,
+                if (card.article.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      '${card.article} ',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
                 Expanded(
                   child: Text(
                     card.word,
                     style: const TextStyle(fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -393,27 +427,33 @@ class _AllCardsViewState extends State<AllCardsView> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(
-                          'Added: ${_formatDate(card.dateCreated)}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        Flexible(
+                          child: Text(
+                            'Added: ${_formatDate(card.dateCreated)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (exerciseCount > 0) ...[
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.green[700],
-                                fontWeight: FontWeight.w500,
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
@@ -802,13 +842,25 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   void _deleteSelectedCards() async {
     final provider = context.read<FlashcardProvider>();
+    final exerciseProvider = context.read<DutchWordExerciseProvider>();
     int successCount = 0;
     int errorCount = 0;
     
     for (final cardId in _selectedCardIds) {
       try {
+        // Get the card first to get the word
+        final card = provider.getCard(cardId);
+        if (card == null) {
+          print('🔍 AllCardsView: Card not found: $cardId');
+          errorCount++;
+          continue;
+        }
+        
         final success = await provider.deleteCard(cardId);
         if (success) {
+          // Also delete exercises for this word
+          await exerciseProvider.deleteWordExerciseByWord(card.word);
+          print('AllCardsView: Deleted exercises for word: ${card.word}');
           successCount++;
         } else {
           errorCount++;
@@ -832,7 +884,7 @@ class _AllCardsViewState extends State<AllCardsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Deleted $successCount card${successCount == 1 ? '' : 's'}'
+            'Deleted $successCount card${successCount == 1 ? '' : 's'} and associated exercises'
             '${errorCount > 0 ? ' ($errorCount failed)' : ''}',
           ),
           backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
@@ -844,8 +896,16 @@ class _AllCardsViewState extends State<AllCardsView> {
   void _deleteCard(FlashCard card, FlashcardProvider provider) async {
     print('AllCardsView: Deleting card: ${card.word} (${card.id})');
     try {
+      // First delete the card
       final success = await provider.deleteCard(card.id);
       print('AllCardsView: Delete result: $success');
+      
+      // Also delete any exercises for this word
+      if (success) {
+        final exerciseProvider = context.read<DutchWordExerciseProvider>();
+        await exerciseProvider.deleteWordExerciseByWord(card.word);
+        print('AllCardsView: Deleted exercises for word: ${card.word}');
+      }
       
       // Clear cache after deletion
       _cachedFilteredCards = null;
@@ -853,7 +913,7 @@ class _AllCardsViewState extends State<AllCardsView> {
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deleted card: ${card.word}')),
+            SnackBar(content: Text('Deleted card and exercises: ${card.word}')),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1326,8 +1386,8 @@ class _AllCardsViewState extends State<AllCardsView> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.select_all, color: Colors.blue),
-              title: const Text('Select All Cards'),
+              leading: const Icon(Icons.select_all, color: Colors.black),
+              title: const Text('Select All'),
               subtitle: const Text('Select all cards in the current view'),
               onTap: () {
                 Navigator.pop(context);
@@ -1375,7 +1435,7 @@ class _AllCardsViewState extends State<AllCardsView> {
             const SizedBox(height: 16),
             if (_selectedCardIds.length == 1)
               ListTile(
-                leading: const Icon(Icons.edit, color: Colors.blue),
+                leading: const Icon(Icons.edit, color: Colors.black),
                 title: const Text('Edit Selected Card'),
                 subtitle: const Text('Edit the selected card'),
                 onTap: () {

@@ -5,11 +5,22 @@ import '../models/phrase.dart';
 import '../providers/phrase_provider.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
+import '../components/word_progress_display.dart';
+import '../models/flash_card.dart';
+import '../models/learning_mastery.dart';
+import '../utils/sentence_utils.dart';
 
 class PhraseExerciseView extends StatefulWidget {
   final Phrase phrase;
+  final bool singleQuestionMode;
+  final Function(bool)? onComplete;
 
-  const PhraseExerciseView({super.key, required this.phrase});
+  const PhraseExerciseView({
+    super.key,
+    required this.phrase,
+    this.singleQuestionMode = false,
+    this.onComplete,
+  });
 
   @override
   State<PhraseExerciseView> createState() => _PhraseExerciseViewState();
@@ -18,46 +29,93 @@ class PhraseExerciseView extends StatefulWidget {
 class _PhraseExerciseViewState extends State<PhraseExerciseView> {
   late PhraseProvider _phraseProvider;
   Map<String, dynamic>? _currentExercise;
-  String _exerciseType = 'translation'; // 'translation' or 'sentence_builder'
   int _currentQuestionIndex = 0;
-  int _correctAnswers = 0;
-  int _totalQuestions = 0;
-  bool _showResult = false;
   String? _selectedAnswer;
   List<String> _selectedWords = [];
   List<String> _availableWords = [];
+  int _correctAnswers = 0;
+  int _totalQuestions = 0;
+  bool _showResult = false;
+  
+  // RPG tracking variables
+  final Map<String, int> _xpGainedPerWord = {};
+  final Map<String, LearningMastery> _wordMastery = {};
+  final List<FlashCard> _studiedWords = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _phraseProvider = context.read<PhraseProvider>();
-      _generateNextExercise();
-    });
+    _phraseProvider = context.read<PhraseProvider>();
+    _generateNextExercise();
   }
 
   void _generateNextExercise() {
-    if (_currentQuestionIndex >= 2) { // 2 exercises per phrase
+    if (_currentQuestionIndex >= 2) {
       _showResults();
       return;
     }
 
+    final exercises = [
+      {
+        'type': 'translation',
+        'question': 'Translate: ${widget.phrase.phrase}',
+        'options': [
+          widget.phrase.translation,
+          'Incorrect option 1',
+          'Incorrect option 2',
+          'Incorrect option 3',
+        ],
+        'correctAnswer': widget.phrase.translation,
+      },
+      {
+        'type': 'sentence_builder',
+        'question': 'Build the correct Dutch sentence: ${widget.phrase.translation}',
+        'correctOrder': widget.phrase.phrase.split(' '),
+        'availableWords': widget.phrase.phrase.split(' ')..shuffle(),
+      },
+    ];
+
     setState(() {
-      _exerciseType = _currentQuestionIndex == 0 ? 'translation' : 'sentence_builder';
-      _currentExercise = _exerciseType == 'translation'
-          ? _phraseProvider.generateTranslationExercise(widget.phrase)
-          : _phraseProvider.generateSentenceBuilderExercise(widget.phrase);
+      _currentExercise = exercises[_currentQuestionIndex];
       _selectedAnswer = null;
-      _selectedWords = [];
-      _availableWords = _currentExercise!['shuffledWords'] ?? [];
-      _showResult = false;
+      _selectedWords.clear();
+      if (_currentExercise!['type'] == 'sentence_builder') {
+        _availableWords = List<String>.from(_currentExercise!['availableWords']);
+      }
     });
   }
 
   void _showResults() {
-    setState(() {
-      _showResult = true;
-    });
+    // Show comprehensive completion screen directly (skip old results screen)
+    _showComprehensiveCompletionScreen();
+  }
+  
+  void _showComprehensiveCompletionScreen() {
+    final percentage = _totalQuestions > 0 ? (_correctAnswers / _totalQuestions * 100).round() : 0;
+    
+    // Create copies of the current session data for the display
+    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
+          hideNavigation: false, // Allow swipe for phrase exercises
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            _restartExercise();
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+          },
+        ),
+      ),
+    );
   }
 
   void _handleTranslationAnswer(String answer) {
@@ -76,6 +134,9 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
       HapticService().heavyImpact();
       SoundManager().playWrongSound();
     }
+    
+    // Track progress for comprehensive completion screen
+    _trackExerciseProgress(isCorrect);
 
     _totalQuestions++;
     if (isCorrect) _correctAnswers++;
@@ -106,7 +167,7 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
 
   void _checkSentenceBuilderAnswer() {
     final correctOrder = _currentExercise!['correctOrder'] as List<String>;
-    final isCorrect = listEquals(_selectedWords, correctOrder);
+    final isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_selectedWords, correctOrder);
 
     if (isCorrect) {
       _phraseProvider.markPhraseCorrect(widget.phrase.id);
@@ -117,6 +178,9 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
       HapticService().heavyImpact();
       SoundManager().playWrongSound();
     }
+    
+    // Track progress for comprehensive completion screen
+    _trackExerciseProgress(isCorrect);
 
     _totalQuestions++;
     if (isCorrect) _correctAnswers++;
@@ -131,22 +195,47 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
     });
   }
 
+  void _trackExerciseProgress(bool wasCorrect) {
+    // For phrases, we'll create a simple FlashCard representation for tracking
+    final flashCard = FlashCard(
+      id: widget.phrase.id,
+      word: widget.phrase.phrase,
+      definition: widget.phrase.translation,
+      example: widget.phrase.phrase,
+    );
+    
+    // Track studied phrases
+    if (!_studiedWords.any((word) => word.id == flashCard.id)) {
+      _studiedWords.add(flashCard);
+    }
+    
+    // Track word mastery (simplified for phrases)
+    _wordMastery[flashCard.id] = LearningMastery();
+    
+    // Track XP gained with daily decay (game-based)
+    if (wasCorrect) {
+      final nextXp = flashCard.learningMastery.getXPForGame('phrase_exercise');
+      _xpGainedPerWord[flashCard.id] = nextXp; // XP that will actually be gained
+    }
+  }
+
   void _restartExercise() {
     setState(() {
       _currentQuestionIndex = 0;
       _correctAnswers = 0;
       _totalQuestions = 0;
       _showResult = false;
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
     });
     _generateNextExercise();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_showResult) {
-      return _buildResultsScreen();
-    }
-
     if (_currentExercise == null) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -175,7 +264,7 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
 
             // Exercise content
             Expanded(
-              child: _exerciseType == 'translation'
+              child: _currentExercise!['type'] == 'translation'
                   ? _buildTranslationExercise()
                   : _buildSentenceBuilderExercise(),
             ),
@@ -227,27 +316,21 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
-                color: isSelected
-                    ? (isCorrect ? Colors.green : Colors.red)
-                    : null,
                 child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  title: Text(
-                    option,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : null,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  title: Text(option),
+                  onTap: () => _handleTranslationAnswer(option),
+                  tileColor: isSelected
+                      ? (isCorrect ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2))
+                      : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: isSelected
+                        ? BorderSide(
+                            color: isCorrect ? Colors.green : Colors.red,
+                            width: 2,
+                          )
+                        : BorderSide.none,
                   ),
-                  trailing: isSelected
-                      ? Icon(
-                          isCorrect ? Icons.check : Icons.close,
-                          color: Colors.white,
-                        )
-                      : null,
-                  onTap: _selectedAnswer == null
-                      ? () => _handleTranslationAnswer(option)
-                      : null,
                 ),
               );
             },
@@ -287,61 +370,73 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
         ),
         const SizedBox(height: 24),
 
-        // Selected words (answer area)
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: Theme.of(context).colorScheme.outline),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your answer:',
-                style: Theme.of(context).textTheme.titleSmall,
+        // Selected words
+        if (_selectedWords.isNotEmpty) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your sentence:',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _selectedWords.map((word) {
+                      return Chip(
+                        label: Text(word),
+                        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                        deleteIcon: Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                        onDeleted: () => _handleSelectedWordTap(word),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _selectedWords.map((word) {
-                  return ActionChip(
-                    label: Text(word),
-                    onPressed: () => _handleSelectedWordTap(word),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  );
-                }).toList(),
-              ),
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
+          const SizedBox(height: 16),
+        ],
 
         // Available words
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Available words:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _availableWords.map((word) {
-                    return ActionChip(
-                      label: Text(word),
-                      onPressed: () => _handleSentenceBuilderWordTap(word),
-                      backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-                    );
-                  }).toList(),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Available words:',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _availableWords.map((word) {
+                      return ActionChip(
+                        label: Text(word),
+                        onPressed: () => _handleSentenceBuilderWordTap(word),
+                        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
@@ -359,82 +454,6 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildResultsScreen() {
-    final percentage = _totalQuestions > 0 ? (_correctAnswers / _totalQuestions * 100).round() : 0;
-    final isPerfect = _correctAnswers == _totalQuestions;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Exercise Complete'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isPerfect ? Icons.celebration : Icons.emoji_events,
-              size: 80,
-              color: isPerfect ? Colors.amber : Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              isPerfect ? 'Perfect!' : 'Good job!',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'You got $_correctAnswers out of $_totalQuestions correct',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$percentage%',
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _restartExercise,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Practice Again'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.secondary,
-                      foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Done'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
