@@ -1479,152 +1479,120 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
   }
 }
 
-class TaalTrekFlashCard extends StatefulWidget {
+class TaalTrekFlashCard extends StatelessWidget {
   final FlashCard card;
   final double width, height;
+  final Animation<double> flipAnimation;
   final bool startFlipped;
   final bool? userAnswer; // null = not answered, true = know, false = don't know
-  final SwipeDirection swipeDirection;
-  final VoidCallback? onDismissed;
 
   const TaalTrekFlashCard({
     super.key,
     required this.card,
     required this.width,
     required this.height,
+    required this.flipAnimation,
     required this.startFlipped,
     this.userAnswer,
-    this.swipeDirection = SwipeDirection.none,
-    this.onDismissed,
   });
 
   @override
-  State<TaalTrekFlashCard> createState() => _TaalTrekFlashCardState();
-}
-
-class _TaalTrekFlashCardState extends State<TaalTrekFlashCard>
-    with TickerProviderStateMixin {
-  late AnimationController _flipController;
-  late AnimationController _exitController;
-  late Animation<double> _flipAnimation;
-  late Animation<Offset> _exitAnimation;
-  bool _isShowingFront = true;
-
-  @override
-  void initState() {
-    super.initState();
-    
-    // Initialize flip animation controller
-    _flipController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _flipAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _flipController,
-      curve: Curves.easeInOut,
-    ));
-    
-    // Initialize exit animation controller
-    _exitController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _exitAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _exitController,
-      curve: Curves.easeOutCubic,
-    ));
-    
-    // Set initial position based on startFlipped
-    if (widget.startFlipped) {
-      _flipController.value = 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _flipController.dispose();
-    _exitController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final isFlipped = _flipAnimation.value >= 0.5;
+    final isFlipped = flipAnimation.value >= 0.5;
     
     return Transform(
       alignment: Alignment.center,
       transform: Matrix4.identity()
         ..setEntry(3, 2, 0.001)
-        ..rotateY(_flipAnimation.value * math.pi),
-      child: AnimatedBuilder(
-        animation: _flipAnimation,
-        builder: (context, child) {
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..rotateY(isFlipped ? math.pi : 0),
-            child: Container(
-              width: widget.width,
-              height: widget.height,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _getCardBorderColor(widget.card),
-                  width: 3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: isFlipped ? _buildCardBack(widget.card) : _buildCardFront(widget.card),
-              ),
-            ),
-          );
-        },
+        ..rotateY(flipAnimation.value * math.pi),
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..rotateY(isFlipped ? math.pi : 0),
+        child: isFlipped ? _buildCardBack(context) : _buildCardFront(context),
       ),
     );
   }
 
-  Widget _buildCardFront(FlashCard card) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Text(
-          card.word,
-          style: const TextStyle(
-            fontSize: 42,
-            fontWeight: FontWeight.bold,
+  Widget _buildCardFront(BuildContext context) {
+    final borderColor = _getCardBorderColor(card);
+    
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24), // Match Quick Study exactly
+        boxShadow: [
+          BoxShadow(
+            color: borderColor.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
-          textAlign: TextAlign.center,
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        border: Border.all(
+          color: borderColor,
+          width: 5, // Match Quick Study exactly
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32), // Match Quick Study exactly
+        child: Center(
+          child: Text(
+            card.word,
+            style: const TextStyle(
+              fontSize: 42, // Match Quick Study font sizes
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCardBack(FlashCard card) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Center(
-        child: Text(
-          card.definition,
-          style: const TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.w600,
+  Widget _buildCardBack(BuildContext context) {
+    final borderColor = _getCardBorderColor(card);
+    
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24), // Match Quick Study exactly
+        boxShadow: [
+          BoxShadow(
+            color: borderColor.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
-          textAlign: TextAlign.center,
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+        border: Border.all(
+          color: borderColor,
+          width: 5, // Match Quick Study exactly
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32), // Match Quick Study exactly
+        child: Center(
+          child: Text(
+            card.definition,
+            style: const TextStyle(
+              fontSize: 36, // Match Quick Study font sizes
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );
