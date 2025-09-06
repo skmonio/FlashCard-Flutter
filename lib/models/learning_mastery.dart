@@ -395,6 +395,13 @@ class LearningMastery {
     }
   }
   
+  /// Update SRS level based on XP progress
+  void _updateSRSLevelFromXP() {
+    // Map XP-based level to SRS level (0-10)
+    final xpLevel = rpgWordLevel.level;
+    srsLevel = min(10, xpLevel);
+  }
+  
   // MARK: - Legacy Methods (for backward compatibility)
   
   /// Legacy method - now delegates to processAnswer
@@ -472,6 +479,9 @@ class LearningMastery {
     currentXP += xp;
     currentLevel = rpgWordLevel.level;
     
+    // Update SRS level to reflect XP progress
+    _updateSRSLevelFromXP();
+    
     // Record exercise history with actual XP gained
     exerciseHistory.add({
       'timestamp': DateTime.now().toIso8601String(),
@@ -515,6 +525,24 @@ class LearningMastery {
           return timestamp.isAfter(todayStart);
         })
         .length;
+  }
+  
+  /// Daily study limit per card (configurable)
+  static const int dailyStudyLimit = 10;
+  
+  /// Check if this card has reached its daily study limit
+  bool get hasReachedDailyLimit {
+    return timesStudiedToday >= dailyStudyLimit;
+  }
+  
+  /// Get remaining study attempts for today
+  int get remainingStudyAttemptsToday {
+    return (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+  }
+  
+  /// Check if card can be studied (hasn't reached daily limit)
+  bool get canBeStudiedToday {
+    return !hasReachedDailyLimit;
   }
   
   /// Calculate XP for next correct answer based on daily decay

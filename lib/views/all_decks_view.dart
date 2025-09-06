@@ -1005,12 +1005,22 @@ class _AllDecksViewState extends State<AllDecksView> {
   }
 
   void _studyDeck(BuildContext context, Deck deck) {
-    // Get all cards in this deck including sub-decks for parent decks
+    // Get all cards in this deck including sub-decks for parent decks with deduplication
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final deckCards = deck.isSubDeck 
+    final allDeckCards = deck.isSubDeck 
         ? provider.getCardsForDeck(deck.id)
         : provider.getCardsForDeckWithSubDecks(deck.id);
+    
+    // Deduplicate cards by ID
+    final deckCards = <FlashCard>[];
+    final seenCardIds = <String>{};
+    for (final card in allDeckCards) {
+      if (!seenCardIds.contains(card.id)) {
+        deckCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
     
     if (deckCards.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

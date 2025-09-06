@@ -41,6 +41,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
   List<String> wheel2Items = [];
   List<String> wheel3Items = [];
   bool hasThirdWheel = false;
+  
+  // Result display state
+  bool _showResult = false;
+  bool _isLastAnswerCorrect = false;
+  String _lastUserAnswer = "";
+  String _lastCorrectAnswer = "";
 
   // Decoy letter patterns for generating similar letters
   final Map<String, List<String>> _similarLetters = {
@@ -238,55 +244,20 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   void _showResultDialog(bool isCorrect, String userAnswer, String correctAnswer) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(
-          isCorrect ? "Correct!" : "Incorrect",
-          style: TextStyle(
-            color: isCorrect ? Colors.green : Colors.red,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              isCorrect 
-                ? "Great job! You got: $correctAnswer"
-                : "Your answer: $userAnswer\nCorrect answer: $correctAnswer",
-              textAlign: TextAlign.center,
-            ),
-            if (isCorrect) ...[
-              const SizedBox(height: 8),
-              Text(
-                "+${_xpGainedPerWord[widget.cards[currentCardIndex].id] ?? 0} XP",
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _nextCard();
-            },
-            child: Text(isCorrect ? "Next" : "Continue"),
-          ),
-        ],
-      ),
-    );
+    // Show result without dialog - just update the UI state
+    setState(() {
+      _showResult = true;
+      _isLastAnswerCorrect = isCorrect;
+      _lastUserAnswer = userAnswer;
+      _lastCorrectAnswer = correctAnswer;
+    });
   }
 
   void _nextCard() {
     if (currentCardIndex + 1 < widget.cards.length) {
       setState(() {
         currentCardIndex++;
+        _showResult = false; // Reset result display
         _loadCurrentCard();
       });
     } else {
@@ -343,155 +314,270 @@ class _PickYourCardViewState extends State<PickYourCardView>
     }
 
     final FlashCard currentCard = widget.cards[currentCardIndex];
-    final progress = (currentCardIndex + 1) / widget.cards.length;
+    final progress = _totalAnswers / widget.cards.length;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFECEFF1),
-      appBar: AppBar(
-        title: Text(widget.title),
-        backgroundColor: Colors.blueGrey.shade700,
-        foregroundColor: Colors.white,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              '${currentCardIndex + 1}/${widget.cards.length}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return WillPopScope(
+      onWillPop: () async {
+        // Show exit confirmation dialog
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit Game'),
+            content: const Text('Are you sure you want to exit? Your progress will be saved.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Exit'),
+              ),
+            ],
+          ),
+        );
+        return shouldExit ?? false;
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: Column(
+          children: [
+            // Fixed Header - matching standard header
+            SafeArea(
+              child: Container(
+                height: kToolbarHeight,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: _buildCustomHeader(context),
+              ),
             ),
+            
+            // Progress bar
+            _buildProgressBar(),
+            
+            // Main content
+            Expanded(
+              child: _buildMainContent(currentCard),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios),
+            iconSize: 20,
+          ),
+          const Spacer(),
+          const Text(
+            'Pick Your Card',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: const Icon(Icons.home),
+            iconSize: 20,
           ),
         ],
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildProgressBar() {
+    final progress = _totalAnswers / widget.cards.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
         children: [
-          // Progress bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${(progress * 100).toInt()}% Complete',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Question ${_totalAnswers + 1} of ${widget.cards.length}'),
+              Text('${(progress * 100).toInt()}%'),
+            ],
           ),
-          
-          // Main content
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // English word to translate
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      "Translate '${currentCard.definition}'",
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 40),
-                  
-                  // Wheels
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      DialWheel(
-                        key: ValueKey<int>(currentCardIndex * 3),
-                        items: wheel1Items,
-                        onChanged: (value) => setState(() => selectedPart1 = value),
-                      ),
-                      const SizedBox(width: 20),
-                      DialWheel(
-                        key: ValueKey<int>(currentCardIndex * 3 + 1),
-                        items: wheel2Items,
-                        onChanged: (value) => setState(() => selectedPart2 = value),
-                      ),
-                      if (hasThirdWheel) ...[
-                        const SizedBox(width: 20),
-                        DialWheel(
-                          key: ValueKey<int>(currentCardIndex * 3 + 2),
-                          items: wheel3Items,
-                          onChanged: (value) => setState(() => selectedPart3 = value),
-                        ),
-                      ],
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 40),
-                  
-                  // Current selection display
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.blueGrey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blueGrey.shade300),
-                    ),
-                    child: Text(
-                      hasThirdWheel 
-                        ? '$selectedPart1$selectedPart2$selectedPart3'
-                        : '$selectedPart1$selectedPart2',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey,
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 30),
-                  
-                  // Check Answer button
-                  ElevatedButton(
-                    onPressed: _checkAnswer,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      "Check Answer",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withValues(alpha: 0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildMainContent(FlashCard currentCard) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          
+          // English word to translate (simple text, no bubble)
+          Text(
+            "Translate '${currentCard.definition}'",
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.blueGrey,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          
+          const SizedBox(height: 40),
+          
+          // Wheels
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              DialWheel(
+                key: ValueKey<int>(currentCardIndex * 3),
+                items: wheel1Items,
+                onChanged: (value) => setState(() => selectedPart1 = value),
+              ),
+              const SizedBox(width: 20),
+              DialWheel(
+                key: ValueKey<int>(currentCardIndex * 3 + 1),
+                items: wheel2Items,
+                onChanged: (value) => setState(() => selectedPart2 = value),
+              ),
+              if (hasThirdWheel) ...[
+                const SizedBox(width: 20),
+                DialWheel(
+                  key: ValueKey<int>(currentCardIndex * 3 + 2),
+                  items: wheel3Items,
+                  onChanged: (value) => setState(() => selectedPart3 = value),
+                ),
+              ],
+            ],
+          ),
+          
+          const SizedBox(height: 40),
+          
+          // Navigation buttons (always visible, greyed out when not available)
+          Row(
+            children: [
+              // Back button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: currentCardIndex > 0 ? () {
+                    setState(() {
+                      currentCardIndex--;
+                      _showResult = false;
+                      _loadCurrentCard();
+                    });
+                  } : null,
+                  icon: const Icon(Icons.arrow_back_ios, size: 16),
+                  label: const Text('Back'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: currentCardIndex > 0 ? Colors.blue : Colors.grey,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Next/Finish button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showResult ? _nextCard : null,
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: Text(currentCardIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _showResult ? Colors.green : Colors.grey,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Current selection display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blueGrey.shade300),
+            ),
+            child: Text(
+              hasThirdWheel 
+                ? '$selectedPart1$selectedPart2$selectedPart3'
+                : '$selectedPart1$selectedPart2',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blueGrey,
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 30),
+          
+          // Check Answer button (only show if not showing result)
+          if (!_showResult)
+            ElevatedButton(
+              onPressed: _checkAnswer,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueGrey.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                "Check Answer",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          
+          // Result display (if showing result) - simple red text
+          if (_showResult) ...[
+            const SizedBox(height: 20),
+            Text(
+              _isLastAnswerCorrect 
+                ? "Correct!"
+                : "Correct answer is: $_lastCorrectAnswer",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: _isLastAnswerCorrect ? Colors.green : Colors.red,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+          
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
 }
 
 class DialWheel extends StatefulWidget {

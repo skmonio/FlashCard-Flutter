@@ -14,7 +14,6 @@ import 'word_scramble_view.dart';
 import 'timed_multiple_choice_view.dart';
 import 'timed_true_false_view.dart';
 import 'timed_word_scramble_view.dart';
-import 'stacked_card_study_view.dart';
 import 'pick_your_card_view.dart';
 import '../models/timed_difficulty.dart';
 
@@ -25,7 +24,6 @@ enum GameMode {
   write,
   game,
   bubbleWord,
-  stackedCards,
   pickYourCard,
 }
 
@@ -156,15 +154,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           () => _navigateToNormalStudy(),
         ),
         
-        // Stacked Cards Option
-        _buildStudyTypeCard(
-          'Stacked Cards',
-          'Swipe through cards',
-          'Interactive card stack with swipe gestures',
-          Icons.layers,
-          Colors.purple,
-          () => _navigateToStackedCards(),
-        ),
 
         const SizedBox(height: 20),
         
@@ -375,6 +364,23 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       filteredCards = allCards;
     }
     
+    // Apply daily study limit filtering - exclude cards that have reached their daily limit
+    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
+    final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
+    
+    // Show warning if some cards are excluded due to daily limits
+    if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${limitedCards.length} cards have reached their daily study limit (${FlashCard.dailyStudyLimit} times). They will be available tomorrow.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    
+    // Use available cards for study
+    filteredCards = availableCards;
+    
     // Shuffle and take a subset of cards for quick study
     final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
     final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
@@ -528,17 +534,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           );
         }
         break;
-      case GameMode.stackedCards:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => StackedCardStudyView(
-              cards: studyCards,
-              title: 'Quick Stacked Cards',
-              startFlipped: _getStartFlipped(),
-            ),
-          ),
-        );
-        break;
       case GameMode.pickYourCard:
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -585,44 +580,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  void _navigateToStackedCards() {
-    final provider = context.read<FlashcardProvider>();
-    final allCards = provider.cards;
-    
-    if (allCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards available. Please add some cards first.')),
-      );
-      return;
-    }
-    
-    // Apply SRS filtering if enabled
-    List<FlashCard> filteredCards;
-    if (_useSRSFiltering) {
-      // Sort by due status: due cards first, then not due
-      final dueCards = allCards.where((card) => card.isDueForReview).toList();
-      final notDueCards = allCards.where((card) => !card.isDueForReview).toList();
-      filteredCards = [...dueCards, ...notDueCards];
-    } else {
-      // Show all cards regardless of SRS status
-      filteredCards = allCards;
-    }
-    
-    // Shuffle and take a subset of cards for stacked study
-    final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
-    final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
-    final studyCards = shuffledCards.take(cardCount).toList();
-    
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => StackedCardStudyView(
-          cards: studyCards,
-          title: 'Stacked Cards Study',
-          startFlipped: _getStartFlipped(),
-        ),
-      ),
-    );
-  }
 
   void _showSettingsDialog(BuildContext context) {
     showDialog(
@@ -693,8 +650,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Remember Your Cards';
       case GameMode.bubbleWord:
         return 'Jumble Your Cards';
-      case GameMode.stackedCards:
-        return 'Stacked Cards Study';
       case GameMode.pickYourCard:
         return 'Pick Your Card';
     }
@@ -1157,10 +1112,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         title = 'Jumble Mode';
         content = 'Arrange scrambled letters to form the correct translation.';
         break;
-      case GameMode.stackedCards:
-        title = 'Stacked Cards Mode';
-        content = 'Study with an interactive card stack. Swipe cards away or tap to flip them.';
-        break;
       case GameMode.pickYourCard:
         title = 'Pick Your Card Mode';
         content = 'Use spinning wheels to select the correct word pieces and build the translation.';
@@ -1542,9 +1493,10 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       return;
     }
 
-    // Collect all cards from selected decks
+    // Collect all cards from selected decks with deduplication
     List<FlashCard> allSelectedCards = [];
     List<String> selectedDeckNames = [];
+    Set<String> seenCardIds = {}; // Track unique card IDs
     
     for (final deckId in _selectedDeckIds) {
       final deck = widget.decks.firstWhere((d) => d.id == deckId);
@@ -1552,7 +1504,14 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       final deckCards = deck.isSubDeck 
           ? widget.provider.getCardsForDeck(deck.id)
           : widget.provider.getCardsForDeckWithSubDecks(deck.id);
-      allSelectedCards.addAll(deckCards);
+      
+      // Add only unique cards (deduplicate by card ID)
+      for (final card in deckCards) {
+        if (!seenCardIds.contains(card.id)) {
+          allSelectedCards.add(card);
+          seenCardIds.add(card.id);
+        }
+      }
       selectedDeckNames.add(deck.name);
     }
 
@@ -1574,6 +1533,23 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       // Show all cards regardless of SRS status
       filteredCards = allSelectedCards;
     }
+
+    // Apply daily study limit filtering - exclude cards that have reached their daily limit
+    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
+    final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
+    
+    // Show warning if some cards are excluded due to daily limits
+    if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${limitedCards.length} cards have reached their daily study limit (${FlashCard.dailyStudyLimit} times). They will be available tomorrow.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    
+    // Use available cards for study
+    filteredCards = availableCards;
 
     // Shuffle and limit cards if needed
     filteredCards.shuffle();
@@ -1736,17 +1712,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             ),
           );
         }
-        break;
-      case GameMode.stackedCards:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => StackedCardStudyView(
-              cards: filteredCards,
-              title: title,
-              startFlipped: widget.startFlipped,
-            ),
-          ),
-        );
         break;
       case GameMode.pickYourCard:
         Navigator.of(context).push(

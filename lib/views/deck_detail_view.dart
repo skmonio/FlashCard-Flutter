@@ -298,7 +298,13 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   Widget _buildCardItem(FlashCard card, FlashcardProvider provider) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          // Add visual indicator for cards that have reached daily limit
+          color: card.hasReachedDailyLimit ? Colors.orange.withOpacity(0.1) : null,
+        ),
+        child: ListTile(
         leading: Container(
           width: 50,
           height: 50,
@@ -382,6 +388,48 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                         ),
                       ),
                     ],
+                    // Daily limit indicator
+                    if (card.hasReachedDailyLimit) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Daily limit reached',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.orange[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ] else if (card.timesStudiedToday > 0) ...[
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${card.timesStudiedToday}/${FlashCard.dailyStudyLimit} today',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.blue[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -441,6 +489,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           ],
         ),
         onTap: () => _showCardDetails(card),
+      ),
       ),
     );
   }
@@ -623,10 +672,20 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   void _studyDeck() {
-    // Get all cards in this deck including sub-decks
+    // Get all cards in this deck including sub-decks with deduplication
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final deckCards = provider.getCardsForDeckWithSubDecks(widget.deck.id);
+    final allDeckCards = provider.getCardsForDeckWithSubDecks(widget.deck.id);
+    
+    // Deduplicate cards by ID
+    final deckCards = <FlashCard>[];
+    final seenCardIds = <String>{};
+    for (final card in allDeckCards) {
+      if (!seenCardIds.contains(card.id)) {
+        deckCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
     
     if (deckCards.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1075,6 +1134,74 @@ class _DeckDetailViewState extends State<DeckDetailView> {
             Text('Times Shown: ${freshCard.timesShown}'),
             Text('Times Correct: ${freshCard.timesCorrect}'),
             Text('Consecutive Correct: ${freshCard.consecutiveCorrect}'),
+            
+            // Daily Study Limit Information
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: freshCard.hasReachedDailyLimit 
+                    ? Colors.orange.withOpacity(0.1)
+                    : Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: freshCard.hasReachedDailyLimit 
+                      ? Colors.orange.withOpacity(0.3)
+                      : Colors.blue.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        freshCard.hasReachedDailyLimit 
+                            ? Icons.block 
+                            : Icons.schedule,
+                        size: 16,
+                        color: freshCard.hasReachedDailyLimit 
+                            ? Colors.orange[700]
+                            : Colors.blue[700],
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Daily Study Limit',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: freshCard.hasReachedDailyLimit 
+                              ? Colors.orange[700]
+                              : Colors.blue[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    freshCard.hasReachedDailyLimit
+                        ? 'Reached limit (${FlashCard.dailyStudyLimit} times today)'
+                        : '${freshCard.remainingStudyAttemptsToday} of ${FlashCard.dailyStudyLimit} uses remaining today',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: freshCard.hasReachedDailyLimit 
+                          ? Colors.orange[700]
+                          : Colors.blue[700],
+                    ),
+                  ),
+                  if (freshCard.timesStudiedToday > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Studied ${freshCard.timesStudiedToday} times today',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
             
             // Ease Factor
             Row(

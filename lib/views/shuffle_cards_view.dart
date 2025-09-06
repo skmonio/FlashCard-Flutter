@@ -217,11 +217,23 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         final allCards = context.read<FlashcardProvider>().cards;
         final multipleChoiceCards = <FlashCard>[];
         
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // Add the current card first
         multipleChoiceCards.add(_currentCard!);
         
-        // Add 4 more random cards (avoiding duplicates)
-        final otherCards = allCards.where((card) => card.id != _currentCard!.id).toList();
+        // Add 4 more random cards (avoiding duplicates and daily limits)
+        final otherCards = allCards.where((card) => 
+          card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
         for (int i = 0; i < 4 && i < otherCards.length; i++) {
@@ -239,6 +251,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.trueFalse:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // For true/false, we need multiple cards to create false questions
         // Get 5 random cards for variety
         final allCards = context.read<FlashcardProvider>().cards;
@@ -247,8 +270,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Add the current card first
         trueFalseCards.add(_currentCard!);
         
-        // Add 4 more random cards (avoiding duplicates)
-        final otherCards = allCards.where((card) => card.id != _currentCard!.id).toList();
+        // Add 4 more random cards (avoiding duplicates and daily limits)
+        final otherCards = allCards.where((card) => 
+          card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
         for (int i = 0; i < 4 && i < otherCards.length; i++) {
@@ -266,6 +290,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.memoryGame:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         // For memory game, we need multiple cards to create pairs
         // Get 5 random cards for the memory game
         final allCards = context.read<FlashcardProvider>().cards;
@@ -274,8 +309,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Add the current card first
         memoryCards.add(_currentCard!);
         
-        // Add 4 more random cards (avoiding duplicates)
-        final otherCards = allCards.where((card) => card.id != _currentCard!.id).toList();
+        // Add 4 more random cards (avoiding duplicates and daily limits)
+        final otherCards = allCards.where((card) => 
+          card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
         for (int i = 0; i < 4 && i < otherCards.length; i++) {
@@ -292,6 +328,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.wordScramble:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         targetView = WordScrambleView(
           cards: [_currentCard!],
           title: 'Word Scramble',
@@ -300,6 +347,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.writing:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
         targetView = WritingView(
           cards: [_currentCard!],
           title: 'Write Your Card',

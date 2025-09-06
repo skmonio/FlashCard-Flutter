@@ -90,6 +90,13 @@ class FlashCard {
   // Get SRS level
   int get srsLevel => learningMastery.srsLevel;
   
+  // Daily study limit features
+  bool get hasReachedDailyLimit => learningMastery.hasReachedDailyLimit;
+  bool get canBeStudiedToday => learningMastery.canBeStudiedToday;
+  int get timesStudiedToday => learningMastery.timesStudiedToday;
+  int get remainingStudyAttemptsToday => learningMastery.remainingStudyAttemptsToday;
+  static int get dailyStudyLimit => LearningMastery.dailyStudyLimit;
+  
   // Legacy getters for backward compatibility
   int get timesShown => learningMastery.totalAttempts;
   int get timesCorrect => learningMastery.totalCorrect;

@@ -267,17 +267,45 @@ class FlashcardService {
       subDeckCards.addAll(getCardsForDeck(subDeck.id));
     }
     
-    // Combine and return all cards
+    // Combine and deduplicate all cards by ID
     final allCards = <FlashCard>[];
-    allCards.addAll(mainDeckCards);
-    allCards.addAll(subDeckCards);
+    final seenCardIds = <String>{};
+    
+    // Add main deck cards
+    for (final card in mainDeckCards) {
+      if (!seenCardIds.contains(card.id)) {
+        allCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
+    
+    // Add sub-deck cards (deduplicated)
+    for (final card in subDeckCards) {
+      if (!seenCardIds.contains(card.id)) {
+        allCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
     
     return allCards;
   }
   
   List<FlashCard> getCardsForDecks(List<String> deckIds) {
-    return _cards.where((card) => 
+    // Get all cards that belong to any of the specified decks
+    final allCards = _cards.where((card) => 
         card.deckIds.any((deckId) => deckIds.contains(deckId))).toList();
+    
+    // Deduplicate by card ID
+    final uniqueCards = <FlashCard>[];
+    final seenCardIds = <String>{};
+    for (final card in allCards) {
+      if (!seenCardIds.contains(card.id)) {
+        uniqueCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
+    
+    return uniqueCards;
   }
   
   // MARK: - Study Session Management

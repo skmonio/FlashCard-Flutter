@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
+import 'dart:math' as math;
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
@@ -50,6 +50,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   SwipeDirection _swipeDirection = SwipeDirection.none;
   double _swipeIntensity = 0;
   final GameSession _gameSession = GameSession();
+  
+  // Stacked card mode
+  bool _useStackedMode = true; // Default to stacked mode
+  int _topIndex = 0; // Track which card is currently on top in stacked mode
   
   // Animation controllers
   late AnimationController _flipController;
@@ -276,7 +280,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / _currentCards.length;
+    final currentCardIndex = _useStackedMode ? _topIndex : _currentIndex;
+    final progress = currentCardIndex / _currentCards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -284,7 +289,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Card ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('Card ${currentCardIndex + 1} of ${_currentCards.length}'),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -302,6 +307,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildCardArea() {
+    if (_useStackedMode) {
+      return _buildStackedCardArea();
+    } else {
+      return _buildSingleCardArea();
+    }
+  }
+  
+  Widget _buildSingleCardArea() {
     final currentCard = _currentCards[_currentIndex];
     
     return GestureDetector(
@@ -323,6 +336,42 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildStackedCardArea() {
+    final size = MediaQuery.of(context).size;
+    final visibleCards = math.min(3, _currentCards.length - _topIndex);
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: SizedBox(
+          width: size.width * 0.85,
+          height: size.height * 0.4,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              // Stacked cards
+              for (int i = visibleCards - 1; i >= 0; i--)
+                TaalTrekStackCard(
+                  key: ValueKey(_currentCards[_topIndex + i].id),
+                  card: _currentCards[_topIndex + i],
+                  isTop: i == 0,
+                  offset: Offset(20.0 * i, -20.0 * i),
+                  scale: 1 - 0.05 * i,
+                  width: size.width * 0.85,
+                  height: size.height * 0.4,
+                  onDismissed: i == 0 ? _removeTopCard : null,
+                  onAnswer: _markAnswer,
+                  startFlipped: widget.startFlipped,
+                  onSwipeUpdate: _handleSwipeUpdate,
+                ),
+            ],
           ),
         ),
       ),
@@ -494,11 +543,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           alignment: Alignment.center,
           transform: Matrix4.identity()
             ..setEntry(3, 2, 0.001)
-            ..rotateY(_flipAnimation.value * pi),
+            ..rotateY(_flipAnimation.value * math.pi),
           child: Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()
-              ..rotateY(isFlipped ? pi : 0),
+              ..rotateY(isFlipped ? math.pi : 0),
             child: isFlipped ? _buildCardBack(card) : _buildCardFront(card),
           ),
         );
@@ -924,46 +973,65 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _nextCard() {
-    setState(() {
-      _nextCardActive = true;
-      // Keep the current swipe direction and intensity for the exit animation
-    });
-    
-    // Set up exit animation based on swipe direction
-    _setupExitAnimation();
-    
-    // Start exit animation
-    _exitController.forward();
-    
-    // Animate card off-screen in the swipe direction
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _currentIndex++;
-          _nextCardActive = false;
-          _dragOffset = Offset.zero;
-          _swipeDirection = SwipeDirection.none;
-          _swipeIntensity = 0;
-          
-          if (_currentIndex >= _currentCards.length) {
-            // Award XP for the session
-            _awardXp();
-            _showingResults = true;
-          } else {
-            _isShowingFront = !widget.startFlipped;
-            _flipController.reset();
-            // Reset exit animation for next card
-            _exitController.reset();
-            // Start deal animation for next card
-            _dealController.reset();
-            _dealController.forward();
-          }
-        });
-      }
-    });
+    if (_useStackedMode) {
+      _removeTopCard();
+    } else {
+      setState(() {
+        _nextCardActive = true;
+        // Keep the current swipe direction and intensity for the exit animation
+      });
+      
+      // Set up exit animation based on swipe direction
+      _setupExitAnimation();
+      
+      // Start exit animation
+      _exitController.forward();
+      
+      // Animate card off-screen in the swipe direction
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() {
+            _currentIndex++;
+            _nextCardActive = false;
+            _dragOffset = Offset.zero;
+            _swipeDirection = SwipeDirection.none;
+            _swipeIntensity = 0;
+            
+            if (_currentIndex >= _currentCards.length) {
+              // Award XP for the session
+              _awardXp();
+              _showingResults = true;
+            } else {
+              _isShowingFront = !widget.startFlipped;
+              _flipController.reset();
+              // Reset exit animation for next card
+              _exitController.reset();
+              // Start deal animation for next card
+              _dealController.reset();
+              _dealController.forward();
+            }
+          });
+        }
+      });
+    }
   }
-
-
+  
+  void _removeTopCard() {
+    if (_topIndex < _currentCards.length) {
+      setState(() {
+        _topIndex++;
+        _swipeDirection = SwipeDirection.none;
+        _swipeIntensity = 0;
+      });
+      
+      // Check if we've gone through all cards
+      if (_topIndex >= _currentCards.length) {
+        // Award XP for the session
+        _awardXp();
+        _showingResults = true;
+      }
+    }
+  }
 
   void _showCloseConfirmation() {
     showDialog(
@@ -982,72 +1050,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               Navigator.of(context).pop();
             },
             child: const Text('End Session'),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-
-  void _deleteCurrentCard() {
-    final currentCard = _currentCards[_currentIndex];
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Card'),
-        content: Text('Are you sure you want to delete "${currentCard.word}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              final provider = context.read<FlashcardProvider>();
-              await provider.deleteCard(currentCard.id);
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Deleted card: ${currentCard.word}')),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCardInfo() {
-    final currentCard = _currentCards[_currentIndex];
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(currentCard.word),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Definition: ${currentCard.definition}'),
-            if (currentCard.example != null) ...[
-              const SizedBox(height: 8),
-              Text('Example: ${currentCard.example}'),
-            ],
-            const SizedBox(height: 8),
-            Text('SRS Level: ${currentCard.srsLevel}'),
-            Text('Times Shown: ${currentCard.timesShown}'),
-            Text('Times Correct: ${currentCard.timesCorrect}'),
-            Text('Success Rate: ${currentCard.timesShown > 0 ? ((currentCard.timesCorrect / currentCard.timesShown) * 100).toStringAsFixed(1) : '0'}%'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
           ),
         ],
       ),
@@ -1076,8 +1078,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       ),
     );
   }
-
-
 
   void _showWordProgress() {
     // Create copies of the current session data for the display
@@ -1154,8 +1154,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     );
   }
 
-
-
   void _awardXp() {
     // Calculate total XP from actual word XP gained
     final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
@@ -1179,6 +1177,479 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     // Update streak based on study activity (Duolingo-style)
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
   }
-  
+
+  void _handleSwipeUpdate(SwipeDirection direction, double intensity) {
+    setState(() {
+      _swipeDirection = direction;
+      _swipeIntensity = intensity;
+    });
+  }
+
+  void _markAnswer(SwipeDirection direction) {
+    final currentCard = _currentCards[_topIndex];
+    
+    // Remove any previous state for this card
+    _knownCards.remove(currentCard.id);
+    _unknownCards.remove(currentCard.id);
+    _skippedCards.remove(currentCard.id);
+    
+    switch (direction) {
+      case SwipeDirection.left: // Don't Know
+        _unknownCards.add(currentCard.id);
+        _combo = 0;
+        // Track XP for incorrect answer (0 XP)
+        XpService.recordAnswer(_gameSession, false);
+        // Update learning progress - marked as incorrect
+        _updateCardLearningProgress(currentCard, false);
+        break;
+      case SwipeDirection.right: // Known
+        _knownCards.add(currentCard.id);
+        _combo++;
+        if (_combo > _maxCombo) _maxCombo = _combo;
+        // Track XP for correct answer (5 XP)
+        XpService.recordAnswer(_gameSession, true);
+        // Update learning progress - marked as correct
+        _updateCardLearningProgress(currentCard, true);
+        break;
+      case SwipeDirection.up: // Review
+        // Add card to review deck
+        _addCardToReview(currentCard);
+        // No XP for review actions - these are cards that need more study
+        break;
+      case SwipeDirection.down: // Skip
+        _skippedCards.add(currentCard.id);
+        _combo = 0;
+        // Don't update learning progress for skipped cards
+        break;
+      default:
+        return;
+    }
+  }
+}
+
+class TaalTrekStackCard extends StatefulWidget {
+  final FlashCard card;
+  final bool isTop;
+  final Offset offset;
+  final double scale;
+  final double width, height;
+  final VoidCallback? onDismissed;
+  final Function(SwipeDirection) onAnswer;
+  final bool startFlipped;
+  final Function(SwipeDirection, double)? onSwipeUpdate;
+
+  const TaalTrekStackCard({
+    super.key,
+    required this.card,
+    required this.isTop,
+    required this.offset,
+    required this.scale,
+    required this.width,
+    required this.height,
+    this.onDismissed,
+    required this.onAnswer,
+    this.startFlipped = false,
+    this.onSwipeUpdate,
+  });
+
+  @override
+  State<TaalTrekStackCard> createState() => _TaalTrekStackCardState();
+}
+
+class _TaalTrekStackCardState extends State<TaalTrekStackCard>
+    with TickerProviderStateMixin {
+  // Position tracking for smooth movement
+  Offset position = Offset.zero;
+  bool showBack = false;
+  bool? userAnswer; // null = not answered, true = know, false = don't know
+  SwipeDirection swipeDirection = SwipeDirection.none;
+
+  // Animation controllers
+  late AnimationController _flipController;
+  late AnimationController _exitController;
+  late Animation<double> _flipAnimation;
+  late Animation<Offset> _exitAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    showBack = widget.startFlipped;
+    
+    // Initialize flip animation controller
+    _flipController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _flipAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(
+      parent: _flipController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Initialize exit animation controller
+    _exitController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _exitAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _exitController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    // Set initial position based on startFlipped
+    if (widget.startFlipped) {
+      _flipController.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    _exitController.dispose();
+    super.dispose();
+  }
+
+  // Set up exit animation based on swipe direction
+  void _setupExitAnimation() {
+    Offset exitOffset;
+    switch (swipeDirection) {
+      case SwipeDirection.left:
+        exitOffset = const Offset(-2.0, 0.0); // Exit left
+        break;
+      case SwipeDirection.right:
+        exitOffset = const Offset(2.0, 0.0); // Exit right
+        break;
+      case SwipeDirection.up:
+        exitOffset = const Offset(0.0, -2.0); // Exit up
+        break;
+      case SwipeDirection.down:
+        exitOffset = const Offset(0.0, 2.0); // Exit down
+        break;
+      default:
+        exitOffset = const Offset(2.0, 0.0); // Default to right
+    }
+    
+    _exitAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: exitOffset,
+    ).animate(CurvedAnimation(
+      parent: _exitController,
+      curve: Curves.easeOutCubic,
+    ));
+  }
+
+  void _handleCardDoubleTap() {
+    // Toggle the flip state
+    showBack = !showBack;
+    
+    if (showBack) {
+      // Going to back (definition) - animate to 1.0
+      _flipController.forward();
+    } else {
+      // Going to front (word) - animate to 0.0
+      _flipController.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget card = AnimatedBuilder(
+      animation: _flipAnimation,
+      builder: (context, child) {
+        return TaalTrekFlashCard(
+          card: widget.card,
+          width: widget.width,
+          height: widget.height,
+          flipAnimation: _flipAnimation,
+          startFlipped: widget.startFlipped,
+          userAnswer: userAnswer,
+        );
+      },
+    );
+
+    if (!widget.isTop) {
+      return TweenAnimationBuilder<Offset>(
+        tween: Tween(begin: Offset.zero, end: widget.offset),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        builder: (_, value, child) {
+          return Transform.translate(
+            offset: value,
+            child: Transform.scale(
+              scale: widget.scale,
+              child: child,
+            ),
+          );
+        },
+        child: card,
+      );
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    double tiltAngle = (position.dx / screenWidth) * 0.5;
+
+    // Gesture handling with smooth movement
+    return GestureDetector(
+      onPanUpdate: (details) {
+        setState(() {
+          position += details.delta;
+          
+          // Calculate swipe intensity
+          final intensity = (position.distance / 150).clamp(0.0, 1.0);
+          
+          // Call the swipe update callback
+          widget.onSwipeUpdate?.call(swipeDirection, intensity);
+          
+          // Determine swipe direction - strict cardinal directions only (like Quick Study)
+          final horizontalDistance = position.dx.abs();
+          final verticalDistance = position.dy.abs();
+          
+          // Only allow pure horizontal or vertical swipes (no diagonal)
+          if (horizontalDistance > verticalDistance * 2.0) {
+            // Horizontal swipe - left or right
+            if (position.dx > 0) {
+              userAnswer = true; // Swiping right = know
+              swipeDirection = SwipeDirection.right;
+            } else {
+              userAnswer = false; // Swiping left = don't know
+              swipeDirection = SwipeDirection.left;
+            }
+          } else if (verticalDistance > horizontalDistance * 2.0) {
+            // Vertical swipe - up or down
+            if (position.dy < 0) {
+              userAnswer = true; // Swiping up = review (use true as placeholder)
+              swipeDirection = SwipeDirection.up;
+            } else {
+              userAnswer = false; // Swiping down = skip (use false as placeholder)
+              swipeDirection = SwipeDirection.down;
+            }
+          } else {
+            // Diagonal swipe - reset to none and don't allow movement
+            position = Offset.zero;
+            userAnswer = null;
+            swipeDirection = SwipeDirection.none;
+          }
+        });
+      },
+      onPanEnd: (details) {
+        final velocity = details.velocity.pixelsPerSecond;
+        final speed = velocity.distance;
+        
+        // Use the exact logic from your working code
+        if (position.distance > 120 || speed > 600) {
+          // Mark answer immediately
+          widget.onAnswer(swipeDirection);
+          
+          // Set up and start exit animation
+          _setupExitAnimation();
+          _exitController.forward();
+          
+          // Call onDismissed after animation completes
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) {
+              widget.onDismissed?.call();
+            }
+          });
+        } else {
+          // Snap back
+          setState(() {
+            position = Offset.zero;
+            userAnswer = null;
+            swipeDirection = SwipeDirection.none;
+          });
+          
+          // Reset swipe state in parent
+          widget.onSwipeUpdate?.call(SwipeDirection.none, 0.0);
+        }
+      },
+      onDoubleTap: _handleCardDoubleTap,
+      child: SlideTransition(
+        position: _exitAnimation,
+        child: Transform.translate(
+          offset: position,
+          child: Transform.rotate(angle: tiltAngle, child: card),
+        ),
+      ),
+    );
+  }
+}
+
+class TaalTrekFlashCard extends StatefulWidget {
+  final FlashCard card;
+  final double width, height;
+  final bool startFlipped;
+  final bool? userAnswer; // null = not answered, true = know, false = don't know
+  final SwipeDirection swipeDirection;
+  final VoidCallback? onDismissed;
+
+  const TaalTrekFlashCard({
+    super.key,
+    required this.card,
+    required this.width,
+    required this.height,
+    required this.startFlipped,
+    this.userAnswer,
+    this.swipeDirection = SwipeDirection.none,
+    this.onDismissed,
+  });
+
+  @override
+  State<TaalTrekFlashCard> createState() => _TaalTrekFlashCardState();
+}
+
+class _TaalTrekFlashCardState extends State<TaalTrekFlashCard>
+    with TickerProviderStateMixin {
+  late AnimationController _flipController;
+  late AnimationController _exitController;
+  late Animation<double> _flipAnimation;
+  late Animation<Offset> _exitAnimation;
+  bool _isShowingFront = true;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize flip animation controller
+    _flipController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _flipAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _flipController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Initialize exit animation controller
+    _exitController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _exitAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _exitController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    // Set initial position based on startFlipped
+    if (widget.startFlipped) {
+      _flipController.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _flipController.dispose();
+    _exitController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFlipped = _flipAnimation.value >= 0.5;
+    
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.001)
+        ..rotateY(_flipAnimation.value * math.pi),
+      child: AnimatedBuilder(
+        animation: _flipAnimation,
+        builder: (context, child) {
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..rotateY(isFlipped ? math.pi : 0),
+            child: Container(
+              width: widget.width,
+              height: widget.height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _getCardBorderColor(widget.card),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: isFlipped ? _buildCardBack(widget.card) : _buildCardFront(widget.card),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCardFront(FlashCard card) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Text(
+          card.word,
+          style: const TextStyle(
+            fontSize: 42,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardBack(FlashCard card) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Text(
+          card.definition,
+          style: const TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  // Copy the exact border color logic from Quick Study (AdvancedStudyView)
+  Color _getCardBorderColor(FlashCard card) {
+    final vibrantColors = [
+      const Color(0xFFFF6B35), // Coral/Orange-Red
+      const Color(0xFFFF9900), // Bright Orange
+      const Color(0xFFFFCC00), // Golden Yellow
+      const Color(0xFF33CC99), // Teal/Turquoise
+      const Color(0xFF00B3CC), // Cyan Blue
+      const Color(0xFF9966FF), // Purple
+      const Color(0xFFFF4D94), // Pink
+      const Color(0xFF66E64D), // Lime Green
+    ];
+    
+    if (card.word.isEmpty || card.definition.isEmpty) {
+      return vibrantColors[0];
+    }
+    
+    final hash = (card.word.hashCode + card.definition.hashCode).abs();
+    final index = hash % vibrantColors.length;
+    return vibrantColors[index];
+  }
 
 } 
