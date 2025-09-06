@@ -119,6 +119,14 @@ class _HomeViewState extends State<HomeView> {
           () => _navigateToPickYourCard(context),
           'Use spinning wheels to select the correct word pieces and build the Dutch translation. Each wheel contains similar letter combinations.',
         ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'Pop Your Card',
+          Icons.bubble_chart,
+          Colors.cyan,
+          () => _navigateToPopYourCard(context),
+          'Tap the correct floating word bubble while avoiding decoy variants. Words bounce around the screen with physics!',
+        ),
       ],
     );
   }
@@ -321,6 +329,16 @@ class _HomeViewState extends State<HomeView> {
       MaterialPageRoute(
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.pickYourCard,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToPopYourCard(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.popYourCard,
         ),
       ),
     );

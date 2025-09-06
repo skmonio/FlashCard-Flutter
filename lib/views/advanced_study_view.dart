@@ -1515,7 +1515,7 @@ class TaalTrekFlashCard extends StatelessWidget {
   }
 
   Widget _buildCardFront(BuildContext context) {
-    final borderColor = _getCardBorderColor(card);
+    final borderColor = _getCardBorderColor();
     
     return Container(
       width: width,
@@ -1557,7 +1557,7 @@ class TaalTrekFlashCard extends StatelessWidget {
   }
 
   Widget _buildCardBack(BuildContext context) {
-    final borderColor = _getCardBorderColor(card);
+    final borderColor = _getCardBorderColor();
     
     return Container(
       width: width,
@@ -1599,7 +1599,7 @@ class TaalTrekFlashCard extends StatelessWidget {
   }
 
   // Copy the exact border color logic from Quick Study (AdvancedStudyView)
-  Color _getCardBorderColor(FlashCard card) {
+  Color _getCardBorderColor() {
     final vibrantColors = [
       const Color(0xFFFF6B35), // Coral/Orange-Red
       const Color(0xFFFF9900), // Bright Orange

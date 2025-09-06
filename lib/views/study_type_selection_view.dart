@@ -15,6 +15,7 @@ import 'timed_multiple_choice_view.dart';
 import 'timed_true_false_view.dart';
 import 'timed_word_scramble_view.dart';
 import 'pick_your_card_view.dart';
+import 'pop_your_card_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -25,6 +26,7 @@ enum GameMode {
   game,
   bubbleWord,
   pickYourCard,
+  popYourCard,
 }
 
 class StudyTypeSelectionView extends StatefulWidget {
@@ -544,6 +546,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           ),
         );
         break;
+      case GameMode.popYourCard:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PopYourCardView(
+              cards: studyCards,
+              title: 'Pop Your Card',
+            ),
+          ),
+        );
+        break;
     }
   }
 
@@ -652,6 +664,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Jumble Your Cards';
       case GameMode.pickYourCard:
         return 'Pick Your Card';
+      case GameMode.popYourCard:
+        return 'Pop Your Card';
     }
   }
   
@@ -1115,6 +1129,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       case GameMode.pickYourCard:
         title = 'Pick Your Card Mode';
         content = 'Use spinning wheels to select the correct word pieces and build the translation.';
+        break;
+      case GameMode.popYourCard:
+        title = 'Pop Your Card Mode';
+        content = 'Tap the correct floating word bubble while avoiding the decoy variants.';
         break;
     }
 
@@ -1717,6 +1735,16 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => PickYourCardView(
+              cards: filteredCards,
+              title: title,
+            ),
+          ),
+        );
+        break;
+      case GameMode.popYourCard:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PopYourCardView(
               cards: filteredCards,
               title: title,
             ),
