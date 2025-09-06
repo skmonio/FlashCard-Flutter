@@ -14,6 +14,8 @@ import 'word_scramble_view.dart';
 import 'timed_multiple_choice_view.dart';
 import 'timed_true_false_view.dart';
 import 'timed_word_scramble_view.dart';
+import 'stacked_card_study_view.dart';
+import 'pick_your_card_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -23,6 +25,8 @@ enum GameMode {
   write,
   game,
   bubbleWord,
+  stackedCards,
+  pickYourCard,
 }
 
 class StudyTypeSelectionView extends StatefulWidget {
@@ -152,6 +156,15 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           () => _navigateToNormalStudy(),
         ),
         
+        // Stacked Cards Option
+        _buildStudyTypeCard(
+          'Stacked Cards',
+          'Swipe through cards',
+          'Interactive card stack with swipe gestures',
+          Icons.layers,
+          Colors.purple,
+          () => _navigateToStackedCards(),
+        ),
 
         const SizedBox(height: 20),
         
@@ -515,6 +528,27 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           );
         }
         break;
+      case GameMode.stackedCards:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => StackedCardStudyView(
+              cards: studyCards,
+              title: 'Quick Stacked Cards',
+              startFlipped: _getStartFlipped(),
+            ),
+          ),
+        );
+        break;
+      case GameMode.pickYourCard:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PickYourCardView(
+              cards: studyCards,
+              title: 'Pick Your Card',
+            ),
+          ),
+        );
+        break;
     }
   }
 
@@ -547,6 +581,45 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         useTimedMode: _useTimedMode,
         timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
         useSRSFiltering: _useSRSFiltering,
+      ),
+    );
+  }
+
+  void _navigateToStackedCards() {
+    final provider = context.read<FlashcardProvider>();
+    final allCards = provider.cards;
+    
+    if (allCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available. Please add some cards first.')),
+      );
+      return;
+    }
+    
+    // Apply SRS filtering if enabled
+    List<FlashCard> filteredCards;
+    if (_useSRSFiltering) {
+      // Sort by due status: due cards first, then not due
+      final dueCards = allCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      // Show all cards regardless of SRS status
+      filteredCards = allCards;
+    }
+    
+    // Shuffle and take a subset of cards for stacked study
+    final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
+    final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
+    final studyCards = shuffledCards.take(cardCount).toList();
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StackedCardStudyView(
+          cards: studyCards,
+          title: 'Stacked Cards Study',
+          startFlipped: _getStartFlipped(),
+        ),
       ),
     );
   }
@@ -620,6 +693,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Remember Your Cards';
       case GameMode.bubbleWord:
         return 'Jumble Your Cards';
+      case GameMode.stackedCards:
+        return 'Stacked Cards Study';
+      case GameMode.pickYourCard:
+        return 'Pick Your Card';
     }
   }
   
@@ -1079,6 +1156,14 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       case GameMode.bubbleWord:
         title = 'Jumble Mode';
         content = 'Arrange scrambled letters to form the correct translation.';
+        break;
+      case GameMode.stackedCards:
+        title = 'Stacked Cards Mode';
+        content = 'Study with an interactive card stack. Swipe cards away or tap to flip them.';
+        break;
+      case GameMode.pickYourCard:
+        title = 'Pick Your Card Mode';
+        content = 'Use spinning wheels to select the correct word pieces and build the translation.';
         break;
     }
 
@@ -1651,6 +1736,27 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             ),
           );
         }
+        break;
+      case GameMode.stackedCards:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => StackedCardStudyView(
+              cards: filteredCards,
+              title: title,
+              startFlipped: widget.startFlipped,
+            ),
+          ),
+        );
+        break;
+      case GameMode.pickYourCard:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => PickYourCardView(
+              cards: filteredCards,
+              title: title,
+            ),
+          ),
+        );
         break;
     }
   }

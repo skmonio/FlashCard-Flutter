@@ -111,6 +111,14 @@ class _HomeViewState extends State<HomeView> {
           () => _navigateToShuffleCards(context),
           'Randomize the order of your cards for a fresh study experience. Great for breaking up memorization patterns.',
         ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'Pick Your Card',
+          Icons.tune,
+          Colors.indigo,
+          () => _navigateToPickYourCard(context),
+          'Use spinning wheels to select the correct word pieces and build the Dutch translation. Each wheel contains similar letter combinations.',
+        ),
       ],
     );
   }
@@ -304,6 +312,16 @@ class _HomeViewState extends State<HomeView> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const ShuffleCardsView(),
+      ),
+    );
+  }
+
+  void _navigateToPickYourCard(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.pickYourCard,
+        ),
       ),
     );
   }
