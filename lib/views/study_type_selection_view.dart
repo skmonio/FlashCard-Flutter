@@ -756,20 +756,23 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _shouldShowAutoProgress() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           widget.gameMode == GameMode.bubbleWord;
+           widget.gameMode == GameMode.bubbleWord ||
+           widget.gameMode == GameMode.pickYourCard;
   }
   
   bool _shouldShowLivesMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           widget.gameMode == GameMode.bubbleWord;
+           widget.gameMode == GameMode.bubbleWord ||
+           widget.gameMode == GameMode.pickYourCard;
   }
   
   bool _shouldShowTimedMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord ||
-           widget.gameMode == GameMode.game;
+           widget.gameMode == GameMode.game ||
+           widget.gameMode == GameMode.pickYourCard;
   }
   
   Widget _buildFlippedModeSetting(StateSetter setState) {

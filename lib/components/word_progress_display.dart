@@ -400,6 +400,57 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
                                       ],
                                     ),
                                     
+                                    // HP Information
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          word.isDefeated 
+                                              ? Icons.block 
+                                              : Icons.favorite,
+                                          size: 16,
+                                          color: word.isDefeated 
+                                              ? Colors.grey[600]
+                                              : word.hpPercentage > 0.6 
+                                                  ? Colors.green[600]
+                                                  : word.hpPercentage > 0.3 
+                                                      ? Colors.orange[600]
+                                                      : Colors.red[600],
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'HP: ${word.currentHP}/${word.maxHP}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: word.isDefeated 
+                                                ? Colors.grey[600]
+                                                : word.hpPercentage > 0.6 
+                                                    ? Colors.green[600]
+                                                    : word.hpPercentage > 0.3 
+                                                        ? Colors.orange[600]
+                                                        : Colors.red[600],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          word.isDefeated
+                                              ? 'Defeated'
+                                              : word.hpStatus,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: word.isDefeated 
+                                                ? Colors.grey[600]
+                                                : word.hpPercentage > 0.6 
+                                                    ? Colors.green[600]
+                                                    : word.hpPercentage > 0.3 
+                                                        ? Colors.orange[600]
+                                                        : Colors.red[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    
                                     // Motivational message
                                     if (xpGained > 0) ...[
                                       const SizedBox(height: 8),

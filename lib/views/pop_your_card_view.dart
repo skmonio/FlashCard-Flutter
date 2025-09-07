@@ -297,7 +297,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
           ),
           hideNavigation: true,
           onDone: () {
-            Navigator.of(context).pop(); // Return to previous screen
+            Navigator.of(context).popUntil((route) => route.isFirst); // Go back to study type page
           },
         ),
       ),
