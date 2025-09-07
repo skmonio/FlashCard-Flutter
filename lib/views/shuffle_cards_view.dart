@@ -567,10 +567,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Much faster transition to next challenge
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_isGameActive && mounted) {
-        // Pop the current game view first
+        // Pop the current game view first, then launch next challenge
         Navigator.pop(context);
-        // Then immediately launch the next challenge
-        _nextChallenge();
+        if (_isGameActive && mounted) {
+          _nextChallenge();
+        }
       }
     });
   }
