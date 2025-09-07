@@ -346,11 +346,11 @@ class _AddCardViewState extends State<AddCardView> {
         Row(
           children: [
             Expanded(
-              child: _buildArticleOption('de', 'De (masculine/feminine)'),
+              child: _buildArticleOption('de', 'De'),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildArticleOption('het', 'Het (neuter)'),
+              child: _buildArticleOption('het', 'Het'),
             ),
           ],
         ),

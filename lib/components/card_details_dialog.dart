@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/flash_card.dart';
 import '../providers/flashcard_provider.dart';
 import '../services/xp_service.dart';
+import '../views/add_card_view.dart';
 import 'hp_bar.dart';
 import 'package:intl/intl.dart';
 
@@ -224,7 +225,14 @@ class CardDetailsDialog extends StatelessWidget {
         TextButton(
           onPressed: () {
             Navigator.of(context).pop();
-            // TODO: Navigate to edit card screen
+            // Navigate to edit card screen
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => AddCardView(
+                  cardToEdit: freshCard,
+                ),
+              ),
+            );
           },
           child: const Text('Edit'),
         ),
