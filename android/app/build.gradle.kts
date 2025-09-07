@@ -50,6 +50,10 @@ android {
             // Disable R8 for now to avoid ML Kit issues
             isMinifyEnabled = false
             isShrinkResources = false
+            // Skip debug symbols stripping to avoid build issues
+            ndk {
+                debugSymbolLevel = "NONE"
+            }
         }
     }
 }
