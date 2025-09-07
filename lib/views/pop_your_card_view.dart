@@ -35,6 +35,8 @@ class _PopYourCardViewState extends State<PopYourCardView>
   DateTime? _sessionStartTime;
   int _sessionXP = 0;
   Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
 
   List<Bubble> bubbles = [];
   final Random random = Random();
@@ -163,10 +165,21 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
     _ticker.stop();
 
+    // Track the studied word
+    if (!_studiedWords.contains(currentCard)) {
+      _studiedWords.add(currentCard);
+    }
+
     if (isCorrect) {
       _correctAnswers++;
       _awardXP(currentCard);
+    } else {
+      // Track incorrect answers with 0 XP
+      _xpGainedPerWord[currentCard.id] = 0;
     }
+
+    // Update mastery tracking for both correct and incorrect answers
+    _wordMastery[currentCard.id] = currentCard.learningMastery;
 
     setState(() {});
 
@@ -207,7 +220,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
         : 0;
     
     // Track XP gained for this word in this session
-    _xpGainedPerWord[card.word] = actualXPGained;
+    _xpGainedPerWord[card.id] = actualXPGained;
     _sessionXP += actualXPGained;
     
     // Award XP to user profile (async but we don't await it)
@@ -286,15 +299,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          studiedWords: widget.cards,
+          studiedWords: _studiedWords,
           xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: widget.cards.fold<Map<String, LearningMastery>>(
-            {},
-            (map, card) {
-              map[card.word] = card.learningMastery;
-              return map;
-            },
-          ),
+          wordMastery: _wordMastery,
           hideNavigation: true,
           onDone: () {
             Navigator.of(context).popUntil((route) => route.isFirst); // Go back to study type page
