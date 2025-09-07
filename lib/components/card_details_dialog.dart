@@ -1,0 +1,347 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/flash_card.dart';
+import '../providers/flashcard_provider.dart';
+import '../services/xp_service.dart';
+import 'hp_bar.dart';
+import 'package:intl/intl.dart';
+
+class CardDetailsDialog extends StatelessWidget {
+  final FlashCard card;
+
+  const CardDetailsDialog({
+    super.key,
+    required this.card,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Get the fresh card data from the provider to ensure we have the latest XP and learning progress
+    final provider = context.read<FlashcardProvider>();
+    final freshCard = provider.getCard(card.id) ?? card;
+    
+    final xpService = XpService();
+    final wordLevel = freshCard.learningMastery.rpgWordLevel;
+    
+    return AlertDialog(
+      title: Row(
+        children: [
+          Text(
+            freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(child: Text(freshCard.word)),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Word and Definition
+              Text(
+                freshCard.definition,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              
+              // Deck Information
+              Row(
+                children: [
+                  Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Decks: ${_getDeckNames(freshCard, provider)}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              
+              // Plural (if exists)
+              if (freshCard.plural.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Plural: ${freshCard.plural}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ],
+              
+              const SizedBox(height: 16),
+              
+              // Card Level and XP Section
+              Row(
+                children: [
+                  Text(
+                    'Card Level: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    xpService.getLevelIcon(wordLevel),
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Level ${wordLevel.level} (${wordLevel.title})',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Current XP: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    '${freshCard.learningMastery.currentXPWithDecay}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  if (freshCard.learningMastery.xpNeededForNextLevel > 0) ...[
+                    Text(
+                      ' / ${wordLevel.maxXP} (${freshCard.learningMastery.xpNeededForNextLevel} to next level)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('Learning Progress: ${freshCard.learningPercentage ?? 0}%'),
+              const SizedBox(height: 8),
+              
+              // Study Statistics
+              Text('Times Shown: ${freshCard.timesShown}'),
+              Text('Times Correct: ${freshCard.timesCorrect}'),
+              Text('Consecutive Correct: ${freshCard.consecutiveCorrect}'),
+              const SizedBox(height: 8),
+              
+              // Next Review
+              Row(
+                children: [
+                  Text(
+                    'Next Review: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      _getNextReviewText(freshCard),
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              
+              // Success Count
+              Row(
+                children: [
+                  Text(
+                    'Success Count: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    '${freshCard.successCount}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              
+              // Health Points (HP) Section
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: freshCard.hasReachedDailyLimit 
+                      ? Colors.orange.withValues(alpha: 0.1)
+                      : Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: freshCard.hasReachedDailyLimit 
+                        ? Colors.orange.withValues(alpha: 0.3)
+                        : Colors.blue.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          freshCard.isDefeated 
+                              ? Icons.block 
+                              : Icons.favorite,
+                          size: 16,
+                          color: freshCard.isDefeated 
+                              ? Colors.grey[600]
+                              : freshCard.hpPercentage > 0.6 
+                                  ? Colors.green[600]
+                                  : freshCard.hpPercentage > 0.3 
+                                      ? Colors.orange[600]
+                                      : Colors.red[600],
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Health Points (HP)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: freshCard.isDefeated 
+                                ? Colors.grey[600]
+                                : freshCard.hpPercentage > 0.6 
+                                    ? Colors.green[600]
+                                    : freshCard.hpPercentage > 0.3 
+                                        ? Colors.orange[600]
+                                        : Colors.red[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    HPBar(
+                      currentHP: freshCard.currentHP,
+                      maxHP: freshCard.maxHP,
+                      showText: true,
+                      showStatus: true,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      freshCard.isDefeated
+                          ? 'Card is defeated and needs to rest until tomorrow'
+                          : '${freshCard.hpStatus} - ${freshCard.currentHP}/${freshCard.maxHP} HP remaining',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: freshCard.isDefeated 
+                            ? Colors.grey[600]
+                            : freshCard.hpPercentage > 0.6 
+                                ? Colors.green[600]
+                                : freshCard.hpPercentage > 0.3 
+                                    ? Colors.orange[600]
+                                    : Colors.red[600],
+                      ),
+                    ),
+                    if (freshCard.timesStudiedToday > 0) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Studied ${freshCard.timesStudiedToday} times today',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              
+              // Dates
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Created: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('MMM dd, yyyy').format(freshCard.dateCreated),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'Last Modified: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    DateFormat('MMM dd, yyyy').format(freshCard.lastModified),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+            // TODO: Navigate to edit card screen
+          },
+          child: const Text('Edit'),
+        ),
+      ],
+    );
+  }
+
+  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
+    if (card.deckIds.isEmpty) return 'No decks';
+    
+    final deckNames = card.deckIds
+        .map((id) => provider.getDeck(id)?.name ?? 'Unknown')
+        .where((name) => name.isNotEmpty)
+        .toList();
+    
+    return deckNames.isEmpty ? 'No decks' : deckNames.join(', ');
+  }
+
+  String _getNextReviewText(FlashCard card) {
+    if (card.nextReviewDate == null) {
+      return 'Due now';
+    }
+    
+    final now = DateTime.now();
+    final nextReview = card.nextReviewDate!;
+    
+    if (nextReview.isBefore(now)) {
+      return 'Due now';
+    }
+    
+    final difference = nextReview.difference(now);
+    
+    if (difference.inDays > 0) {
+      return 'In ${difference.inDays} day${difference.inDays == 1 ? '' : 's'}';
+    } else if (difference.inHours > 0) {
+      return 'In ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'}';
+    } else if (difference.inMinutes > 0) {
+      return 'In ${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'}';
+    } else {
+      return 'Due now';
+    }
+  }
+}
