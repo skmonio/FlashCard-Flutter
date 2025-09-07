@@ -171,89 +171,29 @@ class CardDetailsDialog extends StatelessWidget {
               const SizedBox(height: 8),
               
               // Health Points (HP) Section
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: freshCard.hasReachedDailyLimit 
-                      ? Colors.orange.withValues(alpha: 0.1)
-                      : Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: freshCard.hasReachedDailyLimit 
-                        ? Colors.orange.withValues(alpha: 0.3)
-                        : Colors.blue.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          freshCard.isDefeated 
-                              ? Icons.block 
-                              : Icons.favorite,
-                          size: 16,
-                          color: freshCard.isDefeated 
-                              ? Colors.grey[600]
-                              : freshCard.hpPercentage > 0.6 
-                                  ? Colors.green[600]
-                                  : freshCard.hpPercentage > 0.3 
-                                      ? Colors.orange[600]
-                                      : Colors.red[600],
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Health Points (HP)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: freshCard.isDefeated 
-                                ? Colors.grey[600]
-                                : freshCard.hpPercentage > 0.6 
-                                    ? Colors.green[600]
-                                    : freshCard.hpPercentage > 0.3 
-                                        ? Colors.orange[600]
-                                        : Colors.red[600],
-                          ),
-                        ),
-                      ],
+              Row(
+                children: [
+                  Text(
+                    'HP ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    const SizedBox(height: 8),
-                    HPBar(
+                  ),
+                  Text(
+                    '${freshCard.currentHP}/${freshCard.maxHP}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: HPBar(
                       currentHP: freshCard.currentHP,
                       maxHP: freshCard.maxHP,
-                      showText: true,
-                      showStatus: true,
+                      showText: false,
+                      showStatus: false,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      freshCard.isDefeated
-                          ? 'Card is defeated and needs to rest until tomorrow'
-                          : '${freshCard.hpStatus} - ${freshCard.currentHP}/${freshCard.maxHP} HP remaining',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: freshCard.isDefeated 
-                            ? Colors.grey[600]
-                            : freshCard.hpPercentage > 0.6 
-                                ? Colors.green[600]
-                                : freshCard.hpPercentage > 0.3 
-                                    ? Colors.orange[600]
-                                    : Colors.red[600],
-                      ),
-                    ),
-                    if (freshCard.timesStudiedToday > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Studied ${freshCard.timesStudiedToday} times today',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
               
               // Dates

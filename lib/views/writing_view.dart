@@ -164,6 +164,12 @@ class _WritingViewState extends State<WritingView> {
       final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       
+      // In shuffle mode, call onComplete callback instead of showing results
+      if (widget.shuffleMode && widget.onComplete != null) {
+        widget.onComplete!(wasSuccessful);
+        return;
+      }
+      
       // Call the onComplete callback if provided
       if (widget.onComplete != null) {
         widget.onComplete!(wasSuccessful);

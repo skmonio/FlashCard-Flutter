@@ -92,8 +92,47 @@ class XpService {
       // Add the XP to the word
       mastery.addXP(xpGained, exerciseType);
       
+      // Update success count based on exercise type
+      _updateSuccessCount(mastery, exerciseType);
+      
       // Update last review date to prevent immediate decay
       mastery.lastReviewDate = DateTime.now();
+    }
+  }
+
+  /// Update success count based on exercise type
+  void _updateSuccessCount(LearningMastery mastery, String exerciseType) {
+    switch (exerciseType) {
+      case 'multiple_choice':
+      case 'true_false':
+      case 'memory':
+      case 'popYourCard':
+        mastery.easyCorrect++;
+        mastery.easyAttempts++;
+        break;
+      case 'word_scramble':
+      case 'de_het':
+      case 'plural':
+      case 'fill_in_blank':
+      case 'sentence_building':
+      case 'test':
+      case 'pickYourCard':
+      case 'dutch_word_exercise':
+      case 'dutch_word_exercise_detail':
+        mastery.mediumCorrect++;
+        mastery.mediumAttempts++;
+        break;
+      case 'writing':
+      case 'study':
+        mastery.hardCorrect++;
+        mastery.hardAttempts++;
+        break;
+      case 'timed_multiple_choice':
+      case 'timed_true_false':
+      case 'timed_word_scramble':
+        mastery.expertCorrect++;
+        mastery.expertAttempts++;
+        break;
     }
   }
 
