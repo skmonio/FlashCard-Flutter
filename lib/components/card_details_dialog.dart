@@ -152,23 +152,6 @@ class CardDetailsDialog extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               
-              // Success Count
-              Row(
-                children: [
-                  Text(
-                    'Success Count: ',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  Text(
-                    '${freshCard.successCount}',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               
               // Health Points (HP) Section
               Row(

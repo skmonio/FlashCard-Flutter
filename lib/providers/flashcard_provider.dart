@@ -498,7 +498,7 @@ class FlashcardProvider extends ChangeNotifier {
     final headers = [
       'Word', 'Definition', 'Example', 'Article', 'Plural', 
       'Past Tense', 'Future Tense', 'Past Participle', 'Decks', 
-      'Success Count', 'Times Shown', 'Times Correct'
+      'Times Shown', 'Times Correct'
     ];
     
     var csvContent = headers.join(',') + '\n';
@@ -536,7 +536,6 @@ class FlashcardProvider extends ChangeNotifier {
         _escapeCSVField(card.futureTense),
         _escapeCSVField(card.pastParticiple),
         _escapeCSVField(deckPathsString),
-        card.successCount.toString(),
         card.timesShown.toString(),
         card.timesCorrect.toString(),
       ];

@@ -345,7 +345,6 @@ class _ExportImportViewState extends State<ExportImportView> {
                 _buildCSVField('Future Tense (optional)'),
                 _buildCSVField('Past Participle (optional)'),
                 _buildCSVField('Decks (optional: separated by ;)'),
-                _buildCSVField('Success Count (optional)'),
                 _buildCSVField('Times Shown (optional)'),
                 _buildCSVField('Times Correct (optional)'),
                 
@@ -366,9 +365,9 @@ class _ExportImportViewState extends State<ExportImportView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '''Word,Definition,Example,Article,Plural,Past Tense,Future Tense,Past Participle,Decks,Success Count,Times Shown,Times Correct
-Hallo,Hello,"Hallo, hoe gaat het?",,,,,"A1 - Basics",5,10,8
-Brood,Bread,"Ik eet brood met kaas",het,broden,,,"A1 - Food & Drinks; Basics",3,5,3''',
+                    '''Word,Definition,Example,Article,Plural,Past Tense,Future Tense,Past Participle,Decks,Times Shown,Times Correct
+Hallo,Hello,"Hallo, hoe gaat het?",,,,,"A1 - Basics",10,8
+Brood,Bread,"Ik eet brood met kaas",het,broden,,,"A1 - Food & Drinks; Basics",5,3''',
                     style: TextStyle(
                       fontSize: 12,
                       fontFamily: 'monospace',
