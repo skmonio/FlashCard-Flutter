@@ -248,9 +248,11 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     final options = _shuffledOptions[_currentExerciseIndex] ?? exercise['options'];
     
     return Column(
-      children: options.map<Widget>((option) {
+      children: options.asMap().entries.map<Widget>((entry) {
+        final index = entry.key;
+        final option = entry.value;
         final isSelected = _selectedAnswer == option;
-        final isCorrect = option == exercise['correctAnswer'];
+        final isCorrect = index.toString() == exercise['correctAnswer'];
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
@@ -581,9 +583,8 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   void _initializeShuffledOptions(int exerciseIndex, Map<String, dynamic> exercise) {
     if (!_shuffledOptions.containsKey(exerciseIndex)) {
       final options = exercise['options'] as List<String>? ?? [];
-      final shuffledOptions = List<String>.from(options);
-      shuffledOptions.shuffle();
-      _shuffledOptions[exerciseIndex] = shuffledOptions;
+      // Don't shuffle options to maintain the rule that option 1 (index 0) is always correct
+      _shuffledOptions[exerciseIndex] = options;
     }
     
     // Initialize sentence builder state if needed (only if not already initialized for this exercise)
@@ -728,11 +729,13 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         // Restore previous state
         _showAnswer = _answeredQuestions[_currentExerciseIndex] ?? false;
         _selectedAnswer = _selectedAnswers[_currentExerciseIndex];
-        _isCorrect = _showAnswer && (_selectedAnswer == _generateExercises()[_currentExerciseIndex]['correctAnswer']);
-        
-        // Restore sentence builder state
         final exercises = _generateExercises();
         final currentExercise = exercises[_currentExerciseIndex];
+        final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise['options'];
+        final correctIndex = int.tryParse(currentExercise['correctAnswer']) ?? 0;
+        _isCorrect = _showAnswer && (options.indexOf(_selectedAnswer) == correctIndex);
+        
+        // Restore sentence builder state
         if (currentExercise['type'] == 'sentence_builder') {
           _answerWords = _sentenceAnswers[_currentExerciseIndex] ?? [];
           final availableWords = currentExercise['availableWords'] as List<String>? ?? [];
@@ -756,10 +759,12 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         if (_answeredQuestions[_currentExerciseIndex] ?? false) {
           _showAnswer = true;
           _selectedAnswer = _selectedAnswers[_currentExerciseIndex];
-          _isCorrect = _selectedAnswer == exercises[_currentExerciseIndex]['correctAnswer'];
+          final currentExercise = exercises[_currentExerciseIndex];
+          final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise['options'];
+          final correctIndex = int.tryParse(currentExercise['correctAnswer']) ?? 0;
+          _isCorrect = options.indexOf(_selectedAnswer) == correctIndex;
           
           // Restore sentence builder state
-          final currentExercise = exercises[_currentExerciseIndex];
           if (currentExercise['type'] == 'sentence_builder') {
             _answerWords = _sentenceAnswers[_currentExerciseIndex] ?? [];
             final availableWords = currentExercise['availableWords'] as List<String>? ?? [];

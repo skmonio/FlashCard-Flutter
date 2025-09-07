@@ -110,11 +110,11 @@ class FlashcardProvider extends ChangeNotifier {
   List<Deck> getAllDecksHierarchical() {
     // Returns all decks organized hierarchically (parents first, then their children)
     List<Deck> result = [];
-    final topLevel = getRootDecks()..sort((a, b) => a.name.compareTo(b.name));
+    final topLevel = getRootDecks();
     
     for (final deck in topLevel) {
       result.add(deck);
-      final subDecks = getSubDecks(deck.id)..sort((a, b) => a.name.compareTo(b.name));
+      final subDecks = getSubDecks(deck.id);
       result.addAll(subDecks);
     }
     

@@ -8,6 +8,7 @@ import '../models/deck.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/xp_service.dart';
+import '../components/hp_bar.dart';
 import 'add_card_view.dart';
 import 'study_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
@@ -419,10 +420,16 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            '${card.timesStudiedToday}/${FlashCard.dailyStudyLimit} today',
+                            '${card.currentHP}/${card.maxHP} HP',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.blue[700],
+                              color: card.isDefeated 
+                                  ? Colors.grey[600]
+                                  : card.hpPercentage > 0.6 
+                                      ? Colors.green[600]
+                                      : card.hpPercentage > 0.3 
+                                          ? Colors.orange[600]
+                                          : Colors.red[600],
                               fontWeight: FontWeight.w500,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -914,8 +921,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
-    // Start with the correct answer
+    // Start with the correct answer at position 0 (option 1)
     final options = <String>[targetCard.definition];
+    final usedOptions = <String>{targetCard.definition}; // Track all used options to prevent duplicates
     
     // Get all cards from the provider
     final provider = context.read<FlashcardProvider>();
@@ -950,43 +958,48 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     otherDefinitions.shuffle();
     final additionalOptions = otherDefinitions.take(5).toList();
     
-    // Add the additional options
-    options.addAll(additionalOptions);
-    
-    // If we don't have enough options from other cards, add some generic but realistic options
-    while (options.length < 6) {
-      final genericOptions = [
-        'to walk',
-        'to eat',
-        'to sleep',
-        'to work',
-        'to play',
-        'to read',
-        'to write',
-        'to speak',
-        'to listen',
-        'to watch',
-        'to buy',
-        'to sell',
-        'to give',
-        'to take',
-        'to come',
-        'to go',
-        'to see',
-        'to know',
-        'to think',
-        'to feel',
-      ];
-      
-      final randomOption = genericOptions[DateTime.now().millisecondsSinceEpoch % genericOptions.length];
-      if (!options.contains(randomOption)) {
-        options.add(randomOption);
+    // Add the additional options, ensuring no duplicates
+    for (final option in additionalOptions) {
+      if (!usedOptions.contains(option)) {
+        options.add(option);
+        usedOptions.add(option);
       }
     }
     
-    // Shuffle the final options
-    options.shuffle();
+    // If we don't have enough options from other cards, add some generic but realistic options
+    final genericOptions = [
+      'to walk',
+      'to eat',
+      'to sleep',
+      'to work',
+      'to play',
+      'to read',
+      'to write',
+      'to speak',
+      'to listen',
+      'to watch',
+      'to buy',
+      'to sell',
+      'to give',
+      'to take',
+      'to come',
+      'to go',
+      'to see',
+      'to know',
+      'to think',
+      'to feel',
+    ];
     
+    // Add generic options until we have 6 total, ensuring no duplicates
+    for (final genericOption in genericOptions) {
+      if (options.length >= 6) break;
+      if (!usedOptions.contains(genericOption)) {
+        options.add(genericOption);
+        usedOptions.add(genericOption);
+      }
+    }
+    
+    // Don't shuffle - keep correct answer at index 0 (option 1)
     // Ensure we have exactly 6 options
     return options.take(6).toList();
   }
@@ -1021,6 +1034,20 @@ class _DeckDetailViewState extends State<DeckDetailView> {
               Text(
                 freshCard.definition,
                 style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Decks: ${_getDeckNames(freshCard, provider)}',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
               if (freshCard.example.isNotEmpty) ...[
                 const SizedBox(height: 16),
@@ -1157,36 +1184,55 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                   Row(
                     children: [
                       Icon(
-                        freshCard.hasReachedDailyLimit 
+                        freshCard.isDefeated 
                             ? Icons.block 
-                            : Icons.schedule,
+                            : Icons.favorite,
                         size: 16,
-                        color: freshCard.hasReachedDailyLimit 
-                            ? Colors.orange[700]
-                            : Colors.blue[700],
+                        color: freshCard.isDefeated 
+                            ? Colors.grey[600]
+                            : freshCard.hpPercentage > 0.6 
+                                ? Colors.green[600]
+                                : freshCard.hpPercentage > 0.3 
+                                    ? Colors.orange[600]
+                                    : Colors.red[600],
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Daily Study Limit',
+                        'Health Points (HP)',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: freshCard.hasReachedDailyLimit 
-                              ? Colors.orange[700]
-                              : Colors.blue[700],
+                          color: freshCard.isDefeated 
+                              ? Colors.grey[600]
+                              : freshCard.hpPercentage > 0.6 
+                                  ? Colors.green[600]
+                                  : freshCard.hpPercentage > 0.3 
+                                      ? Colors.orange[600]
+                                      : Colors.red[600],
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  HPBar(
+                    currentHP: freshCard.currentHP,
+                    maxHP: freshCard.maxHP,
+                    showText: true,
+                    showStatus: true,
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                    freshCard.hasReachedDailyLimit
-                        ? 'Reached limit (${FlashCard.dailyStudyLimit} times today)'
-                        : '${freshCard.remainingStudyAttemptsToday} of ${FlashCard.dailyStudyLimit} uses remaining today',
+                    freshCard.isDefeated
+                        ? 'Card is defeated and needs to rest until tomorrow'
+                        : '${freshCard.hpStatus} - ${freshCard.currentHP}/${freshCard.maxHP} HP remaining',
                     style: TextStyle(
                       fontSize: 14,
-                      color: freshCard.hasReachedDailyLimit 
-                          ? Colors.orange[700]
-                          : Colors.blue[700],
+                      color: freshCard.isDefeated 
+                          ? Colors.grey[600]
+                          : freshCard.hpPercentage > 0.6 
+                              ? Colors.green[600]
+                              : freshCard.hpPercentage > 0.3 
+                                  ? Colors.orange[600]
+                                  : Colors.red[600],
                     ),
                   ),
                   if (freshCard.timesStudiedToday > 0) ...[
@@ -1213,6 +1259,80 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     '${freshCard.easeFactor.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Next Review
+            Row(
+              children: [
+                Text(
+                  'Next Review: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    _getNextReviewText(freshCard),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Success Count
+            Row(
+              children: [
+                Text(
+                  'Success Count: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '${freshCard.successCount}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Created Date
+            Row(
+              children: [
+                Text(
+                  'Created: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM dd, yyyy').format(freshCard.dateCreated),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Last Modified Date
+            Row(
+              children: [
+                Text(
+                  'Last Modified: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM dd, yyyy').format(freshCard.lastModified),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -1318,5 +1438,38 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         ),
       ],
     );
+  }
+
+  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
+    final deckNames = card.deckIds.map((deckId) {
+      final deck = provider.getDeck(deckId);
+      return deck?.name ?? 'Unknown Deck';
+    }).toList();
+    
+    if (deckNames.isEmpty) return 'Uncategorized';
+    if (deckNames.length == 1) return deckNames.first;
+    return '${deckNames.first} +${deckNames.length - 1} more';
+  }
+
+  String _getNextReviewText(FlashCard card) {
+    if (card.isDueForReview) {
+      return 'Due now';
+    }
+    
+    final nextReview = card.nextReviewDate;
+    if (nextReview == null) {
+      return 'No review scheduled';
+    }
+    
+    final now = DateTime.now();
+    final difference = nextReview.difference(now);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'}';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'}';
+    } else {
+      return '${difference.inMinutes} min${difference.inMinutes == 1 ? '' : 's'}';
+    }
   }
 } 

@@ -585,6 +585,8 @@ class _WritingViewState extends State<WritingView> {
                           color: Colors.black87,
                         ),
                         textAlign: TextAlign.center,
+                        softWrap: true,
+                        overflow: TextOverflow.visible,
                       ),
                     ),
                   ),
@@ -973,18 +975,24 @@ class _WritingViewState extends State<WritingView> {
     // Only award XP for correct answers
     if (isCorrect) {
       final xpService = XpService();
-      final xpGained = xpService.calculateWordXP("writing", 1);
       
-      // Add XP to the word's learning mastery
+      print('🔍 WritingView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+      
+      // Add XP to the word's learning mastery (this handles daily diminishing returns)
       xpService.addXPToWord(card.learningMastery, "writing", 1);
       
+      // Get the actual XP gained (after diminishing returns)
+      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+          : 0;
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = xpGained;
+      _xpGainedPerWord[card.id] = actualXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
       
-      print('🔍 WritingView: Awarded $xpGained XP to word "${card.word}" (Correct: $isCorrect)');
+      print('🔍 WritingView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       print('🔍 WritingView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }

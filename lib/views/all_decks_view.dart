@@ -1083,8 +1083,9 @@ class _AllDecksViewState extends State<AllDecksView> {
   }
 
   List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
-    // Start with the correct answer
+    // Start with the correct answer at position 0 (option 1)
     final options = <String>[targetCard.definition];
+    final usedOptions = <String>{targetCard.definition}; // Track all used options to prevent duplicates
     
     // Get all cards from the provider
     final provider = context.read<FlashcardProvider>();
@@ -1119,43 +1120,48 @@ class _AllDecksViewState extends State<AllDecksView> {
     otherDefinitions.shuffle();
     final additionalOptions = otherDefinitions.take(5).toList();
     
-    // Add the additional options
-    options.addAll(additionalOptions);
-    
-    // If we don't have enough options from other cards, add some generic but realistic options
-    while (options.length < 6) {
-      final genericOptions = [
-        'to walk',
-        'to eat',
-        'to sleep',
-        'to work',
-        'to play',
-        'to read',
-        'to write',
-        'to speak',
-        'to listen',
-        'to watch',
-        'to buy',
-        'to sell',
-        'to give',
-        'to take',
-        'to come',
-        'to go',
-        'to see',
-        'to know',
-        'to think',
-        'to feel',
-      ];
-      
-      final randomOption = genericOptions[DateTime.now().millisecondsSinceEpoch % genericOptions.length];
-      if (!options.contains(randomOption)) {
-        options.add(randomOption);
+    // Add the additional options, ensuring no duplicates
+    for (final option in additionalOptions) {
+      if (!usedOptions.contains(option)) {
+        options.add(option);
+        usedOptions.add(option);
       }
     }
     
-    // Shuffle the final options
-    options.shuffle();
+    // If we don't have enough options from other cards, add some generic but realistic options
+    final genericOptions = [
+      'to walk',
+      'to eat',
+      'to sleep',
+      'to work',
+      'to play',
+      'to read',
+      'to write',
+      'to speak',
+      'to listen',
+      'to watch',
+      'to buy',
+      'to sell',
+      'to give',
+      'to take',
+      'to come',
+      'to go',
+      'to see',
+      'to know',
+      'to think',
+      'to feel',
+    ];
     
+    // Add generic options until we have 6 total, ensuring no duplicates
+    for (final genericOption in genericOptions) {
+      if (options.length >= 6) break;
+      if (!usedOptions.contains(genericOption)) {
+        options.add(genericOption);
+        usedOptions.add(genericOption);
+      }
+    }
+    
+    // Don't shuffle - keep correct answer at index 0 (option 1)
     // Ensure we have exactly 6 options
     return options.take(6).toList();
   }

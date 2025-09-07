@@ -392,6 +392,8 @@ class _StudyViewState extends State<StudyView> {
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
                   ),
                 ],
               ),

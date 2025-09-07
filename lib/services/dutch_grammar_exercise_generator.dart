@@ -40,7 +40,7 @@ class DutchGrammarExerciseGenerator {
       type: ExerciseType.multipleChoice,
       prompt: 'Is it De or Het "${card.word}"?',
       options: options,
-      correctAnswer: correctAnswer,
+      correctAnswer: '0', // Index 0 (option 1) is always the correct answer
       explanation: 'The correct article for "${card.word}" is "$correctAnswer".',
       difficulty: ExerciseDifficulty.beginner,
     );
@@ -62,7 +62,7 @@ class DutchGrammarExerciseGenerator {
       type: ExerciseType.multipleChoice,
       prompt: 'What is the plural form of "${word}"?',
       options: options,
-      correctAnswer: correctPlural,
+      correctAnswer: '0', // Index 0 (option 1) is always the correct answer
       explanation: 'The plural form of "${word}" is "${correctPlural}".',
       difficulty: ExerciseDifficulty.beginner,
     );

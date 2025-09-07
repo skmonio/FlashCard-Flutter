@@ -143,14 +143,13 @@ class PhraseProvider with ChangeNotifier {
       }
     }
     
-    // Shuffle options
-    options.shuffle(random);
+    // Don't shuffle options - keep correct answer at index 0 (option 1)
     
     return {
       'type': 'multiple_choice',
       'prompt': 'Choose the correct translation:',
       'question': 'What does "${targetPhrase.phrase}" mean?',
-      'correctAnswer': targetPhrase.translation,
+      'correctAnswer': '0', // Index 0 (option 1) is always the correct answer
       'options': options,
       'explanation': 'The correct translation of "${targetPhrase.phrase}" is "${targetPhrase.translation}".',
       'phraseId': targetPhrase.id,

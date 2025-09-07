@@ -13,6 +13,8 @@ import 'true_false_view.dart';
 import 'memory_game_view.dart';
 import 'word_scramble_view.dart';
 import 'writing_view.dart';
+import 'pop_your_card_view.dart';
+import 'pick_your_card_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'dutch_grammar_exercise_view.dart';
 
@@ -22,6 +24,8 @@ enum ShuffleMode {
   memoryGame,
   wordScramble,
   writing,
+  popYourCards,
+  pickYourCards,
   dutchExercise,
   grammarExercise,
 }
@@ -51,6 +55,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.memoryGame: true,
     ShuffleMode.wordScramble: true,
     ShuffleMode.writing: true,
+    ShuffleMode.popYourCards: true,
+    ShuffleMode.pickYourCards: true,
     ShuffleMode.dutchExercise: true,
     ShuffleMode.grammarExercise: true,
   };
@@ -78,6 +84,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.memoryGame: prefs.getBool('shuffle_mode_memory_game') ?? true,
         ShuffleMode.wordScramble: prefs.getBool('shuffle_mode_word_scramble') ?? true,
         ShuffleMode.writing: prefs.getBool('shuffle_mode_writing') ?? true,
+        ShuffleMode.popYourCards: prefs.getBool('shuffle_mode_pop_your_cards') ?? true,
+        ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
         ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
         ShuffleMode.grammarExercise: prefs.getBool('shuffle_mode_grammar_exercise') ?? true,
       };
@@ -91,6 +99,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     await prefs.setBool('shuffle_mode_memory_game', _enabledModes[ShuffleMode.memoryGame] ?? true);
     await prefs.setBool('shuffle_mode_word_scramble', _enabledModes[ShuffleMode.wordScramble] ?? true);
     await prefs.setBool('shuffle_mode_writing', _enabledModes[ShuffleMode.writing] ?? true);
+    await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
+    await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
     await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
     await prefs.setBool('shuffle_mode_grammar_exercise', _enabledModes[ShuffleMode.grammarExercise] ?? true);
   }
@@ -161,6 +171,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       if (_enabledModes[ShuffleMode.writing] == true) {
         availableModes.add(ShuffleMode.writing);
       }
+      if (_enabledModes[ShuffleMode.popYourCards] == true) {
+        availableModes.add(ShuffleMode.popYourCards);
+      }
+      if (_enabledModes[ShuffleMode.pickYourCards] == true) {
+        availableModes.add(ShuffleMode.pickYourCards);
+      }
     }
     
     if (allExercises.isNotEmpty && _enabledModes[ShuffleMode.dutchExercise] == true) {
@@ -192,6 +208,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       case ShuffleMode.memoryGame:
       case ShuffleMode.wordScramble:
       case ShuffleMode.writing:
+      case ShuffleMode.popYourCards:
+      case ShuffleMode.pickYourCards:
         _currentCard = allCards[_random.nextInt(allCards.length)];
         _launchCardMode(selectedMode);
         break;
@@ -221,7 +239,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (!_currentCard!.canBeStudiedToday) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
               duration: const Duration(seconds: 3),
             ),
           );
@@ -255,7 +273,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (!_currentCard!.canBeStudiedToday) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
               duration: const Duration(seconds: 3),
             ),
           );
@@ -294,7 +312,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (!_currentCard!.canBeStudiedToday) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
               duration: const Duration(seconds: 3),
             ),
           );
@@ -332,7 +350,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (!_currentCard!.canBeStudiedToday) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
               duration: const Duration(seconds: 3),
             ),
           );
@@ -351,7 +369,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (!_currentCard!.canBeStudiedToday) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('This card has reached its daily study limit (${FlashCard.dailyStudyLimit} times). It will be available tomorrow.'),
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
               duration: const Duration(seconds: 3),
             ),
           );
@@ -363,6 +381,45 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           title: 'Write Your Card',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+        );
+        break;
+      case ShuffleMode.popYourCards:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
+        targetView = PopYourCardView(
+          cards: [_currentCard!],
+          title: 'Pop Your Card',
+          onComplete: _handleCardModeComplete,
+          shuffleMode: true,
+        );
+        break;
+      case ShuffleMode.pickYourCards:
+        // Check if current card can be studied today
+        if (!_currentCard!.canBeStudiedToday) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        }
+        
+        targetView = PickYourCardView(
+          cards: [_currentCard!],
+          title: 'Pick Your Card',
+          onComplete: _handleCardModeComplete,
+          shuffleMode: true,
+          autoProgress: true, // Enable auto progress for shuffle mode
         );
         break;
       default:
@@ -897,6 +954,8 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
                     _buildModeToggle('Memory Game', ShuffleMode.memoryGame, Icons.psychology, Colors.grey),
                     _buildModeToggle('Word Scramble', ShuffleMode.wordScramble, Icons.text_fields, Colors.blue),
                     _buildModeToggle('Write Your Card', ShuffleMode.writing, Icons.edit, Colors.blue),
+                    _buildModeToggle('Pop Your Card', ShuffleMode.popYourCards, Icons.bubble_chart, Colors.purple),
+                    _buildModeToggle('Pick Your Card', ShuffleMode.pickYourCards, Icons.touch_app, Colors.pink),
                     _buildModeToggle('Words', ShuffleMode.dutchExercise, Icons.school, Colors.green),
                     _buildModeToggle('Grammar', ShuffleMode.grammarExercise, Icons.book, Colors.indigo),
                   ],

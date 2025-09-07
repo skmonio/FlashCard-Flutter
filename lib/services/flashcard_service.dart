@@ -174,11 +174,13 @@ class FlashcardService {
   }
   
   List<Deck> getSubDecks(String parentDeckId) {
-    return _decks.where((deck) => deck.parentId == parentDeckId).toList();
+    return _decks.where((deck) => deck.parentId == parentDeckId).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
   
   List<Deck> getRootDecks() {
-    return _decks.where((deck) => deck.parentId == null).toList();
+    return _decks.where((deck) => deck.parentId == null).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
   
   // MARK: - Card Management
@@ -197,12 +199,36 @@ class FlashcardService {
   }) async {
     print('Service: Creating card: $word with deckIds: $deckIds');
     try {
+      // Handle empty deckIds by defaulting to Uncategorized
+      Set<String> finalDeckIds = deckIds ?? {};
+      if (finalDeckIds.isEmpty) {
+        // Find or create Uncategorized deck
+        final uncategorizedDeck = _decks.firstWhere(
+          (deck) => deck.name.toLowerCase() == 'uncategorized',
+          orElse: () => Deck(id: '', name: '', parentId: null),
+        );
+        
+        if (uncategorizedDeck.id.isNotEmpty) {
+          finalDeckIds.add(uncategorizedDeck.id);
+          print('Service: Using existing Uncategorized deck: ${uncategorizedDeck.id}');
+        } else {
+          // Create Uncategorized deck if it doesn't exist
+          final newUncategorizedDeck = await createDeck('Uncategorized');
+          if (newUncategorizedDeck != null) {
+            finalDeckIds.add(newUncategorizedDeck.id);
+            print('Service: Created new Uncategorized deck: ${newUncategorizedDeck.id}');
+          } else {
+            print('Service: Warning: Could not create Uncategorized deck, card will have no decks');
+          }
+        }
+      }
+      
       final card = FlashCard(
         word: word,
         definition: definition,
         example: example,
         exampleTranslation: exampleTranslation,
-        deckIds: deckIds ?? {},
+        deckIds: finalDeckIds,
         article: article,
         plural: plural,
         pastTense: pastTense,

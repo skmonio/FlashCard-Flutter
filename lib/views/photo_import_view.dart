@@ -779,33 +779,29 @@ class _PhotoImportViewState extends State<PhotoImportView> {
       final provider = context.read<FlashcardProvider>();
       
       // Determine target deck
-      String targetDeckId = '';
+      Set<String> targetDeckIds = {};
       if (_selectedDeckId == 'new_deck' && _newDeckName.isNotEmpty) {
         // Create new deck
         final newDeck = await provider.createDeck(_newDeckName);
         if (newDeck != null) {
-          targetDeckId = newDeck.id;
+          targetDeckIds.add(newDeck.id);
         } else {
           throw Exception('Failed to create new deck');
         }
       } else if (_selectedDeckId == 'uncategorized') {
-        // Use uncategorized deck (first deck or create one)
-        final decks = provider.getAllDecksHierarchical();
-        if (decks.isNotEmpty) {
-          targetDeckId = decks.first.id;
-        } else {
-          final uncategorizedDeck = await provider.createDeck('Uncategorized');
-          if (uncategorizedDeck != null) {
-            targetDeckId = uncategorizedDeck.id;
-          } else {
-            throw Exception('Failed to create uncategorized deck');
-          }
+        // Use uncategorized deck (find existing or let service create one)
+        final uncategorizedDeck = provider.decks.firstWhere(
+          (deck) => deck.name.toLowerCase() == 'uncategorized',
+          orElse: () => Deck(id: '', name: '', parentId: null),
+        );
+        if (uncategorizedDeck.id.isNotEmpty) {
+          targetDeckIds.add(uncategorizedDeck.id);
         }
-      } else if (_selectedDeckId != null) {
-        targetDeckId = _selectedDeckId!;
-      } else {
-        throw Exception('No deck selected');
+        // If no uncategorized deck found, let the service create one by passing empty set
+      } else if (_selectedDeckId != null && _selectedDeckId!.isNotEmpty) {
+        targetDeckIds.add(_selectedDeckId!);
       }
+      // If no deck selected or _selectedDeckId is null/empty, pass empty set to let service default to uncategorized
 
       // Add each selected word as a card
       int addedCount = 0;
@@ -815,7 +811,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
             word: word,
             definition: _translations[word], // Use translation if available
             example: null,
-            deckIds: {targetDeckId},
+            deckIds: targetDeckIds,
           );
           addedCount++;
         } catch (e) {

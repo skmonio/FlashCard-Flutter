@@ -374,7 +374,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${limitedCards.length} cards have reached their daily study limit (${FlashCard.dailyStudyLimit} times). They will be available tomorrow.'),
+          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -537,14 +537,47 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         }
         break;
       case GameMode.pickYourCard:
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => PickYourCardView(
-              cards: studyCards,
-              title: 'Pick Your Card',
+        if (_useTimedMode) {
+          // Calculate time based on difficulty and card count
+          int secondsPerCard;
+          switch (_selectedTimedDifficulty) {
+            case TimedDifficulty.easy:
+              secondsPerCard = 45;
+              break;
+            case TimedDifficulty.medium:
+              secondsPerCard = 30;
+              break;
+            case TimedDifficulty.hard:
+              secondsPerCard = 20;
+              break;
+          }
+          
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => PickYourCardView(
+                cards: studyCards,
+                title: 'Quick Pick Your Card',
+                useTimedMode: true,
+                timePerQuestion: secondsPerCard,
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => PickYourCardView(
+                cards: studyCards,
+                title: 'Pick Your Card',
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+              ),
+            ),
+          );
+        }
         break;
       case GameMode.popYourCard:
         Navigator.of(context).push(
@@ -563,20 +596,23 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
 
   void _navigateToNormalStudy() {
     final provider = context.read<FlashcardProvider>();
-    final decks = provider.getAllDecksHierarchical();
+    final allDecks = provider.getAllDecksHierarchical();
     
-    if (decks.isEmpty) {
+    if (allDecks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No decks available. Please create some decks first.')),
       );
       return;
     }
     
+    // Sort decks A-Z with sub-decks under parent
+    final sortedDecks = _sortDecksHierarchically(allDecks, provider);
+    
     // Show multi-deck selection dialog
     showDialog(
       context: context,
       builder: (context) => _MultiDeckSelectionDialog(
-        decks: decks,
+        decks: sortedDecks,
         provider: provider,
         gameMode: widget.gameMode,
         startFlipped: _getStartFlipped(),
@@ -590,6 +626,48 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         useSRSFiltering: _useSRSFiltering,
       ),
     );
+  }
+
+  List<Deck> _sortDecksHierarchically(List<Deck> decks, FlashcardProvider provider) {
+    // Separate parent and child decks
+    final parentDecks = decks.where((deck) => deck.parentId == null).toList();
+    final childDecks = decks.where((deck) => deck.parentId != null).toList();
+    
+    // Sort parent decks A-Z
+    parentDecks.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    
+    // Sort child decks within each parent
+    childDecks.sort((a, b) {
+      // First sort by parent deck name
+      final parentA = provider.getDeck(a.parentId!);
+      final parentB = provider.getDeck(b.parentId!);
+      
+      if (parentA != null && parentB != null) {
+        final parentComparison = parentA.name.toLowerCase().compareTo(parentB.name.toLowerCase());
+        
+        if (parentComparison != 0) {
+          return parentComparison;
+        }
+      }
+      
+      // Then sort by child deck name A-Z
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    
+    // Combine parent and child decks in hierarchical order
+    final result = <Deck>[];
+    
+    // Add parent decks and their children in hierarchical order
+    for (final parentDeck in parentDecks) {
+      // Add the parent deck
+      result.add(parentDeck);
+      
+      // Add all children of this parent deck immediately after
+      final children = childDecks.where((child) => child.parentId == parentDeck.id).toList();
+      result.addAll(children);
+    }
+    
+    return result;
   }
 
 
@@ -1560,7 +1638,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${limitedCards.length} cards have reached their daily study limit (${FlashCard.dailyStudyLimit} times). They will be available tomorrow.'),
+          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -1737,6 +1815,9 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             builder: (context) => PickYourCardView(
               cards: filteredCards,
               title: title,
+              autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.useLivesMode ? widget.customLives : null,
             ),
           ),
         );

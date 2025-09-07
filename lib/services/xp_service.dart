@@ -11,20 +11,24 @@ class XpService {
 
   // XP rewards for different exercise types (by complexity)
   static const Map<String, int> exerciseXPRewards = {
-    // Easy exercises (basic recognition)
+    // Easy exercises (basic recognition) - 5 XP
     'multiple_choice': 5,
     'true_false': 5,
     'memory': 5,
+    'popYourCard': 5,
     
-    // Medium exercises (recall and application)
+    // Medium exercises (recall and application) - 10 XP
     'word_scramble': 10,
     'de_het': 10,
     'plural': 10,
     'fill_in_blank': 10,
     'sentence_building': 10,
     'test': 10, // For test mode
+    'pickYourCard': 10,
+    'dutch_word_exercise': 10,
+    'dutch_word_exercise_detail': 10,
     
-    // Hard exercises (production and recall)
+    // Hard exercises (production and recall) - 15 XP
     'writing': 15,
     'study': 15, // For advanced study mode
     

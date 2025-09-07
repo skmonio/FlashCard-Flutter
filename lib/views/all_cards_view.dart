@@ -7,6 +7,7 @@ import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
 import '../services/xp_service.dart';
+import '../components/hp_bar.dart';
 
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
@@ -491,10 +492,16 @@ class _AllCardsViewState extends State<AllCardsView> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                '${card.timesStudiedToday}/${FlashCard.dailyStudyLimit} today',
+                                '${card.currentHP}/${card.maxHP} HP',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: Colors.blue[700],
+                                  color: card.isDefeated 
+                                      ? Colors.grey[600]
+                                      : card.hpPercentage > 0.6 
+                                          ? Colors.green[600]
+                                          : card.hpPercentage > 0.3 
+                                              ? Colors.orange[600]
+                                              : Colors.red[600],
                                   fontWeight: FontWeight.w500,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -1232,39 +1239,44 @@ class _AllCardsViewState extends State<AllCardsView> {
                 ),
                 Text(
                   '${freshCard.learningMastery.currentXPWithDecay}',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                if (freshCard.learningMastery.xpNeededForNextLevel > 0) ...[
+                  Text(
+                    ' / ${wordLevel.maxXP} (${freshCard.learningMastery.xpNeededForNextLevel} to next level)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  'Learning Progress: ',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                Text(
-                  '${freshCard.learningPercentage}%',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
+            Text('Learning Progress: ${freshCard.learningPercentage ?? 0}%'),
+            const SizedBox(height: 8),
+            
+            // Study Statistics
+            Text('Times Shown: ${freshCard.timesShown}'),
+            Text('Times Correct: ${freshCard.timesCorrect}'),
+            Text('Consecutive Correct: ${freshCard.consecutiveCorrect}'),
             const SizedBox(height: 8),
             Row(
               children: [
-                Text(
-                  'SRS Level: ',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
+                Text('SRS Level: '),
+                Tooltip(
+                  message: _getSRSDescription(freshCard.srsLevel),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getSRSColor(freshCard.srsLevel),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      freshCard.srsLevel.toString(),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-                Text(
-                  '${freshCard.srsLevel}',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -1325,36 +1337,55 @@ class _AllCardsViewState extends State<AllCardsView> {
                   Row(
                     children: [
                       Icon(
-                        freshCard.hasReachedDailyLimit 
+                        freshCard.isDefeated 
                             ? Icons.block 
-                            : Icons.schedule,
+                            : Icons.favorite,
                         size: 16,
-                        color: freshCard.hasReachedDailyLimit 
-                            ? Colors.orange[700]
-                            : Colors.blue[700],
+                        color: freshCard.isDefeated 
+                            ? Colors.grey[600]
+                            : freshCard.hpPercentage > 0.6 
+                                ? Colors.green[600]
+                                : freshCard.hpPercentage > 0.3 
+                                    ? Colors.orange[600]
+                                    : Colors.red[600],
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Daily Study Limit',
+                        'Health Points (HP)',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: freshCard.hasReachedDailyLimit 
-                              ? Colors.orange[700]
-                              : Colors.blue[700],
+                          color: freshCard.isDefeated 
+                              ? Colors.grey[600]
+                              : freshCard.hpPercentage > 0.6 
+                                  ? Colors.green[600]
+                                  : freshCard.hpPercentage > 0.3 
+                                      ? Colors.orange[600]
+                                      : Colors.red[600],
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  HPBar(
+                    currentHP: freshCard.currentHP,
+                    maxHP: freshCard.maxHP,
+                    showText: true,
+                    showStatus: true,
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                    freshCard.hasReachedDailyLimit
-                        ? 'Reached limit (${FlashCard.dailyStudyLimit} times today)'
-                        : '${freshCard.remainingStudyAttemptsToday} of ${FlashCard.dailyStudyLimit} uses remaining today',
+                    freshCard.isDefeated
+                        ? 'Card is defeated and needs to rest until tomorrow'
+                        : '${freshCard.hpStatus} - ${freshCard.currentHP}/${freshCard.maxHP} HP remaining',
                     style: TextStyle(
                       fontSize: 14,
-                      color: freshCard.hasReachedDailyLimit 
-                          ? Colors.orange[700]
-                          : Colors.blue[700],
+                      color: freshCard.isDefeated 
+                          ? Colors.grey[600]
+                          : freshCard.hpPercentage > 0.6 
+                              ? Colors.green[600]
+                              : freshCard.hpPercentage > 0.3 
+                                  ? Colors.orange[600]
+                                  : Colors.red[600],
                     ),
                   ),
                   if (freshCard.timesStudiedToday > 0) ...[
@@ -1369,6 +1400,21 @@ class _AllCardsViewState extends State<AllCardsView> {
                   ],
                 ],
               ),
+            ),
+            
+            // Ease Factor
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Text('Ease Factor: '),
+                Tooltip(
+                  message: 'Affects how quickly review intervals increase. Higher values (2.5) mean longer intervals, lower values (1.3) mean more frequent reviews.',
+                  child: Text(
+                    '${freshCard.easeFactor.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(
@@ -1655,6 +1701,50 @@ class _AllCardsViewState extends State<AllCardsView> {
           backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
         ),
       );
+    }
+  }
+
+  Color _getSRSColor(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return Colors.grey;
+      case 1:
+        return Colors.red;
+      case 2:
+        return Colors.orange;
+      case 3:
+        return Colors.yellow;
+      case 4:
+        return Colors.lightGreen;
+      default:
+        return Colors.green;
+    }
+  }
+
+  String _getSRSDescription(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return 'New card - never studied';
+      case 1:
+        return 'Learning phase - review every day';
+      case 2:
+        return 'Early learning - review every 6 days';
+      case 3:
+        return 'Mid-learning - review every 15 days';
+      case 4:
+        return 'Review phase - longer intervals';
+      case 5:
+        return 'Well learned - review every 2-4 weeks';
+      case 6:
+        return 'Familiar - review every 1-2 months';
+      case 7:
+        return 'Very familiar - review every 2-4 months';
+      case 8:
+        return 'Mastered - review every 4-8 months';
+      case 9:
+        return 'Expert - review every 6-12 months';
+      default:
+        return 'Mastered - review every 8+ months';
     }
   }
 

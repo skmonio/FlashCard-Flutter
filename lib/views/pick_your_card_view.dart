@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'dart:async';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
@@ -11,11 +12,25 @@ import '../services/xp_service.dart';
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
+  final bool shuffleMode;
+  final Function(bool)? onComplete;
+  final bool useTimedMode;
+  final int? timePerQuestion;
+  final bool autoProgress;
+  final bool useLivesMode;
+  final int? customLives;
 
   const PickYourCardView({
     super.key,
     required this.cards,
     required this.title,
+    this.shuffleMode = false,
+    this.onComplete,
+    this.useTimedMode = false,
+    this.timePerQuestion,
+    this.autoProgress = false,
+    this.useLivesMode = false,
+    this.customLives,
   });
 
   @override
@@ -36,6 +51,20 @@ class _PickYourCardViewState extends State<PickYourCardView>
   int _consecutiveCorrect = 0;
   int _totalAnswers = 0;
   int _correctAnswers = 0;
+  
+  // Timer variables
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  
+  // Auto progress timer
+  Timer? _autoProgressTimer;
+  
+  // Lives system
+  int _lives = 0;
+  int _maxLives = 0;
+  bool _useLivesMode = false;
 
   List<String> wheel1Items = [];
   List<String> wheel2Items = [];
@@ -80,7 +109,70 @@ class _PickYourCardViewState extends State<PickYourCardView>
   @override
   void initState() {
     super.initState();
+    
+    // Initialize lives system
+    _useLivesMode = widget.useLivesMode;
+    if (_useLivesMode) {
+      _maxLives = widget.customLives ?? _getDefaultLives();
+      _lives = _maxLives;
+    }
+    
+    // Initialize timer if using timed mode
+    if (widget.useTimedMode) {
+      _totalTime = widget.timePerQuestion ?? _getDefaultTimePerQuestion();
+      _timeRemaining = _totalTime;
+    }
+    
     _loadCurrentCard();
+  }
+  
+  int _getDefaultLives() {
+    return 5; // Default 5 lives
+  }
+  
+  int _getDefaultTimePerQuestion() {
+    return 30; // Default 30 seconds per question
+  }
+  
+  void _startTimer() {
+    if (!widget.useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          } else {
+            _timeUp = true;
+            _timer?.cancel();
+            _handleTimeUp();
+          }
+        });
+      }
+    });
+  }
+  
+  void _handleTimeUp() {
+    // Auto-submit current answer when time runs out
+    _checkAnswer();
+  }
+  
+  void _resetTimer() {
+    if (!widget.useTimedMode) return;
+    
+    _timer?.cancel();
+    _timeRemaining = _totalTime;
+    _timeUp = false;
+    _startTimer();
+  }
+
+  @override
+  void dispose() {
+    // Cancel timers
+    _timer?.cancel();
+    _autoProgressTimer?.cancel();
+    super.dispose();
   }
 
   void _loadCurrentCard() {
@@ -88,6 +180,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
     
     final FlashCard card = widget.cards[currentCardIndex];
     final String dutch = card.word;
+    
+    // Start timer if using timed mode
+    if (widget.useTimedMode) {
+      _resetTimer();
+    }
     
     // Split word into equal-length pieces
     final List<String> parts = _splitWordIntoEqualParts(dutch);
@@ -195,6 +292,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
   void _checkAnswer() {
     if (currentCardIndex >= widget.cards.length) return;
     
+    // Stop timer if using timed mode
+    if (widget.useTimedMode) {
+      _timer?.cancel();
+    }
+    
     final FlashCard currentCard = widget.cards[currentCardIndex];
     final String correctAnswer = currentCard.word;
     
@@ -219,18 +321,46 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _correctAnswers++;
       _consecutiveCorrect++;
       
-      // Calculate XP gained
-      final xpGained = 15 + (_consecutiveCorrect * 3);
-      _xpGainedPerWord[currentCard.id] = xpGained;
+      // Award XP using standard system
+      final xpService = XpService();
+      
+      print('🔍 PickYourCardView: About to award XP to word "${currentCard.word}" - daily attempts before: ${currentCard.learningMastery.dailyAttemptsDebug}');
+      
+      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      xpService.addXPToWord(currentCard.learningMastery, "pickYourCard", 1);
+      
+      // Get the actual XP gained (after diminishing returns)
+      final actualXPGained = currentCard.learningMastery.exerciseHistory.isNotEmpty 
+          ? currentCard.learningMastery.exerciseHistory.last['xpGained'] as int 
+          : 0;
+      
+      // Track XP gained for this word in this session
+      _xpGainedPerWord[currentCard.id] = actualXPGained;
       
       // Update user profile
-      userProfileProvider.addXp(xpGained);
+      userProfileProvider.addXp(actualXPGained);
+      
+      print('🔍 PickYourCardView: Awarded $actualXPGained XP to word "${currentCard.word}" - daily attempts after: ${currentCard.learningMastery.dailyAttemptsDebug}');
       
       _showResultDialog(true, userAnswer, correctAnswer);
     } else {
       currentCard.markIncorrect(GameDifficulty.medium);
       _consecutiveCorrect = 0;
       _xpGainedPerWord[currentCard.id] = 0;
+      
+      // Handle lives system
+      if (_useLivesMode) {
+        _lives--;
+        print('🔍 PickYourCardView: Lost a life! Lives remaining: $_lives');
+        
+        if (_lives <= 0) {
+          print('🔍 PickYourCardView: Game over! No lives remaining');
+          _showGameOverScreen();
+          return;
+        }
+      }
+      
+      print('🔍 PickYourCardView: No XP awarded to word "${currentCard.word}" (Incorrect)');
       
       _showResultDialog(false, userAnswer, correctAnswer);
     }
@@ -241,6 +371,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Save to provider
     provider.updateCard(currentCard);
     _totalAnswers++;
+    
+    // Auto progress logic
+    if (widget.autoProgress) {
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted && currentCardIndex < widget.cards.length - 1) {
+          _nextCard();
+        }
+      });
+    }
   }
 
   void _showResultDialog(bool isCorrect, String userAnswer, String correctAnswer) {
@@ -252,6 +392,34 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _lastCorrectAnswer = correctAnswer;
     });
   }
+  
+  void _showGameOverScreen() {
+    // Show game over screen
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Game Over!'),
+        content: Text('You ran out of lives! You got $_correctAnswers out of $_totalAnswers correct.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showResults();
+            },
+            child: const Text('View Results'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _nextCard() {
     if (currentCardIndex + 1 < widget.cards.length) {
@@ -261,6 +429,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
         _loadCurrentCard();
       });
     } else {
+      // In shuffle mode, call onComplete callback instead of showing end screen
+      if (widget.shuffleMode && widget.onComplete != null) {
+        final wasCorrect = _correctAnswers > 0; // Consider it successful if at least one correct
+        widget.onComplete!(wasCorrect);
+        return;
+      }
+      
       _showResults();
     }
   }
@@ -362,6 +537,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
             // Progress bar
             _buildProgressBar(),
             
+            // Timer display (if using timed mode)
+            if (widget.useTimedMode) _buildTimerDisplay(),
+            
+            // Lives display (if using lives mode)
+            if (_useLivesMode) _buildLivesDisplay(),
+            
             // Main content
             Expanded(
               child: _buildMainContent(currentCard),
@@ -402,7 +583,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   Widget _buildProgressBar() {
-    final progress = _totalAnswers / widget.cards.length;
+    final progress = currentCardIndex / widget.cards.length;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -410,7 +591,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_totalAnswers + 1} of ${widget.cards.length}'),
+              Text('Question ${currentCardIndex + 1} of ${widget.cards.length}'),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -423,6 +604,80 @@ class _PickYourCardViewState extends State<PickYourCardView>
             ),
           ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildTimerDisplay() {
+    if (!widget.useTimedMode) return const SizedBox.shrink();
+    
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.timer,
+                color: timerColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$_timeRemaining seconds',
+                style: TextStyle(
+                  color: timerColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withValues(alpha: 0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildLivesDisplay() {
+    if (!_useLivesMode) return const SizedBox.shrink();
+    
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.favorite,
+              color: Colors.red,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Lives: $_lives/$_maxLives',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

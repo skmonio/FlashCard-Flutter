@@ -80,13 +80,9 @@ class WordExercise {
     };
   }
 
-  // Get shuffled options for multiple choice questions
+  // Get options for multiple choice questions (don't shuffle to maintain option 1 = correct answer rule)
   List<String> getShuffledOptions() {
-    if (type == ExerciseType.multipleChoice || type == ExerciseType.fillInBlank) {
-      final shuffledOptions = List<String>.from(options);
-      shuffledOptions.shuffle();
-      return shuffledOptions;
-    }
+    // Return options as-is to maintain the rule that option 1 (index 0) is always correct
     return options;
   }
 }

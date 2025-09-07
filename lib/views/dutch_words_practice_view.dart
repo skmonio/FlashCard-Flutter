@@ -215,9 +215,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     final options = _shuffledOptions[_currentExerciseIndex] ?? exercise.options;
     
     return Column(
-      children: options.map((option) {
+      children: options.asMap().entries.map((entry) {
+        final index = entry.key;
+        final option = entry.value;
         final isSelected = _selectedAnswer == option;
-        final isCorrect = option == exercise.correctAnswer;
+        final isCorrect = index.toString() == exercise.correctAnswer;
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
@@ -446,13 +448,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
 
   void _initializeShuffledOptions(int questionIndex, WordExercise exercise) {
     if (!_shuffledOptions.containsKey(questionIndex)) {
-      if (exercise.type == ExerciseType.multipleChoice || exercise.type == ExerciseType.fillInBlank) {
-        final shuffledOptions = List<String>.from(exercise.options);
-        shuffledOptions.shuffle();
-        _shuffledOptions[questionIndex] = shuffledOptions;
-      } else {
-        _shuffledOptions[questionIndex] = exercise.options;
-      }
+      // Don't shuffle options to maintain the rule that option 1 (index 0) is always correct
+      _shuffledOptions[questionIndex] = exercise.options;
     }
   }
 
@@ -629,8 +626,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       final correctWords = currentExercise.correctAnswer.split(' ');
       isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
-      // For other exercise types, check the selected answer
-      isCorrect = _selectedAnswer == currentExercise.correctAnswer;
+      // For other exercise types, check if the selected answer is at the correct index
+      // The correctAnswer field now contains the index (as string) of the correct option
+      final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise.options;
+      final correctIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
+      isCorrect = _selectedAnswer != null && options.indexOf(_selectedAnswer!) == correctIndex;
     }
     
     // Update learning progress for the word exercise
@@ -774,94 +774,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       userProfileProvider.addXp(totalXPGained);
     }
     
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Practice Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('You got $_correctAnswers out of $_totalAnswered correct'),
-            const SizedBox(height: 8),
-            Text('Score: $percentage%'),
-            if (totalXPGained > 0) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Total XP Gained: $totalXPGained',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (percentage >= 80)
-              const Text(
-                'Excellent! You know this deck well!',
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-              )
-            else if (percentage >= 60)
-              const Text(
-                'Good job! Keep practicing!',
-                style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-              )
-            else
-              const Text(
-                'Keep studying this deck!',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-              ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Finish'),
-          ),
-          if (totalXPGained > 0)
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _showWordProgress();
-              },
-              child: const Text('View Progress'),
-            ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              
-              // Continue same daily session (don't reset daily attempts)
-              
-              setState(() {
-                _currentExerciseIndex = 0;
-                _selectedAnswer = null;
-                _showAnswer = false;
-                _correctAnswers = 0;
-                _totalAnswered = 0;
-                _answerWords = [];
-                _availableWords = [];
-                _shuffledOptions.clear();
-                _answeredQuestions.clear();
-                _selectedAnswers.clear();
-                _sentenceAnswers.clear();
-                _sentenceAvailable.clear();
-                
-                // Reset RPG tracking for this session only
-                _xpGainedPerWord.clear();
-                _wordMastery.clear();
-                _studiedWords.clear();
-                
-                _initializePractice();
-              });
-            },
-            child: const Text('Practice Again'),
-          ),
-        ],
-      ),
-    );
+    // Go directly to word XP end screen instead of showing dialog
+    _showWordProgress();
   }
 
   void _showCloseConfirmation() {

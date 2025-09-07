@@ -5,6 +5,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
+import '../services/xp_service.dart';
 
 import '../utils/sentence_utils.dart';
 
@@ -335,9 +336,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     final options = _shuffledOptions[_currentExerciseIndex] ?? exercise.options;
     
     return Column(
-      children: options.map((option) {
+      children: options.asMap().entries.map((entry) {
+        final index = entry.key;
+        final option = entry.value;
         final isSelected = _selectedAnswer == option;
-        final isCorrect = option == exercise.correctAnswer;
+        final isCorrect = index.toString() == exercise.correctAnswer;
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
@@ -558,13 +561,8 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
 
   void _initializeShuffledOptions(int questionIndex, WordExercise exercise) {
     if (!_shuffledOptions.containsKey(questionIndex)) {
-      if (exercise.type == ExerciseType.multipleChoice || exercise.type == ExerciseType.fillInBlank) {
-        final shuffledOptions = List<String>.from(exercise.options);
-        shuffledOptions.shuffle();
-        _shuffledOptions[questionIndex] = shuffledOptions;
-      } else {
-        _shuffledOptions[questionIndex] = exercise.options;
-      }
+      // Don't shuffle options to maintain the rule that option 1 (index 0) is always correct
+      _shuffledOptions[questionIndex] = exercise.options;
     }
   }
 
@@ -752,9 +750,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       final correctWords = currentExercise.correctAnswer.split(' ');
       isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
-      // For multiple choice and fill in blank, check if the selected answer matches the correct answer
-      // Since options are shuffled, we need to compare the actual text values
-      isCorrect = _selectedAnswer == currentExercise.correctAnswer;
+      // For multiple choice and fill in blank, check if the selected answer is at the correct index
+      // The correctAnswer field now contains the index (as string) of the correct option
+      final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise.options;
+      final correctIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
+      isCorrect = _selectedAnswer != null && options.indexOf(_selectedAnswer!) == correctIndex;
     }
     
     // Update learning progress for the word exercise
@@ -817,8 +817,10 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       // Update learning mastery based on difficulty (assuming medium for exercises)
       if (wasCorrect) {
         updatedCard.markCorrect(GameDifficulty.medium);
-        // Add XP for correct answers (with daily decay applied automatically)
-        updatedCard.learningMastery.addXP(5, 'dutch_word_exercise');
+        
+        // Award XP using standard system
+        final xpService = XpService();
+        xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail', 1);
       } else {
         updatedCard.markIncorrect(GameDifficulty.medium);
       }
@@ -856,8 +858,11 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       
       // Track XP gained (with daily decay applied)
       if (wasCorrect) {
-        final nextXp = flashCard.learningMastery.getXPForGame('dutch_word_exercise_detail');
-        _xpGainedPerWord[flashCard.id] = nextXp; // XP that will actually be gained
+        // Get the actual XP gained from the exercise history
+        final actualXPGained = flashCard.learningMastery.exerciseHistory.isNotEmpty 
+            ? flashCard.learningMastery.exerciseHistory.last['xpGained'] as int 
+            : 0;
+        _xpGainedPerWord[flashCard.id] = actualXPGained;
       }
     }
   }

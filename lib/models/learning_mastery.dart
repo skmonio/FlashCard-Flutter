@@ -527,22 +527,57 @@ class LearningMastery {
         .length;
   }
   
-  /// Daily study limit per card (configurable)
+  /// Daily study limit per card (configurable) - this is the card's max HP
   static const int dailyStudyLimit = 10;
   
-  /// Check if this card has reached its daily study limit
+  /// Get current HP (Health Points) - remaining study attempts
+  int get currentHP {
+    return (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+  }
+  
+  /// Get max HP (Health Points) - total daily study limit
+  int get maxHP {
+    return dailyStudyLimit;
+  }
+  
+  /// Check if this card has reached its daily study limit (HP is 0)
   bool get hasReachedDailyLimit {
     return timesStudiedToday >= dailyStudyLimit;
   }
   
-  /// Get remaining study attempts for today
-  int get remainingStudyAttemptsToday {
-    return (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+  /// Check if card is defeated (HP is 0)
+  bool get isDefeated {
+    return currentHP <= 0;
   }
   
-  /// Check if card can be studied (hasn't reached daily limit)
+  /// Get remaining study attempts for today (same as current HP)
+  int get remainingStudyAttemptsToday {
+    return currentHP;
+  }
+  
+  /// Check if card can be studied (has HP remaining)
   bool get canBeStudiedToday {
     return !hasReachedDailyLimit;
+  }
+  
+  /// Get HP percentage (0.0 to 1.0)
+  double get hpPercentage {
+    return currentHP / maxHP;
+  }
+  
+  /// Get HP status description
+  String get hpStatus {
+    if (currentHP == maxHP) {
+      return 'Full Health';
+    } else if (currentHP > maxHP * 0.6) {
+      return 'Healthy';
+    } else if (currentHP > maxHP * 0.3) {
+      return 'Wounded';
+    } else if (currentHP > 0) {
+      return 'Critical';
+    } else {
+      return 'Defeated';
+    }
   }
   
   /// Calculate XP for next correct answer based on daily decay

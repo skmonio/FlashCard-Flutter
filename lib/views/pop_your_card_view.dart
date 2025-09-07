@@ -6,16 +6,21 @@ import '../models/learning_mastery.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../components/word_progress_display.dart';
+import '../services/xp_service.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
+  final bool shuffleMode;
+  final Function(bool)? onComplete;
 
   const PopYourCardView({
     super.key,
     required this.cards,
     required this.title,
+    this.shuffleMode = false,
+    this.onComplete,
   });
 
   @override
@@ -27,7 +32,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalQuestions = 0;
-  bool _showingResults = false;
   DateTime? _sessionStartTime;
   int _sessionXP = 0;
   Map<String, int> _xpGainedPerWord = {};
@@ -73,7 +77,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
   void _loadCurrentCard() {
     if (_currentIndex >= widget.cards.length) {
-      _showResults();
+      // Don't show results here - _nextCard() will handle completion
       return;
     }
 
@@ -175,6 +179,13 @@ class _PopYourCardViewState extends State<PopYourCardView>
     if (_currentIndex < widget.cards.length) {
       _loadCurrentCard();
     } else {
+      // In shuffle mode, call onComplete callback instead of showing end screen
+      if (widget.shuffleMode && widget.onComplete != null) {
+        final wasCorrect = _correctAnswers > 0; // Consider it successful if at least one correct
+        widget.onComplete!(wasCorrect);
+        return;
+      }
+      
       // Skip results screen and show final XP summary
       _showFinalXPSummary();
     }
@@ -183,20 +194,29 @@ class _PopYourCardViewState extends State<PopYourCardView>
   void _awardXP(FlashCard card) {
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
+    final xpService = XpService();
     
-    // Get XP for this game type
-    final xpGained = card.learningMastery.getXPForGame('popYourCard');
+    print('🔍 PopYourCardView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Award XP to the card
-    card.learningMastery.addXP(xpGained, 'popYourCard');
-    _xpGainedPerWord[card.word] = xpGained;
-    _sessionXP += xpGained;
+    // Add XP to the word's learning mastery (this handles daily diminishing returns)
+    xpService.addXPToWord(card.learningMastery, "popYourCard", 1);
+    
+    // Get the actual XP gained (after diminishing returns)
+    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+        : 0;
+    
+    // Track XP gained for this word in this session
+    _xpGainedPerWord[card.word] = actualXPGained;
+    _sessionXP += actualXPGained;
     
     // Award XP to user profile (async but we don't await it)
-    userProfileProvider.addXp(xpGained);
+    userProfileProvider.addXp(actualXPGained);
     
     // Update the card in the provider
     provider.updateCard(card);
+    
+    print('🔍 PopYourCardView: Awarded $actualXPGained XP to word "${card.word}" - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
   }
 
   void _showCardXPFeedback(FlashCard card, bool isCorrect, String correctAnswer) {
@@ -235,7 +255,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
             onPressed: () {
               Navigator.pop(dialogContext);
               _nextCard();
-              _ticker.start();
+              // Only restart ticker if we're still on the same screen (not navigating away)
+              if (mounted && _currentIndex < widget.cards.length) {
+                _ticker.start();
+              }
             },
             child: const Text("Next"),
           ),
@@ -281,26 +304,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
     );
   }
 
-  void _showResults() {
-    _ticker.stop();
-    _showingResults = true;
-    
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    final accuracy = _totalQuestions > 0 ? (_correctAnswers / _totalQuestions) : 0.0;
-    final isPerfect = _correctAnswers == _totalQuestions && _totalQuestions > 0;
-
-    // Update user profile with session stats
-    context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalQuestions,
-      sessionAccuracy: accuracy,
-      isPerfect: isPerfect,
-    );
-
-    // Update streak
-    context.read<UserProfileProvider>().updateStreakFromStudyActivity();
-
-    setState(() {});
-  }
 
   void _updatePhysics(Duration elapsed) {
     if (_screenWidth == 0 || _screenHeight == 0) return;
@@ -383,12 +386,13 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
   @override
   Widget build(BuildContext context) {
-    if (_showingResults) {
-      return _buildResultsScreen();
-    }
-
     if (_currentIndex >= widget.cards.length) {
-      return _buildResultsScreen();
+      // This should not happen since _nextCard() handles completion
+      return const Scaffold(
+        body: Center(
+          child: Text('Game Complete'),
+        ),
+      );
     }
 
     final currentCard = widget.cards[_currentIndex];
@@ -406,7 +410,12 @@ class _PopYourCardViewState extends State<PopYourCardView>
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => _showCloseConfirmation(),
+            onPressed: () async {
+              final shouldExit = await _showCloseConfirmation();
+              if (shouldExit) {
+                Navigator.of(context).pop();
+              }
+            },
           ),
           actions: [
             IconButton(
@@ -504,71 +513,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
     );
   }
 
-  Widget _buildResultsScreen() {
-    final accuracy = _totalQuestions > 0 ? (_correctAnswers / _totalQuestions) : 0.0;
-    final isPerfect = _correctAnswers == _totalQuestions && _totalQuestions > 0;
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Results"),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-        ),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isPerfect ? Icons.star : Icons.check_circle,
-                size: 80,
-                color: isPerfect ? Colors.amber : Colors.green,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                isPerfect ? "Perfect Score!" : "Study Complete!",
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                "Accuracy: ${(accuracy * 100).toStringAsFixed(1)}%",
-                style: const TextStyle(fontSize: 20),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Correct: $_correctAnswers / $_totalQuestions",
-                style: const TextStyle(fontSize: 18),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "XP Gained: $totalXPGained",
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(height: 40),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                child: const Text("Return Home"),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<bool> _showCloseConfirmation() async {
     final result = await showDialog<bool>(
