@@ -1081,22 +1081,23 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
 
   void _resetGame() {
-    setState(() {
-      _memoryCards.clear();
-      _firstCard = null;
-      _secondCard = null;
-      _canSelect = true;
-      _moves = 0;
-      _matches = 0;
-      _gameComplete = false;
-      _gameSession.reset(); // Reset XP tracking
-      // Reset RPG tracking
-      _xpGainedPerWord.clear();
-      _wordMastery.clear();
-      _studiedWords.clear();
-      _incorrectlyMatchedCards.clear();
-      _initializeGame();
-    });
+    // Reset game state without setState first
+    _memoryCards.clear();
+    _firstCard = null;
+    _secondCard = null;
+    _canSelect = true;
+    _moves = 0;
+    _matches = 0;
+    _gameComplete = false;
+    _gameSession.reset(); // Reset XP tracking
+    // Reset RPG tracking
+    _xpGainedPerWord.clear();
+    _wordMastery.clear();
+    _studiedWords.clear();
+    _incorrectlyMatchedCards.clear();
+    
+    // Initialize the game (this will call setState internally)
+    _initializeGame();
   }
 
   void _awardXp() {
@@ -1266,16 +1267,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        
-                        setState(() {
-                          _gameComplete = false;
-                          _resetGame();
-                          
-                          // Reset RPG tracking
-                          _xpGainedPerWord.clear();
-                          _wordMastery.clear();
-                          _studiedWords.clear();
-                        });
+                        _gameComplete = false;
+                        _resetGame(); // This handles all the resetting internally
                       },
                       child: const Text('Play Again'),
                     ),
@@ -1390,7 +1383,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     
-    Navigator.of(context).push(
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
           xpGainedPerWord: sessionXpGainedPerWord,
@@ -1398,18 +1391,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
           studiedWords: sessionStudiedWords,
           hideNavigation: true, // Hide back button and swipe for memory games
           onStudyAgain: () {
+            // Reset and restart game BEFORE closing the word progress screen
+            _gameComplete = false;
+            _resetGame(); // This handles all the resetting internally
+            
             Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart game
-            setState(() {
-              _gameComplete = false;
-              _resetGame();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-              _incorrectlyMatchedCards.clear();
-            });
             
             // Session data has been reset, ready for new game
           },

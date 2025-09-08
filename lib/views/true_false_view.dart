@@ -65,6 +65,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   Map<int, String> _questionTexts = {}; // question index -> question text
   Map<int, bool> _questionModes = {}; // question index -> is question mode
   Map<int, String> _translations = {}; // question index -> translation being tested
+  Set<int> _autoProgressedQuestions = {}; // Track which questions have been auto-progressed
+  int _activeQuestionIndex = 0; // Track the furthest question that auto progress has reached
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
@@ -311,6 +313,40 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     }
   }
 
+  bool _isOnCurrentQuestion() {
+    // Find the highest index that has been answered
+    int highestAnsweredIndex = -1;
+    for (int index in _answeredQuestions.keys) {
+      if (index > highestAnsweredIndex) {
+        highestAnsweredIndex = index;
+      }
+    }
+    // If no questions have been answered, current question is 0
+    // Otherwise, current question is the next unanswered question after the highest answered
+    int currentQuestion = highestAnsweredIndex == -1 ? 0 : highestAnsweredIndex + 1;
+    return _currentIndex == currentQuestion;
+  }
+
+  bool _canUseNextButton() {
+    if (!_answered) return false;
+    
+    if (!widget.autoProgress) {
+      // If auto progress is disabled, allow next button on any answered question
+      return true;
+    }
+    
+    // If auto progress is enabled:
+    // 1. Allow next button if we're on a previous question (not the active one)
+    // 2. Allow next button if we're on the active question but auto progress has already happened
+    if (_currentIndex < _activeQuestionIndex) {
+      return true; // We're on a previous question
+    }
+    
+    // We're on the active question - only allow if auto progress has already happened
+    // This prevents clicking next immediately after answering, before auto progress kicks in
+    return _autoProgressedQuestions.contains(_currentIndex);
+  }
+
   String _getTranslationForQuestion() {
     // Use the stored translation that was generated for this question
     return _currentTranslation;
@@ -493,6 +529,10 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _autoProgressTimer?.cancel();
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
         if (mounted && _currentIndex < _currentCards.length - 1) {
+          // Mark this question as auto-progressed before moving to next
+          _autoProgressedQuestions.add(_currentIndex);
+          // Update the active question index to the next question
+          _activeQuestionIndex = _currentIndex + 1;
           _goToNextQuestion();
         }
       });
@@ -755,11 +795,11 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                       // Next/Finish button (always show, greyed out when not available)
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: _answered ? _goToNextQuestion : null,
+                          onPressed: _canUseNextButton() ? _goToNextQuestion : null,
                           icon: const Icon(Icons.arrow_forward, size: 16),
                           label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _answered ? Colors.green : Colors.grey,
+                            backgroundColor: _canUseNextButton() ? Colors.green : Colors.grey,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 8),
                           ),

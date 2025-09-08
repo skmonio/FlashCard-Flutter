@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
+import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -13,6 +14,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
+import '../components/word_progress_display.dart';
 import '../models/timed_difficulty.dart';
 
 class TimedTrueFalseView extends StatefulWidget {
@@ -52,10 +54,15 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   
   // Track answered questions and their answers
   Map<int, bool> _answeredQuestions = {};
-  Map<int, bool> _correctAnswersMap = {};
+  Map<int, bool?> _correctAnswersMap = {};
   Map<int, String> _questionTexts = {};
   Map<int, bool> _questionModes = {};
   Map<int, String> _translations = {};
+  
+  // RPG tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
@@ -160,7 +167,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     setState(() {
       _answered = true;
       _timeUp = true;
-      _correctAnswersMap[_currentIndex] = false; // Time out = incorrect
+      _correctAnswersMap[_currentIndex] = null; // Time out = no answer
     });
     
     // Auto progress after showing the answer
@@ -277,7 +284,17 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   @override
   Widget build(BuildContext context) {
     if (_showingResults) {
-      return _buildResultsView();
+      // Use a post-frame callback to avoid calling navigation during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showWordProgress();
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
     
     if (_currentCards.isEmpty) {
@@ -889,6 +906,35 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   }
 
   void _awardXp() {
+    // Populate RPG tracking variables for WordProgressDisplay
+    final xpService = XpService();
+    
+    for (int i = 0; i < _currentCards.length; i++) {
+      final card = _currentCards[i];
+      final isCorrect = _correctAnswersMap[i] == true;
+      
+      if (isCorrect) {
+        // Add XP to the word's learning mastery
+        xpService.addXPToWord(card.learningMastery, "test", 1);
+        
+        // Get the actual XP gained (after diminishing returns)
+        final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+            ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+            : 0;
+        
+        // Track XP gained for this word in this session
+        _xpGainedPerWord[card.id] = actualXPGained;
+        
+        // Store the word mastery for display
+        _wordMastery[card.id] = card.learningMastery;
+      }
+      
+      // Track studied words (regardless of correctness)
+      if (!_studiedWords.any((word) => word.id == card.id)) {
+        _studiedWords.add(card);
+      }
+    }
+    
     if (_gameSession.xpGained > 0) {
       final userProfileProvider = context.read<UserProfileProvider>();
       XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: false);
@@ -899,6 +945,51 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
     
     print('🔍 TimedTrueFalseView: Test completed - Accuracy: ${(accuracy * 100).toInt()}%, Perfect: $isPerfect');
+  }
+
+  void _showWordProgress() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+          studiedWords: _studiedWords,
+          hideNavigation: true, // Hide back button and swipe for timed games
+          onStudyAgain: () {
+            // Reset and restart test BEFORE closing the word progress screen
+            setState(() {
+              _currentIndex = 0;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _showingResults = false;
+              _answered = false;
+              _selectedAnswer = null;
+              _gameSession.reset(); // Reset XP tracking
+              // Reset all navigation state
+              _answeredQuestions.clear();
+              _correctAnswersMap.clear();
+              _questionTexts.clear();
+              _questionModes.clear();
+              _translations.clear();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+            _generateQuestion();
+
+            Navigator.of(context).pop(); // Close word progress screen
+
+            // Session data has been reset, ready for new test
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+          },
+        ),
+      ),
+    );
   }
 
   void _showCloseConfirmation() {

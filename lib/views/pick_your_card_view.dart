@@ -448,7 +448,6 @@ class _PickYourCardViewState extends State<PickYourCardView>
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
           onStudyAgain: () {
-            Navigator.of(context).pop();
             setState(() {
               currentCardIndex = 0;
               _studiedWords.clear();
@@ -459,6 +458,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
               _correctAnswers = 0;
               _loadCurrentCard();
             });
+            Navigator.of(context).pop();
           },
           onDone: () {
             Navigator.of(context).popUntil((route) => route.isFirst);
@@ -710,12 +710,14 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 key: ValueKey<int>(currentCardIndex * 3),
                 items: wheel1Items,
                 onChanged: (value) => setState(() => selectedPart1 = value),
+                enabled: !_showResult || !widget.autoProgress,
               ),
               const SizedBox(width: 20),
               DialWheel(
                 key: ValueKey<int>(currentCardIndex * 3 + 1),
                 items: wheel2Items,
                 onChanged: (value) => setState(() => selectedPart2 = value),
+                enabled: !_showResult || !widget.autoProgress,
               ),
               if (hasThirdWheel) ...[
                 const SizedBox(width: 20),
@@ -723,6 +725,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
                   key: ValueKey<int>(currentCardIndex * 3 + 2),
                   items: wheel3Items,
                   onChanged: (value) => setState(() => selectedPart3 = value),
+                  enabled: !_showResult || !widget.autoProgress,
                 ),
               ],
             ],
@@ -838,8 +841,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
 class DialWheel extends StatefulWidget {
   final List<String> items;
   final ValueChanged<String> onChanged;
+  final bool enabled;
 
-  const DialWheel({super.key, required this.items, required this.onChanged});
+  const DialWheel({super.key, required this.items, required this.onChanged, this.enabled = true});
 
   @override
   State<DialWheel> createState() => _DialWheelState();
@@ -879,18 +883,21 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
   void _reportSelection() => widget.onChanged(_getSelectedItem());
 
   void _onDragStart(DragStartDetails details) {
+    if (!widget.enabled) return;
     _controller.stop();
     _startDragDy = details.localPosition.dy;
     _startDragAngle = _currentAngle;
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
+    if (!widget.enabled) return;
     setState(() {
       _currentAngle = _startDragAngle + (details.localPosition.dy - _startDragDy) / 60.0;
     });
   }
 
   void _onDragEnd(DragEndDetails details) {
+    if (!widget.enabled) return;
     final double velocity = details.primaryVelocity ?? 0.0;
     double spinDistance = velocity / 200;
     double rawTargetAngle = _currentAngle + spinDistance;

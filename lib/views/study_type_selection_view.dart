@@ -397,6 +397,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               startFlipped: _getStartFlipped(),
               title: 'Quick Study',
+              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -840,22 +841,30 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   }
   
   Widget _buildAutoProgressSetting(StateSetter setState) {
+    // Auto progress is disabled when timed mode is enabled
+    final isDisabled = _useTimedMode;
+    
     return Row(
       children: [
-        const Icon(Icons.auto_awesome, size: 20),
+        Icon(
+          Icons.auto_awesome, 
+          size: 20,
+          color: isDisabled ? Colors.grey : null,
+        ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Text(
             'Auto Progress',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
+              color: isDisabled ? Colors.grey : null,
             ),
           ),
         ),
         Switch(
-          value: _autoProgress,
-          onChanged: (value) {
+          value: isDisabled ? false : _autoProgress,
+          onChanged: isDisabled ? null : (value) {
             setState(() {
               _autoProgress = value;
             });
@@ -964,12 +973,20 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               onChanged: _useLivesMode ? null : (value) {
                 setState(() {
                   _useTimedMode = value;
+                  if (value) {
+                    // When timed mode is enabled, disable auto progress
+                    _autoProgress = false;
+                  }
                   if (!value) {
                     _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
                   }
                 });
                 this.setState(() {
                   _useTimedMode = value;
+                  if (value) {
+                    // When timed mode is enabled, disable auto progress
+                    _autoProgress = false;
+                  }
                   if (!value) {
                     _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
                   }
@@ -1673,6 +1690,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: filteredCards,
               startFlipped: widget.startFlipped,
               title: title,
+              useMixedMode: widget.useMixedMode,
             ),
           ),
         );

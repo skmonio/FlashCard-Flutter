@@ -25,12 +25,14 @@ class AdvancedStudyView extends StatefulWidget {
   final List<FlashCard> cards;
   final bool startFlipped;
   final String title;
+  final bool useMixedMode;
 
   const AdvancedStudyView({
     super.key,
     required this.cards,
     this.startFlipped = false,
     required this.title,
+    this.useMixedMode = false,
   });
 
   @override
@@ -89,7 +91,12 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   @override
   void initState() {
     super.initState();
-    _isShowingFront = !widget.startFlipped;
+    if (widget.useMixedMode) {
+      // In mixed mode, randomly choose which side to show
+      _isShowingFront = math.Random().nextBool();
+    } else {
+      _isShowingFront = !widget.startFlipped;
+    }
     
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -109,10 +116,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     ).animate(CurvedAnimation(
       parent: _flipController,
       curve: Curves.easeInOut,
-    ));
+    )    );
     
-    // Set initial position based on startFlipped
-    if (widget.startFlipped) {
+    // Set initial position based on _isShowingFront
+    if (!_isShowingFront) {
       _flipController.value = 1.0;
     }
     
@@ -315,6 +322,19 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
   
   Widget _buildSingleCardArea() {
+    // Ensure we have cards and current index is within bounds
+    if (_currentCards.isEmpty) {
+      return const Center(
+        child: Text('No cards available'),
+      );
+    }
+    
+    if (_currentIndex >= _currentCards.length) {
+      return const Center(
+        child: Text('No more cards available'),
+      );
+    }
+    
     final currentCard = _currentCards[_currentIndex];
     
     return GestureDetector(
@@ -343,6 +363,19 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
   
   Widget _buildStackedCardArea() {
+    // Ensure we have cards and top index is within bounds
+    if (_currentCards.isEmpty) {
+      return const Center(
+        child: Text('No cards available'),
+      );
+    }
+    
+    if (_topIndex >= _currentCards.length) {
+      return const Center(
+        child: Text('No more cards available'),
+      );
+    }
+    
     final size = MediaQuery.of(context).size;
     final visibleCards = math.min(3, _currentCards.length - _topIndex);
     
@@ -537,7 +570,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     return AnimatedBuilder(
       animation: _flipAnimation,
       builder: (context, child) {
-        final isFlipped = _flipAnimation.value >= 0.5;
+        // Use _isShowingFront to determine the initial state, then apply flip animation
+        final isFlipped = _isShowingFront ? (_flipAnimation.value >= 0.5) : (_flipAnimation.value < 0.5);
         
         return Transform(
           alignment: Alignment.center,
@@ -688,6 +722,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   void _handleCardDoubleTap() {
     if (_nextCardActive) return;
     
+    // In mixed mode, don't allow manual flipping - the flip state is determined randomly
+    if (widget.useMixedMode) return;
+    
     // Toggle the flip state
     _isShowingFront = !_isShowingFront;
     
@@ -721,9 +758,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _dragOffset = Offset.zero;
         _swipeDirection = SwipeDirection.none;
         _swipeIntensity = 0;
-        _isShowingFront = !widget.startFlipped;
+        if (widget.useMixedMode) {
+          _isShowingFront = math.Random().nextBool();
+        } else {
+          _isShowingFront = !widget.startFlipped;
+        }
         _flipController.reset();
-        if (widget.startFlipped) {
+        if (!_isShowingFront) {
           _flipController.value = 1.0;
         }
         // Reset exit animation for previous card
@@ -853,6 +894,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _combo = 0;
         // Track XP for incorrect answer (0 XP)
         XpService.recordAnswer(_gameSession, false);
+        // Explicitly set 0 XP for unknown cards
+        _xpGainedPerWord[currentCard.id] = 0;
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -889,11 +932,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       // Award XP to the word for RPG system (only for correct answers)
       if (wasCorrect) {
         _awardXPToWord(card);
-      }
-      
-      // Track studied words
-      if (!_studiedWords.any((word) => word.id == card.id)) {
-        _studiedWords.add(card);
+        
+        // Only track studied words for correct answers (known cards)
+        if (!_studiedWords.any((word) => word.id == card.id)) {
+          _studiedWords.add(card);
+        }
       }
       
       // Update the card in the provider to save the XP changes
@@ -1002,7 +1045,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _awardXp();
               _showingResults = true;
             } else {
-              _isShowingFront = !widget.startFlipped;
+              if (widget.useMixedMode) {
+                _isShowingFront = math.Random().nextBool();
+              } else {
+                _isShowingFront = !widget.startFlipped;
+              }
               _flipController.reset();
               // Reset exit animation for next card
               _exitController.reset();
@@ -1022,6 +1069,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _topIndex++;
         _swipeDirection = SwipeDirection.none;
         _swipeIntensity = 0;
+        
+        // In mixed mode, randomly choose which side to show for the next card
+        if (widget.useMixedMode) {
+          _isShowingFront = math.Random().nextBool();
+        } else {
+          _isShowingFront = !widget.startFlipped;
+        }
       });
       
       // Check if we've gone through all cards
@@ -1098,6 +1152,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             setState(() {
               // Reset all card state
               _currentIndex = 0;
+              _topIndex = 0; // Reset stacked mode index
+              _currentCards = List<FlashCard>.from(widget.cards); // Restore original cards
               _knownCards.clear();
               _unknownCards.clear();
               _skippedCards.clear();
@@ -1123,7 +1179,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               
               // Reset UI state
               _showingResults = false;
-              _isShowingFront = !widget.startFlipped;
+              if (widget.useMixedMode) {
+                _isShowingFront = math.Random().nextBool();
+              } else {
+                _isShowingFront = !widget.startFlipped;
+              }
               _selectedCardForEdit = null;
               
               // Reset all animation controllers
@@ -1131,9 +1191,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _dealController.reset();
               _exitController.reset();
               
-              if (widget.startFlipped) {
+              // Set flip controller based on _isShowingFront
+              if (!_isShowingFront) {
                 _flipController.value = 1.0;
               }
+              
+              // Force a rebuild by triggering the deal animation
+              _dealController.forward();
             });
             
             // Start initial deal animation for first card
@@ -1199,6 +1263,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _combo = 0;
         // Track XP for incorrect answer (0 XP)
         XpService.recordAnswer(_gameSession, false);
+        // Explicitly set 0 XP for unknown cards
+        _xpGainedPerWord[currentCard.id] = 0;
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;

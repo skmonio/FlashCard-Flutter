@@ -869,6 +869,9 @@ class _StudyViewState extends State<StudyView> {
             _generateMultipleChoiceOptions();
             _generateScrambledWord();
             
+            // Force UI update after regenerating content
+            setState(() {});
+            
             // Session data has been reset, ready for new game
           },
           onDone: () {

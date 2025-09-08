@@ -13,6 +13,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
+import '../components/word_progress_display.dart';
 import '../components/animated_xp_counter.dart';
 import '../models/timed_difficulty.dart';
 import '../utils/game_difficulty_helper.dart';
@@ -58,10 +59,15 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   
   // Track answered questions and their answers
   Map<int, int> _answeredQuestions = {}; // question index -> selected answer index
-  Map<int, bool> _correctAnswersMap = {}; // question index -> is correct
+  Map<int, bool?> _correctAnswersMap = {}; // question index -> is correct
   Map<int, List<String>> _questionOptions = {}; // question index -> options
   Map<int, int> _correctAnswerIndices = {}; // question index -> correct answer index
   Map<int, bool> _questionModes = {}; // question index -> is question mode
+  
+  // RPG tracking
+  Map<String, int> _xpGainedPerWord = {};
+  Map<String, LearningMastery> _wordMastery = {};
+  List<FlashCard> _studiedWords = [];
   
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
@@ -138,8 +144,8 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       // Show correct answer and auto-progress
       setState(() {
         _answered = true;
-        _totalAnswered++;
-        _correctAnswersMap[_currentIndex] = false; // Wrong answer due to time up
+        // Don't increment _totalAnswered or mark as wrong - time up is not an answer
+        _correctAnswersMap[_currentIndex] = null; // No answer due to time up
       });
       
       // Auto progress after showing the answer
@@ -428,6 +434,43 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   void _awardXp() {
+    // Populate RPG tracking variables for WordProgressDisplay
+    final xpService = XpService();
+    
+    print('🔍 TimedMultipleChoiceView: Awarding XP for ${_currentCards.length} cards');
+    
+    for (int i = 0; i < _currentCards.length; i++) {
+      final card = _currentCards[i];
+      final isCorrect = _correctAnswersMap[i] == true;
+      
+      print('🔍 TimedMultipleChoiceView: Card $i (${card.word}) - Correct: $isCorrect');
+      
+      if (isCorrect) {
+        // Add XP to the word's learning mastery
+        xpService.addXPToWord(card.learningMastery, "test", 1);
+        
+        // Get the actual XP gained (after diminishing returns)
+        final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+            ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+            : 0;
+        
+        // Track XP gained for this word in this session
+        _xpGainedPerWord[card.id] = actualXPGained;
+        
+        // Store the word mastery for display
+        _wordMastery[card.id] = card.learningMastery;
+        
+        print('🔍 TimedMultipleChoiceView: Awarded $actualXPGained XP to ${card.word}');
+      }
+      
+      // Track studied words (regardless of correctness)
+      if (!_studiedWords.any((word) => word.id == card.id)) {
+        _studiedWords.add(card);
+      }
+    }
+    
+    print('🔍 TimedMultipleChoiceView: Final counts - XP: ${_xpGainedPerWord.length}, Mastery: ${_wordMastery.length}, Studied: ${_studiedWords.length}');
+    
     if (_gameSession.xpGained > 0) {
       final userProfileProvider = context.read<UserProfileProvider>();
       XpService.awardSessionXp(userProfileProvider, _gameSession, isShuffleMode: false);
@@ -438,6 +481,55 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
     
     print('🔍 TimedMultipleChoiceView: Test completed - Accuracy: ${(accuracy * 100).toInt()}%, Perfect: $isPerfect');
+  }
+
+  void _showWordProgress() {
+    // Debug: Print the data being passed to WordProgressDisplay
+    print('🔍 TimedMultipleChoiceView: Showing word progress with ${_xpGainedPerWord.length} XP entries, ${_wordMastery.length} mastery entries, ${_studiedWords.length} studied words');
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WordProgressDisplay(
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+          studiedWords: _studiedWords,
+          hideNavigation: true, // Hide back button and swipe for timed games
+          onStudyAgain: () {
+            // Reset and restart test BEFORE closing the word progress screen
+            setState(() {
+              _currentIndex = 0;
+              _correctAnswers = 0;
+              _totalAnswered = 0;
+              _showingResults = false;
+              _answered = false;
+              _selectedAnswer = null;
+              _gameSession.reset(); // Reset XP tracking
+              // Reset all navigation state
+              _answeredQuestions.clear();
+              _correctAnswersMap.clear();
+              _questionOptions.clear();
+              _correctAnswerIndices.clear();
+              _questionModes.clear();
+              
+              // Reset RPG tracking
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _studiedWords.clear();
+            });
+            _generateQuestion();
+            _resetTimer();
+
+            Navigator.of(context).pop(); // Close word progress screen
+
+            // Session data has been reset, ready for new test
+          },
+          onDone: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+          },
+        ),
+      ),
+    );
   }
 
   void _editCurrentCard() {
@@ -499,14 +591,25 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   Widget _buildProgressBar() {
+    final progress = _currentIndex / _currentCards.length;
     return Container(
-      width: double.infinity,
-      height: 4,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: LinearProgressIndicator(
-        value: (_currentIndex + 1) / _currentCards.length,
-        backgroundColor: Colors.grey.withValues(alpha: 0.3),
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('${(progress * 100).toInt()}%'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.grey.withValues(alpha: 0.3),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+          ),
+        ],
       ),
     );
   }
@@ -683,7 +786,17 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     }
 
     if (_showingResults) {
-      return _buildResultsView();
+      // Use a post-frame callback to avoid calling navigation during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showWordProgress();
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     final currentCard = _currentCards[_currentIndex];

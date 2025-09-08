@@ -97,7 +97,7 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
                       icon: const Icon(Icons.arrow_back_ios),
                       iconSize: 20,
                     ),
-                    if (!widget.hideNavigation) const Spacer(),
+                    const Spacer(),
                     const Text(
                       'Word Progress',
                       style: TextStyle(
