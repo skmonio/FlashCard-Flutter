@@ -15,7 +15,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../utils/game_difficulty_helper.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -386,6 +386,11 @@ class _WordScrambleViewState extends State<WordScrambleView> {
 
   bool _canUseNextButton() {
     if (!_answered) return false;
+    
+    // Always allow finish button on the last question
+    if (_currentIndex == widget.cards.length - 1) {
+      return true;
+    }
     
     if (!widget.autoProgress) {
       // If auto progress is disabled, allow next button on any answered question
@@ -1253,6 +1258,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       
       print('🔍 WordScrambleView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
     } else {
+      // Explicitly set 0 XP for incorrect answers
+      _xpGainedPerWord[card.id] = 0;
+      
+      // Store the word mastery for display (even for incorrect answers)
+      _wordMastery[card.id] = card.learningMastery;
+      
       print('🔍 WordScrambleView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }
     
@@ -1270,11 +1281,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: true, // Hide back button and swipe for word scramble games
+          title: 'Word Scramble Complete',
+          showSwipeToReview: true, // Enable swipe to review for word scramble games
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {

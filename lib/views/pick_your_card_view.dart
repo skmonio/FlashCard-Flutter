@@ -6,7 +6,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 import '../services/xp_service.dart';
 
 class PickYourCardView extends StatefulWidget {
@@ -443,10 +443,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
   void _showResults() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           studiedWords: _studiedWords,
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
+          title: 'Pick Your Card Complete',
+          showSwipeToReview: true,
           onStudyAgain: () {
             setState(() {
               currentCardIndex = 0;

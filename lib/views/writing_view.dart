@@ -9,7 +9,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
 
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 import '../services/xp_service.dart';
 
 class WritingView extends StatefulWidget {
@@ -1017,11 +1017,12 @@ class _WritingViewState extends State<WritingView> {
     
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: true, // Hide back button and swipe for writing games
+          title: 'Writing Complete',
+          showSwipeToReview: false,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

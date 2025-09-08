@@ -14,7 +14,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 import '../models/timed_difficulty.dart';
 
 class TimedTrueFalseView extends StatefulWidget {
@@ -927,6 +927,12 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
         
         // Store the word mastery for display
         _wordMastery[card.id] = card.learningMastery;
+      } else {
+        // Explicitly set 0 XP for incorrect answers
+        _xpGainedPerWord[card.id] = 0;
+        
+        // Store the word mastery for display (even for incorrect answers)
+        _wordMastery[card.id] = card.learningMastery;
       }
       
       // Track studied words (regardless of correctness)
@@ -950,11 +956,12 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   void _showWordProgress() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
           studiedWords: _studiedWords,
-          hideNavigation: true, // Hide back button and swipe for timed games
+          title: 'Timed Test Complete',
+          showSwipeToReview: false,
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {

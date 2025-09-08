@@ -14,7 +14,7 @@ import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 
 import '../components/animated_xp_counter.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 
 class MemoryGameView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -1385,11 +1385,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: true, // Hide back button and swipe for memory games
+          title: 'Memory Game Complete',
+          showSwipeToReview: false,
           onStudyAgain: () {
             // Reset and restart game BEFORE closing the word progress screen
             _gameComplete = false;

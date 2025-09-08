@@ -14,7 +14,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 import '../utils/game_difficulty_helper.dart';
 import 'add_card_view.dart';
 
@@ -469,6 +469,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   bool _canUseNextButton() {
     if (!_answered) return false;
+    
+    // Always allow finish button on the last question
+    if (_currentIndex == _currentCards.length - 1) {
+      return true;
+    }
     
     if (!widget.autoProgress) {
       // If auto progress is disabled, allow next button on any answered question
@@ -1177,6 +1182,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       
       print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Explicitly set 0 XP for incorrect answers
+      _xpGainedPerWord[card.id] = 0;
+      
+      // Store the word mastery for display (even for incorrect answers)
+      _wordMastery[card.id] = card.learningMastery;
+      
       print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
     }
     
@@ -1194,13 +1205,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
-          hideNavigation: true, // Hide back button and swipe for multiple choice games
+          title: 'Multiple Choice Complete',
+          showSwipeToReview: false,
           onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Close end screen
             // Reset and restart test
             setState(() {
               _currentIndex = 0;
@@ -1233,7 +1245,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             // Session data has been reset, ready for new game
           },
           onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Close end screen
             Navigator.of(context).pop(); // Go back to study type screen
           },
         ),

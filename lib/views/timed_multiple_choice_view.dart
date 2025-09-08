@@ -13,7 +13,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
-import '../components/word_progress_display.dart';
+import '../components/unified_end_screen.dart';
 import '../components/animated_xp_counter.dart';
 import '../models/timed_difficulty.dart';
 import '../utils/game_difficulty_helper.dart';
@@ -461,6 +461,14 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
         _wordMastery[card.id] = card.learningMastery;
         
         print('🔍 TimedMultipleChoiceView: Awarded $actualXPGained XP to ${card.word}');
+      } else {
+        // Explicitly set 0 XP for incorrect answers
+        _xpGainedPerWord[card.id] = 0;
+        
+        // Store the word mastery for display (even for incorrect answers)
+        _wordMastery[card.id] = card.learningMastery;
+        
+        print('🔍 TimedMultipleChoiceView: No XP awarded to ${card.word} (Incorrect)');
       }
       
       // Track studied words (regardless of correctness)
@@ -489,11 +497,12 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
+        builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
           studiedWords: _studiedWords,
-          hideNavigation: true, // Hide back button and swipe for timed games
+          title: 'Timed Test Complete',
+          showSwipeToReview: false,
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {
