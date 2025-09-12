@@ -1210,7 +1210,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'Multiple Choice Complete',
-          showSwipeToReview: false,
+          showSwipeToReview: true,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             // Reset and restart test
