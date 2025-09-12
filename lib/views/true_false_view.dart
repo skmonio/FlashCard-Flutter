@@ -1375,7 +1375,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'True/False Complete',
-          showSwipeToReview: false,
+          showSwipeToReview: true,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             // Reset and restart test
