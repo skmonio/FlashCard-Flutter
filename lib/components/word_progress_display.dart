@@ -89,34 +89,43 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
   }
 
   Widget _buildBodyWithoutGestures() {
-    return Column(
-      children: [
-        // Header
-        SafeArea(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                const Spacer(),
-                const Text(
-                  'Word Progress',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+    return GestureDetector(
+      // Absorb all gestures to prevent any swipe detection
+      onHorizontalDragStart: (_) {},
+      onHorizontalDragUpdate: (_) {},
+      onHorizontalDragEnd: (_) {},
+      onPanStart: (_) {},
+      onPanUpdate: (_) {},
+      onPanEnd: (_) {},
+      child: Column(
+        children: [
+          // Header
+          SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  const Text(
+                    'Word Progress',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                  icon: const Icon(Icons.home),
-                  iconSize: 20,
-                ),
-              ],
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                    icon: const Icon(Icons.home),
+                    iconSize: 20,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        _buildContent(),
-      ],
+          _buildContent(),
+        ],
+      ),
     );
   }
 
