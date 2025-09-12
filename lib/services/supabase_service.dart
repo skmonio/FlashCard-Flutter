@@ -1,0 +1,115 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
+
+class SupabaseService {
+  static SupabaseService? _instance;
+  static SupabaseService get instance => _instance ??= SupabaseService._();
+  
+  SupabaseService._();
+  
+  SupabaseClient get client => Supabase.instance.client;
+  
+  // Initialize Supabase
+  static Future<void> initialize() async {
+    if (!SupabaseConfig.isConfigured) {
+      throw Exception('Supabase configuration is missing. Please update supabase_config.dart with your credentials.');
+    }
+    
+    await Supabase.initialize(
+      url: SupabaseConfig.supabaseUrl,
+      anonKey: SupabaseConfig.supabaseAnonKey,
+      debug: true, // Set to false in production
+    );
+  }
+  
+  // Authentication helpers
+  User? get currentUser => client.auth.currentUser;
+  bool get isAuthenticated => currentUser != null;
+  
+  // Sign up with email and password
+  Future<AuthResponse> signUp({
+    required String email,
+    required String password,
+    Map<String, dynamic>? data,
+  }) async {
+    return await client.auth.signUp(
+      email: email,
+      password: password,
+      data: data,
+      emailRedirectTo: 'taaltrek://verify-email/',
+    );
+  }
+  
+  // Handle email verification
+  Future<AuthResponse> verifyEmail({
+    required String token,
+    required String type,
+  }) async {
+    try {
+      // For email verification, we need to use the correct OTP type
+      OtpType otpType;
+      if (type == 'signup') {
+        otpType = OtpType.signup;
+      } else if (type == 'email') {
+        otpType = OtpType.email;
+      } else {
+        otpType = OtpType.signup; // Default to signup
+      }
+      
+      // Use the correct verification method
+      final response = await client.auth.verifyOTP(
+        token: token,
+        type: otpType,
+      );
+      return response;
+    } catch (e) {
+      print('❌ Error in verifyEmail: $e');
+      rethrow;
+    }
+  }
+  
+  // Sign in with email and password
+  Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
+    return await client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+  }
+  
+  // Sign out
+  Future<void> signOut() async {
+    await client.auth.signOut();
+  }
+  
+  // Listen to auth state changes
+  Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+  
+  // Get user profile
+  Future<Map<String, dynamic>?> getUserProfile() async {
+    if (!isAuthenticated) return null;
+    
+    final response = await client
+        .from('user_profiles')
+        .select()
+        .eq('id', currentUser!.id)
+        .maybeSingle();
+    
+    return response;
+  }
+  
+  // Update user profile
+  Future<void> updateUserProfile(Map<String, dynamic> profile) async {
+    if (!isAuthenticated) throw Exception('User not authenticated');
+    
+    await client
+        .from('user_profiles')
+        .upsert({
+          'id': currentUser!.id,
+          ...profile,
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+  }
+}

@@ -10,10 +10,26 @@ import 'providers/dutch_grammar_provider.dart';
 
 import 'providers/phrase_provider.dart';
 import 'services/performance_service.dart';
+import 'services/supabase_service.dart';
+import 'services/deep_link_service.dart';
+import 'utils/global_navigator.dart';
 import 'views/app_initialization_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Supabase
+  try {
+    await SupabaseService.initialize();
+    print('✅ Supabase initialized successfully');
+    
+    // Initialize deep link handling
+    DeepLinkService.initialize();
+    print('✅ Deep link service initialized');
+  } catch (e) {
+    print('❌ Failed to initialize Supabase: $e');
+    // App can still run without Supabase for now
+  }
   
   // Initialize performance service for battery and memory optimization
   PerformanceService().initialize();
@@ -84,6 +100,7 @@ class FlashcardApp extends StatelessWidget {
           
           return MaterialApp(
             title: 'Taal Trek',
+            navigatorKey: GlobalNavigator.navigatorKey,
             themeMode: themeProvider.themeMode,
             theme: ThemeData(
               colorScheme: ColorScheme.fromSeed(

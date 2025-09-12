@@ -42,6 +42,18 @@ class _AddCardViewState extends State<AddCardView> {
   bool _isLoading = false;
   bool _isTranslatingExample = false;
   final TranslationService _translationService = TranslationService();
+  
+  // Track original values for change detection
+  String _originalWord = '';
+  String _originalDefinition = '';
+  String _originalExample = '';
+  String _originalExampleTranslation = '';
+  String _originalPlural = '';
+  String _originalPastTense = '';
+  String _originalFutureTense = '';
+  String _originalPastParticiple = '';
+  String _originalArticle = '';
+  List<String> _originalDeckIds = [];
 
   @override
   void initState() {
@@ -60,12 +72,26 @@ class _AddCardViewState extends State<AddCardView> {
       _pastParticipleController.text = card.pastParticiple ?? '';
       _selectedArticle = card.article ?? '';
       _selectedDeckIds = List.from(card.deckIds);
+      
+      // Store original values for change detection
+      _originalWord = card.word;
+      _originalDefinition = card.definition;
+      _originalExample = card.example ?? '';
+      _originalExampleTranslation = card.exampleTranslation ?? '';
+      _originalPlural = card.plural ?? '';
+      _originalPastTense = card.pastTense ?? '';
+      _originalFutureTense = card.futureTense ?? '';
+      _originalPastParticiple = card.pastParticiple ?? '';
+      _originalArticle = card.article ?? '';
+      _originalDeckIds = List.from(card.deckIds);
     } else if (widget.preFilledWord != null) {
       // If adding a new card with a pre-filled word
       _wordController.text = widget.preFilledWord!;
+      _originalWord = widget.preFilledWord!;
     } else if (widget.selectedDeck != null) {
       // If adding a new card with a pre-selected deck
       _selectedDeckIds = [widget.selectedDeck!.id];
+      _originalDeckIds = [widget.selectedDeck!.id];
     }
     // Note: Default deck selection will be handled in build method
     
@@ -738,6 +764,61 @@ class _AddCardViewState extends State<AddCardView> {
 
   bool _canSave() {
     return _wordController.text.trim().isNotEmpty;
+  }
+
+  bool _hasUnsavedChanges() {
+    // Check if any field has been modified from its original value
+    return _wordController.text.trim() != _originalWord ||
+           _definitionController.text.trim() != _originalDefinition ||
+           _exampleController.text.trim() != _originalExample ||
+           _exampleTranslationController.text.trim() != _originalExampleTranslation ||
+           _pluralController.text.trim() != _originalPlural ||
+           _pastTenseController.text.trim() != _originalPastTense ||
+           _futureTenseController.text.trim() != _originalFutureTense ||
+           _pastParticipleController.text.trim() != _originalPastParticiple ||
+           _selectedArticle != _originalArticle ||
+           !_listEquals(_selectedDeckIds, _originalDeckIds);
+  }
+
+  bool _listEquals<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  void _showUnsavedChangesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: const Text('You have unsaved changes. Do you want to save them before going back?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back without saving
+            },
+            child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              // Stay on the page
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              _submitCard(); // Save and then go back
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   FlashCard? _findDuplicateCard() {
@@ -1625,7 +1706,13 @@ class _AddCardViewState extends State<AddCardView> {
           top: 0,
           bottom: 0,
           child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              if (_hasUnsavedChanges()) {
+                _showUnsavedChangesDialog();
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           ),
         ),

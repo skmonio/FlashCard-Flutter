@@ -24,6 +24,11 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
 
+  @override
+  void initState() {
+    super.initState();
+    // Begin.wav sound is already played in AppInitializationView when app starts
+  }
 
   @override
   Widget build(BuildContext context) {

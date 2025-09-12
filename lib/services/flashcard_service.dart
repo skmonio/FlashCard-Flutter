@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
+import 'supabase_service.dart';
+import 'data_sync_service.dart';
 
 class FlashcardService {
   static const String _decksKey = 'decks';
@@ -44,6 +46,11 @@ class FlashcardService {
     _cards = cardsJson
         .map((json) => FlashCard.fromJson(jsonDecode(json)))
         .toList();
+    
+    print('🔍 FlashcardService: Loaded ${_decks.length} decks and ${_cards.length} cards');
+    for (final deck in _decks) {
+      print('🔍 FlashcardService: Deck: ${deck.name} (${deck.id})');
+    }
   }
   
   Future<void> saveData() async {
@@ -67,6 +74,18 @@ class FlashcardService {
       print('Service: Saving ${cardsJson.length} cards');
       await prefs.setStringList(_cardsKey, cardsJson);
       print('Service: Cards saved successfully');
+      
+      // Auto-sync to cloud if user is authenticated
+      if (SupabaseService.instance.isAuthenticated) {
+        print('Service: Auto-syncing to cloud...');
+        try {
+          await DataSyncService.syncAllData();
+          print('Service: Auto-sync completed successfully');
+        } catch (e) {
+          print('Service: Auto-sync failed (non-critical): $e');
+          // Don't rethrow - local save was successful
+        }
+      }
     } catch (e) {
       print('Service: Error in _saveData: $e');
       rethrow;
@@ -89,14 +108,62 @@ class FlashcardService {
   // MARK: - System Decks
   
   Future<void> _ensureSystemDecks() async {
+    // First, clean up any duplicate default decks
+    await _cleanupDuplicateDefaultDecks();
+    
     // Ensure Uncategorized deck exists
     if (!_decks.any((deck) => deck.name == 'Uncategorized')) {
+      print('🔍 FlashcardService: Creating missing Uncategorized deck');
       await createDeck('Uncategorized');
+    } else {
+      print('🔍 FlashcardService: Uncategorized deck already exists');
     }
     
     // Ensure Review deck exists
     if (!_decks.any((deck) => deck.name == 'Review')) {
+      print('🔍 FlashcardService: Creating missing Review deck');
       await createDeck('Review');
+    } else {
+      print('🔍 FlashcardService: Review deck already exists');
+    }
+  }
+  
+  Future<void> _cleanupDuplicateDefaultDecks() async {
+    final defaultDeckNames = {'Uncategorized', 'Review'};
+    final decksToRemove = <String>[];
+    
+    for (final deckName in defaultDeckNames) {
+      final decksWithName = _decks.where((deck) => deck.name == deckName).toList();
+      
+      if (decksWithName.length > 1) {
+        print('🔍 FlashcardService: Found ${decksWithName.length} duplicate $deckName decks');
+        
+        // Keep the first one, remove the rest
+        for (int i = 1; i < decksWithName.length; i++) {
+          final deckToRemove = decksWithName[i];
+          print('🔍 FlashcardService: Removing duplicate $deckName deck: ${deckToRemove.id}');
+          
+          // Move any cards from the duplicate deck to the first one
+          final firstDeck = decksWithName[0];
+          for (final card in _cards) {
+            if (card.deckIds.contains(deckToRemove.id)) {
+              card.deckIds.remove(deckToRemove.id);
+              if (!card.deckIds.contains(firstDeck.id)) {
+                card.deckIds.add(firstDeck.id);
+              }
+            }
+          }
+          
+          decksToRemove.add(deckToRemove.id);
+        }
+      }
+    }
+    
+    // Remove the duplicate decks
+    if (decksToRemove.isNotEmpty) {
+      _decks.removeWhere((deck) => decksToRemove.contains(deck.id));
+      await saveData();
+      print('🔍 FlashcardService: Cleaned up ${decksToRemove.length} duplicate default decks');
     }
   }
   
@@ -151,6 +218,12 @@ class FlashcardService {
   }
   
   Future<void> deleteDeck(String deckId) async {
+    // Check if this is a default deck that shouldn't be deleted
+    final deck = getDeck(deckId);
+    if (deck != null && (deck.name == 'Uncategorized' || deck.name == 'Review')) {
+      throw Exception('Cannot delete default decks (${deck.name})');
+    }
+    
     // Remove all cards from this deck
     _cards.removeWhere((card) => card.deckIds.contains(deckId));
     

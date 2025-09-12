@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
+import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
@@ -9,6 +10,8 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/xp_service.dart';
+import '../services/haptic_service.dart';
+import '../services/sound_manager.dart';
 
 import '../components/word_progress_display.dart';
 import 'add_card_view.dart';
@@ -234,7 +237,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => _showCloseConfirmation(),
+                        onPressed: () => Navigator.of(context).pop(),
                         icon: const Icon(Icons.arrow_back_ios),
                         iconSize: 20,
                       ),
@@ -338,6 +341,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     final currentCard = _currentCards[_currentIndex];
     
     return GestureDetector(
+      onPanStart: _handlePanStart,
       onPanUpdate: _handlePanUpdate,
       onPanEnd: _handlePanEnd,
       onDoubleTap: _handleCardDoubleTap,
@@ -673,8 +677,17 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     );
   }
 
+  void _handlePanStart(DragStartDetails details) {
+    if (_nextCardActive) return;
+    
+    // Start continuous long vibration when user starts touching the card
+    HapticService().startContinuousVibration();
+  }
+
   void _handlePanUpdate(DragUpdateDetails details) {
     if (_nextCardActive) return;
+    
+    final previousDirection = _swipeDirection;
     
     setState(() {
       _dragOffset += details.delta;
@@ -698,16 +711,28 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _dragOffset = Offset.zero;
       }
     });
+    
+    // Continuous haptic feedback is handled in _handlePanStart
   }
 
   void _handlePanEnd(DragEndDetails details) {
     if (_nextCardActive) return;
     
+    // Stop continuous vibration when pan ends
+    HapticService().stopContinuousVibration();
+    
     final velocity = details.velocity.pixelsPerSecond;
     final distance = _dragOffset.distance;
     
+    print('🔍 Advanced Study: Pan ended - direction: $_swipeDirection, distance: $distance, velocity: ${velocity.distance}');
+    
     // Only process swipe if we have a valid direction and sufficient distance/velocity
-    if (_swipeDirection != SwipeDirection.none && (distance > 100 || velocity.distance > 500)) {
+    if (_swipeDirection != SwipeDirection.none && (distance > 50 || velocity.distance > 200)) {
+      print('🎯 Advanced Study: Swipe completed - direction: $_swipeDirection, distance: $distance, velocity: ${velocity.distance}');
+      // Provide haptic feedback for successful swipe
+      HapticService().mediumImpact();
+      // Play swipe sound for successful swipe
+      SoundManager().playSwipeSound();
       _handleSwipe(_swipeDirection);
     } else {
       // Reset card position if swipe wasn't valid
@@ -1100,8 +1125,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to study type selection
             },
             child: const Text('End Session'),
           ),
@@ -1145,7 +1170,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
-          hideNavigation: true, // Hide back button and swipe for advanced study
+          hideNavigation: false, // Show back button and navigation for advanced study
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart study session
@@ -1461,6 +1486,10 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
 
     // Gesture handling with smooth movement
     return GestureDetector(
+      onPanStart: (details) {
+        // Start continuous long vibration when user starts touching the card
+        HapticService().startContinuousVibration();
+      },
       onPanUpdate: (details) {
         setState(() {
           position += details.delta;
@@ -1501,13 +1530,22 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
             swipeDirection = SwipeDirection.none;
           }
         });
+        
+        // Continuous haptic feedback is handled in onPanStart
       },
       onPanEnd: (details) {
+        // Stop continuous vibration when pan ends
+        HapticService().stopContinuousVibration();
         final velocity = details.velocity.pixelsPerSecond;
         final speed = velocity.distance;
         
+        print('🔍 TaalTrekStackCard: Pan ended - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
+        
         // Use the exact logic from your working code
-        if (position.distance > 120 || speed > 600) {
+        if (position.distance > 60 || speed > 300) {
+          print('🎯 TaalTrekStackCard: Swipe completed - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
+          // Play swipe sound for successful swipe
+          SoundManager().playSwipeSound();
           // Mark answer immediately
           widget.onAnswer(swipeDirection);
           

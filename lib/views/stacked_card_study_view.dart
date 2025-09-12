@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'dart:async';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
+import '../services/haptic_service.dart';
+import '../services/sound_manager.dart';
 import 'add_card_view.dart';
 
 enum SwipeDirection {
@@ -352,8 +355,8 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
                           isTop: i == 0,
                           offset: Offset(20.0 * i, -20.0 * i),
                           scale: 1 - 0.05 * i,
-                          width: size.width * 0.85,
-                          height: size.height * 0.4,
+                          width: size.width * 0.9,
+                          height: size.height * 0.5,
                           onDismissed: i == 0 ? _removeTopCard : null,
                           onAnswer: _markAnswer,
                           startFlipped: widget.startFlipped,
@@ -731,7 +734,13 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
 
     // Gesture handling with smooth movement
     return GestureDetector(
+      onPanStart: (details) {
+        // Start continuous long vibration when user starts touching the card
+        HapticService().startContinuousVibration();
+      },
       onPanUpdate: (details) {
+        final previousDirection = swipeDirection;
+        
         setState(() {
           position += details.delta;
           
@@ -771,13 +780,26 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
             swipeDirection = SwipeDirection.none;
           }
         });
+        
+        // Continuous haptic feedback is handled in onPanStart
       },
       onPanEnd: (details) {
+        // Stop continuous vibration when pan ends
+        HapticService().stopContinuousVibration();
+        
         final velocity = details.velocity.pixelsPerSecond;
         final speed = velocity.distance;
         
+        print('🔍 Stacked Study: Pan ended - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
+        
         // Use the exact logic from your working code
-        if (position.distance > 120 || speed > 600) {
+        if (position.distance > 60 || speed > 300) {
+          print('🎯 Stacked Study: Swipe completed - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
+          // Provide haptic feedback for successful swipe
+          HapticService().mediumImpact();
+          // Play swipe sound for successful swipe
+          SoundManager().playSwipeSound();
+          
           // Mark answer immediately
           widget.onAnswer(userAnswer ?? false, swipeDirection);
           

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/xp_service.dart';
+import '../services/sound_manager.dart';
 
 class UnifiedEndScreen extends StatefulWidget {
   final List<FlashCard> studiedWords;
@@ -38,6 +39,10 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
   @override
   void initState() {
     super.initState();
+    
+    // Play complete sound when end screen loads
+    SoundManager().playCompleteSound();
+    
     _mainController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -96,7 +101,14 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                   children: [
                     // Back button (top left) - always show
                     IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        // Use the onDone callback if available, otherwise just pop
+                        if (widget.onDone != null) {
+                          widget.onDone!();
+                        } else {
+                          Navigator.of(context).pop();
+                        }
+                      },
                       icon: const Icon(Icons.arrow_back_ios),
                       iconSize: 20,
                     ),

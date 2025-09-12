@@ -36,10 +36,10 @@ class MainHeader extends StatelessWidget {
             Center(
               child: Text(
                 title ?? 'Taal Trek',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -59,7 +59,7 @@ class MainHeader extends StatelessWidget {
               top: 0,
               bottom: 0,
               child: rightAction ?? IconButton(
-                icon: const Icon(Icons.person, color: Colors.black),
+                icon: Icon(Icons.person, color: Theme.of(context).colorScheme.onSurface),
                 onPressed: onProfileTap ?? () {
                   Navigator.push(
                     context,

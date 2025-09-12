@@ -1498,10 +1498,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         Center(
           child: Text(
             'Study Type',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -1513,7 +1513,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -1526,7 +1526,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             onPressed: () => _shouldShowSettings() ? _showSettingsDialog(context) : _showGameInfo(context),
             icon: Icon(
               _shouldShowSettings() ? Icons.settings : Icons.info,
-              color: Colors.blue,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),

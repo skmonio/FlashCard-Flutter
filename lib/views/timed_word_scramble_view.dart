@@ -501,7 +501,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                     height: 200,
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Theme.of(context).colorScheme.surface 
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: _getCardBorderColor(card),
@@ -514,7 +516,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                           offset: const Offset(0, 4),
                         ),
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
                           blurRadius: 15,
                           offset: const Offset(0, 6),
                         ),
@@ -523,10 +525,12 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                     child: Center(
                       child: Text(
                         _isQuestionMode ? card.definition : card.word,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: Theme.of(context).brightness == Brightness.dark 
+                              ? Theme.of(context).colorScheme.onSurface 
+                              : Colors.black87,
                         ),
                         textAlign: TextAlign.center,
                         softWrap: true,

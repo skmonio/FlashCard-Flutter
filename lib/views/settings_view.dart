@@ -10,6 +10,8 @@ import 'clear_data_view.dart';
 import 'onboarding_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
+import '../services/supabase_service.dart';
+import '../utils/global_navigator.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -30,6 +32,10 @@ class _SettingsViewState extends State<SettingsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Account Management
+            _buildAccountSection(context),
+            const SizedBox(height: 24),
+            
             // App Settings
             _buildAppSettingsSection(context),
             const SizedBox(height: 24),
@@ -427,6 +433,133 @@ class _SettingsViewState extends State<SettingsView> {
         },
       ),
     );
+  }
+
+  Widget _buildAccountSection(BuildContext context) {
+    final isAuthenticated = SupabaseService.instance.isAuthenticated;
+    final currentUser = SupabaseService.instance.currentUser;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Account',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Column(
+            children: [
+              if (isAuthenticated && currentUser != null) ...[
+                ListTile(
+                  leading: const Icon(Icons.person, color: Colors.blue),
+                  title: const Text('Signed In'),
+                  subtitle: Text(currentUser.email ?? 'No email'),
+                  trailing: const Icon(Icons.check_circle, color: Colors.green),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.sync, color: Colors.orange),
+                  title: const Text('Sync Status'),
+                  subtitle: const Text('Your data syncs automatically'),
+                  trailing: const Icon(Icons.cloud_done, color: Colors.green),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.lock_reset, color: Colors.orange),
+                  title: const Text('Change Password'),
+                  subtitle: const Text('Update your account password'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    _showChangePasswordDialog(context);
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
+                  subtitle: const Text('Sign out of your account'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
+                  onTap: () {
+                    _showSignOutDialog(context);
+                  },
+                ),
+              ] else ...[
+                ListTile(
+                  leading: const Icon(Icons.person_outline, color: Colors.grey),
+                  title: const Text('Not Signed In'),
+                  subtitle: const Text('Sign in to sync your data across devices'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.of(context).pushReplacementNamed('/auth');
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showChangePasswordDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change Password'),
+        content: const Text('Password change feature will be available in a future update. For now, you can reset your password by signing out and using the "Forgot Password" option.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSignOutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out? Your data will remain synced to the cloud and you can sign back in anytime.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _signOut(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    try {
+      await SupabaseService.instance.signOut();
+      
+      if (mounted) {
+        GlobalNavigator.showSnackBar('Signed out successfully');
+        // Navigate to auth screen
+        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        GlobalNavigator.showSnackBar('Error signing out: $e');
+      }
+    }
   }
 }
 

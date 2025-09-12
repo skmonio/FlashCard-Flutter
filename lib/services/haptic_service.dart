@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibration/vibration.dart';
 
 class HapticService {
   static final HapticService _instance = HapticService._internal();
@@ -112,5 +113,29 @@ class HapticService {
   void memoryGameFeedback() {
     if (!_hapticEnabled) return;
     HapticFeedback.mediumImpact();
+  }
+
+  /// Start continuous vibration - for sustained haptic feedback
+  void startContinuousVibration() {
+    if (!_hapticEnabled) return;
+    try {
+      // Use vibration package for continuous vibration
+      // Try with a very long duration that will be stopped manually
+      Vibration.vibrate(duration: 30000); // 30 second duration, will be stopped manually
+    } catch (e) {
+      print('Error starting continuous vibration: $e');
+      // Fallback to heavy impact
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Stop continuous vibration
+  void stopContinuousVibration() {
+    if (!_hapticEnabled) return;
+    try {
+      Vibration.cancel();
+    } catch (e) {
+      print('Error stopping continuous vibration: $e');
+    }
   }
 }

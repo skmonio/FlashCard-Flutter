@@ -631,10 +631,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                     onDoubleTap: _flipCard,
                     child: Container(
                       width: double.infinity,
-                      height: 200, // Reduced height
+                      height: MediaQuery.of(context).size.height * 0.4, // Responsive height - 40% of screen
                       padding: const EdgeInsets.all(24), // Reduced padding
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Theme.of(context).colorScheme.surface 
+                            : Colors.white,
                         borderRadius: BorderRadius.circular(20), // Slightly smaller radius
                         border: Border.all(
                           color: _getCardBorderColor(currentCard),
@@ -647,7 +649,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                             offset: const Offset(0, 4),
                           ),
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
                             blurRadius: 15,
                             offset: const Offset(0, 6),
                           ),
@@ -658,10 +660,12 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                           _isCardFlipped 
                               ? (_isQuestionMode ? currentCard.word : currentCard.definition)
                               : question,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 32, // Smaller font size
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: Theme.of(context).brightness == Brightness.dark 
+                                ? Theme.of(context).colorScheme.onSurface 
+                                : Colors.black87,
                           ),
                           textAlign: TextAlign.center,
                           softWrap: true,

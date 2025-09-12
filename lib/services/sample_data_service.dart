@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
@@ -210,7 +211,34 @@ class SampleDataService {
   static Future<bool> shouldShowSampleDataPrompt() async {
     final prefs = await SharedPreferences.getInstance();
     final hasOffered = prefs.getBool(_sampleDataKey);
-    return hasOffered != true; // Return true if we haven't offered yet
+    
+    // Don't show if we've already offered
+    if (hasOffered == true) {
+      return false;
+    }
+    
+    // Don't show if user already has cards
+    final cards = prefs.getStringList('cards') ?? [];
+    if (cards.isNotEmpty) {
+      return false;
+    }
+    
+    // Don't show if user has custom decks (not just system decks)
+    final decks = prefs.getStringList('decks') ?? [];
+    for (final deckJson in decks) {
+      try {
+        final deckData = json.decode(deckJson);
+        final deckName = deckData['name'] as String?;
+        if (deckName != null && deckName != 'Uncategorized' && deckName != 'Review') {
+          return false; // User has custom decks, don't show sample prompt
+        }
+      } catch (e) {
+        // If we can't parse, assume it's custom data
+        return false;
+      }
+    }
+    
+    return true; // Show prompt only if no data exists
   }
   
   // Show sample data prompt dialog

@@ -3,6 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:math';
 import '../models/user_profile.dart';
+import '../services/supabase_service.dart';
+import '../services/data_sync_service.dart';
 
 class UserProfileProvider extends ChangeNotifier {
   static const String _profileKey = 'user_profile';
@@ -108,6 +110,18 @@ class UserProfileProvider extends ChangeNotifier {
       print('🔍 UserProfileProvider: Profile JSON: $profileJson');
       await prefs.setString(_profileKey, profileJson);
       print('🔍 UserProfileProvider: Profile saved to SharedPreferences successfully');
+      
+      // Auto-sync to cloud if user is authenticated
+      if (SupabaseService.instance.isAuthenticated) {
+        print('🔍 UserProfileProvider: Auto-syncing profile to cloud...');
+        try {
+          await DataSyncService.syncUserProfile();
+          print('🔍 UserProfileProvider: Profile auto-sync completed successfully');
+        } catch (e) {
+          print('🔍 UserProfileProvider: Profile auto-sync failed (non-critical): $e');
+          // Don't rethrow - local save was successful
+        }
+      }
     } catch (e) {
       print('🔍 UserProfileProvider: Error saving profile: $e');
       _error = 'Failed to save profile: $e';

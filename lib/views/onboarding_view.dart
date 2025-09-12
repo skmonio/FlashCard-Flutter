@@ -118,6 +118,29 @@ class _OnboardingViewState extends State<OnboardingView> {
               ),
             ),
           
+          // Close/Skip button for first-time users
+          if (widget.isFirstTime)
+            SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _completeOnboarding,
+                      child: const Text('Skip'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _completeOnboarding,
+                      icon: const Icon(Icons.close),
+                      iconSize: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          
           // Page content
           Expanded(
             child: PageView.builder(

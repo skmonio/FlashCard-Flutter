@@ -7,6 +7,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
+import '../services/sound_manager.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
@@ -47,9 +48,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
   double _lastPhysicsUpdate = 0;
 
   static const double _bubbleBaseSpeed = 100.0;
-  static const double _bubbleHeight = 60.0;
-  static const double _minBubbleWidth = 80.0;
-  static const double _maxBubbleWidth = 300.0;
+  double _bubbleHeight = 60.0; // Made responsive
+  double _minBubbleWidth = 80.0; // Made responsive
+  double _maxBubbleWidth = 300.0; // Made responsive
 
   final List<Color> outlineColors = [
     Colors.red,
@@ -162,6 +163,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final currentCard = widget.cards[_currentIndex];
     final correct = currentCard.word;
     bool isCorrect = tappedBubble.text == correct;
+
+    // Play pop sound when bubble is tapped
+    SoundManager().playPopSound();
 
     _ticker.stop();
 
@@ -410,7 +414,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
         return await _showCloseConfirmation();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         appBar: AppBar(
           title: Text(widget.title),
           backgroundColor: Colors.transparent,
@@ -435,6 +439,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
           builder: (context, constraints) {
             _screenWidth = constraints.maxWidth;
             _screenHeight = constraints.maxHeight;
+            
+            // Make bubbles responsive to screen size
+            _bubbleHeight = _screenHeight * 0.08; // 8% of screen height
+            _minBubbleWidth = _screenWidth * 0.15; // 15% of screen width
+            _maxBubbleWidth = _screenWidth * 0.4; // 40% of screen width
             if (bubbles.any((b) => b.vx == 0 && b.vy == 0)) {
               _initializeBubblePositionsAndVelocities(
                   bubbles.map((b) => b.text).toList());
@@ -451,16 +460,18 @@ class _PopYourCardViewState extends State<PopYourCardView>
                         children: [
                           Text(
                             "Question ${_currentIndex + 1} of ${widget.cards.length}",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           Text(
                             "${(progress * 100).round()}%",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ],
@@ -481,10 +492,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Text(
                     "Translate '${currentCard.definition}'",
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -622,8 +633,8 @@ class AnimatedBubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: Text(
               bubble.text,
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),

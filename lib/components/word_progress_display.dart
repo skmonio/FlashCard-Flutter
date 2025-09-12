@@ -93,7 +93,14 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
                 child: Row(
                   children: [
                     if (!widget.hideNavigation) IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        // Use the onDone callback if available, otherwise just pop
+                        if (widget.onDone != null) {
+                          widget.onDone!();
+                        } else {
+                          Navigator.of(context).pop();
+                        }
+                      },
                       icon: const Icon(Icons.arrow_back_ios),
                       iconSize: 20,
                     ),

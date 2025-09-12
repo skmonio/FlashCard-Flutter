@@ -720,7 +720,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   // Card with theme-adaptive background and colored outline
                   Container(
                     width: double.infinity,
-                    height: 200, // Reduced height
+                    height: MediaQuery.of(context).size.height * 0.4, // Responsive height - 40% of screen
                     padding: const EdgeInsets.all(24), // Reduced padding
                     decoration: BoxDecoration(
                       color: Theme.of(context).brightness == Brightness.dark 

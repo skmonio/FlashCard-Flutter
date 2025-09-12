@@ -72,6 +72,26 @@ class SoundManager {
     }
   }
 
+  Future<void> playSwipeSound() async {
+    try {
+      await initialize();
+      await _audioPlayer.stop(); // Stop any currently playing audio
+      await _audioPlayer.play(AssetSource('audio/Swipe.wav'));
+    } catch (e) {
+      print('Error playing swipe sound: $e');
+    }
+  }
+
+  Future<void> playPopSound() async {
+    try {
+      await initialize();
+      await _audioPlayer.stop(); // Stop any currently playing audio
+      await _audioPlayer.play(AssetSource('audio/Pop.wav'));
+    } catch (e) {
+      print('Error playing pop sound: $e');
+    }
+  }
+
   Future<void> stop() async {
     try {
       await _audioPlayer.stop();

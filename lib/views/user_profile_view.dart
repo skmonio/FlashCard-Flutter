@@ -584,10 +584,10 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
         Center(
           child: Text(
             'Profile',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -599,7 +599,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -609,7 +609,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           top: 0,
           bottom: 0,
           child: IconButton(
-            icon: const Icon(Icons.edit, color: Colors.black),
+            icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.onSurface),
             onPressed: () => _showEditProfile(),
           ),
         ),

@@ -61,20 +61,21 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back),
+                    icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
                   ),
                   const Spacer(),
-                  const Text(
+                  Text(
                     'Store',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
                     onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                    icon: const Icon(Icons.home),
+                    icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
                     iconSize: 20,
                   ),
                 ],

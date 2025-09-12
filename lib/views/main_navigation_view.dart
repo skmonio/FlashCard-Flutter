@@ -32,7 +32,8 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       final provider = context.read<FlashcardProvider>();
       await provider.initialize();
       
-
+      // Check if data was synced and refresh if needed
+      await _checkForDataChanges(provider);
       
       // Check if user wants sample data (only show on first launch)
       if (await SampleDataService.shouldShowSampleDataPrompt()) {
@@ -42,6 +43,16 @@ class _MainNavigationViewState extends State<MainNavigationView> {
       // Force refresh the UI
       setState(() {});
     });
+  }
+  
+  Future<void> _checkForDataChanges(FlashcardProvider provider) async {
+    try {
+      // Re-initialize the provider to pick up any synced data
+      await provider.initialize();
+      print('🔄 MainNavigationView: Provider re-initialized after potential data sync');
+    } catch (e) {
+      print('❌ MainNavigationView: Error re-initializing provider: $e');
+    }
   }
 
   @override

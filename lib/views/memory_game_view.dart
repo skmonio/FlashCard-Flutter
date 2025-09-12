@@ -378,7 +378,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                     children: [
                       IconButton(
                         onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
+                        icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                         iconSize: 20,
                       ),
                       const Spacer(),
@@ -386,9 +386,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
                         children: [
                           Text(
                             widget.startFlipped ? 'Study Cards' : 'Memory Game',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           if (_isTimedMode) ...[
@@ -414,7 +415,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                       const Spacer(),
                       IconButton(
                         onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
+                        icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
                         iconSize: 20,
                       ),
                     ],
@@ -481,8 +482,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
                 children: _memoryCards.take(5).map((card) {
                   final index = _memoryCards.indexOf(card);
                   return SizedBox(
-                    width: 140,
-                    height: 70,
+                    width: MediaQuery.of(context).size.width * 0.18, // Responsive width
+                    height: MediaQuery.of(context).size.height * 0.12, // Responsive height
                     child: _buildFloatingCard(card, index),
                   );
                 }).toList(),
@@ -496,8 +497,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
                 children: _memoryCards.skip(5).map((card) {
                   final index = _memoryCards.indexOf(card);
                   return SizedBox(
-                    width: 140,
-                    height: 70,
+                    width: MediaQuery.of(context).size.width * 0.18, // Responsive width
+                    height: MediaQuery.of(context).size.height * 0.12, // Responsive height
                     child: _buildFloatingCard(card, index),
                   );
                 }).toList(),
@@ -609,7 +610,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
           width: double.infinity,
-          height: 70,
+          height: MediaQuery.of(context).size.height * 0.12, // Responsive height
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
