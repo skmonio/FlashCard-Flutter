@@ -78,8 +78,6 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
 
   @override
   Widget build(BuildContext context) {
-    final xpService = XpService();
-    
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: widget.hideNavigation 
