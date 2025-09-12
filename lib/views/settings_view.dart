@@ -8,6 +8,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import 'unified_import_export_view.dart';
 import 'clear_data_view.dart';
 import 'onboarding_view.dart';
+import 'auth_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/supabase_service.dart';
@@ -495,7 +496,33 @@ class _SettingsViewState extends State<SettingsView> {
                   subtitle: const Text('Sign in to sync your data across devices'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
-                    Navigator.of(context).pushReplacementNamed('/auth');
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const AuthView()),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.person_add, color: Colors.blue),
+                  title: const Text('Create Account'),
+                  subtitle: const Text('Sign up for a new account'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const AuthView()),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.login, color: Colors.green),
+                  title: const Text('Sign In'),
+                  subtitle: const Text('Sign in to existing account'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const AuthView()),
+                    );
                   },
                 ),
               ],
@@ -553,7 +580,10 @@ class _SettingsViewState extends State<SettingsView> {
       if (mounted) {
         GlobalNavigator.showSnackBar('Signed out successfully');
         // Navigate to auth screen
-        Navigator.of(context).pushNamedAndRemoveUntil('/auth', (route) => false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthView()),
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {
