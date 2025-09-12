@@ -52,6 +52,9 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   // Swipe direction tracking
   SwipeDirection _swipeDirection = SwipeDirection.none;
   double _swipeIntensity = 0;
+  
+  // Completion guard to prevent double end screens
+  bool _hasShownResults = false;
 
   @override
   void initState() {
@@ -213,7 +216,8 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
     _removeTopCard();
     
     // Check if study is complete and show results immediately
-    if (topIndex >= _currentCards.length) {
+    if (topIndex >= _currentCards.length && !_hasShownResults) {
+      print('🔍 StackedCardStudyView: Study complete, showing results');
       _showResults();
     }
   }
@@ -241,6 +245,15 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   void _showResults() {
+    // Prevent multiple end screens from being shown
+    if (_hasShownResults) {
+      print('🔍 StackedCardStudyView: Results already shown, skipping duplicate');
+      return;
+    }
+    
+    _hasShownResults = true;
+    print('🔍 StackedCardStudyView: Showing results screen');
+    
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
@@ -257,6 +270,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
               _consecutiveCorrect = 0;
               _totalAnswers = 0;
               _correctAnswers = 0;
+              _hasShownResults = false; // Reset guard for new session
             });
           },
           onDone: () {
