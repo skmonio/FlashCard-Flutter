@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import 'main_navigation_view.dart';
+import 'auth_view.dart';
 
 class EmailVerificationView extends StatefulWidget {
   const EmailVerificationView({super.key});
@@ -79,7 +81,9 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacementNamed('/home');
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (context) => const MainNavigationView()),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF007AFF),
@@ -109,7 +113,9 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacementNamed('/auth');
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(builder: (context) => const AuthView()),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF007AFF),

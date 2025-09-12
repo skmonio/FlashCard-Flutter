@@ -4,6 +4,7 @@ import '../models/store_pack.dart';
 import '../models/dutch_word_exercise.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
+import 'add_deck_view.dart';
 
 class StorePackDetailView extends StatefulWidget {
   final StorePack pack;
@@ -964,7 +965,9 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
 
       if (shouldCreate == true) {
         // Navigate to create deck view
-        final result = await Navigator.of(context).pushNamed('/add-deck');
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => const AddDeckView()),
+        );
         if (result == true) {
           // Refresh decks and show selection dialog
           return _showDeckSelectionDialog();
