@@ -82,59 +82,109 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe left to return to previous screen (only if navigation not hidden)
-          if (!widget.hideNavigation && details.primaryVelocity! > 0) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Column(
-          children: [
-            // Header
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    if (!widget.hideNavigation) IconButton(
-                      onPressed: () {
-                        // Use the onDone callback if available, otherwise just pop
-                        if (widget.onDone != null) {
-                          widget.onDone!();
-                        } else {
-                          Navigator.of(context).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.arrow_back_ios),
-                      iconSize: 20,
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Word Progress',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      icon: const Icon(Icons.home),
-                      iconSize: 20,
-                    ),
-                  ],
+      body: widget.hideNavigation 
+        ? _buildBodyWithoutGestures()
+        : _buildBodyWithGestures(),
+    );
+  }
+
+  Widget _buildBodyWithoutGestures() {
+    return Column(
+      children: [
+        // Header
+        SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                const Spacer(),
+                const Text(
+                  'Word Progress',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                  icon: const Icon(Icons.home),
+                  iconSize: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+        _buildContent(),
+      ],
+    );
+  }
+
+  Widget _buildBodyWithGestures() {
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        // Swipe left to return to previous screen
+        if (details.primaryVelocity! > 0) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Column(
+        children: [
+          // Header
+          SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      // Use the onDone callback if available, otherwise just pop
+                      if (widget.onDone != null) {
+                        widget.onDone!();
+                      } else {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    icon: const Icon(Icons.arrow_back_ios),
+                    iconSize: 20,
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'Word Progress',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                    icon: const Icon(Icons.home),
+                    iconSize: 20,
+                  ),
+                ],
               ),
             ),
-            
-            // Content - Make it scrollable
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+          ),
+          _buildContent(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    final xpService = XpService();
+    
+    return Expanded(
+      child: Column(
+        children: [
+          // Content - Make it scrollable
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     
                     // Summary with animations
                     SlideTransition(
