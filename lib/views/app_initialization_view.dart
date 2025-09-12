@@ -130,19 +130,15 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       print('🔄 Has custom decks: $hasCustomDecks');
       print('🔄 User profile: ${prefs.getString('user_profile') != null}');
       
-      // Always try to sync both ways for now - upload first, then download
-      // This ensures both devices get the latest data
-      print('🔄 Syncing data both ways...');
+      // When signing in, prioritize downloading from cloud to get user's existing data
+      print('🔄 Downloading data from cloud...');
+      await DataSyncService.downloadDataFromCloud();
       
-      // First, upload any local changes
+      // Then upload any local changes that might not be in cloud yet
       if (hasUserData) {
         print('🔄 Uploading local data to cloud...');
         await DataSyncService.syncAllData();
       }
-      
-      // Then, download any cloud changes
-      print('🔄 Downloading data from cloud...');
-      await DataSyncService.downloadDataFromCloud();
       
       // Refresh providers after data sync to ensure UI shows latest data
       print('🔄 Refreshing providers after data sync...');

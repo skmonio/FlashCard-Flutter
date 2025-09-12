@@ -160,46 +160,10 @@ class DeepLinkService {
   // Handle user sign in - sync data
   static Future<void> _handleUserSignIn() async {
     try {
-      // Check if this device has meaningful user data (not just system decks)
-      final prefs = await SharedPreferences.getInstance();
-      final decks = prefs.getStringList('decks') ?? [];
-      final cards = prefs.getStringList('cards') ?? [];
-      final userProfile = prefs.getString('user_profile');
-      
-      // Check if decks are more than just system decks (Uncategorized, Review)
-      bool hasCustomDecks = false;
-      if (decks.isNotEmpty) {
-        for (final deckJson in decks) {
-          try {
-            final deckData = json.decode(deckJson);
-            final deckName = deckData['name'] as String?;
-            if (deckName != null && deckName != 'Uncategorized' && deckName != 'Review') {
-              hasCustomDecks = true;
-              break;
-            }
-          } catch (e) {
-            // If we can't parse the deck, assume it's custom data
-            hasCustomDecks = true;
-            break;
-          }
-        }
-      }
-      
-      final hasUserData = hasCustomDecks || cards.isNotEmpty || userProfile != null;
-      
-      print('🔄 Deep link - Has user data: $hasUserData');
-      
-      if (hasUserData) {
-        // Upload local data to cloud
-        print('🔄 Uploading local data to cloud...');
-        await DataSyncService.syncAllData();
-        GlobalNavigator.showSnackBar('Data synced to cloud! ☁️');
-      } else {
-        // Download data from cloud
-        print('🔄 Downloading data from cloud...');
-        await DataSyncService.downloadDataFromCloud();
-        GlobalNavigator.showSnackBar('Data synced from cloud! ☁️');
-      }
+      // When signing in, always download from cloud first to get the user's existing data
+      print('🔄 Downloading data from cloud...');
+      await DataSyncService.downloadDataFromCloud();
+      GlobalNavigator.showSnackBar('Data synced from cloud! ☁️');
       
       // Refresh providers after data sync
       print('🔄 Refreshing providers after deep link sync...');
