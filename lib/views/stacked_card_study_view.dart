@@ -260,6 +260,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
           studiedWords: _studiedWords,
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
+          hideNavigation: true,
           onStudyAgain: () {
             Navigator.of(context).pop();
             setState(() {
