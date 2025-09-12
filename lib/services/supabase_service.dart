@@ -84,6 +84,14 @@ class SupabaseService {
     await client.auth.signOut();
   }
   
+  // Reset password
+  Future<void> resetPassword({required String email}) async {
+    await client.auth.resetPasswordForEmail(
+      email,
+      redirectTo: 'taaltrek://reset-password/',
+    );
+  }
+  
   // Listen to auth state changes
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
   

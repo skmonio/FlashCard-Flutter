@@ -537,16 +537,58 @@ class _SettingsViewState extends State<SettingsView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: const Text('Password change feature will be available in a future update. For now, you can reset your password by signing out and using the "Forgot Password" option.'),
+        title: const Text('Reset Password'),
+        content: const Text('We\'ll send you a password reset link to your email address. You can then set a new password.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _sendPasswordResetEmail(context);
+            },
+            child: const Text('Send Reset Link'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _sendPasswordResetEmail(BuildContext context) async {
+    try {
+      final user = SupabaseService.instance.currentUser;
+      if (user?.email != null) {
+        await SupabaseService.instance.resetPassword(email: user!.email!);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Password reset link sent to your email!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unable to get your email address. Please sign out and use the forgot password option on the sign-in screen.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${error.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showSignOutDialog(BuildContext context) {
