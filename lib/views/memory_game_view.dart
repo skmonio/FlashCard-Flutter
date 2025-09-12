@@ -1047,7 +1047,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              Navigator.of(context).pop();
             },
             child: const Text('Leave'),
           ),
