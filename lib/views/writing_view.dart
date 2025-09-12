@@ -1026,7 +1026,7 @@ class _WritingViewState extends State<WritingView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'Writing Complete',
-          showSwipeToReview: false,
+          showSwipeToReview: true,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test

@@ -448,7 +448,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
           title: 'Pick Your Card Complete',
-          showSwipeToReview: false,
+          showSwipeToReview: true,
           onStudyAgain: () {
             setState(() {
               currentCardIndex = 0;
