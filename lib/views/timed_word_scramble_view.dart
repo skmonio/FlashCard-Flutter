@@ -1031,7 +1031,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
           wordMastery: _wordMastery,
           studiedWords: _studiedWords,
           title: 'Timed Test Complete',
-          showSwipeToReview: false,
+          showSwipeToReview: true,
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {

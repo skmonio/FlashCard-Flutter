@@ -377,7 +377,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => _showCloseConfirmation(),
+                        onPressed: () => Navigator.of(context).pop(),
                         icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                         iconSize: 20,
                       ),
