@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/xp_service.dart';
+import '../services/sound_manager.dart';
 
 class WordProgressDisplay extends StatefulWidget {
   final List<FlashCard> studiedWords;
@@ -36,6 +37,10 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
   @override
   void initState() {
     super.initState();
+    
+    // Play complete sound when end screen loads
+    SoundManager().playCompleteSound();
+    
     _mainController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
