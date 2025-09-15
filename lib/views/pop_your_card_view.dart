@@ -84,6 +84,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
       return;
     }
 
+    if (widget.cards.isEmpty) {
+      print('❌ PopYourCardView: No cards available');
+      return;
+    }
+
     bubbles.clear();
     final currentCard = widget.cards[_currentIndex];
     final String correctDutchWord = currentCard.word;
@@ -160,6 +165,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
   }
 
   void _onBubbleTap(Bubble tappedBubble) {
+    if (_currentIndex >= widget.cards.length) {
+      print('❌ PopYourCardView: Invalid card index: $_currentIndex');
+      return;
+    }
+
     final currentCard = widget.cards[_currentIndex];
     final correct = currentCard.word;
     bool isCorrect = tappedBubble.text == correct;
@@ -237,7 +247,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
   }
 
   void _showCardXPFeedback(FlashCard card, bool isCorrect, String correctAnswer) {
-    final xpGained = isCorrect ? _xpGainedPerWord[card.word] ?? 0 : 0;
+    final xpGained = isCorrect ? _xpGainedPerWord[card.id] ?? 0 : 0;
     
     showDialog<void>(
       context: context,
@@ -271,11 +281,16 @@ class _PopYourCardViewState extends State<PopYourCardView>
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              _nextCard();
-              // Only restart ticker if we're still on the same screen (not navigating away)
-              if (mounted && _currentIndex < widget.cards.length) {
-                _ticker.start();
-              }
+              // Add a small delay to prevent rapid state changes
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) {
+                  _nextCard();
+                  // Only restart ticker if we're still on the same screen (not navigating away)
+                  if (mounted && _currentIndex < widget.cards.length) {
+                    _ticker.start();
+                  }
+                }
+              });
             },
             child: const Text("Next"),
           ),
@@ -308,7 +323,8 @@ class _PopYourCardViewState extends State<PopYourCardView>
           wordMastery: _wordMastery,
           hideNavigation: true,
           onDone: () {
-            Navigator.of(context).popUntil((route) => route.isFirst); // Go back to study type page
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
@@ -397,6 +413,15 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.cards.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.title)),
+        body: const Center(
+          child: Text('No cards available for this game'),
+        ),
+      );
+    }
+
     if (_currentIndex >= widget.cards.length) {
       // This should not happen since _nextCard() handles completion
       return const Scaffold(

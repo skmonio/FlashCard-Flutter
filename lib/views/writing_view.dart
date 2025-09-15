@@ -66,6 +66,11 @@ class _WritingViewState extends State<WritingView> {
   // Custom keyboard letters
   List<String> _keyboardLetters = [];
 
+  // Hint and review tracking
+  Map<int, int> _hintCount = {}; // question index -> number of hints used
+  Map<int, String> _hintRevealed = {}; // question index -> revealed letters
+  Set<String> _reviewCards = {}; // card IDs marked for review
+
   @override
   void initState() {
     super.initState();
@@ -183,6 +188,10 @@ class _WritingViewState extends State<WritingView> {
       SoundManager().playCompleteSound();
       return;
     }
+
+    // Reset hint and review state for new question
+    _hintCount[_currentIndex] = 0;
+    _hintRevealed[_currentIndex] = '';
 
     // Check if this question has already been answered
     if (_answeredQuestions.containsKey(_currentIndex)) {
@@ -450,6 +459,15 @@ class _WritingViewState extends State<WritingView> {
       });
       _generateQuestion();
     } else {
+      // On last question, check if in shuffle mode
+      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
+      
+      if (widget.shuffleMode && widget.onComplete != null) {
+        widget.onComplete!(wasSuccessful);
+        return;
+      }
+      
       // Show results when on last question and clicking next
       setState(() {
         _showingResults = true;
@@ -462,6 +480,15 @@ class _WritingViewState extends State<WritingView> {
   void _finishGame() {
     // Only allow finishing if the question is answered
     if (!_answered) return;
+    
+    // Check if in shuffle mode
+    final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+    final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
+    
+    if (widget.shuffleMode && widget.onComplete != null) {
+      widget.onComplete!(wasSuccessful);
+      return;
+    }
     
     // Play completion sound when test is finished
     SoundManager().playCompleteSound();
@@ -558,47 +585,67 @@ class _WritingViewState extends State<WritingView> {
                   const SizedBox(height: 16),
                   
                   // Card with white background and colored outline
-                  Container(
-                    width: double.infinity,
-                    height: 200,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Theme.of(context).colorScheme.surface 
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _getCardBorderColor(currentCard),
-                        width: 4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                        BoxShadow(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
-                          blurRadius: 15,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        _isQuestionMode ? currentCard.definition : currentCard.word,
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
+                  // Card display with hint and review icons
+                  Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 200,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark 
-                              ? Theme.of(context).colorScheme.onSurface 
-                              : Colors.black87,
+                              ? Theme.of(context).colorScheme.surface 
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _getCardBorderColor(currentCard),
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                        overflow: TextOverflow.visible,
+                        child: Center(
+                          child: Text(
+                            _isQuestionMode ? currentCard.definition : currentCard.word,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Theme.of(context).colorScheme.onSurface 
+                                  : Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                            softWrap: true,
+                            overflow: TextOverflow.visible,
+                          ),
+                        ),
                       ),
-                    ),
+                      
+                      // Review flag (top left)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: _buildReviewFlag(currentCard),
+                      ),
+                      
+                      // Hint button (bottom right)
+                      if (!_answered)
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: _buildHintIcon(),
+                        ),
+                    ],
                   ),
                   
                   const SizedBox(height: 16),
@@ -877,6 +924,11 @@ class _WritingViewState extends State<WritingView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+                          
+                          // Reset hint and review tracking
+                          _hintCount.clear();
+                          _hintRevealed.clear();
+                          _reviewCards.clear();
                         });
                         _generateQuestion();
                       },
@@ -996,8 +1048,15 @@ class _WritingViewState extends State<WritingView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
+      // Reduce XP based on number of hints used (50% per hint, minimum 10% of original)
+      final hintCount = _hintCount[_currentIndex] ?? 0;
+      final hintPenalty = hintCount > 0 ? (0.5 * hintCount).clamp(0.0, 0.9) : 0.0;
+      final finalXPGained = hintCount > 0 
+          ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
+          : actualXPGained;
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = actualXPGained;
+      _xpGainedPerWord[card.id] = finalXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
@@ -1026,7 +1085,7 @@ class _WritingViewState extends State<WritingView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'Writing Complete',
-          showSwipeToReview: true,
+          showSwipeToReview: false, // Disable review functionality
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart test
@@ -1169,6 +1228,154 @@ class _WritingViewState extends State<WritingView> {
         ],
       ),
     );
+  }
+
+  Widget _buildReviewFlag(FlashCard card) {
+    final isInReview = _reviewCards.contains(card.id);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (isInReview) {
+            _reviewCards.remove(card.id);
+          } else {
+            _reviewCards.add(card.id);
+          }
+        });
+      },
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.orange,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.flag,
+          size: 16,
+          color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHintIcon() {
+    final hintCount = _hintCount[_currentIndex] ?? 0;
+    final canUseHint = _canUseHint();
+    return GestureDetector(
+      onTap: canUseHint ? _useHint : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: canUseHint ? Colors.orange : Colors.grey,
+            width: 2,
+          ),
+        ),
+        child: hintCount > 0 
+          ? Text(
+              '$hintCount',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: canUseHint ? Colors.orange : Colors.grey,
+              ),
+            )
+          : Icon(
+              Icons.lightbulb,
+              size: 16,
+              color: canUseHint ? Colors.orange : Colors.grey,
+            ),
+      ),
+    );
+  }
+
+  bool _canUseHint() {
+    if (_answered) return false;
+    
+    final correctAnswer = _correctAnswer;
+    if (correctAnswer.isEmpty) return false;
+    
+    // Count how many letters are already revealed
+    int revealedCount = 0;
+    for (int i = 0; i < correctAnswer.length; i++) {
+      final char = correctAnswer[i];
+      if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+        final upperChar = char.toUpperCase();
+        if (_revealedLetters.contains(upperChar)) {
+          revealedCount++;
+        }
+      }
+    }
+    
+    // Can use hint if not all letters are revealed (except the last one)
+    final totalLetters = correctAnswer.split('').where((char) => RegExp(r'[a-zA-Z]').hasMatch(char)).length;
+    return revealedCount < totalLetters - 1;
+  }
+
+  void _useHint() {
+    if (!_canUseHint()) return;
+    
+    final currentCard = _currentCards[_currentIndex];
+    final correctAnswer = _correctAnswer;
+    
+    if (correctAnswer.isEmpty) return;
+    
+    // Find the next unrevealed letter (excluding the last one)
+    String? nextLetter;
+    for (int i = 0; i < correctAnswer.length - 1; i++) { // Exclude last letter
+      final char = correctAnswer[i];
+      if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+        final upperChar = char.toUpperCase();
+        if (!_revealedLetters.contains(upperChar)) {
+          nextLetter = upperChar;
+          break;
+        }
+      }
+    }
+    
+    if (nextLetter != null) {
+      setState(() {
+        // Increment hint count
+        _hintCount[_currentIndex] = (_hintCount[_currentIndex] ?? 0) + 1;
+        
+        // Add the letter to revealed letters
+        _revealedLetters.add(nextLetter!);
+        
+        // Update the display word to show the revealed letter
+        _updateDisplayWord();
+        
+        // Check if word is complete after hint
+        if (_isWordComplete()) {
+          _answered = true;
+          _correctAnswers++;
+          _totalAnswered++;
+          _correctAnswersMap[_currentIndex] = true;
+          _answeredQuestions[_currentIndex] = _displayWord;
+          
+          // Award XP to word for RPG system (with hint penalty)
+          _awardXPToWord(_currentCards[_currentIndex], true);
+          
+          // Update the card in the provider to save the XP changes
+          _updateCardInProvider(_currentCards[_currentIndex]);
+        }
+      });
+      
+      // Show feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hint: Letter "$nextLetter" revealed'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
 }

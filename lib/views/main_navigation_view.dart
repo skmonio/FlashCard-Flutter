@@ -5,7 +5,7 @@ import '../providers/theme_provider.dart';
 import '../services/sample_data_service.dart';
 import 'home_view.dart';
 import 'cards_view.dart';
-
+import 'social_view.dart';
 import 'settings_view.dart';
 import '../components/bottom_navigation_view.dart';
 import '../components/main_header.dart';
@@ -92,6 +92,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
               children: const [
                 HomeView(),
                 CardsView(),
+                SocialView(),
                 SettingsView(),
               ],
             ),

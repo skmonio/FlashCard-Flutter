@@ -61,6 +61,12 @@ class SupabaseService {
         token: token,
         type: otpType,
       );
+      
+      // Ensure user profile exists after email verification
+      if (response.user != null) {
+        await ensureUserProfileExists();
+      }
+      
       return response;
     } catch (e) {
       print('❌ Error in verifyEmail: $e');
@@ -73,10 +79,17 @@ class SupabaseService {
     required String email,
     required String password,
   }) async {
-    return await client.auth.signInWithPassword(
+    final response = await client.auth.signInWithPassword(
       email: email,
       password: password,
     );
+    
+    // Ensure user profile exists after sign in
+    if (response.user != null) {
+      await ensureUserProfileExists();
+    }
+    
+    return response;
   }
   
   // Sign out
@@ -119,5 +132,45 @@ class SupabaseService {
           ...profile,
           'updated_at': DateTime.now().toIso8601String(),
         });
+  }
+
+  // Ensure user profile exists (create if not)
+  Future<void> ensureUserProfileExists() async {
+    if (!isAuthenticated) return;
+    
+    try {
+      // Check if profile already exists
+      final existingProfile = await getUserProfile();
+      if (existingProfile != null) {
+        print('✅ User profile already exists');
+        return;
+      }
+      
+      // Create default profile
+      print('🔧 Creating new user profile for ${currentUser!.id}');
+      await client
+          .from('user_profiles')
+          .insert({
+            'id': currentUser!.id,
+            'username': 'Learner',
+            'selected_avatar': 'person',
+            'profile_image_data': null,
+            'xp': 0,
+            'level': 1,
+            'total_sessions': 0,
+            'current_streak': 0,
+            'best_streak': 0,
+            'accuracy': 0.0,
+            'total_cards_studied': 0,
+            'perfect_sessions': 0,
+            'onboarding_completed': false,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+      
+      print('✅ User profile created successfully');
+    } catch (e) {
+      print('❌ Error ensuring user profile exists: $e');
+    }
   }
 }

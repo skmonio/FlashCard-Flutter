@@ -18,6 +18,9 @@ class ClearDataView extends StatefulWidget {
 
 class _ClearDataViewState extends State<ClearDataView> {
   Set<String> _selectedOptions = {};
+  bool _isClearing = false;
+  double _clearProgress = 0.0;
+  String _currentStep = '';
 
   void _toggleOption(String option) {
     setState(() {
@@ -87,26 +90,51 @@ class _ClearDataViewState extends State<ClearDataView> {
 
     if (confirmed != true) return;
 
+    // Start clearing with progress visualization
+    setState(() {
+      _isClearing = true;
+      _clearProgress = 0.0;
+      _currentStep = 'Preparing to clear data...';
+    });
+
     try {
+      final totalSteps = _selectedOptions.length;
+      double currentStep = 0.0;
+
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('cards')) {
+        _updateProgress(currentStep / totalSteps, 'Clearing flashcards...');
         await _clearAllCards();
+        currentStep += 1.0;
       }
       
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('decks')) {
+        _updateProgress(currentStep / totalSteps, 'Clearing decks...');
         await _clearAllDecks();
+        currentStep += 1.0;
       }
       
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('exercises')) {
+        _updateProgress(currentStep / totalSteps, 'Clearing exercises...');
         await _clearAllExercises();
+        currentStep += 1.0;
       }
       
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('phrases')) {
+        _updateProgress(currentStep / totalSteps, 'Clearing phrases...');
         await _clearAllPhrases();
+        currentStep += 1.0;
       }
       
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) {
+        _updateProgress(currentStep / totalSteps, 'Clearing stats & progress...');
         await _clearAllStats();
+        currentStep += 1.0;
       }
+
+      _updateProgress(1.0, 'Data cleared successfully!');
+
+      // Wait a moment to show completion
+      await Future.delayed(const Duration(milliseconds: 1000));
 
       if (mounted) {
         String message = 'Cleared: ';
@@ -133,13 +161,30 @@ class _ClearDataViewState extends State<ClearDataView> {
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _currentStep = 'Error occurred while clearing data';
+        });
+        
+        await Future.delayed(const Duration(milliseconds: 2000));
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error clearing data: $e'),
             backgroundColor: Colors.red,
           ),
         );
+        
+        Navigator.of(context).pop();
       }
+    }
+  }
+
+  void _updateProgress(double progress, String step) {
+    if (mounted) {
+      setState(() {
+        _clearProgress = progress;
+        _currentStep = step;
+      });
     }
   }
 
@@ -249,32 +294,34 @@ class _ClearDataViewState extends State<ClearDataView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
+      body: Stack(
         children: [
-          // Fixed Header - matching Taal Trek header height
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
+          Column(
+            children: [
+              // Fixed Header - matching Taal Trek header height
+              SafeArea(
+                child: Container(
+                  height: kToolbarHeight,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
                   ),
+                  child: _buildCustomHeader(context),
                 ),
               ),
-              child: _buildCustomHeader(context),
-            ),
-          ),
-          
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   // Warning
                   Container(
                     width: double.infinity,
@@ -397,6 +444,90 @@ class _ClearDataViewState extends State<ClearDataView> {
               ),
             ),
           ),
+        ],
+      ),
+          
+          // Progress overlay when clearing data
+          if (_isClearing)
+            Container(
+              color: Colors.black.withValues(alpha: 0.7),
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Progress indicator
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          value: _clearProgress,
+                          strokeWidth: 4,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Progress percentage
+                      Text(
+                        '${(_clearProgress * 100).toInt()}%',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Current step
+                      Text(
+                        _currentStep,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Progress bar
+                      Container(
+                        width: double.infinity,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(3),
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        ),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _clearProgress,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(3),
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

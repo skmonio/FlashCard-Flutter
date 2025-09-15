@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import 'main_navigation_view.dart';
+import 'username_setup_view.dart';
 
 class AuthView extends StatefulWidget {
   const AuthView({super.key});
@@ -47,8 +48,14 @@ class _AuthViewState extends State<AuthView> {
           password: _passwordController.text,
         );
         if (mounted) {
+          // Check if user has a username set
+          final hasUsername = await _checkIfUserHasUsername();
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainNavigationView()),
+            MaterialPageRoute(
+              builder: (context) => hasUsername 
+                  ? const MainNavigationView()
+                  : const UsernameSetupView(),
+            ),
           );
         }
       }
@@ -65,6 +72,20 @@ class _AuthViewState extends State<AuthView> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<bool> _checkIfUserHasUsername() async {
+    try {
+      final profile = await SupabaseService.instance.getUserProfile();
+      if (profile != null) {
+        final username = profile['username'] as String?;
+        return username != null && username.isNotEmpty && username != 'Learner';
+      }
+      return false;
+    } catch (e) {
+      print('Error checking username: $e');
+      return false;
     }
   }
 

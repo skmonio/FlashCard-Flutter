@@ -720,7 +720,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   // Card with theme-adaptive background and colored outline
                   Container(
                     width: double.infinity,
-                    height: MediaQuery.of(context).size.height * 0.4, // Responsive height - 40% of screen
+                    height: _getAdaptiveCardHeight(context), // Adaptive height based on screen size
                     padding: const EdgeInsets.all(24), // Reduced padding
                     decoration: BoxDecoration(
                       color: Theme.of(context).brightness == Brightness.dark 
@@ -748,7 +748,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                       child: Text(
                         _isQuestionMode ? currentCard.word : currentCard.definition,
                         style: TextStyle(
-                          fontSize: 32, // Smaller font size
+                          fontSize: _getAdaptiveFontSize(context), // Adaptive font size
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context).brightness == Brightness.dark 
                               ? Theme.of(context).colorScheme.onSurface 
@@ -1375,7 +1375,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'True/False Complete',
-          showSwipeToReview: true,
+          showSwipeToReview: false, // Disable review functionality
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             // Reset and restart test
@@ -1417,6 +1417,43 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       ),
     );
   }
-  
+
+  double _getAdaptiveCardHeight(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Calculate available height after accounting for header, progress bar, and buttons
+    final availableHeight = screenHeight - 200; // Reserve space for UI elements
+    
+    // For very small screens (height < 600), use much smaller percentage
+    if (screenHeight < 600) {
+      return (availableHeight * 0.2).clamp(120.0, 150.0); // 20% of available, min 120px, max 150px
+    }
+    // For medium screens (height 600-800), use medium percentage
+    else if (screenHeight < 800) {
+      return (availableHeight * 0.25).clamp(150.0, 200.0); // 25% of available, min 150px, max 200px
+    }
+    // For large screens, use larger percentage
+    else {
+      return (availableHeight * 0.3).clamp(200.0, 250.0); // 30% of available, min 200px, max 250px
+    }
+  }
+
+  double _getAdaptiveFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens, use smaller font
+    if (screenHeight < 600) {
+      return 20.0; // Smaller font for small screens
+    }
+    // For medium screens, use medium font
+    else if (screenHeight < 800) {
+      return 24.0; // Medium font for medium screens
+    }
+    // For large screens, use larger font
+    else {
+      return 28.0; // Larger font for large screens
+    }
+  }
 
 } 

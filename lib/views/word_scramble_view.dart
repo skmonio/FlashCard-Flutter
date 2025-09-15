@@ -78,6 +78,13 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+  
+  // Hint system
+  Map<int, bool> _hintUsed = {}; // Track which questions have used hints
+  Map<int, String> _hintRevealed = {}; // Track what was revealed by hint
+  
+  // Review system
+  Set<String> _reviewCards = {}; // Track which cards are in review deck
 
   @override
   void initState() {
@@ -214,6 +221,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       _answered = false;
       _userAnswer = [];
       _isCardFlipped = false;
+      // Reset hint tracking for new question (hint tracking is per question)
     });
   }
 
@@ -629,49 +637,68 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                   // Card with white background and colored outline
                   GestureDetector(
                     onDoubleTap: _flipCard,
-                    child: Container(
-                      width: double.infinity,
-                      height: MediaQuery.of(context).size.height * 0.4, // Responsive height - 40% of screen
-                      padding: const EdgeInsets.all(24), // Reduced padding
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark 
-                            ? Theme.of(context).colorScheme.surface 
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20), // Slightly smaller radius
-                        border: Border.all(
-                          color: _getCardBorderColor(currentCard),
-                          width: 4, // Slightly thinner border
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                          BoxShadow(
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
-                            blurRadius: 15,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          _isCardFlipped 
-                              ? (_isQuestionMode ? currentCard.word : currentCard.definition)
-                              : question,
-                          style: TextStyle(
-                            fontSize: 32, // Smaller font size
-                            fontWeight: FontWeight.bold,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          height: _getAdaptiveCardHeight(context), // Adaptive height based on screen size
+                          padding: const EdgeInsets.all(24), // Reduced padding
+                          decoration: BoxDecoration(
                             color: Theme.of(context).brightness == Brightness.dark 
-                                ? Theme.of(context).colorScheme.onSurface 
-                                : Colors.black87,
+                                ? Theme.of(context).colorScheme.surface 
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(20), // Slightly smaller radius
+                            border: Border.all(
+                              color: _getCardBorderColor(currentCard),
+                              width: 4, // Slightly thinner border
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                              BoxShadow(
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                          textAlign: TextAlign.center,
-                          softWrap: true,
-                          overflow: TextOverflow.visible,
+                          child: Center(
+                            child: Text(
+                              _isCardFlipped 
+                                  ? (_isQuestionMode ? currentCard.word : currentCard.definition)
+                                  : question,
+                              style: TextStyle(
+                                fontSize: _getAdaptiveFontSize(context), // Adaptive font size
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Theme.of(context).colorScheme.onSurface 
+                                    : Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                              softWrap: true,
+                              overflow: TextOverflow.visible,
+                            ),
+                          ),
                         ),
-                      ),
+                        
+                        // Review flag (top left)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: _buildReviewFlag(currentCard),
+                        ),
+                        
+                        // Hint button (bottom right)
+                        if (!_answered)
+                          Positioned(
+                            bottom: 8,
+                            right: 8,
+                            child: _buildHintIcon(),
+                          ),
+                      ],
                     ),
                   ),
                   
@@ -1218,6 +1245,142 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     );
   }
 
+  Widget _buildReviewFlag(FlashCard card) {
+    final isInReview = _reviewCards.contains(card.id);
+    
+    return GestureDetector(
+      onTap: () => _toggleReviewCard(card),
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.orange.withValues(alpha: 0.7),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.yellow.withValues(alpha: 0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.flag,
+          color: isInReview ? Colors.orange.shade700 : Colors.orange.shade400,
+          size: 18,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHintIcon() {
+    final hintUsed = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]!;
+    
+    return GestureDetector(
+      onTap: hintUsed ? null : _useHint,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: hintUsed ? Colors.orange.withValues(alpha: 0.3) : Colors.orange,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.orange.withValues(alpha: 0.5),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withValues(alpha: 0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(
+          hintUsed ? Icons.lightbulb : Icons.lightbulb_outline,
+          color: Colors.white,
+          size: 20,
+        ),
+      ),
+    );
+  }
+
+  void _toggleReviewCard(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+    
+    // Add or remove from review deck in provider
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${card.word}" to review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.yellow.shade700,
+          ),
+        );
+      } else {
+        await provider.removeCardFromReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed "${card.word}" from review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.grey.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🔍 WordScrambleView: Error toggling review card: $e');
+    }
+  }
+
+  void _useHint() {
+    if (_answered || _hintUsed.containsKey(_currentIndex)) return;
+    
+    // Get the first letter of the correct word
+    final firstLetter = _correctWord.isNotEmpty ? _correctWord[0].toUpperCase() : '';
+    
+    // Find the piece that contains the first letter
+    String? hintPiece;
+    for (final piece in _scrambledLetters) {
+      if (piece.toUpperCase().startsWith(firstLetter)) {
+        hintPiece = piece;
+        break;
+      }
+    }
+    
+    if (hintPiece != null) {
+      setState(() {
+        // Mark hint as used for this question
+        _hintUsed[_currentIndex] = true;
+        _hintRevealed[_currentIndex] = hintPiece!;
+        
+        // Auto-add the hint piece to the answer
+        _addPiece(hintPiece!);
+      });
+      
+      // Show a brief message about the hint
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hint: First letter is "$firstLetter" (-50% XP)'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   void _awardXp() {
     // Calculate total XP from actual word XP gained
     final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
@@ -1254,13 +1417,19 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
+      // Apply hint penalty if hint was used (reduce XP by 50%)
+      final finalXPGained = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]!
+          ? (actualXPGained * 0.5).round()
+          : actualXPGained;
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = actualXPGained;
+      _xpGainedPerWord[card.id] = finalXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
       
-      print('🔍 WordScrambleView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
+      final hintText = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]! ? " (with hint penalty)" : "";
+      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect)$hintText');
     } else {
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
@@ -1290,7 +1459,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'Word Scramble Complete',
-          showSwipeToReview: true, // Enable swipe to review for word scramble games
+          showSwipeToReview: false, // Disable review functionality
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {
@@ -1322,6 +1491,13 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
+              
+              // Reset hint tracking
+              _hintUsed.clear();
+              _hintRevealed.clear();
+              
+              // Reset review tracking
+              _reviewCards.clear();
             });
             _generateQuestion();
             
@@ -1337,6 +1513,24 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       ),
     );
     }
+
+  void _showReviewScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _WordScrambleReviewScreen(
+          cards: widget.cards,
+          answeredQuestions: _answeredQuestions,
+          correctAnswersMap: _correctAnswersMap,
+          correctWords: _correctWords,
+          scrambledLettersMap: _scrambledLettersMap,
+          questionModes: _questionModes,
+          hintUsed: _hintUsed,
+          hintRevealed: _hintRevealed,
+          xpGainedPerWord: _xpGainedPerWord,
+        ),
+      ),
+    );
+  }
 
   Widget _buildCustomHeaderResults(BuildContext context) {
     return Stack(
@@ -1365,5 +1559,331 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         ),
       ],
     );
+  }
+
+  double _getAdaptiveCardHeight(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Calculate available height after accounting for header, progress bar, and buttons
+    final availableHeight = screenHeight - 200; // Reserve space for UI elements
+    
+    // For very small screens (height < 600), use much smaller percentage
+    if (screenHeight < 600) {
+      return (availableHeight * 0.2).clamp(120.0, 150.0); // 20% of available, min 120px, max 150px
+    }
+    // For medium screens (height 600-800), use medium percentage
+    else if (screenHeight < 800) {
+      return (availableHeight * 0.25).clamp(150.0, 200.0); // 25% of available, min 150px, max 200px
+    }
+    // For large screens, use larger percentage
+    else {
+      return (availableHeight * 0.3).clamp(200.0, 250.0); // 30% of available, min 200px, max 250px
+    }
+  }
+
+  double _getAdaptiveFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens, use smaller font
+    if (screenHeight < 600) {
+      return 20.0; // Smaller font for small screens
+    }
+    // For medium screens, use medium font
+    else if (screenHeight < 800) {
+      return 24.0; // Medium font for medium screens
+    }
+    // For large screens, use larger font
+    else {
+      return 28.0; // Larger font for large screens
+    }
+  }
+}
+
+class _WordScrambleReviewScreen extends StatefulWidget {
+  final List<FlashCard> cards;
+  final Map<int, List<String>> answeredQuestions;
+  final Map<int, bool> correctAnswersMap;
+  final Map<int, String> correctWords;
+  final Map<int, List<String>> scrambledLettersMap;
+  final Map<int, bool> questionModes;
+  final Map<int, bool> hintUsed;
+  final Map<int, String> hintRevealed;
+  final Map<String, int> xpGainedPerWord;
+
+  const _WordScrambleReviewScreen({
+    required this.cards,
+    required this.answeredQuestions,
+    required this.correctAnswersMap,
+    required this.correctWords,
+    required this.scrambledLettersMap,
+    required this.questionModes,
+    required this.hintUsed,
+    required this.hintRevealed,
+    required this.xpGainedPerWord,
+  });
+
+  @override
+  State<_WordScrambleReviewScreen> createState() => _WordScrambleReviewScreenState();
+}
+
+class _WordScrambleReviewScreenState extends State<_WordScrambleReviewScreen> {
+  int _currentReviewIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cards.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Review')),
+        body: const Center(
+          child: Text('No questions to review'),
+        ),
+      );
+    }
+
+    final currentCard = widget.cards[_currentReviewIndex];
+    final userAnswer = widget.answeredQuestions[_currentReviewIndex] ?? [];
+    final isCorrect = widget.correctAnswersMap[_currentReviewIndex] ?? false;
+    final correctWord = widget.correctWords[_currentReviewIndex] ?? '';
+    final scrambledLetters = widget.scrambledLettersMap[_currentReviewIndex] ?? [];
+    final isQuestionMode = widget.questionModes[_currentReviewIndex] ?? true;
+    final hintWasUsed = widget.hintUsed[_currentReviewIndex] ?? false;
+    final xpGained = widget.xpGainedPerWord[currentCard.id] ?? 0;
+
+    final question = isQuestionMode ? currentCard.definition : currentCard.word;
+    final answer = isQuestionMode ? currentCard.word : currentCard.definition;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        title: Text('Review (${_currentReviewIndex + 1}/${widget.cards.length})'),
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back_ios),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Progress indicator
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: LinearProgressIndicator(
+              value: (_currentReviewIndex + 1) / widget.cards.length,
+              backgroundColor: Colors.grey.shade300,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isCorrect ? Colors.green : Colors.red,
+              ),
+            ),
+          ),
+          
+          // Question and answer display
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Question card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Theme.of(context).colorScheme.surface 
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCorrect ? Colors.green : Colors.red,
+                        width: 2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Question:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          question,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Answer section
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isCorrect ? Colors.green.shade50 : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCorrect ? Colors.green : Colors.red,
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isCorrect ? Icons.check_circle : Icons.cancel,
+                              color: isCorrect ? Colors.green : Colors.red,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isCorrect ? 'Correct!' : 'Incorrect',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isCorrect ? Colors.green : Colors.red,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (hintWasUsed)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Text(
+                                  'HINT USED',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Your answer:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          userAnswer.join(''),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Correct answer:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          correctWord,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'XP Gained: $xpGained',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.amber,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ),
+          
+          // Navigation buttons
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _currentReviewIndex > 0 ? _previousQuestion : null,
+                    icon: const Icon(Icons.arrow_back_ios, size: 16),
+                    label: const Text('Previous'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _currentReviewIndex > 0 ? Colors.blue : Colors.grey,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _currentReviewIndex < widget.cards.length - 1 ? _nextQuestion : null,
+                    icon: const Icon(Icons.arrow_forward, size: 16),
+                    label: const Text('Next'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _currentReviewIndex < widget.cards.length - 1 ? Colors.green : Colors.grey,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _previousQuestion() {
+    if (_currentReviewIndex > 0) {
+      setState(() {
+        _currentReviewIndex--;
+      });
+    }
+  }
+
+  void _nextQuestion() {
+    if (_currentReviewIndex < widget.cards.length - 1) {
+      setState(() {
+        _currentReviewIndex++;
+      });
+    }
   }
 }

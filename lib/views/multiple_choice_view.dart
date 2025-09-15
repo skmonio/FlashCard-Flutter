@@ -83,6 +83,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
 
+  // Hint and review tracking
+  Map<int, bool> _hintUsed = {}; // question index -> hint was used
+  Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
+  Set<String> _reviewCards = {}; // card IDs marked for review
+
   @override
   void initState() {
     super.initState();
@@ -179,6 +184,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       return;
     }
 
+    // Reset hint and review state for new question
+    _hintUsed[_currentIndex] = false;
+    _blockedOptions[_currentIndex] = <int>{};
+
     // Check if this question has already been answered
     if (_answeredQuestions.containsKey(_currentIndex)) {
       // Load existing question data
@@ -252,11 +261,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       }
     }
     
-    // Create options list with correct answer
-    _options = [...wrongOptions, correctAnswer];
+    // Create options list with correct answer first
+    _options = [correctAnswer, ...wrongOptions];
+    
+    // Shuffle options in study mode (but keep correct answer first in edit mode)
+    // Check if this is edit mode by looking for the edit button in the UI
+    // For now, always shuffle since this is used for study mode
     _options.shuffle(random);
     
-    // Find correct answer index
+    // Find correct answer index after shuffling
     _correctAnswerIndex = _options.indexOf(correctAnswer);
     
     // Store question data for future reference
@@ -607,45 +620,64 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   const SizedBox(height: 16), // Reduced spacing
                   
                   // Card with theme-adaptive background and colored outline
-                  Container(
-                    width: double.infinity,
-                    height: MediaQuery.of(context).size.height * 0.4, // Responsive height - 40% of screen
-                    padding: const EdgeInsets.all(24), // Reduced padding
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Theme.of(context).colorScheme.surface 
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20), // Slightly smaller radius
-                      border: Border.all(
-                        color: _getCardBorderColor(currentCard),
-                        width: 4, // Slightly thinner border
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                        BoxShadow(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
-                          blurRadius: 15,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        question,
-                        style: TextStyle(
-                          fontSize: 32, // Smaller font size
-                          fontWeight: FontWeight.bold,
+                  Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: _getAdaptiveCardHeight(context), // Adaptive height based on screen size
+                        padding: const EdgeInsets.all(24), // Reduced padding
+                        decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark 
-                              ? Theme.of(context).colorScheme.onSurface 
-                              : Colors.black87,
+                              ? Theme.of(context).colorScheme.surface 
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20), // Slightly smaller radius
+                          border: Border.all(
+                            color: _getCardBorderColor(currentCard),
+                            width: 4, // Slightly thinner border
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
+                        child: Center(
+                          child: Text(
+                            question,
+                            style: TextStyle(
+                              fontSize: _getAdaptiveFontSize(context), // Adaptive font size
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Theme.of(context).colorScheme.onSurface 
+                                  : Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ),
-                    ),
+                      
+                      // Review flag (top left)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: _buildReviewFlag(currentCard),
+                      ),
+                      
+                      // Hint button (bottom right)
+                      if (!_answered)
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: _buildHintIcon(),
+                        ),
+                    ],
                   ),
                   
                   const SizedBox(height: 16), // Reduced spacing
@@ -805,20 +837,22 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildOptionButton(int index, String option) {
+    final isBlocked = _blockedOptions[_currentIndex]?.contains(index) ?? false;
+    
     return Container(
       width: double.infinity,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _selectAnswer(index),
+          onTap: isBlocked ? null : () => _selectAnswer(index),
           borderRadius: BorderRadius.circular(10),
           child: Container(
             padding: const EdgeInsets.all(12), // Reduced padding
             decoration: BoxDecoration(
-              color: _getOptionColor(index),
+              color: isBlocked ? Colors.grey.withValues(alpha: 0.3) : _getOptionColor(index),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: _getOptionBorderColor(index),
+                color: isBlocked ? Colors.grey : _getOptionBorderColor(index),
                 width: 2,
               ),
             ),
@@ -828,27 +862,30 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   width: 28, // Smaller circle
                   height: 28, // Smaller circle
                   decoration: BoxDecoration(
-                    color: _getOptionBorderColor(index).withValues(alpha: 0.1),
+                    color: isBlocked ? Colors.grey.withValues(alpha: 0.1) : _getOptionBorderColor(index).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Text(
-                      String.fromCharCode(65 + index), // A, B, C, D
-                      style: TextStyle(
-                        fontSize: 14, // Smaller font
-                        fontWeight: FontWeight.bold,
-                        color: _getOptionBorderColor(index),
-                      ),
-                    ),
+                    child: isBlocked 
+                      ? const Icon(Icons.block, color: Colors.grey, size: 16)
+                      : Text(
+                          String.fromCharCode(65 + index), // A, B, C, D
+                          style: TextStyle(
+                            fontSize: 14, // Smaller font
+                            fontWeight: FontWeight.bold,
+                            color: _getOptionBorderColor(index),
+                          ),
+                        ),
                   ),
                 ),
                 const SizedBox(width: 12), // Reduced spacing
                 Expanded(
                   child: Text(
                     option,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14, // Smaller font
                       fontWeight: FontWeight.w500,
+                      color: isBlocked ? Colors.grey : null,
                     ),
                   ),
                 ),
@@ -1031,6 +1068,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+                          
+                          // Reset hint and review tracking
+                          _hintUsed.clear();
+                          _blockedOptions.clear();
+                          _reviewCards.clear();
                         });
                         _generateQuestion();
                       },
@@ -1174,8 +1216,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
+      // Reduce XP by 50% if hint was used
+      final finalXPGained = (_hintUsed[_currentIndex] == true) 
+          ? (actualXPGained * 0.5).round() 
+          : actualXPGained;
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = actualXPGained;
+      _xpGainedPerWord[card.id] = finalXPGained;
       
       // Store the word mastery for display
       _wordMastery[card.id] = card.learningMastery;
@@ -1210,7 +1257,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           wordMastery: sessionWordMastery,
           studiedWords: sessionStudiedWords,
           title: 'Multiple Choice Complete',
-          showSwipeToReview: true,
+          showSwipeToReview: false, // Disable review functionality
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             // Reset and restart test
@@ -1252,6 +1299,130 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       ),
     );
   }
-  
+
+  double _getAdaptiveCardHeight(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Calculate available height after accounting for header, progress bar, and buttons
+    final availableHeight = screenHeight - 200; // Reserve space for UI elements
+    
+    // For very small screens (height < 600), use much smaller percentage
+    if (screenHeight < 600) {
+      return (availableHeight * 0.2).clamp(120.0, 150.0); // 20% of available, min 120px, max 150px
+    }
+    // For medium screens (height 600-800), use medium percentage
+    else if (screenHeight < 800) {
+      return (availableHeight * 0.25).clamp(150.0, 200.0); // 25% of available, min 150px, max 200px
+    }
+    // For large screens, use larger percentage
+    else {
+      return (availableHeight * 0.3).clamp(200.0, 250.0); // 30% of available, min 200px, max 250px
+    }
+  }
+
+  double _getAdaptiveFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens, use smaller font
+    if (screenHeight < 600) {
+      return 20.0; // Smaller font for small screens
+    }
+    // For medium screens, use medium font
+    else if (screenHeight < 800) {
+      return 24.0; // Medium font for medium screens
+    }
+    // For large screens, use larger font
+    else {
+      return 28.0; // Larger font for large screens
+    }
+  }
+
+  Widget _buildReviewFlag(FlashCard card) {
+    final isInReview = _reviewCards.contains(card.id);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (isInReview) {
+            _reviewCards.remove(card.id);
+          } else {
+            _reviewCards.add(card.id);
+          }
+        });
+      },
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.orange,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.flag,
+          size: 16,
+          color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHintIcon() {
+    final hintWasUsed = _hintUsed[_currentIndex] ?? false;
+    return GestureDetector(
+      onTap: _useHint,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: hintWasUsed ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.orange,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: hintWasUsed ? Colors.white : Colors.orange,
+        ),
+      ),
+    );
+  }
+
+  void _useHint() {
+    if (_answered || _hintUsed[_currentIndex] == true) return;
+    
+    // Find a wrong option to block (not the correct answer)
+    final wrongOptions = <int>[];
+    for (int i = 0; i < _options.length; i++) {
+      if (i != _correctAnswerIndex) {
+        wrongOptions.add(i);
+      }
+    }
+    
+    if (wrongOptions.isNotEmpty) {
+      final random = Random();
+      final optionToBlock = wrongOptions[random.nextInt(wrongOptions.length)];
+      
+      setState(() {
+        _hintUsed[_currentIndex] = true;
+        _blockedOptions[_currentIndex]!.add(optionToBlock);
+      });
+      
+      // Show feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hint: Blocked one wrong answer'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
 
 } 

@@ -61,6 +61,18 @@ class _AppInitializationViewState extends State<AppInitializationView> {
     }
   }
   
+  String _getLoadingText() {
+    if (!_themeInitialized) {
+      return 'Initializing theme...';
+    } else if (!_authChecked) {
+      return 'Checking authentication...';
+    } else if (_isAuthenticated && !_dataSynced) {
+      return 'Syncing your data...';
+    } else {
+      return 'Loading your Dutch learning journey...';
+    }
+  }
+
   Future<void> _checkAuthStatus() async {
     try {
       final isAuth = SupabaseService.instance.isAuthenticated;
@@ -70,8 +82,9 @@ class _AppInitializationViewState extends State<AppInitializationView> {
           _authChecked = true;
         });
         
-        // If authenticated, sync data and check onboarding
+        // If authenticated, ensure profile exists and sync data
         if (isAuth) {
+          await SupabaseService.instance.ensureUserProfileExists();
           await _syncDataAndCheckOnboarding();
         } else {
           // If not authenticated, check local onboarding status
@@ -132,6 +145,11 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       
       // When signing in, prioritize downloading from cloud to get user's existing data
       print('🔄 Downloading data from cloud...');
+      if (mounted) {
+        setState(() {
+          // This will trigger a rebuild to show "Syncing your data..." message
+        });
+      }
       await DataSyncService.downloadDataFromCloud();
       
       // Then upload any local changes that might not be in cloud yet

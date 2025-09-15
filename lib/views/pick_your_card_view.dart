@@ -8,6 +8,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_end_screen.dart';
 import '../services/xp_service.dart';
+import '../services/sound_manager.dart';
 
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -342,6 +343,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       print('🔍 PickYourCardView: Awarded $actualXPGained XP to word "${currentCard.word}" - daily attempts after: ${currentCard.learningMastery.dailyAttemptsDebug}');
       
+      // Play correct sound
+      SoundManager().playCorrectSound();
+      
       _showResultDialog(true, userAnswer, correctAnswer);
     } else {
       currentCard.markIncorrect(GameDifficulty.medium);
@@ -361,6 +365,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
       }
       
       print('🔍 PickYourCardView: No XP awarded to word "${currentCard.word}" (Incorrect)');
+      
+      // Play wrong sound
+      SoundManager().playWrongSound();
       
       _showResultDialog(false, userAnswer, correctAnswer);
     }
@@ -448,7 +455,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
           title: 'Pick Your Card Complete',
-          showSwipeToReview: true,
+          showSwipeToReview: false,
           onStudyAgain: () {
             setState(() {
               currentCardIndex = 0;
@@ -463,7 +470,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
             Navigator.of(context).pop();
           },
           onDone: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.of(context).pop(); // Close end screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

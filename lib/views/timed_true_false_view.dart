@@ -961,7 +961,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
           wordMastery: _wordMastery,
           studiedWords: _studiedWords,
           title: 'Timed Test Complete',
-          showSwipeToReview: true,
+          showSwipeToReview: false, // Disable review functionality
           onStudyAgain: () {
             // Reset and restart test BEFORE closing the word progress screen
             setState(() {

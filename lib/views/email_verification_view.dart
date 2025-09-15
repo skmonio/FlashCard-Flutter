@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
 import 'main_navigation_view.dart';
 import 'auth_view.dart';
+import 'username_setup_view.dart';
 
 class EmailVerificationView extends StatefulWidget {
   const EmailVerificationView({super.key});
@@ -82,7 +83,7 @@ class _EmailVerificationViewState extends State<EmailVerificationView> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const MainNavigationView()),
+                            MaterialPageRoute(builder: (context) => const UsernameSetupView()),
                           );
                         },
                         style: ElevatedButton.styleFrom(

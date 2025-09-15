@@ -52,6 +52,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   Offset _dragOffset = Offset.zero;
   bool _nextCardActive = false;
   bool _showingResults = false;
+  // Completion guard to prevent double end screens
+  bool _hasShownResults = false;
   SwipeDirection _swipeDirection = SwipeDirection.none;
   double _swipeIntensity = 0;
   final GameSession _gameSession = GameSession();
@@ -215,7 +217,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     if (_showingResults) {
       // Go directly to word progress instead of showing completion screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showWordProgress();
+        if (!_hasShownResults) {
+          _hasShownResults = true;
+          _showWordProgress();
+        }
       });
       return const Scaffold(
         body: Center(
@@ -1065,10 +1070,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             _swipeDirection = SwipeDirection.none;
             _swipeIntensity = 0;
             
-            if (_currentIndex >= _currentCards.length) {
+            if (_currentIndex >= _currentCards.length && !_hasShownResults) {
               // Award XP for the session
               _awardXp();
               _showingResults = true;
+              print('🔍 AdvancedStudyView: Study complete, showing results');
             } else {
               if (widget.useMixedMode) {
                 _isShowingFront = math.Random().nextBool();
@@ -1104,10 +1110,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       });
       
       // Check if we've gone through all cards
-      if (_topIndex >= _currentCards.length) {
+      if (_topIndex >= _currentCards.length && !_hasShownResults) {
         // Award XP for the session
         _awardXp();
         _showingResults = true;
+        print('🔍 AdvancedStudyView: Study complete (stacked mode), showing results');
       }
     }
   }
@@ -1170,7 +1177,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           studiedWords: sessionStudiedWords,
           xpGainedPerWord: sessionXpGainedPerWord,
           wordMastery: sessionWordMastery,
-          hideNavigation: false, // Show back button and navigation for advanced study
+          hideNavigation: true, // Disable swipe gestures like Remember Your Cards
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close word progress screen
             // Reset and restart study session
@@ -1204,6 +1211,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               
               // Reset UI state
               _showingResults = false;
+              _hasShownResults = false; // Reset guard for new session
               if (widget.useMixedMode) {
                 _isShowingFront = math.Random().nextBool();
               } else {
@@ -1235,8 +1243,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             // Session data has been reset, ready for new game
           },
           onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
+            Navigator.of(context).popUntil((route) => route.isFirst);
           },
         ),
       ),
