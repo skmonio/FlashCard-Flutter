@@ -134,6 +134,7 @@ class _AddCardViewState extends State<AddCardView> {
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
+      resizeToAvoidBottomInset: true,
       body: Column(
         children: [
           // Fixed Header - matching Taal Trek header height
@@ -1733,7 +1734,7 @@ class _AddCardViewState extends State<AddCardView> {
                   child: Text(
                     _canSave() 
                         ? (widget.cardToEdit != null ? 'Save' : 'Add')
-                        : (_wordController.text.trim().isEmpty ? 'Enter word' : 'Add'),
+                        : 'Add',
                     style: TextStyle(
                       color: _canSave() 
                           ? Theme.of(context).colorScheme.primary 

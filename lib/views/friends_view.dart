@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/friends_service.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class FriendsView extends StatefulWidget {
   const FriendsView({super.key});
@@ -15,6 +16,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
   List<Friend> _friends = [];
   List<FriendRequest> _pendingRequests = [];
   List<Map<String, dynamic>> _searchResults = [];
+  Set<String> _sentRequests = {}; // Track sent friend requests
   bool _isLoading = false;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
@@ -68,6 +70,9 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
   Future<void> _sendFriendRequest(String userId) async {
     try {
       await _friendsService.sendFriendRequest(userId);
+      setState(() {
+        _sentRequests.add(userId);
+      });
       _showSuccessSnackBar('Friend request sent!');
       _searchUsers(); // Refresh search results
     } catch (e) {
@@ -109,21 +114,11 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    EnhancedSnackBar.showError(context, message: message);
   }
 
   void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
-    );
+    EnhancedSnackBar.showSuccess(context, message: message);
   }
 
   Future<bool?> _showRemoveFriendDialog() async {
@@ -156,23 +151,6 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: _buildHeader(),
-            ),
-          ),
-          
           // Tab Bar
           Container(
             decoration: BoxDecoration(
@@ -184,13 +162,26 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
                 ),
               ),
             ),
-            child: TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(text: 'Friends', icon: Icon(Icons.people)),
-                Tab(text: 'Requests', icon: Icon(Icons.person_add)),
-                Tab(text: 'Search', icon: Icon(Icons.search)),
-              ],
+            child: Material(
+              color: Colors.transparent,
+              child: TabBar(
+                controller: _tabController,
+                indicatorColor: Theme.of(context).colorScheme.primary,
+                labelColor: Theme.of(context).colorScheme.primary,
+                unselectedLabelColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                indicatorSize: TabBarIndicatorSize.tab,
+                isScrollable: false,
+                physics: const ClampingScrollPhysics(),
+                onTap: (index) {
+                  // Ensure tab switching works
+                  _tabController.animateTo(index);
+                },
+                tabs: const [
+                  Tab(text: 'Friends', icon: Icon(Icons.people)),
+                  Tab(text: 'Requests', icon: Icon(Icons.person_add)),
+                  Tab(text: 'Search', icon: Icon(Icons.search)),
+                ],
+              ),
             ),
           ),
           
@@ -198,6 +189,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
           Expanded(
             child: TabBarView(
               controller: _tabController,
+              physics: const ClampingScrollPhysics(),
               children: [
                 _buildFriendsTab(),
                 _buildRequestsTab(),
@@ -210,35 +202,6 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildHeader() {
-    return Stack(
-      children: [
-        // Centered title
-        Center(
-          child: Text(
-            'Friends',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        
-        // Back button
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios),
-            iconSize: 20,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildFriendsTab() {
     if (_isLoading) {
@@ -521,6 +484,9 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
   }
 
   Widget _buildSearchResultCard(Map<String, dynamic> user) {
+    final userId = user['id'];
+    final hasRequestSent = _sentRequests.contains(userId);
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -536,10 +502,25 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text('Level ${user['level'] ?? 1} • ${user['xp'] ?? 0} XP'),
-        trailing: ElevatedButton(
-          onPressed: () => _sendFriendRequest(user['id']),
-          child: const Text('Add Friend'),
-        ),
+        trailing: hasRequestSent
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Requested',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              )
+            : ElevatedButton(
+                onPressed: () => _sendFriendRequest(userId),
+                child: const Text('Add Friend'),
+              ),
       ),
     );
   }

@@ -79,7 +79,7 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
 
   Widget _buildSearchAndFilterSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           // Search bar
@@ -396,47 +396,6 @@ class _DutchGrammarRulesViewState extends State<DutchGrammarRulesView> {
           ),
         ),
         
-        // Right side - Menu button
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: PopupMenuButton<String>(
-            onSelected: _handleMenuAction,
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'export',
-                child: Row(
-                  children: [
-                    Icon(Icons.download),
-                    SizedBox(width: 8),
-                    Text('Export Progress'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'import',
-                child: Row(
-                  children: [
-                    Icon(Icons.upload),
-                    SizedBox(width: 8),
-                    Text('Import Progress'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'reset',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text('Reset Progress', style: TextStyle(color: Colors.orange)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

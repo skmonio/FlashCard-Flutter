@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import 'dutch_word_exercise_detail_view.dart';
-
+import 'dutch_words_practice_view.dart';
 import 'create_word_exercise_view.dart';
 
 class DutchWordsView extends StatefulWidget {
@@ -88,6 +88,9 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                     ? _buildEmptyState()
                     : _buildExercisesList(filteredExercises),
               ),
+              
+              // Footer with selection actions (shown when in selection mode)
+              if (_isSelectionMode) _buildSelectionFooter(),
             ],
           );
         },
@@ -97,58 +100,71 @@ class _DutchWordsViewState extends State<DutchWordsView> {
 
   Widget _buildHeaderActions() {
     return IconButton(
-      onPressed: _toggleSelectionMode,
-      icon: const Icon(Icons.select_all),
-      tooltip: 'Select',
+      onPressed: _playExercises,
+      icon: const Icon(Icons.play_arrow),
+      tooltip: 'Play Exercises',
     );
   }
 
-  Widget _buildSelectionActions() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Select All Toggle
-        IconButton(
-          onPressed: () {
-            setState(() {
-              if (_selectAll) {
+  Widget _buildSelectionFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Cancel button
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSelectionMode = false;
                 _selectedExerciseIds.clear();
                 _selectAll = false;
-              } else {
-                final provider = context.read<DutchWordExerciseProvider>();
-                final exercises = _getFilteredExercises(provider);
-                final exerciseIds = _getExerciseIdsFromExercises(exercises);
-                _selectedExerciseIds = exerciseIds.toSet();
-                _selectAll = true;
-              }
-            });
-          },
-          icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
-          tooltip: _selectAll ? 'Deselect All' : 'Select All',
-        ),
-        
-        // Delete Selected
-        if (_selectedExerciseIds.isNotEmpty)
-          IconButton(
+              });
+            },
+            icon: const Icon(Icons.close),
+            label: const Text('Cancel'),
+          ),
+          
+          const Spacer(),
+          
+          // Select All Toggle
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                if (_selectAll) {
+                  _selectedExerciseIds.clear();
+                  _selectAll = false;
+                } else {
+                  final provider = context.read<DutchWordExerciseProvider>();
+                  final exercises = _getFilteredExercises(provider);
+                  final exerciseIds = _getExerciseIdsFromExercises(exercises);
+                  _selectedExerciseIds = exerciseIds.toSet();
+                  _selectAll = true;
+                }
+              });
+            },
+            icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
+            label: Text(_selectAll ? 'Deselect All' : 'Select All'),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Delete Selected
+          TextButton.icon(
             onPressed: () => _showDeleteSelectedDialog(),
             icon: const Icon(Icons.delete, color: Colors.red),
-            tooltip: 'Delete Selected',
+            label: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
-        
-        // Selection Count
-        if (_selectedExerciseIds.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '${_selectedExerciseIds.length}',
-              style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -162,7 +178,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
 
   Widget _buildSearchAndFilterSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           // Search bar
@@ -686,6 +702,50 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     }
   }
 
+  void _playExercises() {
+    final provider = context.read<DutchWordExerciseProvider>();
+    
+    List<DutchWordExercise> exercisesToPlay;
+    
+    if (_selectedExerciseIds.isNotEmpty) {
+      // Play only selected exercises
+      exercisesToPlay = _selectedExerciseIds
+          .map((id) => provider.getWordExercise(id))
+          .where((exercise) => exercise != null)
+          .cast<DutchWordExercise>()
+          .toList();
+    } else {
+      // Play all filtered exercises
+      exercisesToPlay = _getFilteredExercises(provider);
+    }
+    
+    if (exercisesToPlay.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No exercises available to play'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Navigate to practice view with selected exercises
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DutchWordsPracticeView(
+          deckId: exercisesToPlay.length == 1 
+              ? exercisesToPlay.first.deckId 
+              : 'multiple',
+          deckName: exercisesToPlay.length == 1 
+              ? exercisesToPlay.first.deckName 
+              : 'Multiple Exercises',
+          exercises: exercisesToPlay,
+        ),
+      ),
+    );
+  }
+
   void _toggleSelectionMode() {
     setState(() {
       _isSelectionMode = !_isSelectionMode;
@@ -866,14 +926,12 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           ),
         ),
         
-        // Right side - Selection mode or select button
+        // Right side - Play button (always visible)
         Positioned(
           right: 16, // Add proper padding from right edge
           top: 0,
           bottom: 0,
-          child: _isSelectionMode 
-              ? _buildSelectionActions()
-              : _buildHeaderActions(),
+          child: _buildHeaderActions(),
         ),
       ],
     );

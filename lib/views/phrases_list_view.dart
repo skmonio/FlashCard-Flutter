@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/phrase_provider.dart';
 import '../models/phrase.dart';
 import 'phrase_exercise_detail_view.dart';
+import 'phrase_exercise_view.dart';
 import 'add_phrase_view.dart';
 
 class PhrasesListView extends StatefulWidget {
@@ -105,6 +106,9 @@ class _PhrasesListViewState extends State<PhrasesListView> {
                     ? _buildEmptyState()
                     : _buildPhrasesList(filteredPhrases),
               ),
+              
+              // Footer with selection actions (shown when in selection mode)
+              if (_isSelectionMode) _buildSelectionFooter(),
             ],
           );
         },
@@ -113,6 +117,145 @@ class _PhrasesListViewState extends State<PhrasesListView> {
   }
 
 
+
+  Widget _buildCustomHeader(BuildContext context) {
+    return Stack(
+      children: [
+        // Centered title - always in the center regardless of other elements
+        Center(
+          child: Text(
+            'Phrases',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        
+        // Left side - Back button
+        Positioned(
+          left: 16, // Add proper padding from left edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          ),
+        ),
+        
+        // Right side - Play button (always visible)
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: _playPhrases,
+            icon: const Icon(Icons.play_arrow, color: Colors.black),
+            tooltip: 'Play Phrases',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectionFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Cancel button
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedPhraseIds.clear();
+                _selectAll = false;
+              });
+            },
+            icon: const Icon(Icons.close),
+            label: const Text('Cancel'),
+          ),
+          
+          const Spacer(),
+          
+          // Select All Toggle
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                if (_selectAll) {
+                  _selectedPhraseIds.clear();
+                  _selectAll = false;
+                } else {
+                  final provider = context.read<PhraseProvider>();
+                  final phrases = _getFilteredAndSortedPhrases(provider.phrases);
+                  _selectedPhraseIds = phrases.map((p) => p.id).toSet();
+                  _selectAll = true;
+                }
+              });
+            },
+            icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
+            label: Text(_selectAll ? 'Deselect All' : 'Select All'),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Delete Selected
+          TextButton.icon(
+            onPressed: () => _showDeleteSelectedDialog(),
+            icon: const Icon(Icons.delete, color: Colors.red),
+            label: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _playPhrases() {
+    final provider = context.read<PhraseProvider>();
+    
+    List<Phrase> phrasesToPlay;
+    
+    if (_selectedPhraseIds.isNotEmpty) {
+      // Play only selected phrases
+      phrasesToPlay = _selectedPhraseIds
+          .map((id) => provider.phrases.firstWhere((phrase) => phrase.id == id))
+          .toList();
+    } else {
+      // Play all filtered phrases
+      phrasesToPlay = _getFilteredAndSortedPhrases(provider.phrases);
+    }
+    
+    if (phrasesToPlay.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No phrases available to play'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Navigate to phrase exercise view with first selected phrase
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhraseExerciseView(
+          phrase: phrasesToPlay.first,
+          singleQuestionMode: phrasesToPlay.length == 1,
+        ),
+      ),
+    );
+  }
 
   Widget _buildPhraseCard(Phrase phrase) {
     return Container(
@@ -425,7 +568,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
 
   Widget _buildSearchAndFilterSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           // Search bar
@@ -714,61 +857,6 @@ class _PhrasesListViewState extends State<PhrasesListView> {
     );
   }
 
-  Widget _buildCustomHeader(BuildContext context) {
-    return Stack(
-      children: [
-        // Centered title - always in the center regardless of other elements
-        Center(
-          child: Text(
-            'Phrases',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        
-        // Left side - Back button
-        Positioned(
-          left: 16, // Add proper padding from left edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          ),
-        ),
-        
-        // Right side - Selection mode or select button
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: _isSelectionMode
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: () => _toggleSelectionMode(),
-                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
-                    ),
-                    if (_selectedPhraseIds.isNotEmpty)
-                      IconButton(
-                        onPressed: _showBulkActionsMenu,
-                        icon: const Icon(Icons.more_vert, color: Colors.black),
-                      ),
-                  ],
-                )
-              : IconButton(
-                  onPressed: () => _toggleSelectionMode(),
-                  icon: const Icon(Icons.select_all, color: Colors.black),
-                  tooltip: 'Select Phrases',
-                ),
-        ),
-      ],
-    );
-  }
 
   void _toggleSelectionMode() {
     setState(() {

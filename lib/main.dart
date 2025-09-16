@@ -13,6 +13,7 @@ import 'services/performance_service.dart';
 import 'services/supabase_service.dart';
 import 'services/deep_link_service.dart';
 import 'utils/global_navigator.dart';
+import 'utils/status_bar_utils.dart';
 import 'views/app_initialization_view.dart';
 
 void main() async {
@@ -39,6 +40,9 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  
+  // Set initial status bar to light mode (black text/icons)
+  StatusBarUtils.setLightStatusBar();
   
   runApp(const FlashcardApp());
 }
@@ -79,24 +83,13 @@ class FlashcardApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
-          // Update system UI overlay style based on theme
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final isDark = themeProvider.themeMode == ThemeMode.dark || 
-                          (themeProvider.themeMode == ThemeMode.system && 
-                           MediaQuery.of(context).platformBrightness == Brightness.dark);
-            
-            SystemChrome.setSystemUIOverlayStyle(
-              isDark 
-                ? SystemUiOverlayStyle.light.copyWith(
-                    statusBarColor: Colors.transparent,
-                    statusBarIconBrightness: Brightness.light,
-                  )
-                : SystemUiOverlayStyle.dark.copyWith(
-                    statusBarColor: Colors.transparent,
-                    statusBarIconBrightness: Brightness.dark,
-                  ),
-            );
-          });
+          // Update system UI overlay style based on theme immediately
+          final isDark = themeProvider.themeMode == ThemeMode.dark || 
+                        (themeProvider.themeMode == ThemeMode.system && 
+                         MediaQuery.of(context).platformBrightness == Brightness.dark);
+          
+          // Use the utility function for consistent status bar management
+          StatusBarUtils.updateStatusBar(context, isDark: isDark);
           
           return MaterialApp(
             title: 'Taal Trek',

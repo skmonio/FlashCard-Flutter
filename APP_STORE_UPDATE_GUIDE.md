@@ -10,7 +10,7 @@ This guide explains how to update your existing SteveFlashCard app on the App St
 - **Android**: Changed from `com.skmonio.taaltrek` to `dutch.flashcard`
 
 ### 2. App Display Name
-- Updated to "SteveFlashCard" to match your existing Swift app
+- Updated to "Taal Trek" to match your existing Swift app
 
 ### 3. Version Number
 - Updated to `3.2.0+32` (higher than your existing Swift app at version 3.1)

@@ -102,15 +102,16 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
     _lastPhysicsUpdate = 0;
 
-    if (_screenWidth != 0 && _screenHeight != 0) {
+    if (_screenWidth > 0 && _screenHeight > 0) {
       _initializeBubblePositionsAndVelocities(bubbleTexts);
     } else {
+      // Create bubbles with default positions that will be updated when screen dimensions are available
       bubbles = bubbleTexts.map<Bubble>((text) {
         double width = _calculateBubbleWidth(text);
         return Bubble(
           text: text,
-          initialX: 0,
-          initialY: 0,
+          initialX: 50, // Default position
+          initialY: 50, // Default position
           vx: 0,
           vy: 0,
           outlineColor: outlineColors[random.nextInt(outlineColors.length)],
@@ -123,20 +124,45 @@ class _PopYourCardViewState extends State<PopYourCardView>
   }
 
   double _calculateBubbleWidth(String word) {
-    double calculatedWidth = word.length * 20.0 + 20.0;
-    return calculatedWidth.clamp(_minBubbleWidth, _maxBubbleWidth);
+    // Calculate width based on character count with more generous spacing
+    double calculatedWidth = word.length * 28.0 + 50.0; // Increased for better text fit
+    
+    // Safety check for screen width
+    if (_screenWidth <= 0) {
+      return calculatedWidth.clamp(100.0, 400.0); // Increased fallback values
+    }
+    
+    // Use responsive max width based on screen size
+    double maxWidth = _screenWidth * 0.7; // Increased to 70% for larger devices
+    return calculatedWidth.clamp(_minBubbleWidth, maxWidth);
   }
 
   void _initializeBubblePositionsAndVelocities(List<String> texts) {
     bubbles.clear();
+    
+    // Safety check for screen dimensions
+    if (_screenWidth <= 0 || _screenHeight <= 0) {
+      print('🔍 PopYourCardView: Screen dimensions not ready, skipping bubble initialization');
+      return;
+    }
+    
     for (final text in texts) {
       double speedMagnitude = _bubbleBaseSpeed + random.nextDouble() * 50.0;
       double angle = random.nextDouble() * 2 * pi;
 
       double width = _calculateBubbleWidth(text);
 
-      double initialX = random.nextDouble() * (_screenWidth - width);
-      double initialY = random.nextDouble() * (_screenHeight - _bubbleHeight);
+      // Additional safety checks for positioning
+      double availableWidth = _screenWidth - width;
+      double availableHeight = _screenHeight - _bubbleHeight;
+      
+      if (availableWidth <= 0 || availableHeight <= 0) {
+        print('🔍 PopYourCardView: Insufficient space for bubble, skipping');
+        continue;
+      }
+
+      double initialX = random.nextDouble() * availableWidth;
+      double initialY = random.nextDouble() * availableHeight;
 
       bubbles.add(Bubble(
         text: text,
@@ -321,7 +347,20 @@ class _PopYourCardViewState extends State<PopYourCardView>
           studiedWords: _studiedWords,
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
-          hideNavigation: true,
+          hideNavigation: false,
+          onStudyAgain: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+            // Restart the game with the same cards
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => PopYourCardView(
+                  cards: widget.cards,
+                  title: widget.title,
+                ),
+              ),
+            );
+          },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
             Navigator.of(context).pop(); // Go back to study type screen
@@ -333,7 +372,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
 
   void _updatePhysics(Duration elapsed) {
-    if (_screenWidth == 0 || _screenHeight == 0) return;
+    if (_screenWidth <= 0 || _screenHeight <= 0) return;
+    
+    // Re-initialize bubbles if they haven't been properly positioned yet
     if (bubbles.any((b) => b.vx == 0 && b.vy == 0)) {
       _initializeBubblePositionsAndVelocities(
           bubbles.map((b) => b.text).toList());
@@ -466,9 +507,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
             _screenHeight = constraints.maxHeight;
             
             // Make bubbles responsive to screen size
-            _bubbleHeight = _screenHeight * 0.08; // 8% of screen height
-            _minBubbleWidth = _screenWidth * 0.15; // 15% of screen width
-            _maxBubbleWidth = _screenWidth * 0.4; // 40% of screen width
+            _bubbleHeight = _screenHeight * 0.12; // 12% of screen height for better text display
+            _minBubbleWidth = _screenWidth * 0.2; // 20% of screen width (increased for better text fit)
+            _maxBubbleWidth = _screenWidth * 0.7; // 70% of screen width (increased for larger devices)
             if (bubbles.any((b) => b.vx == 0 && b.vy == 0)) {
               _initializeBubblePositionsAndVelocities(
                   bubbles.map((b) => b.text).toList());
@@ -518,7 +559,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
                   child: Text(
                     "Translate '${currentCard.definition}'",
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: _getAdaptiveQuestionFontSize(context),
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -600,6 +641,48 @@ class _PopYourCardViewState extends State<PopYourCardView>
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
+
+  double _getAdaptiveBubbleFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens (height < 600), use smaller font
+    if (screenHeight < 600) {
+      return 14.0; // Smaller font for small screens
+    }
+    // For medium screens (height 600-800), use medium font
+    else if (screenHeight < 800) {
+      return 16.0; // Medium font for medium screens
+    }
+    // For large screens (height 800-1000), use larger font
+    else if (screenHeight < 1000) {
+      return 18.0; // Larger font for large screens
+    }
+    // For very large screens (tablets, iPads), use even larger font
+    else {
+      return 20.0; // Extra large font for tablets
+    }
+  }
+
+  double _getAdaptiveQuestionFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens (height < 600), use smaller font
+    if (screenHeight < 600) {
+      return 18.0; // Smaller font for small screens
+    }
+    // For medium screens (height 600-800), use medium font
+    else if (screenHeight < 800) {
+      return 20.0; // Medium font for medium screens
+    }
+    // For large screens (height 800-1000), use larger font
+    else if (screenHeight < 1000) {
+      return 24.0; // Larger font for large screens
+    }
+    // For very large screens (tablets, iPads), use even larger font
+    else {
+      return 28.0; // Extra large font for tablets
+    }
+  }
 }
 
 /// Bubble data model
@@ -655,21 +738,35 @@ class AnimatedBubble extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
             child: Text(
               bubble.text,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: _getAdaptiveBubbleFontSize(context),
               ),
               textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: 2, // Allow up to 2 lines
+              overflow: TextOverflow.visible, // Show full text
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// Get adaptive font size for bubble text based on screen height
+  double _getAdaptiveBubbleFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    if (screenHeight < 600) {
+      return 14.0;
+    } else if (screenHeight < 800) {
+      return 16.0;
+    } else if (screenHeight < 1000) {
+      return 18.0;
+    } else {
+      return 20.0;
+    }
   }
 }

@@ -13,6 +13,7 @@ import '../components/card_details_dialog.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
 import 'add_card_view.dart';
+import 'shuffle_cards_view.dart';
 import 'dart:async'; // Added for Timer
 
 enum SortOption {
@@ -139,6 +140,9 @@ class _AllCardsViewState extends State<AllCardsView> {
               },
             ),
           ),
+          
+          // Footer with selection actions (shown when in selection mode)
+          if (_isSelectionMode) _buildSelectionFooter(),
         ],
       ),
     );
@@ -170,46 +174,121 @@ class _AllCardsViewState extends State<AllCardsView> {
           ),
         ),
         
-        // Right side - Selection mode or select button
+        // Right side - Play button (always visible)
         Positioned(
           right: 16, // Add proper padding from right edge
           top: 0,
           bottom: 0,
-          child: _isSelectionMode
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_selectedCardIds.isNotEmpty)
-                      IconButton(
-                        onPressed: _showBulkActionsMenu,
-                        icon: const Icon(Icons.more_vert, color: Colors.black),
-                      ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _isSelectionMode = false;
-                          _selectedCardIds.clear();
-                          _selectAll = false;
-                          _enteredViaSelectAll = false;
-                        });
-                      },
-                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
-                    ),
-                  ],
-                )
-              : IconButton(
-                  onPressed: _showSelectionMenu,
-                  icon: const Icon(Icons.select_all, color: Colors.black),
-                  tooltip: 'Select Cards',
-                ),
+          child: IconButton(
+            onPressed: _playCards,
+            icon: const Icon(Icons.play_arrow, color: Colors.black),
+            tooltip: 'Play Cards',
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildSelectionFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Cancel button
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedCardIds.clear();
+                _selectAll = false;
+                _enteredViaSelectAll = false;
+              });
+            },
+            icon: const Icon(Icons.close),
+            label: const Text('Cancel'),
+          ),
+          
+          const Spacer(),
+          
+          // Select All Toggle
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                if (_selectAll) {
+                  _selectedCardIds.clear();
+                  _selectAll = false;
+                } else {
+                  final provider = context.read<FlashcardProvider>();
+                  final cards = _getFilteredAndSortedCards(provider);
+                  _selectedCardIds = cards.map((card) => card.id).toSet();
+                  _selectAll = true;
+                }
+              });
+            },
+            icon: Icon(_selectAll ? Icons.check_box : Icons.check_box_outline_blank),
+            label: Text(_selectAll ? 'Deselect All' : 'Select All'),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Bulk Actions Menu
+          if (_selectedCardIds.isNotEmpty)
+            TextButton.icon(
+              onPressed: _showBulkActionsMenu,
+              icon: const Icon(Icons.more_vert),
+              label: const Text('Actions'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _playCards() {
+    final provider = context.read<FlashcardProvider>();
+    
+    List<FlashCard> cardsToPlay;
+    
+    if (_selectedCardIds.isNotEmpty) {
+      // Play only selected cards
+      cardsToPlay = _selectedCardIds
+          .map((id) => provider.cards.firstWhere((card) => card.id == id))
+          .toList();
+    } else {
+      // Play all filtered cards
+      cardsToPlay = _getFilteredAndSortedCards(provider);
+    }
+    
+    if (cardsToPlay.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No cards available to play'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Navigate to shuffle cards view
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ShuffleCardsView(),
+      ),
+    );
+  }
+
   Widget _buildSearchSortBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
           // Search Bar

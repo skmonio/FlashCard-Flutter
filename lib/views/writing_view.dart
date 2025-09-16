@@ -1233,15 +1233,7 @@ class _WritingViewState extends State<WritingView> {
   Widget _buildReviewFlag(FlashCard card) {
     final isInReview = _reviewCards.contains(card.id);
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isInReview) {
-            _reviewCards.remove(card.id);
-          } else {
-            _reviewCards.add(card.id);
-          }
-        });
-      },
+      onTap: () => _toggleReviewCard(card),
       child: Container(
         width: 32,
         height: 32,
@@ -1263,7 +1255,6 @@ class _WritingViewState extends State<WritingView> {
   }
 
   Widget _buildHintIcon() {
-    final hintCount = _hintCount[_currentIndex] ?? 0;
     final canUseHint = _canUseHint();
     return GestureDetector(
       onTap: canUseHint ? _useHint : null,
@@ -1278,20 +1269,11 @@ class _WritingViewState extends State<WritingView> {
             width: 2,
           ),
         ),
-        child: hintCount > 0 
-          ? Text(
-              '$hintCount',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: canUseHint ? Colors.orange : Colors.grey,
-              ),
-            )
-          : Icon(
-              Icons.lightbulb,
-              size: 16,
-              color: canUseHint ? Colors.orange : Colors.grey,
-            ),
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey,
+        ),
       ),
     );
   }
@@ -1317,6 +1299,42 @@ class _WritingViewState extends State<WritingView> {
     // Can use hint if not all letters are revealed (except the last one)
     final totalLetters = correctAnswer.split('').where((char) => RegExp(r'[a-zA-Z]').hasMatch(char)).length;
     return revealedCount < totalLetters - 1;
+  }
+
+  void _toggleReviewCard(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+    
+    // Add or remove from review deck in provider
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${card.word}" to review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.yellow.shade700,
+          ),
+        );
+      } else {
+        await provider.removeCardFromReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed "${card.word}" from review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.grey.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🔍 WritingView: Error toggling review card: $e');
+    }
   }
 
   void _useHint() {

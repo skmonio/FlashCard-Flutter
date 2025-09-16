@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/leaderboard_service.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class LeaderboardView extends StatefulWidget {
   const LeaderboardView({super.key});
@@ -69,12 +70,7 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    EnhancedSnackBar.showError(context, message: message);
   }
 
   String _getLeaderboardTitle(LeaderboardType type) {
@@ -96,22 +92,6 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: _buildHeader(),
-            ),
-          ),
           
           // Stats Card
           if (_stats.isNotEmpty) _buildStatsCard(),
@@ -156,35 +136,6 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
     );
   }
 
-  Widget _buildHeader() {
-    return Stack(
-      children: [
-        // Centered title
-        Center(
-          child: Text(
-            'Leaderboard',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        
-        // Back button
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios),
-            iconSize: 20,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildStatsCard() {
     final userRank = _stats['user_rank'] ?? 0;

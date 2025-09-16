@@ -1341,15 +1341,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Widget _buildReviewFlag(FlashCard card) {
     final isInReview = _reviewCards.contains(card.id);
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isInReview) {
-            _reviewCards.remove(card.id);
-          } else {
-            _reviewCards.add(card.id);
-          }
-        });
-      },
+      onTap: () => _toggleReviewCard(card),
       child: Container(
         width: 32,
         height: 32,
@@ -1392,6 +1384,42 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         ),
       ),
     );
+  }
+
+  void _toggleReviewCard(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+    
+    // Add or remove from review deck in provider
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${card.word}" to review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.yellow.shade700,
+          ),
+        );
+      } else {
+        await provider.removeCardFromReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed "${card.word}" from review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.grey.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🔍 MultipleChoiceView: Error toggling review card: $e');
+    }
   }
 
   void _useHint() {

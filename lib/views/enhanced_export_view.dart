@@ -30,8 +30,8 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Export Data'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
       ),
       body: SingleChildScrollView(

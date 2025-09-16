@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/status_bar_utils.dart';
 
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
@@ -68,18 +69,11 @@ class ThemeProvider extends ChangeNotifier {
   
   // Update status bar appearance based on current theme
   void _updateStatusBarAppearance() {
-    final isDark = _themeMode == ThemeMode.dark;
-    
-    SystemChrome.setSystemUIOverlayStyle(
-      isDark 
-        ? SystemUiOverlayStyle.light.copyWith(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-          )
-        : SystemUiOverlayStyle.dark.copyWith(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark,
-          ),
-    );
+    if (_themeMode == ThemeMode.dark) {
+      StatusBarUtils.setDarkStatusBar();
+    } else if (_themeMode == ThemeMode.light) {
+      StatusBarUtils.setLightStatusBar();
+    }
+    // For system mode, we let the main app handle it based on actual system brightness
   }
 } 

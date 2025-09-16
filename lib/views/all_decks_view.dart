@@ -14,6 +14,7 @@ import 'deck_detail_view.dart';
 import 'add_card_view.dart';
 import 'edit_deck_view.dart';
 import 'dutch_words_practice_view.dart';
+import 'study_type_selection_view.dart';
 
 class AllDecksView extends StatefulWidget {
   const AllDecksView({super.key});
@@ -66,6 +67,9 @@ class _AllDecksViewState extends State<AllDecksView> {
               },
             ),
           ),
+          
+          // Footer with selection actions (shown when in selection mode)
+          if (_isSelectionMode) _buildSelectionFooter(),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -102,38 +106,123 @@ class _AllDecksViewState extends State<AllDecksView> {
           ),
         ),
         
-        // Right side - Selection mode or select button
+        // Right side - Play button (always visible)
         Positioned(
           right: 16, // Add proper padding from right edge
           top: 0,
           bottom: 0,
-          child: _isSelectionMode
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: _cancelSelection,
-                      child: const Text('Cancel', style: TextStyle(color: Colors.black)),
-                    ),
-                    if (_selectedDeckIds.isNotEmpty)
-                      IconButton(
-                        onPressed: _showBulkActionsMenu,
-                        icon: const Icon(Icons.more_vert, color: Colors.black),
-                      ),
-                  ],
-                )
-              : IconButton(
-                  onPressed: _toggleSelectionMode,
-                  icon: const Icon(Icons.select_all, color: Colors.black),
-                ),
+          child: IconButton(
+            onPressed: _playDecks,
+            icon: const Icon(Icons.play_arrow, color: Colors.black),
+            tooltip: 'Play Decks',
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildSelectionFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Cancel button
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _isSelectionMode = false;
+                _selectedDeckIds.clear();
+              });
+            },
+            icon: const Icon(Icons.close),
+            label: const Text('Cancel'),
+          ),
+          
+          const Spacer(),
+          
+          // Select All Toggle
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                final provider = context.read<FlashcardProvider>();
+                final decks = provider.decks;
+                if (_selectedDeckIds.length == decks.length) {
+                  _selectedDeckIds.clear();
+                } else {
+                  _selectedDeckIds = decks.map((deck) => deck.id).toSet();
+                }
+              });
+            },
+            icon: Icon(_selectedDeckIds.length == context.read<FlashcardProvider>().decks.length 
+                ? Icons.check_box 
+                : Icons.check_box_outline_blank),
+            label: Text(_selectedDeckIds.length == context.read<FlashcardProvider>().decks.length 
+                ? 'Deselect All' 
+                : 'Select All'),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Bulk Actions Menu
+          if (_selectedDeckIds.isNotEmpty)
+            TextButton.icon(
+              onPressed: _showBulkActionsMenu,
+              icon: const Icon(Icons.more_vert),
+              label: const Text('Actions'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _playDecks() {
+    final provider = context.read<FlashcardProvider>();
+    
+    List<Deck> decksToPlay;
+    
+    if (_selectedDeckIds.isNotEmpty) {
+      // Play only selected decks
+      decksToPlay = _selectedDeckIds
+          .map((id) => provider.decks.firstWhere((deck) => deck.id == id))
+          .toList();
+    } else {
+      // Play all decks
+      decksToPlay = provider.decks;
+    }
+    
+    if (decksToPlay.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No decks available to play'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Navigate to study type selection
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const StudyTypeSelectionView(
+          gameMode: GameMode.study,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSearchSortBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
           // Search Bar

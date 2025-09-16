@@ -755,8 +755,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Shuffle'),
-          backgroundColor: Colors.grey[600],
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
+          elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios),
             onPressed: () {

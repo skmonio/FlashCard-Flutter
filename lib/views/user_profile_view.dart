@@ -17,12 +17,14 @@ class UserProfileView extends StatefulWidget {
 
 class _UserProfileViewState extends State<UserProfileView> with TickerProviderStateMixin {
   int _selectedTab = 0;
+  late PageController _pageController;
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _progressController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -42,6 +44,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
 
   @override
   void dispose() {
+    _pageController.dispose();
     _progressController.dispose();
     super.dispose();
   }
@@ -90,16 +93,28 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                 ),
               ),
               
-              // Profile Header
-              _buildProfileHeader(profileProvider),
+              // Profile Header (only show on Stats page)
+              if (_selectedTab == 0) _buildProfileHeader(profileProvider),
               
-              // Tab Selector
-              _buildTabSelector(),
-              
-              // Tab Content
+              // Page Content
               Expanded(
-                child: _buildTabContent(profileProvider),
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _selectedTab = index;
+                    });
+                  },
+                  children: [
+                    _buildStatsTab(profileProvider),
+                    _buildFriendsTab(),
+                    _buildLeaderboardTab(),
+                  ],
+                ),
               ),
+              
+              // Bottom Navigation
+              _buildBottomNavigation(),
             ],
           );
         },
@@ -228,69 +243,71 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
     );
   }
 
-  Widget _buildTabSelector() {
+  Widget _buildBottomNavigation() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          _buildTabButton('Stats', 0),
-          _buildTabButton('Achievements', 1),
-          _buildTabButton('Rewards', 2),
-          _buildTabButton('Friends', 3),
-          _buildTabButton('Leaderboard', 4),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabButton(String title, int index) {
-    final isSelected = _selectedTab == index;
-    
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedTab = index;
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            width: 1,
           ),
-          child: Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.white : Colors.grey[600],
-            ),
+        ),
+      ),
+      child: SafeArea(
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBottomNavItem('Stats', Icons.analytics, 0),
+              _buildBottomNavItem('Friends', Icons.people, 1),
+              _buildBottomNavItem('Leaderboard', Icons.emoji_events, 2),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTabContent(UserProfileProvider provider) {
-    switch (_selectedTab) {
-      case 0:
-        return _buildStatsTab(provider);
-      case 1:
-        return _buildAchievementsTab(provider);
-      case 2:
-        return _buildRewardsTab(provider);
-      case 3:
-        return _buildFriendsTab();
-      case 4:
-        return _buildLeaderboardTab();
-      default:
-        return _buildStatsTab(provider);
-    }
+  Widget _buildBottomNavItem(String title, IconData icon, int index) {
+    final isSelected = _selectedTab == index;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedTab = index;
+        });
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.blue : Colors.grey[600],
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.blue : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStatsTab(UserProfileProvider provider) {
@@ -339,27 +356,6 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
     );
   }
 
-  Widget _buildAchievementsTab(UserProfileProvider provider) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: provider.achievements.length,
-      itemBuilder: (context, index) {
-        final achievement = provider.achievements[index];
-        return _buildAchievementCard(achievement);
-      },
-    );
-  }
-
-  Widget _buildRewardsTab(UserProfileProvider provider) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: provider.levelRewards.length,
-      itemBuilder: (context, index) {
-        final reward = provider.levelRewards[index];
-        return _buildRewardCard(reward, provider);
-      },
-    );
-  }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Card(
@@ -390,105 +386,6 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
     );
   }
 
-  Widget _buildAchievementCard(Achievement achievement) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: achievement.isUnlocked 
-                ? _getAchievementColor(achievement.type).withOpacity(0.1)
-                : Colors.grey.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Icon(
-            _getAchievementIcon(achievement.icon),
-            color: achievement.isUnlocked 
-                ? _getAchievementColor(achievement.type)
-                : Colors.grey,
-          ),
-        ),
-        title: Text(
-          achievement.title,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: achievement.isUnlocked ? Theme.of(context).colorScheme.onSurface : Colors.grey,
-          ),
-        ),
-        subtitle: Text(
-          achievement.description,
-          style: TextStyle(
-            color: achievement.isUnlocked ? Colors.grey[600] : Colors.grey,
-          ),
-        ),
-        trailing: achievement.isUnlocked
-            ? const Icon(Icons.check_circle, color: Colors.green)
-            : const Icon(Icons.lock, color: Colors.grey),
-      ),
-    );
-  }
-
-  Widget _buildRewardCard(LevelReward reward, UserProfileProvider provider) {
-    final canClaim = !reward.isClaimed && provider.level >= reward.level;
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: reward.isClaimed 
-                ? _getRewardColor(reward.type).withOpacity(0.1)
-                : Colors.grey.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: Icon(
-            _getRewardIcon(reward.icon),
-            color: reward.isClaimed 
-                ? _getRewardColor(reward.type)
-                : Colors.grey,
-          ),
-        ),
-        title: Text(
-          reward.title,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: reward.isClaimed ? Theme.of(context).colorScheme.onSurface : Colors.grey,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              reward.description,
-              style: TextStyle(
-                color: reward.isClaimed ? Colors.grey[600] : Colors.grey,
-              ),
-            ),
-            Text(
-              'Level ${reward.level}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.blue,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        trailing: reward.isClaimed
-            ? const Icon(Icons.check_circle, color: Colors.green)
-            : canClaim
-                ? IconButton(
-                    icon: const Icon(Icons.card_giftcard, color: Colors.orange),
-                    onPressed: () => provider.claimReward(reward.id),
-                  )
-                : const Icon(Icons.lock, color: Colors.grey),
-      ),
-    );
-  }
 
   void _showEditProfile() {
     Navigator.push(
@@ -515,69 +412,6 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
     }
   }
 
-  Color _getAchievementColor(AchievementType type) {
-    switch (type) {
-      case AchievementType.xp:
-        return Colors.yellow;
-      case AchievementType.level:
-        return Colors.blue;
-      case AchievementType.streak:
-        return Colors.orange;
-      case AchievementType.sessions:
-        return Colors.green;
-      case AchievementType.perfect:
-        return Colors.purple;
-      case AchievementType.accuracy:
-        return Colors.teal;
-    }
-  }
-
-  Color _getRewardColor(LevelRewardType type) {
-    switch (type) {
-      case LevelRewardType.xp:
-        return Colors.yellow;
-      case LevelRewardType.streak:
-        return Colors.orange;
-      case LevelRewardType.feature:
-        return Colors.blue;
-      case LevelRewardType.cosmetic:
-        return Colors.purple;
-    }
-  }
-
-  IconData _getAchievementIcon(String icon) {
-    switch (icon) {
-      case 'play.circle.fill':
-        return Icons.play_circle_fill;
-      case 'flame.fill':
-        return Icons.local_fire_department;
-      case 'star.fill':
-        return Icons.star;
-      case 'arrow.up.circle.fill':
-        return Icons.trending_up;
-      case 'gift.fill':
-        return Icons.card_giftcard;
-      case 'target':
-        return Icons.gps_fixed;
-      default:
-        return Icons.emoji_events;
-    }
-  }
-
-  IconData _getRewardIcon(String icon) {
-    switch (icon) {
-      case 'gift.fill':
-        return Icons.card_giftcard;
-      case 'shield.fill':
-        return Icons.shield;
-      case 'star.fill':
-        return Icons.star;
-      case 'person.crop.circle.fill':
-        return Icons.person;
-      default:
-        return Icons.card_giftcard;
-    }
-  }
 
   // Helper method to calculate XP needed for next level
   int _getXpForNextLevel(int currentLevel) {

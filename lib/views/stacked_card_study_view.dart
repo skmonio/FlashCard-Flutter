@@ -889,13 +889,21 @@ class TaalTrekFlashCard extends StatelessWidget {
 
   Widget _buildCardFront(BuildContext context) {
     final borderColor = _getCardBorderColor(card);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Responsive sizing based on screen dimensions
+    final responsivePadding = screenHeight * 0.04; // 4% of screen height
+    final responsiveFontSize = _getAdaptiveFontSize(context);
+    final responsiveBorderRadius = screenHeight * 0.03; // 3% of screen height
+    final responsiveBorderWidth = screenHeight * 0.006; // 0.6% of screen height
     
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24), // Match Quick Study exactly
+        borderRadius: BorderRadius.circular(responsiveBorderRadius),
         boxShadow: [
           BoxShadow(
             color: borderColor.withValues(alpha: 0.3),
@@ -910,16 +918,16 @@ class TaalTrekFlashCard extends StatelessWidget {
         ],
         border: Border.all(
           color: borderColor,
-          width: 5, // Match Quick Study exactly
+          width: responsiveBorderWidth,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(32), // Match Quick Study exactly
+        padding: EdgeInsets.all(responsivePadding),
         child: Center(
           child: Text(
             card.word,
-            style: const TextStyle(
-              fontSize: 42, // Match Quick Study font sizes
+            style: TextStyle(
+              fontSize: responsiveFontSize,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
@@ -929,15 +937,43 @@ class TaalTrekFlashCard extends StatelessWidget {
     );
   }
 
+  double _getAdaptiveFontSize(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // For very small screens (height < 600), use smaller font
+    if (screenHeight < 600) {
+      return 28.0; // Smaller font for small screens
+    }
+    // For medium screens (height 600-800), use medium font
+    else if (screenHeight < 800) {
+      return 36.0; // Medium font for medium screens
+    }
+    // For large screens (height 800-1000), use larger font
+    else if (screenHeight < 1000) {
+      return 42.0; // Larger font for large screens
+    }
+    // For very large screens (tablets, iPads), use even larger font
+    else {
+      return 48.0; // Extra large font for tablets
+    }
+  }
+
   Widget _buildCardBack(BuildContext context) {
     final borderColor = _getCardBorderColor(card);
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Responsive sizing based on screen dimensions
+    final responsivePadding = screenHeight * 0.04; // 4% of screen height
+    final responsiveFontSize = _getAdaptiveFontSize(context) * 0.85; // Slightly smaller for definition
+    final responsiveBorderRadius = screenHeight * 0.03; // 3% of screen height
+    final responsiveBorderWidth = screenHeight * 0.006; // 0.6% of screen height
     
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24), // Match Quick Study exactly
+        borderRadius: BorderRadius.circular(responsiveBorderRadius),
         boxShadow: [
           BoxShadow(
             color: borderColor.withValues(alpha: 0.3),
@@ -952,16 +988,16 @@ class TaalTrekFlashCard extends StatelessWidget {
         ],
         border: Border.all(
           color: borderColor,
-          width: 5, // Match Quick Study exactly
+          width: responsiveBorderWidth,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(32), // Match Quick Study exactly
+        padding: EdgeInsets.all(responsivePadding),
         child: Center(
           child: Text(
             card.definition,
-            style: const TextStyle(
-              fontSize: 36, // Match Quick Study font sizes
+            style: TextStyle(
+              fontSize: responsiveFontSize,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,

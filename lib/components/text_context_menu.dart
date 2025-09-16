@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/translation_service.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class TextContextMenu extends StatelessWidget {
   final String selectedText;
@@ -219,11 +220,10 @@ class TextContextMenu extends StatelessWidget {
   }
 
   void _showSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
+    EnhancedSnackBar.showInfo(
+      context, 
+      message: message,
+      duration: const Duration(seconds: 2),
     );
   }
 }
