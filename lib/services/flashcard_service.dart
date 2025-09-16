@@ -75,11 +75,11 @@ class FlashcardService {
       await prefs.setStringList(_cardsKey, cardsJson);
       print('Service: Cards saved successfully');
       
-      // Auto-sync to cloud if user is authenticated
+      // Auto-sync to cloud if user is authenticated (throttled)
       if (SupabaseService.instance.isAuthenticated) {
-        print('Service: Auto-syncing to cloud...');
+        print('Service: Auto-syncing to cloud (throttled)...');
         try {
-          await DataSyncService.syncAllData();
+          await DataSyncService.syncAllDataThrottled();
           print('Service: Auto-sync completed successfully');
         } catch (e) {
           print('Service: Auto-sync failed (non-critical): $e');

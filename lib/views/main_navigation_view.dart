@@ -5,7 +5,6 @@ import '../providers/theme_provider.dart';
 import '../services/sample_data_service.dart';
 import 'home_view.dart';
 import 'cards_view.dart';
-import 'social_view.dart';
 import 'settings_view.dart';
 import '../components/bottom_navigation_view.dart';
 import '../components/main_header.dart';
@@ -26,14 +25,13 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     super.initState();
     // Initialize the providers when the app starts
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-
-      
-      // Initialize flashcard provider
+      // Only initialize if not already done by AppInitializationView
       final provider = context.read<FlashcardProvider>();
-      await provider.initialize();
       
-      // Check if data was synced and refresh if needed
-      await _checkForDataChanges(provider);
+      // Check if provider is already initialized (from AppInitializationView)
+      if (provider.cards.isEmpty) {
+        await provider.initialize();
+      }
       
       // Check if user wants sample data (only show on first launch)
       if (await SampleDataService.shouldShowSampleDataPrompt()) {
@@ -45,15 +43,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
     });
   }
   
-  Future<void> _checkForDataChanges(FlashcardProvider provider) async {
-    try {
-      // Re-initialize the provider to pick up any synced data
-      await provider.initialize();
-      print('🔄 MainNavigationView: Provider re-initialized after potential data sync');
-    } catch (e) {
-      print('❌ MainNavigationView: Error re-initializing provider: $e');
-    }
-  }
 
   @override
   void dispose() {
@@ -92,7 +81,6 @@ class _MainNavigationViewState extends State<MainNavigationView> {
               children: const [
                 HomeView(),
                 CardsView(),
-                SocialView(),
                 SettingsView(),
               ],
             ),

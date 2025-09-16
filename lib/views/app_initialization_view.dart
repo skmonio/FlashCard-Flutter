@@ -186,60 +186,30 @@ class _AppInitializationViewState extends State<AppInitializationView> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_themeInitialized || !_authChecked || (_isAuthenticated && !_dataSynced)) {
-      // Show a basic splash screen while theme, auth, and data sync load
-      final systemBrightness = MediaQuery.of(context).platformBrightness;
-      final isDark = systemBrightness == Brightness.dark;
-      
-      return Material(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: isDark ? Colors.black : Colors.white,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  isDark ? 'assets/images/taal-trek-splash-dark.png' : 'assets/images/taal-trek-splash.png',
-                  fit: BoxFit.contain,
-                  width: 200,
-                  height: 200,
-                ),
-                const SizedBox(height: 20),
-                if (_isAuthenticated && !_dataSynced)
-                  const Text(
-                    'Syncing your data...',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     // Check if user needs authentication
     if (!_isAuthenticated) {
       return const AuthView();
     }
 
-    // Check if user needs onboarding (regardless of authentication status)
-    if (!_onboardingCompleted) {
-      return OnboardingView(
-        isFirstTime: true,
-        onOnboardingComplete: () {
-          // When onboarding completes, check the status again and rebuild
-          _checkOnboardingStatus();
-        },
-      );
-    }
+    // Skip onboarding for now
+    // if (!_onboardingCompleted) {
+    //   return OnboardingView(
+    //     isFirstTime: true,
+    //     onOnboardingComplete: () {
+    //       // When onboarding completes, check the status again and rebuild
+    //       _checkOnboardingStatus();
+    //     },
+    //   );
+    // }
     
-    // Once theme is initialized and user is authenticated, show the normal loading view
+    // Once theme is initialized and user is authenticated, show the loading view with syncing info
     return LoadingView(
       minimumDisplayTime: const Duration(milliseconds: 1500),
       isReadyCheck: () async {
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Wait for theme, auth, and data sync to complete
+        while (!_themeInitialized || !_authChecked || (_isAuthenticated && !_dataSynced)) {
+          await Future.delayed(const Duration(milliseconds: 100));
+        }
         return true;
       },
       child: const MainNavigationView(),

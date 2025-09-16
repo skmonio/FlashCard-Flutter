@@ -219,7 +219,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         final index = entry.key;
         final option = entry.value;
         final isSelected = _selectedAnswer == option;
-        final isCorrect = index.toString() == exercise.correctAnswer;
+        // Find the correct answer in the shuffled options
+        final originalCorrectIndex = int.tryParse(exercise.correctAnswer) ?? 0;
+        final originalCorrectAnswer = exercise.options[originalCorrectIndex];
+        final shuffledCorrectIndex = options.indexOf(originalCorrectAnswer);
+        final isCorrect = index == shuffledCorrectIndex;
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
@@ -448,8 +452,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
 
   void _initializeShuffledOptions(int questionIndex, WordExercise exercise) {
     if (!_shuffledOptions.containsKey(questionIndex)) {
-      // Don't shuffle options to maintain the rule that option 1 (index 0) is always correct
-      _shuffledOptions[questionIndex] = exercise.options;
+      // Shuffle options in study mode so correct answer isn't always first
+      _shuffledOptions[questionIndex] = List<String>.from(exercise.options)..shuffle();
     }
   }
 
@@ -626,11 +630,12 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       final correctWords = currentExercise.correctAnswer.split(' ');
       isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
-      // For other exercise types, check if the selected answer is at the correct index
-      // The correctAnswer field now contains the index (as string) of the correct option
+      // For other exercise types, check if the selected answer is the correct one
+      // Find the correct answer in the shuffled options
       final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise.options;
-      final correctIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
-      isCorrect = _selectedAnswer != null && options.indexOf(_selectedAnswer!) == correctIndex;
+      final originalCorrectIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
+      final originalCorrectAnswer = currentExercise.options[originalCorrectIndex];
+      isCorrect = _selectedAnswer == originalCorrectAnswer;
     }
     
     // Update learning progress for the word exercise

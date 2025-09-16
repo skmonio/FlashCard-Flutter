@@ -507,15 +507,16 @@ class FlashcardProvider extends ChangeNotifier {
     final allCards = <FlashCard>{};
     
     for (final deckId in deckIds) {
-      final deck = _decks.firstWhere((d) => d.id == deckId);
-      
-      // Get cards from the main deck
-      final deckCards = getCardsForDeck(deck.id);
-      allCards.addAll(deckCards);
-      
-      // Get cards from all sub-decks recursively
-      final subDeckCards = _getAllCardsFromSubDecks(deck.id);
-      allCards.addAll(subDeckCards);
+      final deck = _decks.where((d) => d.id == deckId).firstOrNull;
+      if (deck != null) {
+        // Get cards from the main deck
+        final deckCards = getCardsForDeck(deck.id);
+        allCards.addAll(deckCards);
+        
+        // Get cards from all sub-decks recursively
+        final subDeckCards = _getAllCardsFromSubDecks(deck.id);
+        allCards.addAll(subDeckCards);
+      }
     }
     
     // Convert to sorted list for consistent output
@@ -569,9 +570,14 @@ class FlashcardProvider extends ChangeNotifier {
     final deckPaths = <String>[];
     
     for (final deckId in card.deckIds) {
-      final deck = _decks.firstWhere((d) => d.id == deckId);
-      final path = _buildDeckPath(deck);
-      deckPaths.add(path);
+      final deck = _decks.where((d) => d.id == deckId).firstOrNull;
+      if (deck != null) {
+        final path = _buildDeckPath(deck);
+        deckPaths.add(path);
+      } else {
+        // If deck not found, add a fallback name
+        deckPaths.add('Unknown Deck ($deckId)');
+      }
     }
     
     return deckPaths;
@@ -584,10 +590,11 @@ class FlashcardProvider extends ChangeNotifier {
     
     // Walk up the hierarchy to build the full path
     while (currentDeck?.parentId != null) {
-      try {
-        currentDeck = _decks.firstWhere((d) => d.id == currentDeck!.parentId);
-        path.insert(0, currentDeck!.name);
-      } catch (e) {
+      final parentDeck = _decks.where((d) => d.id == currentDeck!.parentId).firstOrNull;
+      if (parentDeck != null) {
+        currentDeck = parentDeck;
+        path.insert(0, currentDeck.name);
+      } else {
         // Parent deck not found, stop here
         break;
       }

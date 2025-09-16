@@ -5,6 +5,8 @@ import 'dart:math';
 import '../providers/user_profile_provider.dart';
 import '../models/user_profile.dart';
 import 'edit_profile_view.dart';
+import 'friends_view.dart';
+import 'leaderboard_view.dart';
 
 class UserProfileView extends StatefulWidget {
   const UserProfileView({super.key});
@@ -238,6 +240,8 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           _buildTabButton('Stats', 0),
           _buildTabButton('Achievements', 1),
           _buildTabButton('Rewards', 2),
+          _buildTabButton('Friends', 3),
+          _buildTabButton('Leaderboard', 4),
         ],
       ),
     );
@@ -280,6 +284,10 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
         return _buildAchievementsTab(provider);
       case 2:
         return _buildRewardsTab(provider);
+      case 3:
+        return _buildFriendsTab();
+      case 4:
+        return _buildLeaderboardTab();
       default:
         return _buildStatsTab(provider);
     }
@@ -615,5 +623,13 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
         ),
       ],
     );
+  }
+
+  Widget _buildFriendsTab() {
+    return const FriendsView();
+  }
+
+  Widget _buildLeaderboardTab() {
+    return const LeaderboardView();
   }
 } 

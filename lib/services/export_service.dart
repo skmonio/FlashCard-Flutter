@@ -311,9 +311,14 @@ class ExportService {
     final deckPaths = <String>[];
     
     for (final deckId in card.deckIds) {
-      final deck = decks.firstWhere((d) => d.id == deckId);
-      final path = _buildDeckPath(deck, decks);
-      deckPaths.add(path);
+      final deck = decks.where((d) => d.id == deckId).firstOrNull;
+      if (deck != null) {
+        final path = _buildDeckPath(deck, decks);
+        deckPaths.add(path);
+      } else {
+        // If deck not found, add a fallback name
+        deckPaths.add('Unknown Deck ($deckId)');
+      }
     }
     
     return deckPaths;
@@ -324,12 +329,13 @@ class ExportService {
     String? currentParentId = deck.parentId;
     
     while (currentParentId != null) {
-      try {
-        final parentDeck = allDecks.firstWhere((d) => d.id == currentParentId);
+      final parentDeck = allDecks.where((d) => d.id == currentParentId).firstOrNull;
+      if (parentDeck != null) {
         path.insert(0, parentDeck.name);
         currentParentId = parentDeck.parentId;
-      } catch (e) {
-        break; // Parent not found, stop building path
+      } else {
+        // Parent not found, stop building path
+        break;
       }
     }
     

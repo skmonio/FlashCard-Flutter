@@ -252,7 +252,12 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         final index = entry.key;
         final option = entry.value;
         final isSelected = _selectedAnswer == option;
-        final isCorrect = index.toString() == exercise['correctAnswer'];
+        // Find the correct answer in the shuffled options
+        final originalCorrectIndex = int.tryParse(exercise['correctAnswer']) ?? 0;
+        final originalOptions = exercise['options'] as List<String>? ?? [];
+        final originalCorrectAnswer = originalOptions[originalCorrectIndex];
+        final shuffledCorrectIndex = options.indexOf(originalCorrectAnswer);
+        final isCorrect = index == shuffledCorrectIndex;
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
@@ -583,8 +588,8 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
   void _initializeShuffledOptions(int exerciseIndex, Map<String, dynamic> exercise) {
     if (!_shuffledOptions.containsKey(exerciseIndex)) {
       final options = exercise['options'] as List<String>? ?? [];
-      // Don't shuffle options to maintain the rule that option 1 (index 0) is always correct
-      _shuffledOptions[exerciseIndex] = options;
+      // Shuffle options in study mode so correct answer isn't always first
+      _shuffledOptions[exerciseIndex] = List<String>.from(options)..shuffle();
     }
     
     // Initialize sentence builder state if needed (only if not already initialized for this exercise)

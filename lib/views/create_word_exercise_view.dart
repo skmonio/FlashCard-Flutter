@@ -971,21 +971,20 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     
     // Find the card ID for this word to set as selected
     final flashcardProvider = context.read<FlashcardProvider>();
-    final card = flashcardProvider.cards.firstWhere(
+    final card = flashcardProvider.cards.where(
       (card) => card.word == exercise.targetWord,
-      orElse: () => FlashCard(
-        word: '',
-        definition: '',
-        example: '',
-        deckIds: <String>{},
-        dateCreated: DateTime.now(),
-                            learningMastery: LearningMastery(),
-        article: '',
-        plural: '',
-        pastTense: '',
-        futureTense: '',
-        pastParticiple: '',
-      ),
+    ).firstOrNull ?? FlashCard(
+      word: '',
+      definition: '',
+      example: '',
+      deckIds: <String>{},
+      dateCreated: DateTime.now(),
+      learningMastery: LearningMastery(),
+      article: '',
+      plural: '',
+      pastTense: '',
+      futureTense: '',
+      pastParticiple: '',
     );
     
     if (card.word.isNotEmpty) {

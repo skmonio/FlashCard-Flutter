@@ -42,6 +42,20 @@ class _LoadingViewState extends State<LoadingView> {
       // If not authenticated, proceed with normal loading sequence
       _proceedWithNormalLoading();
     }
+    
+    // Wait for the isReadyCheck to complete
+    if (widget.isReadyCheck != null) {
+      await widget.isReadyCheck!();
+    }
+    
+    // Transition to main content after minimum time
+    Future.delayed(widget.minimumDisplayTime, () {
+      if (mounted) {
+        setState(() {
+          _showContent = true;
+        });
+      }
+    });
   }
 
   Future<void> _syncData() async {
@@ -123,15 +137,6 @@ class _LoadingViewState extends State<LoadingView> {
       if (mounted) {
         setState(() {
           _loadingText = "Almost ready...";
-        });
-      }
-    });
-
-    // Transition to main content after minimum time
-    Future.delayed(widget.minimumDisplayTime, () {
-      if (mounted) {
-        setState(() {
-          _showContent = true;
         });
       }
     });

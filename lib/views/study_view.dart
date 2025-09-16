@@ -652,9 +652,11 @@ class _StudyViewState extends State<StudyView> {
       _isFlipped ? card.word : card.definition
     ).toList();
     
-    // Add correct answer first, don't shuffle
+    // Create options list with correct answer first
     _multipleChoiceOptions = [correctAnswer, ...wrongOptions];
-    // Don't shuffle - keep correct answer first
+    
+    // Shuffle options in study mode so correct answer isn't always first
+    _multipleChoiceOptions.shuffle();
   }
 
   void _generateScrambledWord() {

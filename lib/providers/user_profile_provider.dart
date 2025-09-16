@@ -133,6 +133,17 @@ class UserProfileProvider extends ChangeNotifier {
   Future<void> updateUsername(String newUsername) async {
     _profile = _profile.copyWith(username: newUsername);
     await _saveToStorage();
+    
+    // Also update in cloud database
+    try {
+      await SupabaseService.instance.updateUserProfile({
+        'username': newUsername,
+      });
+      print('✅ Username updated in cloud: $newUsername');
+    } catch (e) {
+      print('❌ Error updating username in cloud: $e');
+    }
+    
     notifyListeners();
   }
 

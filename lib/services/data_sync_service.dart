@@ -8,6 +8,9 @@ class DataSyncService {
   factory DataSyncService() => _instance;
   DataSyncService._internal();
   
+  static DateTime? _lastSyncTime;
+  static const Duration _syncThrottleDuration = Duration(minutes: 5);
+  
   // Check if user data has been synced to cloud
   static Future<bool> isDataSynced() async {
     final prefs = await SharedPreferences.getInstance();
@@ -81,27 +84,41 @@ class DataSyncService {
       
       // Get local decks from SharedPreferences
       final decksJson = prefs.getStringList('decks') ?? [];
-      final localDeckIds = <String>{};
+      if (decksJson.isEmpty) {
+        print('🔍 DataSyncService: No decks to sync');
+        return;
+      }
       
-      // Upsert local decks to cloud
+      final localDeckIds = <String>{};
+      final decksToUpsert = <Map<String, dynamic>>[];
+      
+      // Prepare batch data
       for (final deckJson in decksJson) {
         try {
           final deckData = json.decode(deckJson);
           localDeckIds.add(deckData['id']);
           
-          await SupabaseService.instance.client
-              .from('decks')
-              .upsert({
-                'id': deckData['id'],
-                'user_id': userId,
-                'name': deckData['name'],
-                'parent_id': deckData['parentId'],
-                'created_at': DateTime.now().toIso8601String(),
-                'updated_at': DateTime.now().toIso8601String(),
-              });
+          // Prepare deck data for batch upsert
+          decksToUpsert.add({
+            'id': deckData['id'],
+            'user_id': userId,
+            'name': deckData['name'],
+            'parent_id': deckData['parentId'],
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
         } catch (e) {
-          print('❌ Error syncing deck: $e');
+          print('❌ Error preparing deck for sync: $e');
         }
+      }
+      
+      // Batch upsert all decks at once
+      if (decksToUpsert.isNotEmpty) {
+        print('🔍 DataSyncService: Batch upserting ${decksToUpsert.length} decks');
+        await SupabaseService.instance.client
+            .from('decks')
+            .upsert(decksToUpsert);
+        print('✅ Decks batch upserted successfully');
       }
       
       // Get all cloud decks for this user
@@ -142,34 +159,38 @@ class DataSyncService {
       
       // Get local flashcards from SharedPreferences
       final cardsJson = prefs.getStringList('cards') ?? [];
+      if (cardsJson.isEmpty) {
+        print('🔍 DataSyncService: No cards to sync');
+        return;
+      }
+      
       final localCardIds = <String>{};
       final localDeckCardRelationships = <Map<String, String>>[];
+      final cardsToUpsert = <Map<String, dynamic>>[];
       
-      // Upsert local flashcards to cloud
+      // Prepare batch data
       for (final cardJson in cardsJson) {
         try {
           final cardData = json.decode(cardJson);
           localCardIds.add(cardData['id']);
           
-          // Insert/update flashcard
-          await SupabaseService.instance.client
-              .from('flashcards')
-              .upsert({
-                'id': cardData['id'],
-                'user_id': userId,
-                'word': cardData['word'],
-                'definition': cardData['definition'],
-                'example': cardData['example'],
-                'example_translation': cardData['exampleTranslation'],
-                'article': cardData['article'],
-                'plural': cardData['plural'],
-                'past_tense': cardData['pastTense'],
-                'future_tense': cardData['futureTense'],
-                'past_participle': cardData['pastParticiple'],
-                'success_count': cardData['timesCorrect'] ?? 0,
-                'created_at': DateTime.now().toIso8601String(),
-                'updated_at': DateTime.now().toIso8601String(),
-              });
+          // Prepare flashcard data for batch upsert
+          cardsToUpsert.add({
+            'id': cardData['id'],
+            'user_id': userId,
+            'word': cardData['word'],
+            'definition': cardData['definition'],
+            'example': cardData['example'],
+            'example_translation': cardData['exampleTranslation'],
+            'article': cardData['article'],
+            'plural': cardData['plural'],
+            'past_tense': cardData['pastTense'],
+            'future_tense': cardData['futureTense'],
+            'past_participle': cardData['pastParticiple'],
+            'success_count': cardData['timesCorrect'] ?? 0,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
           
           // Track deck relationships
           final deckIds = cardData['deckIds'] as List<dynamic>? ?? [];
@@ -180,8 +201,17 @@ class DataSyncService {
             });
           }
         } catch (e) {
-          print('❌ Error syncing flashcard: $e');
+          print('❌ Error preparing flashcard for sync: $e');
         }
+      }
+      
+      // Batch upsert all flashcards at once
+      if (cardsToUpsert.isNotEmpty) {
+        print('🔍 DataSyncService: Batch upserting ${cardsToUpsert.length} flashcards');
+        await SupabaseService.instance.client
+            .from('flashcards')
+            .upsert(cardsToUpsert);
+        print('✅ Flashcards batch upserted successfully');
       }
       
       // Get all cloud flashcards for this user
@@ -287,10 +317,31 @@ class DataSyncService {
       await syncLearningProgress();
       
       await markDataAsSynced();
+      _lastSyncTime = DateTime.now();
       print('✅ All data synced to cloud successfully!');
     } catch (e) {
       print('❌ Error during data sync: $e');
     }
+  }
+  
+  // Throttled sync - only sync if enough time has passed since last sync
+  static Future<void> syncAllDataThrottled() async {
+    if (!SupabaseService.instance.isAuthenticated) {
+      print('❌ User not authenticated, cannot sync data');
+      return;
+    }
+    
+    // Check if we should throttle this sync
+    if (_lastSyncTime != null) {
+      final timeSinceLastSync = DateTime.now().difference(_lastSyncTime!);
+      if (timeSinceLastSync < _syncThrottleDuration) {
+        print('🔍 DataSyncService: Sync throttled (${timeSinceLastSync.inMinutes}min since last sync)');
+        return;
+      }
+    }
+    
+    print('🔄 Starting throttled data sync to cloud...');
+    await syncAllData();
   }
   
   // Download data from cloud to local storage

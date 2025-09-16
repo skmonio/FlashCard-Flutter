@@ -146,13 +146,17 @@ class SupabaseService {
         return;
       }
       
-      // Create default profile
-      print('🔧 Creating new user profile for ${currentUser!.id}');
+      // Generate a unique username based on email
+      final email = currentUser!.email ?? 'user';
+      final uniqueUsername = email.split('@')[0] + '_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      
+      // Create default profile with unique username
+      print('🔧 Creating new user profile for ${currentUser!.id} with username: $uniqueUsername');
       await client
           .from('user_profiles')
           .insert({
             'id': currentUser!.id,
-            'username': 'Learner',
+            'username': uniqueUsername,
             'selected_avatar': 'person',
             'profile_image_data': null,
             'xp': 0,

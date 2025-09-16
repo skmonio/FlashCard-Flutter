@@ -199,18 +199,18 @@ class FriendsService {
           .eq('id', requestId);
 
       // Create friendship relationship (both directions)
-      await _client.from('friends').upsert([
-        {
-          'user_id': senderId,
-          'friend_id': receiverId,
-          'status': 'accepted',
-        },
-        {
-          'user_id': receiverId,
-          'friend_id': senderId,
-          'status': 'accepted',
-        },
-      ]);
+      // Insert them one by one to avoid RLS issues
+      await _client.from('friends').insert({
+        'user_id': senderId,
+        'friend_id': receiverId,
+        'status': 'accepted',
+      });
+      
+      await _client.from('friends').insert({
+        'user_id': receiverId,
+        'friend_id': senderId,
+        'status': 'accepted',
+      });
 
       // Create notification for the sender
       await _createNotification(
