@@ -49,7 +49,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   int _selectedLives = 2; // Default to medium difficulty
   
   // New settings for flipped mode
-  String _flippedMode = 'normal'; // 'normal', 'flipped', 'mixed'
+  String _flippedMode = 'normal'; // 'normal', 'flipped'
   
   // Timed mode settings
   bool _useTimedMode = false;
@@ -128,9 +128,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return _startFlipped;
   }
   
-  bool _getUseMixedMode() {
-    return _shouldShowSettings() && _flippedMode == 'mixed';
-  }
   
   Widget _buildStudyTypeOptions() {
     return Column(
@@ -397,7 +394,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               startFlipped: _getStartFlipped(),
               title: 'Quick Study',
-              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -424,7 +420,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 useLivesMode: _useLivesMode,
                 customLives: _useLivesMode ? _selectedLives : null,
                 startFlipped: _getStartFlipped(),
-                useMixedMode: _getUseMixedMode(),
               ),
             ),
           );
@@ -451,7 +446,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 useLivesMode: _useLivesMode,
                 customLives: _selectedLives,
                 startFlipped: _getStartFlipped(),
-                useMixedMode: _getUseMixedMode(),
               ),
             ),
           );
@@ -464,7 +458,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               title: 'Quick Write',
               startFlipped: _getStartFlipped(),
-              useMixedMode: _getUseMixedMode(),
             ),
           ),
         );
@@ -621,7 +614,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         autoProgress: _autoProgress,
         useLivesMode: _useLivesMode,
         customLives: _useLivesMode ? _selectedLives : null,
-        useMixedMode: _getUseMixedMode(),
         useTimedMode: _useTimedMode,
         timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
         useSRSFiltering: _useSRSFiltering,
@@ -788,21 +780,17 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: _buildFlippedModeButton('Normal', 'normal', setState),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildFlippedModeButton('Flipped', 'flipped', setState),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildFlippedModeButton('Mixed', 'mixed', setState),
-            ),
-          ],
-        ),
+          Row(
+            children: [
+              Expanded(
+                child: _buildFlippedModeButton('Normal', 'normal', setState),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildFlippedModeButton('Flipped', 'flipped', setState),
+              ),
+            ],
+          ),
       ],
     );
   }
@@ -1544,7 +1532,6 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
-  final bool useMixedMode;
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final bool useSRSFiltering;
@@ -1558,7 +1545,6 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     required this.autoProgress,
     this.useLivesMode = false,
     this.customLives,
-    this.useMixedMode = false,
     this.useTimedMode = false,
     this.timedDifficulty,
     required this.useSRSFiltering,
@@ -1690,7 +1676,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: filteredCards,
               startFlipped: widget.startFlipped,
               title: title,
-              useMixedMode: widget.useMixedMode,
             ),
           ),
         );
@@ -1710,14 +1695,13 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         } else {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => MultipleChoiceView(
-                cards: filteredCards,
-                title: title,
-                autoProgress: widget.autoProgress,
-                useLivesMode: widget.useLivesMode,
-                customLives: widget.customLives,
-                startFlipped: widget.startFlipped,
-                useMixedMode: widget.useMixedMode,
+            builder: (context) => MultipleChoiceView(
+              cards: filteredCards,
+              title: title,
+              autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
+              startFlipped: widget.startFlipped,
               ),
             ),
           );
@@ -1737,14 +1721,13 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         } else {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => TrueFalseView(
-                cards: filteredCards,
-                title: title,
-                autoProgress: widget.autoProgress,
-                useLivesMode: widget.useLivesMode,
-                customLives: widget.customLives,
-                startFlipped: widget.startFlipped,
-                useMixedMode: widget.useMixedMode,
+            builder: (context) => TrueFalseView(
+              cards: filteredCards,
+              title: title,
+              autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
+              startFlipped: widget.startFlipped,
               ),
             ),
           );
@@ -1757,7 +1740,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: allSelectedCards,
               title: title,
               startFlipped: widget.startFlipped,
-              useMixedMode: widget.useMixedMode,
             ),
           ),
         );

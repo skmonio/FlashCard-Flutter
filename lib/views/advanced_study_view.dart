@@ -28,14 +28,12 @@ class AdvancedStudyView extends StatefulWidget {
   final List<FlashCard> cards;
   final bool startFlipped;
   final String title;
-  final bool useMixedMode;
 
   const AdvancedStudyView({
     super.key,
     required this.cards,
     this.startFlipped = false,
     required this.title,
-    this.useMixedMode = false,
   });
 
   @override
@@ -96,12 +94,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   @override
   void initState() {
     super.initState();
-    if (widget.useMixedMode) {
-      // In mixed mode, randomly choose which side to show
-      _isShowingFront = math.Random().nextBool();
-    } else {
-      _isShowingFront = !widget.startFlipped;
-    }
+    _isShowingFront = !widget.startFlipped;
     
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -538,18 +531,27 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
 
   Widget _buildNavigationButtons() {
+    print('🔍 AdvancedStudyView: Building navigation buttons, topIndex: $_topIndex, canGoBack: ${_topIndex > 0}');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Back button
+          // Back button - always enabled
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: _currentIndex > 0 ? _goToPreviousCard : null,
+              onPressed: () {
+                if (_topIndex > 0) {
+                  print('🔍 AdvancedStudyView: Back button pressed (previous card), topIndex: $_topIndex');
+                  _goToPreviousCard();
+                } else {
+                  print('🔍 AdvancedStudyView: Back button pressed (first card), going to previous screen');
+                  Navigator.of(context).pop();
+                }
+              },
               icon: const Icon(Icons.arrow_back_ios, size: 16),
               label: const Text('Back'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
+                backgroundColor: Colors.blue, // Always blue now
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),
@@ -752,8 +754,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   void _handleCardDoubleTap() {
     if (_nextCardActive) return;
     
-    // In mixed mode, don't allow manual flipping - the flip state is determined randomly
-    if (widget.useMixedMode) return;
     
     // Toggle the flip state
     _isShowingFront = !_isShowingFront;
@@ -768,31 +768,29 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _goToPreviousCard() {
-    if (_currentIndex > 0) {
+    print('🔍 AdvancedStudyView: _goToPreviousCard called, topIndex: $_topIndex');
+    if (_topIndex > 0) {
       // Get the previous card index
-      final previousIndex = _currentIndex - 1;
+      final previousIndex = _topIndex - 1;
+      print('🔍 AdvancedStudyView: Going back to index: $previousIndex');
       
       // Remove the current card from tracking sets since we're going back
-      final currentCard = _currentCards[_currentIndex];
+      final currentCard = _currentCards[_topIndex];
       _knownCards.remove(currentCard.id);
       _unknownCards.remove(currentCard.id);
       _skippedCards.remove(currentCard.id);
       
       // Remove from history tracking
-      _knownHistory.remove(_currentIndex);
-      _unknownHistory.remove(_currentIndex);
-      _skippedHistory.remove(_currentIndex);
+      _knownHistory.remove(_topIndex);
+      _unknownHistory.remove(_topIndex);
+      _skippedHistory.remove(_topIndex);
       
       setState(() {
-        _currentIndex = previousIndex;
+        _topIndex = previousIndex;
         _dragOffset = Offset.zero;
         _swipeDirection = SwipeDirection.none;
         _swipeIntensity = 0;
-        if (widget.useMixedMode) {
-          _isShowingFront = math.Random().nextBool();
-        } else {
-          _isShowingFront = !widget.startFlipped;
-        }
+        _isShowingFront = !widget.startFlipped;
         _flipController.reset();
         if (!_isShowingFront) {
           _flipController.value = 1.0;
@@ -804,13 +802,27 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _dealController.forward();
       });
       
-      // Update the previous card's state based on its last action
-      // This will be handled when the user swipes again on this card
+      // Restore the previous card's state based on its history
+      final previousCard = _currentCards[previousIndex];
+      if (_knownHistory.containsKey(previousIndex)) {
+        _knownCards.add(previousCard.id);
+        print('🔍 AdvancedStudyView: Restored previous card as known');
+      } else if (_unknownHistory.containsKey(previousIndex)) {
+        _unknownCards.add(previousCard.id);
+        print('🔍 AdvancedStudyView: Restored previous card as unknown');
+      } else if (_skippedHistory.containsKey(previousIndex)) {
+        _skippedCards.add(previousCard.id);
+        print('🔍 AdvancedStudyView: Restored previous card as skipped');
+      } else {
+        print('🔍 AdvancedStudyView: Previous card had no history, treating as new');
+      }
+    } else {
+      print('🔍 AdvancedStudyView: Cannot go back, already at first card');
     }
   }
 
   void _editCurrentCard() {
-    _selectedCardForEdit = _currentCards[_currentIndex];
+    _selectedCardForEdit = _currentCards[_topIndex];
     final card = _selectedCardForEdit!;
     
     Navigator.of(context).push(
@@ -1076,11 +1088,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _showingResults = true;
               print('🔍 AdvancedStudyView: Study complete, showing results');
             } else {
-              if (widget.useMixedMode) {
-                _isShowingFront = math.Random().nextBool();
-              } else {
-                _isShowingFront = !widget.startFlipped;
-              }
+              _isShowingFront = !widget.startFlipped;
               _flipController.reset();
               // Reset exit animation for next card
               _exitController.reset();
@@ -1102,11 +1110,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _swipeIntensity = 0;
         
         // In mixed mode, randomly choose which side to show for the next card
-        if (widget.useMixedMode) {
-          _isShowingFront = math.Random().nextBool();
-        } else {
-          _isShowingFront = !widget.startFlipped;
-        }
+        _isShowingFront = !widget.startFlipped;
       });
       
       // Check if we've gone through all cards
@@ -1166,10 +1170,32 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _showWordProgress() {
-    // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    // For flipped mode, include all cards in the end screen, not just studied ones
+    List<FlashCard> sessionStudiedWords;
+    Map<String, int> sessionXpGainedPerWord;
+    Map<String, LearningMastery> sessionWordMastery;
+    
+    if (widget.startFlipped) {
+      // Include all cards for flipped mode
+      sessionStudiedWords = List<FlashCard>.from(_currentCards);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+      
+      // Ensure all cards have entries in the maps (0 XP and current mastery for unanswered cards)
+      for (final card in _currentCards) {
+        if (!sessionXpGainedPerWord.containsKey(card.id)) {
+          sessionXpGainedPerWord[card.id] = 0; // 0 XP for unanswered cards
+        }
+        if (!sessionWordMastery.containsKey(card.id)) {
+          sessionWordMastery[card.id] = card.learningMastery; // Current mastery for unanswered cards
+        }
+      }
+    } else {
+      // Normal mode - only show studied cards
+      sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    }
     
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -1213,11 +1239,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               // Reset UI state
               _showingResults = false;
               _hasShownResults = false; // Reset guard for new session
-              if (widget.useMixedMode) {
-                _isShowingFront = math.Random().nextBool();
-              } else {
-                _isShowingFront = !widget.startFlipped;
-              }
+              _isShowingFront = !widget.startFlipped;
               _selectedCardForEdit = null;
               
               // Reset all animation controllers

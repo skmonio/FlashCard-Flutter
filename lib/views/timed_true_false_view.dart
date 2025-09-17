@@ -346,8 +346,6 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Timer bar
-                _buildTimerBar(),
               ],
             ),
           ),
@@ -523,6 +521,8 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              // Show timer in the middle
+              _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -536,6 +536,36 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -702,14 +732,24 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     Color textColor;
     String message;
     
+    // Get the correct answer based on flipped state
+    String correctAnswer;
+    if (_isQuestionMode) {
+      // Normal mode: showing word, asking about definition
+      correctAnswer = card.definition;
+    } else {
+      // Flipped mode: showing definition, asking about word
+      correctAnswer = card.word;
+    }
+    
     if (isCorrectAnswer && _selectedAnswer == false) {
       // User correctly answered FALSE - show green positive feedback
       textColor = Colors.green;
-      message = 'Correct! The answer is: ${card.definition}';
+      message = 'Correct! The answer is: $correctAnswer';
     } else {
       // User answered incorrectly - show red feedback
       textColor = Colors.red;
-      message = 'The correct answer is: ${card.definition}';
+      message = 'The correct answer is: $correctAnswer';
     }
     
     return Container(

@@ -27,7 +27,6 @@ class MultipleChoiceView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool startFlipped;
-  final bool useMixedMode;
 
   const MultipleChoiceView({
     super.key,
@@ -39,7 +38,6 @@ class MultipleChoiceView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.startFlipped = false,
-    this.useMixedMode = false,
   });
 
   @override
@@ -203,11 +201,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     final random = Random();
     
     // Choose question mode based on flipped mode settings
-    if (widget.useMixedMode) {
-      _isQuestionMode = random.nextBool(); // Randomly choose question mode
-    } else {
-      _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
-    }
+    _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
     
     // Get correct answer
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
@@ -594,9 +588,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Lives display (if using lives mode)
-                if (_useLivesMode) 
-                  _buildLivesDisplay(),
               ],
             ),
           ),
@@ -771,6 +762,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              // Show lives in the middle if active
+              if (_useLivesMode) _buildLivesIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -821,6 +814,29 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       ),
     );
   }
+  
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
   
   Color _getDifficultyColor() {
     if (_maxLives == 3) return Colors.green; // Easy

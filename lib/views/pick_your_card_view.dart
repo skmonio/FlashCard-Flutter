@@ -547,11 +547,6 @@ class _PickYourCardViewState extends State<PickYourCardView>
             // Progress bar
             _buildProgressBar(),
             
-            // Timer display (if using timed mode)
-            if (widget.useTimedMode) _buildTimerDisplay(),
-            
-            // Lives display (if using lives mode)
-            if (_useLivesMode) _buildLivesDisplay(),
             
             // Main content
             Expanded(
@@ -602,6 +597,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${currentCardIndex + 1} of ${widget.cards.length}'),
+              // Show lives or timer in the middle if active
+              if (_useLivesMode) _buildLivesIndicator(),
+              if (widget.useTimedMode) _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -689,6 +687,58 @@ class _PickYourCardViewState extends State<PickYourCardView>
           ],
         ),
       ),
+    );
+  }
+  
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

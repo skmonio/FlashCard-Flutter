@@ -27,7 +27,6 @@ class TrueFalseView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool startFlipped;
-  final bool useMixedMode;
 
   const TrueFalseView({
     super.key,
@@ -39,7 +38,6 @@ class TrueFalseView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.startFlipped = false,
-    this.useMixedMode = false,
   });
 
   @override
@@ -205,11 +203,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     _currentTranslation = '';
     
     // Choose question mode based on flipped mode settings
-    if (widget.useMixedMode) {
-      _isQuestionMode = Random().nextBool(); // Randomly choose question mode
-    } else {
-      _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
-    }
+    _isQuestionMode = !widget.startFlipped; // Use flipped mode setting
     
     // Get correct answer based on question mode
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
@@ -692,9 +686,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Lives display (if using lives mode)
-                if (_useLivesMode) 
-                  _buildLivesDisplay(),
               ],
             ),
           ),
@@ -890,6 +881,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              // Show lives in the middle if active
+              if (_useLivesMode) _buildLivesIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -940,6 +933,29 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       ),
     );
   }
+  
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
 
   Widget _buildAnswerButton(bool isTrue) {
     return Container(
@@ -1012,14 +1028,24 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     Color textColor;
     String message;
     
+    // Get the correct answer based on flipped state
+    String correctAnswer;
+    if (_isQuestionMode) {
+      // Normal mode: showing word, asking about definition
+      correctAnswer = currentCard.definition;
+    } else {
+      // Flipped mode: showing definition, asking about word
+      correctAnswer = currentCard.word;
+    }
+    
     if (isCorrectAnswer && _selectedAnswer == false) {
       // User correctly answered FALSE - show green positive feedback
       textColor = Colors.green;
-      message = 'Correct! The answer is: ${currentCard.definition}';
+      message = 'Correct! The answer is: $correctAnswer';
     } else {
       // User answered incorrectly - show red feedback
       textColor = Colors.red;
-      message = 'The correct answer is: ${currentCard.definition}';
+      message = 'The correct answer is: $correctAnswer';
     }
     
     return Container(

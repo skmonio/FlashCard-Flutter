@@ -45,6 +45,9 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+  
+  // Track card states for back navigation
+  Map<int, bool> _cardStates = {}; // true = known, false = unknown, null = not answered
   int _consecutiveCorrect = 0;
   int _totalAnswers = 0;
   int _correctAnswers = 0;
@@ -60,6 +63,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   void initState() {
     super.initState();
     _currentCards = List.from(widget.cards);
+    print('🔍 StackedCardStudyView: initState - topIndex: $topIndex, totalCards: ${_currentCards.length}');
     
     // Add listener to refresh cards when provider updates
     final provider = context.read<FlashcardProvider>();
@@ -102,10 +106,14 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   void _removeTopCard() {
+    print('🔍 StackedCardStudyView: _removeTopCard called, topIndex: $topIndex, totalCards: ${_currentCards.length}');
     if (topIndex < _currentCards.length) {
       setState(() {
         topIndex++;
       });
+      print('🔍 StackedCardStudyView: topIndex incremented to: $topIndex');
+    } else {
+      print('🔍 StackedCardStudyView: Cannot remove top card, already at end');
     }
   }
 
@@ -140,11 +148,16 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   void _markAnswer(bool isCorrect, SwipeDirection direction) {
+    print('🔍 StackedCardStudyView: _markAnswer called, topIndex: $topIndex, isCorrect: $isCorrect, direction: $direction');
     if (topIndex >= _currentCards.length) return;
     
     final currentCard = _currentCards[topIndex];
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
+    
+    // Track the card state for back navigation
+    _cardStates[topIndex] = isCorrect;
+    print('🔍 StackedCardStudyView: Card state tracked for index $topIndex: $isCorrect');
     
     // Track the studied word
     if (!_studiedWords.contains(currentCard)) {
@@ -223,10 +236,21 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   void _goToPreviousCard() {
+    print('🔍 StackedCardStudyView: _goToPreviousCard called, topIndex: $topIndex');
     if (topIndex > 0) {
+      // Remove the current card's state since we're going back
+      _cardStates.remove(topIndex);
+      
       setState(() {
         topIndex--;
       });
+      
+      print('🔍 StackedCardStudyView: Went back to topIndex: $topIndex');
+      
+      // The previous card's state will be automatically restored when it's displayed
+      // since the TaalTrekStackCard widget will show the card in its current state
+    } else {
+      print('🔍 StackedCardStudyView: Cannot go back, already at first card');
     }
   }
 
@@ -254,12 +278,39 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
     _hasShownResults = true;
     print('🔍 StackedCardStudyView: Showing results screen');
     
+    // For flipped mode, include all cards in the end screen, not just studied ones
+    List<FlashCard> sessionStudiedWords;
+    Map<String, int> sessionXpGainedPerWord;
+    Map<String, LearningMastery> sessionWordMastery;
+    
+    if (widget.startFlipped) {
+      // Include all cards for flipped mode
+      sessionStudiedWords = List<FlashCard>.from(widget.cards);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+      
+      // Ensure all cards have entries in the maps (0 XP and current mastery for unanswered cards)
+      for (final card in widget.cards) {
+        if (!sessionXpGainedPerWord.containsKey(card.id)) {
+          sessionXpGainedPerWord[card.id] = 0; // 0 XP for unanswered cards
+        }
+        if (!sessionWordMastery.containsKey(card.id)) {
+          sessionWordMastery[card.id] = card.learningMastery; // Current mastery for unanswered cards
+        }
+      }
+    } else {
+      // Normal mode - only show studied cards
+      sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    }
+    
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
+          studiedWords: sessionStudiedWords,
+          xpGainedPerWord: sessionXpGainedPerWord,
+          wordMastery: sessionWordMastery,
           hideNavigation: true,
           onStudyAgain: () {
             Navigator.of(context).pop();
@@ -272,6 +323,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
               _totalAnswers = 0;
               _correctAnswers = 0;
               _hasShownResults = false; // Reset guard for new session
+              _cardStates.clear(); // Reset card states for new session
             });
           },
           onDone: () {
@@ -543,18 +595,29 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   Widget _buildNavigationButtons() {
+    print('🔍 StackedCardStudyView: Building navigation buttons, topIndex: $topIndex, totalCards: ${_currentCards.length}, canGoBack: ${topIndex > 0}');
+    print('🔍 StackedCardStudyView: Button will be ENABLED (always blue)');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Back button
+          // Back button - always enabled
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: topIndex > 0 ? _goToPreviousCard : null,
+              onPressed: () {
+                print('🔍 StackedCardStudyView: Back button onPressed called! topIndex: $topIndex');
+                if (topIndex > 0) {
+                  print('🔍 StackedCardStudyView: Back button pressed (previous card), topIndex: $topIndex');
+                  _goToPreviousCard();
+                } else {
+                  print('🔍 StackedCardStudyView: Back button pressed (first card), going to previous screen');
+                  Navigator.of(context).pop();
+                }
+              },
               icon: const Icon(Icons.arrow_back_ios, size: 16),
               label: const Text('Back'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: topIndex > 0 ? Colors.blue : Colors.grey,
+                backgroundColor: Colors.blue, // Always blue now
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 8),
               ),

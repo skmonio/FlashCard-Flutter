@@ -471,8 +471,6 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Timer bar
-                _buildTimerBar(),
               ],
             ),
           ),
@@ -786,6 +784,8 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              // Show timer in the middle
+              _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -799,6 +799,36 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

@@ -616,9 +616,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Lives display (if using lives mode)
-                if (_useLivesMode) 
-                  _buildLivesDisplay(),
               ],
             ),
           ),
@@ -830,6 +827,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              // Show lives in the middle if active
+              if (_useLivesMode) _buildLivesIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -880,6 +879,29 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       ),
     );
   }
+  
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
 
   Widget _buildUserAnswerDisplay() {
     return Row(

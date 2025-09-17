@@ -870,10 +870,32 @@ class _StudyViewState extends State<StudyView> {
       userProfileProvider.addXp(totalXPGained);
     }
     
-    // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    // For flipped mode, include all cards in the end screen, not just studied ones
+    List<FlashCard> sessionStudiedWords;
+    Map<String, int> sessionXpGainedPerWord;
+    Map<String, LearningMastery> sessionWordMastery;
+    
+    if (widget.startFlipped) {
+      // Include all cards for flipped mode
+      sessionStudiedWords = List<FlashCard>.from(_currentCards);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+      
+      // Ensure all cards have entries in the maps (0 XP and current mastery for unanswered cards)
+      for (final card in _currentCards) {
+        if (!sessionXpGainedPerWord.containsKey(card.id)) {
+          sessionXpGainedPerWord[card.id] = 0; // 0 XP for unanswered cards
+        }
+        if (!sessionWordMastery.containsKey(card.id)) {
+          sessionWordMastery[card.id] = card.learningMastery; // Current mastery for unanswered cards
+        }
+      }
+    } else {
+      // Normal mode - only show studied cards
+      sessionStudiedWords = List<FlashCard>.from(_studiedWords);
+      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    }
     
     Navigator.of(context).push(
       MaterialPageRoute(

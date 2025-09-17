@@ -609,6 +609,8 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              // Show timer in the middle
+              _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -658,6 +660,36 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
           ),
         ],
       ),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -847,8 +879,6 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                // Simple timer in center
-                _buildTimerBar(),
               ],
             ),
           ),
