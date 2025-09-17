@@ -294,12 +294,22 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Filter cards that can be studied today (have HP remaining)
         final availableCards = allCards.where((card) => card.canBeStudiedToday).toList();
         
+        // Debug logging
+        print('🔍 ShuffleCardsView: Pick Your Card - Total cards: ${allCards.length}');
+        print('🔍 ShuffleCardsView: Pick Your Card - Available cards: ${availableCards.length}');
+        for (int i = 0; i < allCards.length && i < 5; i++) {
+          final card = allCards[i];
+          print('🔍 ShuffleCardsView: Card ${i + 1}: "${card.word}" - HP: ${card.currentHP}/${card.maxHP}, canBeStudied: ${card.canBeStudiedToday}');
+        }
+        
         if (availableCards.isEmpty) {
+          print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing game over');
           _showGameOver('All cards are defeated (0 HP). They need to rest until tomorrow to regain health.');
           return;
         }
         
         _currentCard = availableCards[_random.nextInt(availableCards.length)];
+        print('🔍 ShuffleCardsView: Pick Your Card - Selected card: "${_currentCard!.word}" with HP: ${_currentCard!.currentHP}/${_currentCard!.maxHP}');
         _launchCardMode(selectedMode);
         break;
       case ShuffleMode.dutchExercise:

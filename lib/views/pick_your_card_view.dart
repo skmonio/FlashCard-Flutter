@@ -9,6 +9,7 @@ import '../models/learning_mastery.dart';
 import '../components/unified_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -77,6 +78,39 @@ class _PickYourCardViewState extends State<PickYourCardView>
   bool _isLastAnswerCorrect = false;
   String _lastUserAnswer = "";
   String _lastCorrectAnswer = "";
+  
+  // Hint system
+  Map<int, int> _hintCount = {}; // Track hints used per card
+  Map<int, Set<int>> _hintedWheels = {}; // Track which wheels have been hinted per card
+  Map<int, List<String>> _correctParts = {}; // Store correct parts for each card
+  int _hintsUsed = 0;
+  
+  // Debounce mechanism for wheel changes
+  Timer? _wheelChangeTimer;
+  
+  void _onWheelChanged(int wheelIndex, String value) {
+    // Cancel any existing timer
+    _wheelChangeTimer?.cancel();
+    
+    // Set a new timer to debounce the change
+    _wheelChangeTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          switch (wheelIndex) {
+            case 0:
+              selectedPart1 = value;
+              break;
+            case 1:
+              selectedPart2 = value;
+              break;
+            case 2:
+              selectedPart3 = value;
+              break;
+          }
+        });
+      }
+    });
+  }
 
   // Decoy letter patterns for generating similar letters
   final Map<String, List<String>> _similarLetters = {
@@ -127,6 +161,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     _loadCurrentCard();
   }
   
+  
   int _getDefaultLives() {
     return 5; // Default 5 lives
   }
@@ -173,6 +208,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Cancel timers
     _timer?.cancel();
     _autoProgressTimer?.cancel();
+    _wheelChangeTimer?.cancel();
     super.dispose();
   }
 
@@ -189,6 +225,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
     
     // Split word into equal-length pieces
     final List<String> parts = _splitWordIntoEqualParts(dutch);
+    
+    // Store the correct parts for this card
+    _correctParts[currentCardIndex] = List<String>.from(parts);
+    
+    print('🔍 PickYourCardView: Setup - Word: "$dutch", Parts: $parts');
     
     if (parts.length == 2) {
       hasThirdWheel = false;
@@ -290,6 +331,141 @@ class _PickYourCardViewState extends State<PickYourCardView>
     return items;
   }
 
+  void _useHint() {
+    if (currentCardIndex >= widget.cards.length) return;
+    
+    final currentCard = widget.cards[currentCardIndex];
+    final correctAnswer = currentCard.word.toLowerCase();
+    
+    // Use stored correct parts instead of recalculating
+    final correctParts = _correctParts[currentCardIndex] ?? _splitWordIntoEqualParts(correctAnswer);
+    
+    print('🔍 PickYourCardView: Hint - Word: "$correctAnswer", Parts: $correctParts');
+    
+    // Initialize hinted wheels set for this card if not exists
+    if (!_hintedWheels.containsKey(currentCardIndex)) {
+      _hintedWheels[currentCardIndex] = <int>{};
+    }
+    
+    // Find the first wheel that hasn't been hinted and is incorrect
+    // Don't allow hints on the last wheel (would give away the answer)
+    int wheelToHint = -1;
+    final totalDials = hasThirdWheel ? 3 : 2;
+    
+    // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
+    // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
+    if (!_hintedWheels[currentCardIndex]!.contains(0) && 
+        selectedPart1.toLowerCase() != correctParts[0].toLowerCase() &&
+        totalDials > 1) { // Don't hint if only one wheel
+      wheelToHint = 0;
+    } else if (!_hintedWheels[currentCardIndex]!.contains(1) && 
+               selectedPart2.toLowerCase() != correctParts[1].toLowerCase() &&
+               totalDials > 2) { // For 3-wheel system, can hint wheel 1
+      wheelToHint = 1;
+    }
+    // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
+    
+    // Don't allow hints if no wheels can be hinted
+    if (wheelToHint == -1) return;
+    
+    if (mounted) {
+      setState(() {
+        _hintsUsed++;
+        _hintCount[currentCardIndex] = (_hintCount[currentCardIndex] ?? 0) + 1;
+        _hintedWheels[currentCardIndex]!.add(wheelToHint);
+      });
+    }
+    
+    // Animate the selected wheel to the correct value
+    // The wheel's onChanged callback will update the selectedPart variables
+    switch (wheelToHint) {
+      case 0:
+        print('🔍 PickYourCardView: Hinting wheel 1 to: ${correctParts[0]}');
+        wheel1Key.currentState?.setSelection(correctParts[0]);
+        break;
+      case 1:
+        print('🔍 PickYourCardView: Hinting wheel 2 to: ${correctParts[1]}');
+        wheel2Key.currentState?.setSelection(correctParts[1]);
+        break;
+      case 2:
+        print('🔍 PickYourCardView: Hinting wheel 3 to: ${correctParts[2]}');
+        wheel3Key.currentState?.setSelection(correctParts[2]);
+        break;
+    }
+    
+    // Show hint message
+    EnhancedSnackBar.showWarning(
+      context,
+      message: 'Hint used! Correct part selected.',
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  Widget _buildHintIcon() {
+    final hintsUsed = _hintCount[currentCardIndex] ?? 0;
+    final currentCard = widget.cards[currentCardIndex];
+    final correctAnswer = currentCard.word.toLowerCase();
+    
+    // Use stored correct parts instead of recalculating
+    final correctParts = _correctParts[currentCardIndex] ?? _splitWordIntoEqualParts(correctAnswer);
+    
+    // Initialize hinted wheels set for this card if not exists
+    if (!_hintedWheels.containsKey(currentCardIndex)) {
+      _hintedWheels[currentCardIndex] = <int>{};
+    }
+    
+    // Check if there are any wheels that can still be hinted
+    // Don't allow hints on the last wheel (would give away the answer)
+    bool canUseHint = false;
+    final totalDials = hasThirdWheel ? 3 : 2;
+    
+    // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
+    // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
+    if (!_hintedWheels[currentCardIndex]!.contains(0) && 
+        selectedPart1.toLowerCase() != correctParts[0].toLowerCase() &&
+        totalDials > 1) { // Don't hint if only one wheel
+      canUseHint = true;
+    } else if (!_hintedWheels[currentCardIndex]!.contains(1) && 
+               selectedPart2.toLowerCase() != correctParts[1].toLowerCase() &&
+               totalDials > 2) { // For 3-wheel system, can hint wheel 1
+      canUseHint = true;
+    }
+    // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
+    
+    return Tooltip(
+      message: canUseHint 
+          ? 'Use hint (${hintsUsed} used)'
+          : 'No more hints available',
+      child: GestureDetector(
+        onTap: canUseHint ? _useHint : null,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: canUseHint ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.orange.withValues(alpha: 0.5),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.lightbulb_outline,
+            color: canUseHint ? Colors.white : Colors.white.withValues(alpha: 0.5),
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _checkAnswer() {
     if (currentCardIndex >= widget.cards.length) return;
     
@@ -307,6 +483,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
     } else {
       userAnswer = selectedPart1 + selectedPart2;
     }
+    
+    print('🔍 PickYourCardView: Answer check - User: "$userAnswer", Correct: "$correctAnswer", Parts: "$selectedPart1" + "$selectedPart2"${hasThirdWheel ? ' + "$selectedPart3"' : ''}');
     
     final bool isCorrect = userAnswer.toLowerCase() == correctAnswer.toLowerCase();
     final provider = context.read<FlashcardProvider>();
@@ -335,13 +513,21 @@ class _PickYourCardViewState extends State<PickYourCardView>
           ? currentCard.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
+      // Apply hint penalty based on number of hints used (reduce XP by 25% per hint)
+      final hintsUsed = _hintCount[currentCardIndex] ?? 0;
+      final hintPenalty = hintsUsed > 0 ? (0.25 * hintsUsed).clamp(0.0, 0.9) : 0.0;
+      final finalXPGained = hintsUsed > 0 
+          ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
+          : actualXPGained;
+      
       // Track XP gained for this word in this session
-      _xpGainedPerWord[currentCard.id] = actualXPGained;
+      _xpGainedPerWord[currentCard.id] = finalXPGained;
       
-      // Update user profile
-      userProfileProvider.addXp(actualXPGained);
+      // Update user profile with final XP (after hint penalty)
+      userProfileProvider.addXp(finalXPGained);
       
-      print('🔍 PickYourCardView: Awarded $actualXPGained XP to word "${currentCard.word}" - daily attempts after: ${currentCard.learningMastery.dailyAttemptsDebug}');
+      final hintText = hintsUsed > 0 ? " (with ${hintsUsed} hint(s), penalty applied)" : "";
+      print('🔍 PickYourCardView: Awarded $finalXPGained XP to word "${currentCard.word}" (Correct: $isCorrect)$hintText - daily attempts after: ${currentCard.learningMastery.dailyAttemptsDebug}');
       
       // Play correct sound
       SoundManager().playCorrectSound();
@@ -392,12 +578,14 @@ class _PickYourCardViewState extends State<PickYourCardView>
 
   void _showResultDialog(bool isCorrect, String userAnswer, String correctAnswer) {
     // Show result without dialog - just update the UI state
-    setState(() {
-      _showResult = true;
-      _isLastAnswerCorrect = isCorrect;
-      _lastUserAnswer = userAnswer;
-      _lastCorrectAnswer = correctAnswer;
-    });
+    if (mounted) {
+      setState(() {
+        _showResult = true;
+        _isLastAnswerCorrect = isCorrect;
+        _lastUserAnswer = userAnswer;
+        _lastCorrectAnswer = correctAnswer;
+      });
+    }
   }
   
   void _showGameOverScreen() {
@@ -430,11 +618,14 @@ class _PickYourCardViewState extends State<PickYourCardView>
 
   void _nextCard() {
     if (currentCardIndex + 1 < widget.cards.length) {
-      setState(() {
-        currentCardIndex++;
-        _showResult = false; // Reset result display
-        _loadCurrentCard();
-      });
+      if (mounted) {
+        setState(() {
+          currentCardIndex++;
+          _showResult = false; // Reset result display
+          _hintsUsed = 0; // Reset hint count for new card
+          _loadCurrentCard();
+        });
+      }
     } else {
       // In shuffle mode, call onComplete callback instead of showing end screen
       if (widget.shuffleMode && widget.onComplete != null) {
@@ -457,17 +648,46 @@ class _PickYourCardViewState extends State<PickYourCardView>
           title: 'Pick Your Card Complete',
           showSwipeToReview: false,
           onStudyAgain: () {
-            setState(() {
-              currentCardIndex = 0;
-              _studiedWords.clear();
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _consecutiveCorrect = 0;
-              _totalAnswers = 0;
-              _correctAnswers = 0;
-              _loadCurrentCard();
-            });
-            Navigator.of(context).pop();
+            Navigator.of(context).pop(); // Close end screen first
+            
+            if (mounted) {
+              setState(() {
+                // Reset all game state
+                currentCardIndex = 0;
+                _studiedWords.clear();
+                _xpGainedPerWord.clear();
+                _wordMastery.clear();
+                _consecutiveCorrect = 0;
+                _totalAnswers = 0;
+                _correctAnswers = 0;
+                
+                // Reset hint system
+                _hintCount.clear();
+                _hintedWheels.clear();
+                _correctParts.clear();
+                _hintsUsed = 0;
+                
+                // Reset result display
+                _showResult = false;
+                _isLastAnswerCorrect = false;
+                _lastUserAnswer = "";
+                _lastCorrectAnswer = "";
+                
+                // Reset lives if using lives mode
+                if (_useLivesMode) {
+                  _lives = _maxLives;
+                }
+                
+                // Reset timer if using timed mode
+                if (widget.useTimedMode) {
+                  _timeRemaining = _totalTime;
+                  _resetTimer();
+                }
+              });
+            }
+            
+            // Reload the current card after state reset
+            _loadCurrentCard();
           },
           onDone: () {
             Navigator.of(context).pop(); // Close end screen
@@ -767,24 +987,33 @@ class _PickYourCardViewState extends State<PickYourCardView>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               DialWheel(
-                key: ValueKey<int>(currentCardIndex * 3),
+                key: wheel1Key,
                 items: wheel1Items,
-                onChanged: (value) => setState(() => selectedPart1 = value),
+                onChanged: (value) {
+                  print('🔍 PickYourCardView: Wheel1 changed to: $value');
+                  _onWheelChanged(0, value);
+                },
                 enabled: !_showResult || !widget.autoProgress,
               ),
               const SizedBox(width: 20),
               DialWheel(
-                key: ValueKey<int>(currentCardIndex * 3 + 1),
+                key: wheel2Key,
                 items: wheel2Items,
-                onChanged: (value) => setState(() => selectedPart2 = value),
+                onChanged: (value) {
+                  print('🔍 PickYourCardView: Wheel2 changed to: $value');
+                  _onWheelChanged(1, value);
+                },
                 enabled: !_showResult || !widget.autoProgress,
               ),
               if (hasThirdWheel) ...[
                 const SizedBox(width: 20),
                 DialWheel(
-                  key: ValueKey<int>(currentCardIndex * 3 + 2),
+                  key: wheel3Key,
                   items: wheel3Items,
-                  onChanged: (value) => setState(() => selectedPart3 = value),
+                  onChanged: (value) {
+                    print('🔍 PickYourCardView: Wheel3 changed to: $value');
+                    _onWheelChanged(2, value);
+                  },
                   enabled: !_showResult || !widget.autoProgress,
                 ),
               ],
@@ -800,11 +1029,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: currentCardIndex > 0 ? () {
-                    setState(() {
-                      currentCardIndex--;
-                      _showResult = false;
+                    if (mounted) {
+                      setState(() {
+                        currentCardIndex--;
+                        _showResult = false;
+                      });
                       _loadCurrentCard();
-                    });
+                    }
                   } : null,
                   icon: const Icon(Icons.arrow_back_ios, size: 16),
                   label: const Text('Back'),
@@ -856,9 +1087,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
           
           const SizedBox(height: 30),
           
-          // Check Answer button (only show if not showing result)
+          // Hint button and Check Answer button row (only show if not showing result)
           if (!_showResult)
-            ElevatedButton(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Hint button
+                _buildHintIcon(),
+                
+                // Check Answer button
+                ElevatedButton(
               onPressed: _checkAnswer,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueGrey.shade700,
@@ -872,6 +1110,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 "Check Answer",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
+            ),
+              ],
             ),
           
           // Result display (if showing result) - simple red text
@@ -909,6 +1149,11 @@ class DialWheel extends StatefulWidget {
   State<DialWheel> createState() => _DialWheelState();
 }
 
+// Global key to access the wheel state
+final GlobalKey<_DialWheelState> wheel1Key = GlobalKey<_DialWheelState>();
+final GlobalKey<_DialWheelState> wheel2Key = GlobalKey<_DialWheelState>();
+final GlobalKey<_DialWheelState> wheel3Key = GlobalKey<_DialWheelState>();
+
 class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
@@ -941,6 +1186,29 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
   }
 
   void _reportSelection() => widget.onChanged(_getSelectedItem());
+
+  void setSelection(String value) {
+    final index = widget.items.indexOf(value);
+    if (index == -1) return;
+    
+    final targetAngle = -index * _itemAngle;
+    _animation = Tween<double>(begin: _currentAngle, end: targetAngle).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    
+    _controller
+      ..duration = const Duration(milliseconds: 500)
+      ..reset()
+      ..addListener(() {
+        setState(() => _currentAngle = _animation.value);
+      })
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _reportSelection();
+        }
+      })
+      ..forward();
+  }
 
   void _onDragStart(DragStartDetails details) {
     if (!widget.enabled) return;

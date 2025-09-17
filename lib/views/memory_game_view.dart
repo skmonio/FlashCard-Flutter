@@ -166,24 +166,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
     SoundManager().playWrongSound();
     HapticService().errorFeedback();
     
-    // Show time up dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Time\'s Up!'),
-        content: Text('You ran out of time! You completed $_matches matches.'),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(); // Go back to previous screen
-            },
-            child: const Text('Try Again'),
-          ),
-        ],
-      ),
-    );
+    // Set game as complete and show end screen
+    setState(() {
+      _gameComplete = true;
+    });
+    
+    // Don't call _showWordProgress() directly - let the build method handle it
   }
 
   String _formatTime(int seconds) {
@@ -359,9 +347,17 @@ class _MemoryGameViewState extends State<MemoryGameView>
   @override
   Widget build(BuildContext context) {
     if (_gameComplete) {
-      // Show comprehensive completion screen directly (skip old results screen)
-      _showWordProgress();
-      return Container(); // Temporary return while navigating
+      // Use a post-frame callback to avoid calling navigation during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showWordProgress();
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
     }
 
     return Scaffold(
@@ -984,8 +980,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
       
       // Play completion sound when game is finished
       SoundManager().playCompleteSound();
-      // Show comprehensive completion screen directly (skip old results screen)
-      _showWordProgress();
+      // Set game as complete and let build method handle the end screen
+      setState(() {
+        _gameComplete = true;
+      });
     }
   }
 
@@ -1397,7 +1395,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => UnifiedEndScreen(
           xpGainedPerWord: sessionXpGainedPerWord,
@@ -1415,8 +1413,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
             // Session data has been reset, ready for new game
           },
           onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
+            Navigator.of(context).popUntil((route) => route.isFirst);
           },
         ),
       ),
