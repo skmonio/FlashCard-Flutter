@@ -13,6 +13,7 @@ import '../services/xp_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
+import '../utils/enhanced_snackbar.dart';
 import '../models/dutch_word_exercise.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../components/unified_end_screen.dart';
@@ -57,6 +58,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   bool _isCardFlipped = false;
   final GameSession _gameSession = GameSession();
   
+  // Local copy of cards for shuffling
+  late List<FlashCard> _currentCards;
+  
   // Track answered questions and their answers
   Map<int, List<String>> _answeredQuestions = {}; // question index -> user answer
   Map<int, bool> _correctAnswersMap = {}; // question index -> is correct
@@ -80,8 +84,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   List<FlashCard> _studiedWords = [];
   
   // Hint system
-  Map<int, bool> _hintUsed = {}; // Track which questions have used hints
-  Map<int, String> _hintRevealed = {}; // Track what was revealed by hint
+  Map<int, int> _hintCount = {}; // Track how many hints used per question
+  Map<int, List<String>> _hintRevealed = {}; // Track what pieces were revealed by hints
   
   // Review system
   Set<String> _reviewCards = {}; // Track which cards are in review deck
@@ -89,6 +93,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize cards list
+    _currentCards = List<FlashCard>.from(widget.cards);
     
     // Initialize lives system
     _useLivesMode = widget.useLivesMode;
@@ -150,7 +157,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     // Update the current question if it's using an updated card
     if (_currentIndex < updatedCards.length) {
       final currentCard = updatedCards[_currentIndex];
-      if (currentCard.id == widget.cards[_currentIndex].id) {
+      if (currentCard.id == _currentCards[_currentIndex].id) {
         // Regenerate question with updated card data
         _generateQuestion();
       }
@@ -160,7 +167,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
 
   void _generateQuestion() {
-    if (_currentIndex >= widget.cards.length) {
+    if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
       final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
@@ -191,7 +198,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       return;
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final random = Random();
     
     // Respect the startFlipped parameter to determine question orientation
@@ -257,7 +264,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     final userWord = _userAnswer.join('');
     final correctWordWithoutSpaces = _correctWord.replaceAll(' ', '').toLowerCase();
     final isCorrect = userWord.toLowerCase() == correctWordWithoutSpaces;
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
@@ -301,7 +308,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     if (widget.autoProgress) {
       _autoProgressTimer?.cancel();
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-        if (mounted && _currentIndex < widget.cards.length - 1) {
+        if (mounted && _currentIndex < _currentCards.length - 1) {
           // Mark this question as auto-progressed before moving to next
           _autoProgressedQuestions.add(_currentIndex);
           // Update the active question index to the next question
@@ -570,7 +577,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       );
     }
 
-    final currentCard = widget.cards[_currentIndex];
+    final currentCard = _currentCards[_currentIndex];
     final question = _isQuestionMode ? currentCard.definition : currentCard.word;
 
     return Scaffold(
@@ -1278,15 +1285,22 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
 
   Widget _buildHintIcon() {
-    final hintUsed = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]!;
+    final hintsUsed = _hintCount[_currentIndex] ?? 0;
+    final totalPieces = _scrambledLettersMap[_currentIndex]?.length ?? 0;
+    final remainingPieces = _scrambledLetters.length;
+    final canUseHint = remainingPieces > 1; // Can't hint if only last piece remains
     
-    return GestureDetector(
-      onTap: hintUsed ? null : _useHint,
-      child: Container(
+    return Tooltip(
+      message: canUseHint 
+          ? 'Use hint (${hintsUsed} used)'
+          : 'No more hints available',
+      child: GestureDetector(
+        onTap: canUseHint ? _useHint : null,
+        child: Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: hintUsed ? Colors.orange.withValues(alpha: 0.3) : Colors.orange,
+          color: canUseHint ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: Colors.orange.withValues(alpha: 0.5),
@@ -1300,10 +1314,38 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             ),
           ],
         ),
-        child: Icon(
-          hintUsed ? Icons.lightbulb : Icons.lightbulb_outline,
-          color: Colors.white,
-          size: 20,
+        child: Stack(
+          children: [
+            Icon(
+              canUseHint ? Icons.lightbulb_outline : Icons.lightbulb,
+              color: Colors.white,
+              size: 20,
+            ),
+            if (hintsUsed > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$hintsUsed',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
         ),
       ),
     );
@@ -1346,15 +1388,24 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
 
   void _useHint() {
-    if (_answered || _hintUsed.containsKey(_currentIndex)) return;
+    if (_answered) return;
     
-    // Get the first letter of the correct word
-    final firstLetter = _correctWord.isNotEmpty ? _correctWord[0].toUpperCase() : '';
+    final currentHintCount = _hintCount[_currentIndex] ?? 0;
+    final totalPieces = _scrambledLettersMap[_currentIndex]?.length ?? 0;
+    final revealedPieces = _hintRevealed[_currentIndex] ?? [];
     
-    // Find the piece that contains the first letter
+    // Don't allow hints if there's only one piece left (the last piece)
+    final remainingPieces = _scrambledLetters.length;
+    if (remainingPieces <= 1) return;
+    
+    // Find the next piece to reveal based on correct word order
     String? hintPiece;
-    for (final piece in _scrambledLetters) {
-      if (piece.toUpperCase().startsWith(firstLetter)) {
+    final correctPieces = _scrambledLettersMap[_currentIndex] ?? [];
+    
+    // Find the next unrevealed piece in the correct order
+    for (int i = 0; i < correctPieces.length - 1; i++) { // Exclude last piece
+      final piece = correctPieces[i];
+      if (!revealedPieces.contains(piece) && _scrambledLetters.contains(piece)) {
         hintPiece = piece;
         break;
       }
@@ -1362,21 +1413,24 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     if (hintPiece != null) {
       setState(() {
-        // Mark hint as used for this question
-        _hintUsed[_currentIndex] = true;
-        _hintRevealed[_currentIndex] = hintPiece!;
+        // Increment hint count for this question
+        _hintCount[_currentIndex] = currentHintCount + 1;
+        
+        // Track this piece as revealed by hint
+        if (_hintRevealed[_currentIndex] == null) {
+          _hintRevealed[_currentIndex] = [];
+        }
+        _hintRevealed[_currentIndex]!.add(hintPiece!);
         
         // Auto-add the hint piece to the answer
         _addPiece(hintPiece!);
       });
       
       // Show a brief message about the hint
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hint: First letter is "$firstLetter" (-50% XP)'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
+      EnhancedSnackBar.showWarning(
+        context,
+        message: 'Hint: Piece "${hintPiece}" placed (${currentHintCount + 1} hints used)',
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -1405,11 +1459,15 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Only award XP for correct answers
+    final xpService = XpService();
+    
+    print('🔍 WordScrambleView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(card.learningMastery, "word_scramble");
+    
     if (isCorrect) {
-      final xpService = XpService();
-      
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      // Award XP for correct answers
       xpService.addXPToWord(card.learningMastery, "word_scramble", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1417,28 +1475,27 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      // Apply hint penalty if hint was used (reduce XP by 50%)
-      final finalXPGained = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]!
-          ? (actualXPGained * 0.5).round()
+      // Apply hint penalty based on number of hints used (reduce XP by 25% per hint)
+      final hintsUsed = _hintCount[_currentIndex] ?? 0;
+      final hintPenalty = hintsUsed > 0 ? (0.25 * hintsUsed).clamp(0.0, 0.9) : 0.0;
+      final finalXPGained = hintsUsed > 0 
+          ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
           : actualXPGained;
       
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[card.id] = card.learningMastery;
-      
-      final hintText = _hintUsed.containsKey(_currentIndex) && _hintUsed[_currentIndex]! ? " (with hint penalty)" : "";
-      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect)$hintText');
+      final hintText = hintsUsed > 0 ? " (with ${hintsUsed} hint(s), penalty applied)" : "";
+      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect)$hintText - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       
-      // Store the word mastery for display (even for incorrect answers)
-      _wordMastery[card.id] = card.learningMastery;
-      
-      print('🔍 WordScrambleView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+      print('🔍 WordScrambleView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
+    
+    // Store the word mastery for display (for both correct and incorrect)
+    _wordMastery[card.id] = card.learningMastery;
     
     // Track studied words (regardless of correctness)
     if (!_studiedWords.any((word) => word.id == card.id)) {
@@ -1475,6 +1532,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               _isCardFlipped = false;
               _gameSession.reset();
               
+              // Shuffle the cards for a different order
+              _currentCards.shuffle(Random());
+              
               // Reset lives if using lives mode
               if (_useLivesMode) {
                 _lives = _maxLives;
@@ -1493,7 +1553,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
               _studiedWords.clear();
               
               // Reset hint tracking
-              _hintUsed.clear();
+              _hintCount.clear();
               _hintRevealed.clear();
               
               // Reset review tracking
@@ -1524,8 +1584,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           correctWords: _correctWords,
           scrambledLettersMap: _scrambledLettersMap,
           questionModes: _questionModes,
-          hintUsed: _hintUsed,
-          hintRevealed: _hintRevealed,
+          hintUsed: _hintCount.map((key, value) => MapEntry(key, value > 0)),
+          hintRevealed: _hintRevealed.map((key, value) => MapEntry(key, value.join(', '))),
           xpGainedPerWord: _xpGainedPerWord,
         ),
       ),

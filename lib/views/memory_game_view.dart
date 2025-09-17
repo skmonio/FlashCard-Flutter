@@ -482,8 +482,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
                 children: _memoryCards.take(5).map((card) {
                   final index = _memoryCards.indexOf(card);
                   return SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.18, // Responsive width
-                    height: MediaQuery.of(context).size.height * 0.12, // Responsive height
+                    width: MediaQuery.of(context).size.width * 0.25, // Increased from 0.18 to 0.25
+                    height: MediaQuery.of(context).size.height * 0.16, // Increased from 0.12 to 0.16
                     child: _buildFloatingCard(card, index),
                   );
                 }).toList(),
@@ -497,8 +497,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
                 children: _memoryCards.skip(5).map((card) {
                   final index = _memoryCards.indexOf(card);
                   return SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.18, // Responsive width
-                    height: MediaQuery.of(context).size.height * 0.12, // Responsive height
+                    width: MediaQuery.of(context).size.width * 0.25, // Increased from 0.18 to 0.25
+                    height: MediaQuery.of(context).size.height * 0.16, // Increased from 0.12 to 0.16
                     child: _buildFloatingCard(card, index),
                   );
                 }).toList(),
@@ -610,7 +610,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
           width: double.infinity,
-          height: MediaQuery.of(context).size.height * 0.12, // Responsive height
+          height: MediaQuery.of(context).size.height * 0.16, // Increased height to match SizedBox
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
@@ -629,16 +629,19 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
   Widget _buildCardContent(MemoryCard card) {
     return Center(
-      child: Text(
-        card.content,
-        style: TextStyle(
-          fontSize: _calculateFontSize(card.content),
-          fontWeight: FontWeight.w500,
-          color: Theme.of(context).colorScheme.onSurface,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Text(
+          card.content,
+          style: TextStyle(
+            fontSize: _calculateFontSize(card.content),
+            fontWeight: FontWeight.w500,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 4, // Increased from 2 to 4 lines
+          overflow: TextOverflow.visible, // Changed from ellipsis to visible
         ),
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -1096,6 +1099,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _studiedWords.clear();
     _incorrectlyMatchedCards.clear();
     
+    // Shuffle the cards for a different order
+    final shuffledCards = List<FlashCard>.from(widget.cards);
+    shuffledCards.shuffle(Random());
+    
     // Initialize the game (this will call setState internally)
     _initializeGame();
   }
@@ -1327,10 +1334,14 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Only award XP for correct answers
+    final xpService = XpService();
+    
+    print('🔍 MemoryGameView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(card.learningMastery, "memory");
+    
     if (isCorrect) {
-      final xpService = XpService();
-      
       // Check if this card was previously incorrectly matched
       final wasPreviouslyIncorrect = _incorrectlyMatchedCards.contains(card.id);
       
@@ -1360,16 +1371,19 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[card.id] = card.learningMastery;
-      
       // Remove from incorrectly matched set since it's now correctly matched
       _incorrectlyMatchedCards.remove(card.id);
       
-      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect${wasPreviouslyIncorrect ? ', was previously incorrect' : ''})');
+      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect${wasPreviouslyIncorrect ? ', was previously incorrect' : ''}) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+      // Explicitly set 0 XP for incorrect answers
+      _xpGainedPerWord[card.id] = 0;
+      
+      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
+    
+    // Store the word mastery for display (for both correct and incorrect)
+    _wordMastery[card.id] = card.learningMastery;
     
     // Track studied words (regardless of correctness)
     if (!_studiedWords.any((word) => word.id == card.id)) {

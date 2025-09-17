@@ -1184,6 +1184,10 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           _answered = false;
                           _selectedAnswer = null;
                           _gameSession.reset(); // Reset XP tracking
+                          
+                          // Shuffle the cards for a different order
+                          _currentCards.shuffle(Random());
+                          
                           // Reset all navigation state
                           _answeredQuestions.clear();
                           _correctAnswersMap.clear();
@@ -1327,11 +1331,15 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Only award XP for correct answers
+    final xpService = XpService();
+    
+    print('🔍 TrueFalseView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(card.learningMastery, "true_false");
+    
     if (isCorrect) {
-      final xpService = XpService();
-      
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      // Award XP for correct answers
       xpService.addXPToWord(card.learningMastery, "true_false", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1342,19 +1350,16 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = actualXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[card.id] = card.learningMastery;
-      
-      print('🔍 TrueFalseView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect)');
+      print('🔍 TrueFalseView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       
-      // Store the word mastery for display (even for incorrect answers)
-      _wordMastery[card.id] = card.learningMastery;
-      
-      print('🔍 TrueFalseView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+      print('🔍 TrueFalseView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
+    
+    // Store the word mastery for display (for both correct and incorrect)
+    _wordMastery[card.id] = card.learningMastery;
     
     // Track studied words (regardless of correctness)
     if (!_studiedWords.any((word) => word.id == card.id)) {
@@ -1455,5 +1460,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       return 28.0; // Larger font for large screens
     }
   }
+
 
 } 

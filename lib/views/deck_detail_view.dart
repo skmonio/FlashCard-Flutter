@@ -605,9 +605,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       case 'study':
         _studyDeck();
         break;
-      case 'export':
-        _exportDeck();
-        break;
       case 'delete':
         _deleteDeck();
         break;
@@ -755,12 +752,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     );
   }
 
-  void _exportDeck() {
-    // TODO: Implement deck export functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Export feature coming soon!')),
-    );
-  }
 
   void _deleteDeck() {
     showDialog(
@@ -1068,16 +1059,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     Icon(Icons.school),
                     SizedBox(width: 8),
                     Text('Study Deck'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'export',
-                child: Row(
-                  children: [
-                    Icon(Icons.download),
-                    SizedBox(width: 8),
-                    Text('Export Deck'),
                   ],
                 ),
               ),

@@ -84,15 +84,8 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          // Swipe left to return to previous screen (only if swipe to review is enabled)
-          if (widget.showSwipeToReview && details.primaryVelocity! > 0) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Column(
-          children: [
+      body: Column(
+        children: [
             // Header with back button and title
             SafeArea(
               child: Container(
@@ -307,30 +300,32 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                                             ],
                                           ),
                                         ),
-                                        if (xpGained > 0)
-                                          AnimatedBuilder(
-                                            animation: _scaleAnimation,
-                                            builder: (context, child) {
-                                              return Transform.scale(
-                                                scale: _scaleAnimation.value,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.green.withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                  child: Text(
-                                                    '+$xpGained XP',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Colors.green,
-                                                    ),
+                                        // Show XP badge for both correct and incorrect answers
+                                        AnimatedBuilder(
+                                          animation: _scaleAnimation,
+                                          builder: (context, child) {
+                                            return Transform.scale(
+                                              scale: _scaleAnimation.value,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: xpGained > 0 
+                                                      ? Colors.green.withValues(alpha: 0.1)
+                                                      : Colors.orange.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  xpGained > 0 ? '+$xpGained XP' : '0 XP',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: xpGained > 0 ? Colors.green : Colors.orange,
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                          ),
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ],
                                     ),
                                     
@@ -504,8 +499,7 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

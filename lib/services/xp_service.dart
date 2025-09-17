@@ -83,6 +83,20 @@ class XpService {
     }
   }
 
+  /// Record an attempt to a word (reduces HP but doesn't award XP)
+  void recordAttemptToWord(LearningMastery mastery, String exerciseType) {
+    // Record the attempt in exercise history to reduce HP
+    mastery.exerciseHistory.add({
+      'timestamp': DateTime.now().toIso8601String(),
+      'exerciseType': exerciseType,
+      'xpGained': 0, // No XP for just recording attempt
+      'totalXP': mastery.currentXP,
+    });
+    
+    // Update last review date
+    mastery.lastReviewDate = DateTime.now();
+  }
+
   /// Add XP to a word and handle level ups (with daily diminishing returns)
   void addXPToWord(LearningMastery mastery, String exerciseType, int consecutiveCorrect) {
     if (consecutiveCorrect > 0) {

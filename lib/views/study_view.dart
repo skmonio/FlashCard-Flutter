@@ -755,6 +755,31 @@ class _StudyViewState extends State<StudyView> {
 
     // Update the card's SRS data and award XP
     final currentCard = _currentCards[_currentCardIndex];
+    final xpService = XpService();
+    
+    // Determine exercise type based on study mode
+    String exerciseType;
+    switch (widget.studyMode) {
+      case StudyMode.multipleChoice:
+        exerciseType = 'multiple_choice';
+        break;
+      case StudyMode.wordScramble:
+        exerciseType = 'word_scramble';
+        break;
+      case StudyMode.writing:
+        exerciseType = 'writing';
+        break;
+      case StudyMode.trueFalse:
+        exerciseType = 'true_false';
+        break;
+      case StudyMode.lookCoverCheck:
+        exerciseType = 'multiple_choice'; // Default for look-cover-check
+        break;
+    }
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(currentCard.learningMastery, exerciseType);
+    
     if (isCorrect) {
       currentCard.markCorrect(GameDifficulty.medium);
       
@@ -762,6 +787,12 @@ class _StudyViewState extends State<StudyView> {
       _awardXPToWord(currentCard);
     } else {
       currentCard.markIncorrect(GameDifficulty.medium);
+      
+      // Explicitly set 0 XP for incorrect answers
+      _xpGainedPerWord[currentCard.id] = 0;
+      
+      // Store the mastery for display (even for incorrect answers)
+      _wordMastery[currentCard.id] = currentCard.learningMastery;
     }
 
     // Track studied words
@@ -861,6 +892,9 @@ class _StudyViewState extends State<StudyView> {
               _showAnswer = false;
               _isFlipped = widget.startFlipped;
               _consecutiveCorrect = 0;
+              
+              // Shuffle the cards for a different order
+              _currentCards.shuffle(Random());
               
               // Reset RPG tracking
               _xpGainedPerWord.clear();

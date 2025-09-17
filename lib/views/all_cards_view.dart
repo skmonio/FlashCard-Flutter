@@ -174,17 +174,6 @@ class _AllCardsViewState extends State<AllCardsView> {
           ),
         ),
         
-        // Right side - Play button (always visible)
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: _playCards,
-            icon: const Icon(Icons.play_arrow, color: Colors.black),
-            tooltip: 'Play Cards',
-          ),
-        ),
       ],
     );
   }

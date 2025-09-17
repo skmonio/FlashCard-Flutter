@@ -1186,6 +1186,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _currentIndex = 0;
               _topIndex = 0; // Reset stacked mode index
               _currentCards = List<FlashCard>.from(widget.cards); // Restore original cards
+              _currentCards.shuffle(math.Random()); // Shuffle the cards for a different order
               _knownCards.clear();
               _unknownCards.clear();
               _skippedCards.clear();

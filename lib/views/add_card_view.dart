@@ -9,6 +9,7 @@ import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/translation_service.dart';
 import '../services/dutch_grammar_exercise_generator.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class AddCardView extends StatefulWidget {
   final Deck? selectedDeck;
@@ -1070,20 +1071,20 @@ class _AddCardViewState extends State<AddCardView> {
               // Create selected exercises
               await _createSelectedExercises(newCard, selectedExercises);
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Card added successfully! ${selectedExercises.length} exercise${selectedExercises.length == 1 ? '' : 's'} created.'),
-                  backgroundColor: Colors.green,
-                ),
+              EnhancedSnackBar.showSuccess(
+                context,
+                message: 'Card added successfully! ${selectedExercises.length} exercise${selectedExercises.length == 1 ? '' : 's'} created.',
               );
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Card added successfully!')),
+              EnhancedSnackBar.showSuccess(
+                context,
+                message: 'Card added successfully!',
               );
             }
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Card added successfully!')),
+            EnhancedSnackBar.showSuccess(
+              context,
+              message: 'Card added successfully!',
             );
           }
           
@@ -1096,8 +1097,9 @@ class _AddCardViewState extends State<AddCardView> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error ${widget.cardToEdit != null ? 'updating' : 'adding'} card: $e')),
+        EnhancedSnackBar.showError(
+          context,
+          message: 'Error ${widget.cardToEdit != null ? 'updating' : 'adding'} card: $e',
         );
       }
     } finally {
@@ -1431,6 +1433,10 @@ class _AddCardViewState extends State<AddCardView> {
     
     final selectedExercises = <String>{};
     
+    // Check for existing exercises
+    final dutchProvider = context.read<DutchWordExerciseProvider>();
+    final existingExercise = dutchProvider.getWordExerciseByWord(word);
+    
     try {
       // Use a completely different approach - create a custom dialog
       final result = await showDialog<List<String>>(
@@ -1440,23 +1446,81 @@ class _AddCardViewState extends State<AddCardView> {
           return Dialog(
             child: Container(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title
-                  const Text(
-                    'Select Exercises',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              constraints: const BoxConstraints(maxHeight: 600),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    const Text(
+                      'Select Exercises',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Description
-                  Text('Which exercises would you like to create for "$word"?'),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                    
+                    // Description
+                    Text('Which exercises would you like to create for "$word"?'),
+                    const SizedBox(height: 16),
+                    
+                    // Show existing exercises if any
+                    if (existingExercise != null && existingExercise.exercises.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.blue[700], size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Existing Exercises (${existingExercise.exercises.length})',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...existingExercise.exercises.map((exercise) {
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 24, bottom: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _getExerciseTypeIcon(exercise.type),
+                                      size: 14,
+                                      color: Colors.blue[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _getExerciseTypeName(exercise.type),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue[600],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   
                   // Exercise checkboxes
                   ...availableExercises.map((exercise) {
@@ -1506,6 +1570,7 @@ class _AddCardViewState extends State<AddCardView> {
                 ],
               ),
             ),
+            ),
           );
         },
       );
@@ -1514,6 +1579,38 @@ class _AddCardViewState extends State<AddCardView> {
     } catch (e) {
       print('Error showing exercise selection dialog: $e');
       return [];
+    }
+  }
+
+  /// Get exercise type name for display
+  String _getExerciseTypeName(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.multipleChoice:
+        return 'Multiple Choice';
+      case ExerciseType.fillInBlank:
+        return 'Fill in the Blank';
+      case ExerciseType.sentenceBuilding:
+        return 'Sentence Building';
+      case ExerciseType.multipleChoice:
+        return 'True/False';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  /// Get exercise type icon for display
+  IconData _getExerciseTypeIcon(ExerciseType type) {
+    switch (type) {
+      case ExerciseType.multipleChoice:
+        return Icons.quiz;
+      case ExerciseType.fillInBlank:
+        return Icons.edit;
+      case ExerciseType.sentenceBuilding:
+        return Icons.construction;
+      case ExerciseType.multipleChoice:
+        return Icons.check_circle_outline;
+      default:
+        return Icons.help_outline;
     }
   }
 

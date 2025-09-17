@@ -138,19 +138,27 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
           
           const SizedBox(height: 24),
           
-          // Answer options
+          // Scrollable content area
           Expanded(
-            child: _buildAnswerOptions(exercise),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Answer options
+                  _buildAnswerOptions(exercise),
+                  
+                  // Answer feedback
+                  if (_answered) _buildAnswerFeedback(exercise),
+                  
+                  // Navigation
+                  if (widget.exercises.length > 1 || widget.shuffleMode) ...[
+                    const SizedBox(height: 16),
+                    _buildNavigation(),
+                  ],
+                ],
+              ),
+            ),
           ),
-          
-          // Answer feedback
-          if (_answered) _buildAnswerFeedback(exercise),
-          
-          // Navigation
-          if (widget.exercises.length > 1 || widget.shuffleMode) ...[
-            const SizedBox(height: 16),
-            _buildNavigation(),
-          ],
         ],
       ),
     );

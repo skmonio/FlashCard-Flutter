@@ -106,17 +106,6 @@ class _AllDecksViewState extends State<AllDecksView> {
           ),
         ),
         
-        // Right side - Play button (always visible)
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: _playDecks,
-            icon: const Icon(Icons.play_arrow, color: Colors.black),
-            tooltip: 'Play Decks',
-          ),
-        ),
       ],
     );
   }
@@ -772,15 +761,6 @@ class _AllDecksViewState extends State<AllDecksView> {
               onTap: () {
                 Navigator.pop(context);
                 _showBulkDeleteConfirmation();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_copy, color: Colors.black),
-              title: const Text('Export Selected Decks'),
-              subtitle: const Text('Export all selected decks to CSV'),
-              onTap: () {
-                Navigator.pop(context);
-                _exportSelectedDecks();
               },
             ),
             ListTile(

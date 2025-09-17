@@ -1202,13 +1202,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Only award XP for correct answers
+    final xpService = XpService();
+    
+    print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(card.learningMastery, "test");
+    
     if (isCorrect) {
-      final xpService = XpService();
-      
-      print('🔍 MultipleChoiceView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
-      
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      // Award XP for correct answers
       xpService.addXPToWord(card.learningMastery, "test", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1224,19 +1226,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[card.id] = card.learningMastery;
-      
       print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       
-      // Store the word mastery for display (even for incorrect answers)
-      _wordMastery[card.id] = card.learningMastery;
-      
-      print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+      print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
+    
+    // Store the word mastery for display (for both correct and incorrect)
+    _wordMastery[card.id] = card.learningMastery;
     
     // Track studied words (regardless of correctness)
     if (!_studiedWords.any((word) => word.id == card.id)) {
@@ -1269,6 +1268,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
               _answered = false;
               _selectedAnswer = null;
               _gameSession.reset(); // Reset XP tracking
+              
+              // Shuffle the cards for a different order
+              _currentCards.shuffle(Random());
               
               // Reset lives if using lives mode
               if (_useLivesMode) {

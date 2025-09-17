@@ -243,13 +243,21 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           
           const SizedBox(height: 24),
           
-          // Answer options
+          // Scrollable content area
           Expanded(
-            child: _buildAnswerOptions(exercise),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Answer options
+                  _buildAnswerOptions(exercise),
+                  
+                  // Answer feedback
+                  if (_showAnswer) _buildAnswerFeedback(exercise),
+                ],
+              ),
+            ),
           ),
-          
-          // Answer feedback
-          if (_showAnswer) _buildAnswerFeedback(exercise),
         ],
       ),
     );

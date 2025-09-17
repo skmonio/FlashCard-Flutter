@@ -87,19 +87,7 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
   }
 
   Widget _buildBodyWithoutGestures() {
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        // Swipe left to return to previous screen (same as back button)
-        if (details.primaryVelocity! > 0) {
-          // Use the onDone callback if available, otherwise just pop
-          if (widget.onDone != null) {
-            widget.onDone!();
-          } else {
-            Navigator.of(context).pop();
-          }
-        }
-      },
-      child: Column(
+    return Column(
         children: [
           // Header
           SafeArea(
@@ -139,19 +127,11 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
           ),
           _buildContent(),
         ],
-      ),
     );
   }
 
   Widget _buildBodyWithGestures() {
-    return GestureDetector(
-      onHorizontalDragEnd: (details) {
-        // Swipe left to return to previous screen
-        if (details.primaryVelocity! > 0) {
-          Navigator.of(context).pop();
-        }
-      },
-      child: Column(
+    return Column(
         children: [
           // Header
           SafeArea(
@@ -191,7 +171,6 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
           ),
           _buildContent(),
         ],
-      ),
     );
   }
 
@@ -374,30 +353,32 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
                                           ],
                                         ),
                                       ),
-                                      if (xpGained > 0)
-                                        AnimatedBuilder(
-                                          animation: _scaleAnimation,
-                                          builder: (context, child) {
-                                            return Transform.scale(
-                                              scale: _scaleAnimation.value,
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green.withValues(alpha: 0.1),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                ),
-                                                child: Text(
-                                                  '+$xpGained XP',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.green,
-                                                  ),
+                                      // Show XP badge for both correct and incorrect answers
+                                      AnimatedBuilder(
+                                        animation: _scaleAnimation,
+                                        builder: (context, child) {
+                                          return Transform.scale(
+                                            scale: _scaleAnimation.value,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: xpGained > 0 
+                                                    ? Colors.green.withValues(alpha: 0.1)
+                                                    : Colors.orange.withValues(alpha: 0.1),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                xpGained > 0 ? '+$xpGained XP' : '0 XP',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: xpGained > 0 ? Colors.green : Colors.orange,
                                                 ),
                                               ),
-                                            );
-                                          },
-                                        ),
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ],
                                   ),
                                   

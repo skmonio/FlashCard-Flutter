@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
+import '../utils/enhanced_snackbar.dart';
 import 'main_navigation_view.dart';
 import 'username_setup_view.dart';
 
@@ -36,10 +37,9 @@ class _AuthViewState extends State<AuthView> {
           password: _passwordController.text,
         );
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Check your email for verification link!'),
-            ),
+          EnhancedSnackBar.showInfo(
+            context,
+            message: 'Check your email for verification link!',
           );
         }
       } else {
@@ -61,11 +61,9 @@ class _AuthViewState extends State<AuthView> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString()),
-            backgroundColor: Colors.red,
-          ),
+        EnhancedSnackBar.showError(
+          context,
+          message: error.toString(),
         );
       }
     } finally {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
+import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
@@ -11,6 +12,7 @@ import '../models/dutch_word_exercise.dart';
 
 import '../components/unified_end_screen.dart';
 import '../services/xp_service.dart';
+import '../utils/enhanced_snackbar.dart';
 
 class WritingView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -333,6 +335,15 @@ class _WritingViewState extends State<WritingView> {
           
           // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
+          
+          // Auto-continue in shuffle mode after a short delay
+          if (widget.shuffleMode) {
+            Timer(const Duration(milliseconds: 1000), () {
+              if (mounted && widget.onComplete != null) {
+                widget.onComplete!(true); // Word completed successfully
+              }
+            });
+          }
         }
       } else {
         // Wrong guess
@@ -354,6 +365,15 @@ class _WritingViewState extends State<WritingView> {
           
           // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
+          
+          // Auto-continue in shuffle mode after a short delay (failed)
+          if (widget.shuffleMode) {
+            Timer(const Duration(milliseconds: 1000), () {
+              if (mounted && widget.onComplete != null) {
+                widget.onComplete!(false); // Word failed (ran out of lives)
+              }
+            });
+          }
         }
       }
     });
@@ -1034,13 +1054,15 @@ class _WritingViewState extends State<WritingView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Only award XP for correct answers
+    final xpService = XpService();
+    
+    print('🔍 WritingView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    // Always record the attempt to reduce HP (both correct and incorrect)
+    xpService.recordAttemptToWord(card.learningMastery, "writing");
+    
     if (isCorrect) {
-      final xpService = XpService();
-      
-      print('🔍 WritingView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
-      
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      // Award XP for correct answers
       xpService.addXPToWord(card.learningMastery, "writing", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1058,13 +1080,16 @@ class _WritingViewState extends State<WritingView> {
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[card.id] = card.learningMastery;
-      
       print('🔍 WritingView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      print('🔍 WritingView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect)');
+      // Explicitly set 0 XP for incorrect answers
+      _xpGainedPerWord[card.id] = 0;
+      
+      print('🔍 WritingView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
+    
+    // Store the word mastery for display (for both correct and incorrect)
+    _wordMastery[card.id] = card.learningMastery;
     
     // Track studied words (regardless of correctness)
     if (!_studiedWords.any((word) => word.id == card.id)) {
@@ -1100,6 +1125,9 @@ class _WritingViewState extends State<WritingView> {
               _textController.clear();
               _guessedLetters.clear();
               _revealedLetters.clear();
+              
+              // Shuffle the cards for a different order
+              _currentCards.shuffle(Random());
               
               // Reset all navigation state
               _answeredQuestions.clear();
@@ -1382,16 +1410,23 @@ class _WritingViewState extends State<WritingView> {
           
           // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
+          
+          // Auto-continue in shuffle mode after a short delay (completed with hint)
+          if (widget.shuffleMode) {
+            Timer(const Duration(milliseconds: 1000), () {
+              if (mounted && widget.onComplete != null) {
+                widget.onComplete!(true); // Word completed successfully (with hint)
+              }
+            });
+          }
         }
       });
       
       // Show feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hint: Letter "$nextLetter" revealed'),
-          duration: const Duration(seconds: 2),
-          backgroundColor: Colors.orange,
-        ),
+      EnhancedSnackBar.showWarning(
+        context,
+        message: 'Hint: Letter "$nextLetter" revealed',
+        duration: const Duration(seconds: 2),
       );
     }
   }

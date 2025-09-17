@@ -54,15 +54,7 @@ class _DutchWordsDeckViewState extends State<DutchWordsDeckView> {
             title: Text(widget.deckName),
             backgroundColor: Colors.blue,
             foregroundColor: Colors.white,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.play_arrow),
-                onPressed: () {
-                  // TODO: Start practice mode for all words in deck
-                  _showPracticeModeDialog(exercises);
-                },
-              ),
-            ],
+            actions: [],
           ),
           body: Column(
             children: [

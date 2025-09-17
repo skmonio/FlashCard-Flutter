@@ -247,25 +247,35 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-            width: 1,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 1,
+            offset: const Offset(0, -1),
           ),
-        ),
+        ],
       ),
       child: SafeArea(
-        child: Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildBottomNavItem('Stats', Icons.analytics, 0),
-              _buildBottomNavItem('Friends', Icons.people, 1),
-              _buildBottomNavItem('Leaderboard', Icons.emoji_events, 2),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Separator line
+            Container(
+              height: 0.5,
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+            ),
+            // Tab buttons with flexible height
+            Container(
+              height: 60,
+              child: Row(
+                children: [
+                  _buildBottomNavItem('Stats', Icons.analytics, 0),
+                  _buildBottomNavItem('Friends', Icons.people, 1),
+                  _buildBottomNavItem('Leaderboard', Icons.emoji_events, 2),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -273,38 +283,47 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
 
   Widget _buildBottomNavItem(String title, IconData icon, int index) {
     final isSelected = _selectedTab == index;
+    final color = isSelected 
+        ? Theme.of(context).colorScheme.primary 
+        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
     
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTab = index;
-        });
-        _pageController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.blue : Colors.grey[600],
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? Colors.blue : Colors.grey[600],
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _selectedTab = index;
+          });
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        },
+        child: Container(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: color,
+                ),
               ),
-            ),
-          ],
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
