@@ -86,6 +86,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   // Hint system
   Map<int, int> _hintCount = {}; // Track how many hints used per question
   Map<int, List<String>> _hintRevealed = {}; // Track what pieces were revealed by hints
+  Map<int, List<String>> _correctPieceOrder = {}; // Track correct piece order for each question
   
   // Review system
   Set<String> _reviewCards = {}; // Track which cards are in review deck
@@ -215,6 +216,10 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     // Create scrambled pieces (2-3 letters each, handling multi-word phrases)
     _scrambledLetters = _createPiecesFromWords(_correctWord, random);
+    
+    // Store the correct piece order (before shuffling) for hint system
+    final correctPieces = _createPiecesFromWords(_correctWord, Random(42)); // Use fixed seed for consistent order
+    _correctPieceOrder[_currentIndex] = correctPieces;
     
     // Store original letters for comparison (all letters without spaces)
     _originalLetters = _correctWord.split('').where((char) => char != ' ').toList();
@@ -1308,7 +1313,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
 
   Widget _buildHintIcon() {
     final hintsUsed = _hintCount[_currentIndex] ?? 0;
-    final totalPieces = _scrambledLettersMap[_currentIndex]?.length ?? 0;
     final remainingPieces = _scrambledLetters.length;
     final canUseHint = remainingPieces > 1; // Can't hint if only last piece remains
     
@@ -1319,55 +1323,21 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       child: GestureDetector(
         onTap: canUseHint ? _useHint : null,
         child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.orange.withValues(alpha: 0.5),
-            width: 2,
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: canUseHint ? Colors.orange : Colors.grey,
+              width: 2,
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.orange.withValues(alpha: 0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Icon(
-              canUseHint ? Icons.lightbulb_outline : Icons.lightbulb,
-              color: Colors.white,
-              size: 20,
-            ),
-            if (hintsUsed > 0)
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$hintsUsed',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+          child: Icon(
+            Icons.lightbulb,
+            size: 16,
+            color: canUseHint ? Colors.orange : Colors.grey,
+          ),
         ),
       ),
     );
@@ -1413,7 +1383,6 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     if (_answered) return;
     
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
-    final totalPieces = _scrambledLettersMap[_currentIndex]?.length ?? 0;
     final revealedPieces = _hintRevealed[_currentIndex] ?? [];
     
     // Don't allow hints if there's only one piece left (the last piece)
@@ -1422,14 +1391,39 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     // Find the next piece to reveal based on correct word order
     String? hintPiece;
-    final correctPieces = _scrambledLettersMap[_currentIndex] ?? [];
+    final correctWord = _correctWords[_currentIndex] ?? '';
     
-    // Find the next unrevealed piece in the correct order
-    for (int i = 0; i < correctPieces.length - 1; i++) { // Exclude last piece
-      final piece = correctPieces[i];
-      if (!revealedPieces.contains(piece) && _scrambledLetters.contains(piece)) {
-        hintPiece = piece;
+    print('🔍 WordScrambleView: Using hint for word: "$correctWord"');
+    print('🔍 WordScrambleView: Available pieces: $_scrambledLetters');
+    print('🔍 WordScrambleView: Already revealed: $revealedPieces');
+    
+    // Instead of trying to match pieces, let's find the next piece in the correct order
+    // by looking at the correct word and finding which piece should come next
+    final correctWordChars = correctWord.replaceAll(' ', '').split('');
+    final currentAnswerChars = _userAnswer.join('').replaceAll(' ', '').split('');
+    
+    print('🔍 WordScrambleView: Correct word chars: $correctWordChars');
+    print('🔍 WordScrambleView: Current answer chars: $currentAnswerChars');
+    
+    // Find the next character that should be in the answer
+    String? nextChar;
+    for (int i = 0; i < correctWordChars.length; i++) {
+      if (i >= currentAnswerChars.length || currentAnswerChars[i] != correctWordChars[i]) {
+        nextChar = correctWordChars[i];
         break;
+      }
+    }
+    
+    print('🔍 WordScrambleView: Next character needed: "$nextChar"');
+    
+    // Find a piece that contains the next character and hasn't been revealed yet
+    if (nextChar != null) {
+      for (final piece in _scrambledLetters) {
+        if (piece.contains(nextChar) && !revealedPieces.contains(piece)) {
+          hintPiece = piece;
+          print('🔍 WordScrambleView: Found hint piece: "$piece" (contains "$nextChar")');
+          break;
+        }
       }
     }
     
@@ -1444,14 +1438,52 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         }
         _hintRevealed[_currentIndex]!.add(hintPiece!);
         
-        // Auto-add the hint piece to the answer
-        _addPiece(hintPiece!);
+        // Check if we need to replace incorrectly placed pieces
+        // Get the correct order of pieces for this question
+        final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
+        print('🔍 WordScrambleView: Correct piece order: $correctPieces');
+        print('🔍 WordScrambleView: Current user answer: $_userAnswer');
+        
+        // Find the first position where the user's piece doesn't match the correct piece
+        int wrongPosition = -1;
+        for (int i = 0; i < _userAnswer.length && i < correctPieces.length; i++) {
+          if (_userAnswer[i] != correctPieces[i]) {
+            wrongPosition = i;
+            break;
+          }
+        }
+        
+        // If we found a wrong position, replace that piece
+        if (wrongPosition >= 0) {
+          final oldPiece = _userAnswer[wrongPosition];
+          _userAnswer[wrongPosition] = hintPiece!;
+          
+          // Remove the hint piece from available pieces
+          _scrambledLetters.remove(hintPiece!);
+          
+          // Add the old piece back to available pieces if it's not empty
+          if (oldPiece.isNotEmpty) {
+            _scrambledLetters.add(oldPiece);
+          }
+          
+          print('🔍 WordScrambleView: Replaced wrong piece at position $wrongPosition: "$oldPiece" -> "$hintPiece"');
+        } else {
+          // No wrong pieces to replace, just add the hint piece to the end
+          _addPiece(hintPiece!);
+        }
       });
       
       // Show a brief message about the hint
       EnhancedSnackBar.showWarning(
         context,
         message: 'Hint: Piece "${hintPiece}" placed (${currentHintCount + 1} hints used)',
+        duration: const Duration(seconds: 2),
+      );
+    } else {
+      print('🔍 WordScrambleView: No hint piece found!');
+      EnhancedSnackBar.showError(
+        context,
+        message: 'No hint available - try a different approach',
         duration: const Duration(seconds: 2),
       );
     }

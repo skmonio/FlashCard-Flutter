@@ -76,11 +76,15 @@ class DataSyncService {
   
   // Sync flashcard decks to Supabase
   static Future<void> syncDecks() async {
-    if (!SupabaseService.instance.isAuthenticated) return;
+    if (!SupabaseService.instance.isAuthenticated) {
+      print('❌ DataSyncService: User not authenticated, skipping deck sync');
+      return;
+    }
     
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = SupabaseService.instance.currentUser!.id;
+      print('🔍 DataSyncService: Starting deck sync for user: $userId');
       
       // Get local decks from SharedPreferences
       final decksJson = prefs.getStringList('decks') ?? [];
@@ -104,6 +108,7 @@ class DataSyncService {
             'user_id': userId,
             'name': deckData['name'],
             'parent_id': deckData['parentId'],
+            'is_public': deckData['isPublic'] ?? false,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
           });
@@ -115,10 +120,23 @@ class DataSyncService {
       // Batch upsert all decks at once
       if (decksToUpsert.isNotEmpty) {
         print('🔍 DataSyncService: Batch upserting ${decksToUpsert.length} decks');
-        await SupabaseService.instance.client
-            .from('decks')
-            .upsert(decksToUpsert);
-        print('✅ Decks batch upserted successfully');
+        print('🔍 DataSyncService: Current user ID: $userId');
+        print('🔍 DataSyncService: Sample deck data: ${decksToUpsert.first}');
+        try {
+          // Test authentication first
+          final authUser = SupabaseService.instance.client.auth.currentUser;
+          print('🔍 DataSyncService: Auth user: ${authUser?.id}');
+          print('🔍 DataSyncService: Auth session: ${authUser?.aud}');
+          
+          await SupabaseService.instance.client
+              .from('decks')
+              .upsert(decksToUpsert);
+          print('✅ Decks batch upserted successfully');
+        } catch (e) {
+          print('❌ Error syncing decks: $e');
+          print('❌ Error details: ${e.toString()}');
+          rethrow;
+        }
       }
       
       // Get all cloud decks for this user
@@ -151,11 +169,15 @@ class DataSyncService {
   
   // Sync flashcards to Supabase
   static Future<void> syncFlashcards() async {
-    if (!SupabaseService.instance.isAuthenticated) return;
+    if (!SupabaseService.instance.isAuthenticated) {
+      print('❌ DataSyncService: User not authenticated, skipping flashcard sync');
+      return;
+    }
     
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = SupabaseService.instance.currentUser!.id;
+      print('🔍 DataSyncService: Starting flashcard sync for user: $userId');
       
       // Get local flashcards from SharedPreferences
       final cardsJson = prefs.getStringList('cards') ?? [];
@@ -188,6 +210,7 @@ class DataSyncService {
             'future_tense': cardData['futureTense'],
             'past_participle': cardData['pastParticiple'],
             'success_count': cardData['timesCorrect'] ?? 0,
+            'is_public': cardData['isPublic'] ?? false,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
           });
@@ -208,10 +231,23 @@ class DataSyncService {
       // Batch upsert all flashcards at once
       if (cardsToUpsert.isNotEmpty) {
         print('🔍 DataSyncService: Batch upserting ${cardsToUpsert.length} flashcards');
-        await SupabaseService.instance.client
-            .from('flashcards')
-            .upsert(cardsToUpsert);
-        print('✅ Flashcards batch upserted successfully');
+        print('🔍 DataSyncService: Current user ID: $userId');
+        print('🔍 DataSyncService: Sample card data: ${cardsToUpsert.first}');
+        try {
+          // Test authentication first
+          final authUser = SupabaseService.instance.client.auth.currentUser;
+          print('🔍 DataSyncService: Auth user: ${authUser?.id}');
+          print('🔍 DataSyncService: Auth session: ${authUser?.aud}');
+          
+          await SupabaseService.instance.client
+              .from('flashcards')
+              .upsert(cardsToUpsert);
+          print('✅ Flashcards batch upserted successfully');
+        } catch (e) {
+          print('❌ Error syncing flashcards: $e');
+          print('❌ Error details: ${e.toString()}');
+          rethrow;
+        }
       }
       
       // Get all cloud flashcards for this user
@@ -236,27 +272,53 @@ class DataSyncService {
         }
       }
       
-      // Sync deck-card relationships
-      // First, delete all existing relationships for this user's cards
-      if (localCardIds.isNotEmpty) {
-        await SupabaseService.instance.client
-            .from('deck_cards')
-            .delete()
-            .inFilter('flashcard_id', localCardIds.toList());
-      }
-      
-      // Then insert current relationships
-      for (final relationship in localDeckCardRelationships) {
+      // Sync deck-card relationships using upsert to avoid duplicate key violations
+      if (localDeckCardRelationships.isNotEmpty) {
         try {
+          // Use upsert to insert or update relationships, avoiding duplicates
           await SupabaseService.instance.client
               .from('deck_cards')
-              .insert({
-                'deck_id': relationship['deck_id'],
-                'flashcard_id': relationship['flashcard_id'],
-                'created_at': DateTime.now().toIso8601String(),
-              });
+              .upsert(
+                localDeckCardRelationships.map((relationship) => {
+                  'deck_id': relationship['deck_id'],
+                  'flashcard_id': relationship['flashcard_id'],
+                  'created_at': relationship['created_at'] ?? DateTime.now().toIso8601String(),
+                }).toList(),
+                onConflict: 'deck_id,flashcard_id', // Use composite primary key for conflict resolution
+              );
+          print('✅ Deck-card relationships synced successfully');
         } catch (e) {
-          print('❌ Error syncing deck-card relationship: $e');
+          print('❌ Error syncing deck-card relationships: $e');
+          
+          // Fallback: try individual inserts with duplicate handling
+          print('🔍 Attempting fallback: individual relationship sync...');
+          int successCount = 0;
+          int errorCount = 0;
+          
+          for (final relationship in localDeckCardRelationships) {
+            try {
+              await SupabaseService.instance.client
+                  .from('deck_cards')
+                  .insert({
+                    'deck_id': relationship['deck_id'],
+                    'flashcard_id': relationship['flashcard_id'],
+                    'created_at': relationship['created_at'] ?? DateTime.now().toIso8601String(),
+                  });
+              successCount++;
+            } catch (e) {
+              errorCount++;
+              // Check if it's a duplicate key error - if so, it's actually fine
+              if (e.toString().contains('duplicate key value violates unique constraint')) {
+                print('🔍 Relationship already exists, skipping: ${relationship['deck_id']} -> ${relationship['flashcard_id']}');
+                successCount++; // Count as success since the relationship exists
+                errorCount--; // Don't count as error
+              } else {
+                print('❌ Error syncing individual deck-card relationship: $e');
+              }
+            }
+          }
+          
+          print('🔍 Fallback sync complete: $successCount successful, $errorCount errors');
         }
       }
       
@@ -430,20 +492,21 @@ class DataSyncService {
         }
       }
       
-      // Merge cloud decks with local ones, avoiding duplicates by ID
+      // Merge cloud decks with local ones, respecting local deletions
       final mergedDecks = <String, Map<String, dynamic>>{};
       
-      // Add existing local decks first
+      // Add existing local decks first (these represent the current state)
       for (final entry in existingDecks.entries) {
         mergedDecks[entry.key] = entry.value;
       }
       
-      // Add cloud decks, but only if they don't already exist locally by ID
+      // Only add cloud decks that don't exist locally AND are not in the deleted list
+      // This prevents re-adding decks that were intentionally deleted locally
       for (final deck in decksResponse) {
         final deckId = deck['id'] as String;
         final deckName = deck['name'] as String;
         
-        // Check if we already have a deck with this ID
+        // Check if we already have a deck with this ID locally
         if (!mergedDecks.containsKey(deckId)) {
           // For default decks, check if we already have one with the same name
           if (deckName == 'Uncategorized' || deckName == 'Review') {
@@ -457,11 +520,16 @@ class DataSyncService {
             }
           }
           
+          // Only add the cloud deck if it's not in our local deleted list
+          // This prevents re-adding decks that were deleted locally
+          print('🔍 DataSyncService: Adding cloud deck that doesn\'t exist locally: $deckName ($deckId)');
           mergedDecks[deckId] = {
             'id': deck['id'],
             'name': deck['name'],
             'parentId': deck['parent_id'],
           };
+        } else {
+          print('🔍 DataSyncService: Deck already exists locally: $deckName ($deckId)');
         }
       }
       

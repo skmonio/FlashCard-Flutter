@@ -12,6 +12,7 @@ class FlashCard {
   int successCount;
   DateTime dateCreated;
   DateTime lastModified;
+  bool isPublic; // Whether this card is visible to friends
   
   // CloudKit tracking
   String? cloudKitRecordName;
@@ -36,6 +37,7 @@ class FlashCard {
     this.successCount = 0,
     DateTime? dateCreated,
     DateTime? lastModified,
+    this.isPublic = false,
     this.cloudKitRecordName,
     LearningMastery? learningMastery,
     this.article = '',
@@ -143,6 +145,7 @@ class FlashCard {
       'successCount': successCount,
       'dateCreated': dateCreated.toIso8601String(),
       'lastModified': lastModified.toIso8601String(),
+      'isPublic': isPublic,
       'cloudKitRecordName': cloudKitRecordName,
       'learningMastery': learningMastery.toJson(),
       'article': article,
@@ -168,8 +171,9 @@ class FlashCard {
       lastModified: json['lastModified'] != null 
           ? DateTime.parse(json['lastModified']) 
           : DateTime.now(),
+      isPublic: json['isPublic'] ?? false,
       cloudKitRecordName: json['cloudKitRecordName'],
-      learningMastery: json['learningMastery'] != null 
+      learningMastery: json['learningMastery'] != null
           ? LearningMastery.fromJson(json['learningMastery'])
           : null,
       article: json['article'] ?? '',
@@ -191,6 +195,7 @@ class FlashCard {
     int? successCount,
     DateTime? dateCreated,
     DateTime? lastModified,
+    bool? isPublic,
     String? cloudKitRecordName,
     LearningMastery? learningMastery,
     String? article,
@@ -205,10 +210,11 @@ class FlashCard {
       definition: definition ?? this.definition,
       example: example ?? this.example,
       exampleTranslation: exampleTranslation ?? this.exampleTranslation,
-      deckIds: deckIds ?? this.deckIds,
+      deckIds: deckIds ?? Set<String>.from(this.deckIds),
       successCount: successCount ?? this.successCount,
       dateCreated: dateCreated ?? this.dateCreated,
       lastModified: lastModified ?? this.lastModified,
+      isPublic: isPublic ?? this.isPublic,
       cloudKitRecordName: cloudKitRecordName ?? this.cloudKitRecordName,
       learningMastery: learningMastery ?? this.learningMastery,
       article: article ?? this.article,

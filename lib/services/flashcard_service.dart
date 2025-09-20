@@ -30,6 +30,11 @@ class FlashcardService {
     await _ensureSystemDecks();
   }
   
+  // Reload data from SharedPreferences (useful after data sync)
+  Future<void> reloadData() async {
+    await _loadData();
+  }
+  
   // MARK: - Data Persistence
   
   Future<void> _loadData() async {
@@ -47,9 +52,30 @@ class FlashcardService {
         .map((json) => FlashCard.fromJson(jsonDecode(json)))
         .toList();
     
+    // Populate deck cards after loading both decks and cards
+    _populateDeckCards();
+    
     print('🔍 FlashcardService: Loaded ${_decks.length} decks and ${_cards.length} cards');
     for (final deck in _decks) {
-      print('🔍 FlashcardService: Deck: ${deck.name} (${deck.id})');
+      print('🔍 FlashcardService: Deck: ${deck.name} (${deck.id}) with ${deck.cards.length} cards');
+    }
+  }
+  
+  void _populateDeckCards() {
+    // Clear existing cards from all decks
+    for (final deck in _decks) {
+      deck.cards.clear();
+    }
+    
+    // Populate cards for each deck based on card.deckIds
+    for (final card in _cards) {
+      for (final deckId in card.deckIds) {
+        final deck = _decks.firstWhere(
+          (d) => d.id == deckId,
+          orElse: () => throw Exception('Deck $deckId not found for card ${card.id}'),
+        );
+        deck.cards.add(card);
+      }
     }
   }
   
@@ -313,6 +339,7 @@ class FlashcardService {
       _cards.add(card);
       print('Service: Card added to list. Total cards: ${_cards.length}');
       
+      _populateDeckCards(); // Repopulate deck cards after creating new card
       await saveData();
       print('Service: Card data saved successfully');
       
@@ -327,6 +354,7 @@ class FlashcardService {
     final index = _cards.indexWhere((c) => c.id == card.id);
     if (index != -1) {
       _cards[index] = card;
+      _populateDeckCards(); // Repopulate deck cards after updating
       await saveData();
     }
   }
@@ -337,6 +365,7 @@ class FlashcardService {
     _cards.removeWhere((card) => card.id == cardId);
     final finalCount = _cards.length;
     print('Service: Cards before deletion: $initialCount, after: $finalCount');
+    _populateDeckCards(); // Repopulate deck cards after deletion
     await saveData();
     print('Service: Card deletion completed');
   }

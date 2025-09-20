@@ -304,7 +304,26 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         
         if (availableCards.isEmpty) {
           print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing game over');
-          _showGameOver('All cards are defeated (0 HP). They need to rest until tomorrow to regain health.');
+          
+          // Create detailed error message
+          final totalCards = allCards.length;
+          final defeatedCards = allCards.where((card) => card.isDefeated).length;
+          final healthyCards = allCards.where((card) => !card.isDefeated).length;
+          
+          String errorMessage = 'No cards available for this game.\n\n';
+          errorMessage += 'Total cards: $totalCards\n';
+          errorMessage += 'Healthy cards: $healthyCards\n';
+          errorMessage += 'Defeated cards: $defeatedCards\n\n';
+          
+          if (defeatedCards == totalCards) {
+            errorMessage += 'All cards are defeated (0 HP). They need to rest until tomorrow to regain health.';
+          } else if (healthyCards < 5) {
+            errorMessage += 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
+          } else {
+            errorMessage += 'There seems to be an issue with card availability. Please try again or contact support.';
+          }
+          
+          _showGameOver(errorMessage);
           return;
         }
         
@@ -473,6 +492,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           title: 'Write Your Card',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          autoProgress: true, // Enable auto progress for shuffle mode
         );
         break;
       case ShuffleMode.popYourCards:

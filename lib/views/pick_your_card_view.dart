@@ -237,8 +237,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
       wheel2Items = _generateWheelItems(parts[1], 2);
       wheel3Items = [];
       
-      selectedPart1 = wheel1Items.first;
-      selectedPart2 = wheel2Items.first;
+      // Set initial values to first items in wheels
+      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
+      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
       selectedPart3 = "";
     } else if (parts.length == 3) {
       hasThirdWheel = true;
@@ -246,9 +247,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
       wheel2Items = _generateWheelItems(parts[1], 2);
       wheel3Items = _generateWheelItems(parts[2], 3);
       
-      selectedPart1 = wheel1Items.first;
-      selectedPart2 = wheel2Items.first;
-      selectedPart3 = wheel3Items.first;
+      // Set initial values to first items in wheels
+      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
+      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
+      selectedPart3 = wheel3Items.isNotEmpty ? wheel3Items.first : "";
     } else {
       // For words with more than 3 parts, combine some parts
       hasThirdWheel = false;
@@ -259,8 +261,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
       wheel2Items = _generateWheelItems(part2, 2);
       wheel3Items = [];
       
-      selectedPart1 = wheel1Items.first;
-      selectedPart2 = wheel2Items.first;
+      // Set initial values to first items in wheels
+      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
+      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
       selectedPart3 = "";
     }
   }
@@ -347,25 +350,24 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _hintedWheels[currentCardIndex] = <int>{};
     }
     
-    // Find the first wheel that hasn't been hinted and is incorrect
+    // Find the first wheel that has a wrong selection (like Jumble Your Cards logic)
     // Don't allow hints on the last wheel (would give away the answer)
     int wheelToHint = -1;
     final totalDials = hasThirdWheel ? 3 : 2;
     
+    // Check each wheel in order to find the first wrong selection
     // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
     // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
-    if (!_hintedWheels[currentCardIndex]!.contains(0) && 
-        selectedPart1.toLowerCase() != correctParts[0].toLowerCase() &&
-        totalDials > 1) { // Don't hint if only one wheel
+    if (totalDials > 1 && selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
+      // First wheel is wrong - hint it
       wheelToHint = 0;
-    } else if (!_hintedWheels[currentCardIndex]!.contains(1) && 
-               selectedPart2.toLowerCase() != correctParts[1].toLowerCase() &&
-               totalDials > 2) { // For 3-wheel system, can hint wheel 1
+    } else if (totalDials > 2 && selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
+      // Second wheel is wrong - hint it (only for 3-wheel system)
       wheelToHint = 1;
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
     
-    // Don't allow hints if no wheels can be hinted
+    // Don't allow hints if no wheels need fixing
     if (wheelToHint == -1) return;
     
     if (mounted) {
@@ -381,14 +383,20 @@ class _PickYourCardViewState extends State<PickYourCardView>
     switch (wheelToHint) {
       case 0:
         print('🔍 PickYourCardView: Hinting wheel 1 to: ${correctParts[0]}');
+        // Update the selectedPart immediately to match the hint
+        selectedPart1 = correctParts[0];
         wheel1Key.currentState?.setSelection(correctParts[0]);
         break;
       case 1:
         print('🔍 PickYourCardView: Hinting wheel 2 to: ${correctParts[1]}');
+        // Update the selectedPart immediately to match the hint
+        selectedPart2 = correctParts[1];
         wheel2Key.currentState?.setSelection(correctParts[1]);
         break;
       case 2:
         print('🔍 PickYourCardView: Hinting wheel 3 to: ${correctParts[2]}');
+        // Update the selectedPart immediately to match the hint
+        selectedPart3 = correctParts[2];
         wheel3Key.currentState?.setSelection(correctParts[2]);
         break;
     }
@@ -396,7 +404,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Show hint message
     EnhancedSnackBar.showWarning(
       context,
-      message: 'Hint used! Correct part selected.',
+      message: 'Hint: Fixed wrong selection to "${correctParts[wheelToHint]}"',
       duration: const Duration(seconds: 2),
     );
   }
@@ -784,7 +792,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => _showCloseConfirmation(),
             icon: const Icon(Icons.arrow_back_ios),
             iconSize: 20,
           ),
@@ -1131,6 +1139,29 @@ class _PickYourCardViewState extends State<PickYourCardView>
           ],
           
           const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  void _showCloseConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exit Game?'),
+        content: const Text('Are you sure you want to exit? Your progress will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to study type selection
+            },
+            child: const Text('Exit'),
+          ),
         ],
       ),
     );

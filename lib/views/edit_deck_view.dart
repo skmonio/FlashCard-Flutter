@@ -21,6 +21,7 @@ class _EditDeckViewState extends State<EditDeckView> {
   final _nameController = TextEditingController();
   String _selectedParentDeckId = '';
   bool _isSubDeck = false;
+  bool _isPublic = false;
 
   @override
   void initState() {
@@ -29,6 +30,7 @@ class _EditDeckViewState extends State<EditDeckView> {
     _nameController.text = widget.deck.name;
     _selectedParentDeckId = widget.deck.parentId ?? '';
     _isSubDeck = widget.deck.parentId != null;
+    _isPublic = widget.deck.isPublic;
     
     // Add listener to update save button state
     _nameController.addListener(() {
@@ -77,6 +79,8 @@ class _EditDeckViewState extends State<EditDeckView> {
                     _buildBasicInfoSection(),
                     const SizedBox(height: 24),
                     _buildParentDeckSection(),
+                    const SizedBox(height: 24),
+                    _buildVisibilitySection(),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -196,7 +200,39 @@ class _EditDeckViewState extends State<EditDeckView> {
     );
   }
 
-
+  Widget _buildVisibilitySection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Deck Visibility',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              title: const Text('Make this deck public'),
+              subtitle: const Text('Allow friends to see and study this deck'),
+              value: _isPublic,
+              onChanged: (value) {
+                setState(() {
+                  _isPublic = value ?? false;
+                });
+              },
+              secondary: Icon(
+                _isPublic ? Icons.visibility : Icons.visibility_off,
+                color: _isPublic ? Colors.blue : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   bool _canSave() {
     return _nameController.text.trim().isNotEmpty &&
@@ -221,6 +257,7 @@ class _EditDeckViewState extends State<EditDeckView> {
       subDeckIds: widget.deck.subDeckIds,
       dateCreated: widget.deck.dateCreated,
       lastModified: DateTime.now(),
+      isPublic: _isPublic,
       cloudKitRecordName: widget.deck.cloudKitRecordName,
     );
 

@@ -6,6 +6,8 @@ import '../models/dutch_word_exercise.dart';
 import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
 import '../services/dutch_grammar_exercise_generator.dart';
+import '../services/data_sync_service.dart';
+import '../services/supabase_service.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 
 class FlashcardProvider extends ChangeNotifier {
@@ -84,6 +86,17 @@ class FlashcardProvider extends ChangeNotifier {
   Future<bool> deleteDeck(String deckId) async {
     try {
       await _service.deleteDeck(deckId);
+      
+      // Force immediate sync to cloud for deck deletion
+      if (SupabaseService.instance.isAuthenticated) {
+        try {
+          await DataSyncService.syncAllData();
+          print('✅ Deck deletion synced to cloud immediately');
+        } catch (e) {
+          print('⚠️ Failed to sync deck deletion to cloud: $e');
+        }
+      }
+      
       // Refresh both lists from the service
       _decks = _service.decks;
       _cards = _service.cards;
@@ -282,6 +295,17 @@ class FlashcardProvider extends ChangeNotifier {
     print('Provider: Deleting card: $cardId');
     try {
       await _service.deleteCard(cardId);
+      
+      // Force immediate sync to cloud for card deletion
+      if (SupabaseService.instance.isAuthenticated) {
+        try {
+          await DataSyncService.syncAllData();
+          print('✅ Card deletion synced to cloud immediately');
+        } catch (e) {
+          print('⚠️ Failed to sync card deletion to cloud: $e');
+        }
+      }
+      
       // Refresh the cards list from the service
       _cards = _service.cards;
       print('Provider: Cards after deletion: ${_cards.length}');
@@ -877,7 +901,7 @@ class FlashcardProvider extends ChangeNotifier {
     }
     
     // Refresh data after import
-    refresh();
+    await refresh();
     
     return {
       'success': successCount,
@@ -1010,7 +1034,7 @@ class FlashcardProvider extends ChangeNotifier {
       }
       
       // Refresh data
-      refresh();
+      await refresh();
       
       return {
         'success': successCount,
@@ -1182,10 +1206,137 @@ class FlashcardProvider extends ChangeNotifier {
     notifyListeners();
   }
   
-  void refresh() {
+  Future<void> refresh() async {
+    // Reload data from SharedPreferences (useful after data sync)
+    await _service.reloadData();
     _decks = _service.decks;
     _cards = _service.cards;
     _settings = _service.settings;
     notifyListeners();
+  }
+
+  /// Reset progress for a specific card
+  Future<void> resetCardProgress(String cardId) async {
+    try {
+      // Find the card
+      final cardIndex = _cards.indexWhere((card) => card.id == cardId);
+      if (cardIndex == -1) {
+        throw Exception('Card not found');
+      }
+
+      final card = _cards[cardIndex];
+      
+      // Create a new card with reset progress
+      final resetCard = card.copyWith(
+        successCount: 0,
+        learningMastery: LearningMastery(
+          currentXP: 0,
+          currentLevel: 0,
+          lastReviewDate: null,
+          consecutiveCorrect: 0,
+          consecutiveIncorrect: 0,
+          easeFactor: 2.5,
+          srsLevel: 0,
+          nextReviewDate: null,
+          totalReviews: 0,
+          repetitions: 0,
+          lapses: 0,
+          interval: 1,
+        ),
+      );
+
+      // Update the card in the service
+      await _service.updateCard(resetCard);
+      
+      // Update the card in the provider
+      _cards[cardIndex] = resetCard;
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to reset card progress: $e');
+      rethrow;
+    }
+  }
+
+  /// Update the public status of a card
+  Future<void> updateCardPublicStatus(String cardId, bool isPublic) async {
+    try {
+      // Find the card
+      final card = _service.getCard(cardId);
+      if (card == null) {
+        throw Exception('Card not found');
+      }
+      
+      // Create a new card with updated public status
+      final updatedCard = card.copyWith(isPublic: isPublic);
+
+      // Update the card in the service
+      await _service.updateCard(updatedCard);
+      
+      // Force immediate sync to cloud for public status changes
+      if (SupabaseService.instance.isAuthenticated) {
+        try {
+          await DataSyncService.syncAllData();
+          print('✅ Card public status synced to cloud immediately');
+        } catch (e) {
+          print('⚠️ Failed to sync card public status to cloud: $e');
+        }
+      }
+      
+      // Refresh the cards list from the service
+      _cards = _service.cards;
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to update card public status: $e');
+      rethrow;
+    }
+  }
+
+  /// Update the public status of a deck
+  Future<void> updateDeckPublicStatus(String deckId, bool isPublic) async {
+    try {
+      // Find the deck
+      final deck = _service.getDeck(deckId);
+      if (deck == null) {
+        throw Exception('Deck not found');
+      }
+      
+      // Create a new deck with updated public status
+      final updatedDeck = deck.copyWith(
+        isPublic: isPublic,
+        lastModified: DateTime.now(),
+      );
+
+      // Update the deck in the service
+      await _service.updateDeck(updatedDeck);
+      
+      // If making deck public, also make all cards in the deck public
+      if (isPublic) {
+        final cardsInDeck = _service.getCardsForDeck(deckId);
+        for (final card in cardsInDeck) {
+          if (!card.isPublic) {
+            final updatedCard = card.copyWith(isPublic: true);
+            await _service.updateCard(updatedCard);
+          }
+        }
+      }
+      
+      // Force immediate sync to cloud for public status changes
+      if (SupabaseService.instance.isAuthenticated) {
+        try {
+          await DataSyncService.syncAllData();
+          print('✅ Deck public status synced to cloud immediately');
+        } catch (e) {
+          print('⚠️ Failed to sync deck public status to cloud: $e');
+        }
+      }
+      
+      // Refresh both lists from the service
+      _decks = _service.decks;
+      _cards = _service.cards;
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to update deck public status: $e');
+      rethrow;
+    }
   }
 } 

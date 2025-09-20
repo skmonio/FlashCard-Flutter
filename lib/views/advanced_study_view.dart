@@ -96,6 +96,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     super.initState();
     _isShowingFront = !widget.startFlipped;
     
+    // Set mode based on startFlipped parameter
+    // If startFlipped is true, use flipped mode (single card)
+    // If startFlipped is false, use stacked mode
+    _useStackedMode = !widget.startFlipped;
+    
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
     
@@ -235,7 +240,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => _showCloseConfirmation(),
                         icon: const Icon(Icons.arrow_back_ios),
                         iconSize: 20,
                       ),
@@ -938,6 +943,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         XpService.recordAnswer(_gameSession, false);
         // Explicitly set 0 XP for unknown cards
         _xpGainedPerWord[currentCard.id] = 0;
+        // Record attempt to reduce HP (like other games)
+        final xpService = XpService();
+        xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
+        // Mark card as incorrect to reduce HP (like other games)
+        currentCard.markIncorrect(GameDifficulty.medium);
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -955,12 +965,20 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // Add card to review deck
         _addCardToReview(currentCard);
         // No XP for review actions - these are cards that need more study
+        // But still track them for end screen display
+        if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+          _studiedWords.add(currentCard);
+        }
         break;
       case SwipeDirection.down: // Skip
         _skippedCards.add(currentCard.id);
         _skippedHistory[_currentIndex] = true;
         _combo = 0;
         // Don't update learning progress for skipped cards
+        // But still track them for end screen display
+        if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+          _studiedWords.add(currentCard);
+        }
         break;
       default:
         return;
@@ -974,11 +992,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       // Award XP to the word for RPG system (only for correct answers)
       if (wasCorrect) {
         _awardXPToWord(card);
-        
-        // Only track studied words for correct answers (known cards)
-        if (!_studiedWords.any((word) => word.id == card.id)) {
-          _studiedWords.add(card);
-        }
+      }
+      
+      // Track all studied words (known, unknown, and skipped) for end screen display
+      if (!_studiedWords.any((word) => word.id == card.id)) {
+        _studiedWords.add(card);
       }
       
       // Update the card in the provider to save the XP changes
@@ -1170,31 +1188,24 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _showWordProgress() {
-    // For flipped mode, include all cards in the end screen, not just studied ones
+    // Include all cards in the end screen for both modes to show "not known" cards consistently
     List<FlashCard> sessionStudiedWords;
     Map<String, int> sessionXpGainedPerWord;
     Map<String, LearningMastery> sessionWordMastery;
     
-    if (widget.startFlipped) {
-      // Include all cards for flipped mode
-      sessionStudiedWords = List<FlashCard>.from(_currentCards);
-      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
-      
-      // Ensure all cards have entries in the maps (0 XP and current mastery for unanswered cards)
-      for (final card in _currentCards) {
-        if (!sessionXpGainedPerWord.containsKey(card.id)) {
-          sessionXpGainedPerWord[card.id] = 0; // 0 XP for unanswered cards
-        }
-        if (!sessionWordMastery.containsKey(card.id)) {
-          sessionWordMastery[card.id] = card.learningMastery; // Current mastery for unanswered cards
-        }
+    // Always include all cards for both flipped and stacked modes
+    sessionStudiedWords = List<FlashCard>.from(_currentCards);
+    sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
+    sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    
+    // Ensure all cards have entries in the maps (0 XP and current mastery for unanswered cards)
+    for (final card in _currentCards) {
+      if (!sessionXpGainedPerWord.containsKey(card.id)) {
+        sessionXpGainedPerWord[card.id] = 0; // 0 XP for unanswered cards
       }
-    } else {
-      // Normal mode - only show studied cards
-      sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-      sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-      sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+      if (!sessionWordMastery.containsKey(card.id)) {
+        sessionWordMastery[card.id] = card.learningMastery; // Current mastery for unanswered cards
+      }
     }
     
     Navigator.of(context).push(
@@ -1320,6 +1331,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         XpService.recordAnswer(_gameSession, false);
         // Explicitly set 0 XP for unknown cards
         _xpGainedPerWord[currentCard.id] = 0;
+        // Record attempt to reduce HP (like other games)
+        final xpService = XpService();
+        xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
+        // Mark card as incorrect to reduce HP (like other games)
+        currentCard.markIncorrect(GameDifficulty.medium);
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -1336,6 +1352,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // Add card to review deck
         _addCardToReview(currentCard);
         // No XP for review actions - these are cards that need more study
+        // But still track them for end screen display
+        if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+          _studiedWords.add(currentCard);
+        }
         break;
       case SwipeDirection.down: // Skip
         _skippedCards.add(currentCard.id);

@@ -11,6 +11,7 @@ import 'onboarding_view.dart';
 import 'auth_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
+import '../services/sound_manager.dart';
 import '../services/supabase_service.dart';
 import '../utils/global_navigator.dart';
 
@@ -23,6 +24,19 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   bool _soundEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSoundSettings();
+  }
+
+  Future<void> _loadSoundSettings() async {
+    await SoundManager().initialize();
+    setState(() {
+      _soundEnabled = SoundManager().soundEnabled;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,11 +122,11 @@ class _SettingsViewState extends State<SettingsView> {
                 title: const Text('Sound Effects'),
                 subtitle: const Text('Play sounds during study'),
                 value: _soundEnabled,
-                onChanged: (value) {
+                onChanged: (value) async {
                   setState(() {
                     _soundEnabled = value;
                   });
-                  // TODO: Implement sound settings
+                  await SoundManager().setSoundEnabled(value);
                 },
               ),
               const Divider(height: 1),

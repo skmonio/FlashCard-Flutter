@@ -6,6 +6,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
+import '../models/deck.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
@@ -1367,6 +1368,15 @@ class _AllCardsViewState extends State<AllCardsView> {
                 _showResetProgressConfirmation();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move, color: Colors.blue),
+              title: const Text('Move/Copy Cards'),
+              subtitle: const Text('Move or copy selected cards to another deck'),
+              onTap: () {
+                Navigator.pop(context);
+                _showMoveCopyDialog();
+              },
+            ),
             const SizedBox(height: 16),
           ],
         ),
@@ -1496,4 +1506,187 @@ class _AllCardsViewState extends State<AllCardsView> {
     }
   }
 
+  void _showMoveCopyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Move/Copy Cards'),
+        content: const Text(
+          'Choose an action for the selected cards:\n\n'
+          '• Move: Remove cards from current deck(s) and add to new deck(s)\n'
+          '• Copy: Keep cards in current deck(s) and also add to new deck(s)',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showDeckSelectionDialog(isMove: true);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.blue),
+            child: const Text('Move'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showDeckSelectionDialog(isMove: false);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.green),
+            child: const Text('Copy'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeckSelectionDialog({required bool isMove}) {
+    final provider = context.read<FlashcardProvider>();
+    final availableDecks = provider.decks.where((deck) => !deck.isSubDeck).toList();
+    
+    if (availableDecks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No decks available to move/copy cards to'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _DeckSelectionDialog(
+        decks: availableDecks,
+        isMove: isMove,
+        onConfirm: (selectedDeckIds) {
+          Navigator.of(context).pop();
+          _performMoveCopy(selectedDeckIds, isMove: isMove);
+        },
+      ),
+    );
+  }
+
+  Future<void> _performMoveCopy(List<String> targetDeckIds, {required bool isMove}) async {
+    final provider = context.read<FlashcardProvider>();
+    int successCount = 0;
+    int errorCount = 0;
+    
+    for (final cardId in _selectedCardIds) {
+      try {
+        final card = provider.getCard(cardId);
+        if (card == null) {
+          print('🔍 AllCardsView: Card not found: $cardId');
+          errorCount++;
+          continue;
+        }
+        
+        if (isMove) {
+          // Move: Remove from current decks and add to target decks
+          final newDeckIds = targetDeckIds.toSet();
+          await provider.updateCard(card.copyWith(deckIds: newDeckIds));
+        } else {
+          // Copy: Add to target decks while keeping current decks
+          final newDeckIds = {...card.deckIds, ...targetDeckIds};
+          await provider.updateCard(card.copyWith(deckIds: newDeckIds));
+        }
+        
+        successCount++;
+      } catch (e) {
+        print('🔍 AllCardsView: Error ${isMove ? 'moving' : 'copying'} card $cardId: $e');
+        errorCount++;
+      }
+    }
+    
+    setState(() {
+      _isSelectionMode = false;
+      _selectedCardIds.clear();
+      _selectAll = false;
+    });
+    
+    // Clear cache after operation
+    _cachedFilteredCards = null;
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${isMove ? 'Moved' : 'Copied'} $successCount card${successCount == 1 ? '' : 's'}'
+            '${errorCount > 0 ? ' ($errorCount failed)' : ''}',
+          ),
+          backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+        ),
+      );
+    }
+  }
+
+}
+
+class _DeckSelectionDialog extends StatefulWidget {
+  final List<Deck> decks;
+  final bool isMove;
+  final Function(List<String>) onConfirm;
+
+  const _DeckSelectionDialog({
+    required this.decks,
+    required this.isMove,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_DeckSelectionDialog> createState() => _DeckSelectionDialogState();
+}
+
+class _DeckSelectionDialogState extends State<_DeckSelectionDialog> {
+  final Set<String> _selectedDeckIds = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Select Deck${widget.decks.length > 1 ? 's' : ''} to ${widget.isMove ? 'Move' : 'Copy'} To'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 300,
+        child: ListView.builder(
+          itemCount: widget.decks.length,
+          itemBuilder: (context, index) {
+            final deck = widget.decks[index];
+            final isSelected = _selectedDeckIds.contains(deck.id);
+            
+            return CheckboxListTile(
+              title: Text(deck.name),
+              subtitle: Text('${context.read<FlashcardProvider>().getCardsForDeck(deck.id).length} cards'),
+              value: isSelected,
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    _selectedDeckIds.add(deck.id);
+                  } else {
+                    _selectedDeckIds.remove(deck.id);
+                  }
+                });
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _selectedDeckIds.isEmpty 
+              ? null 
+              : () => widget.onConfirm(_selectedDeckIds.toList()),
+          style: TextButton.styleFrom(
+            foregroundColor: widget.isMove ? Colors.blue : Colors.green,
+          ),
+          child: Text('${widget.isMove ? 'Move' : 'Copy'} to ${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'}'),
+        ),
+      ],
+    );
+  }
 } 

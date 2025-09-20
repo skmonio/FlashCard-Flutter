@@ -1,4 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SoundManager {
   static final SoundManager _instance = SoundManager._internal();
@@ -7,19 +8,62 @@ class SoundManager {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isInitialized = false;
+  bool _soundEnabled = true;
+  String _soundMode = 'system'; // 'system', 'always', 'never'
 
   Future<void> initialize() async {
     if (_isInitialized) return;
     
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
+      await _loadSoundSettings();
       _isInitialized = true;
     } catch (e) {
       print('Error initializing SoundManager: $e');
     }
   }
 
+  Future<void> _loadSoundSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _soundEnabled = prefs.getBool('sound_enabled') ?? true;
+      _soundMode = prefs.getString('sound_mode') ?? 'system';
+    } catch (e) {
+      print('Error loading sound settings: $e');
+    }
+  }
+
+  Future<void> setSoundEnabled(bool enabled) async {
+    _soundEnabled = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sound_enabled', enabled);
+  }
+
+  Future<void> setSoundMode(String mode) async {
+    _soundMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sound_mode', mode);
+  }
+
+  bool get soundEnabled => _soundEnabled;
+  String get soundMode => _soundMode;
+
+  bool _shouldPlaySound() {
+    if (!_soundEnabled) return false;
+    if (_soundMode == 'never') return false;
+    if (_soundMode == 'always') return true;
+    if (_soundMode == 'system') {
+      // For system mode, we'll respect the device's silent mode
+      // This is a simplified check - in a real app you might want to use
+      // a plugin to check the actual system volume/silent mode
+      return true; // For now, always play in system mode
+    }
+    return true;
+  }
+
   Future<void> playBeginSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       print('Attempting to play begin sound...');
       await initialize();
@@ -33,6 +77,8 @@ class SoundManager {
   }
 
   Future<void> playCompleteSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio
@@ -43,6 +89,8 @@ class SoundManager {
   }
 
   Future<void> playCorrectSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio
@@ -53,6 +101,8 @@ class SoundManager {
   }
 
   Future<void> playWrongSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio
@@ -63,6 +113,8 @@ class SoundManager {
   }
 
   Future<void> playGameSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio
@@ -73,6 +125,8 @@ class SoundManager {
   }
 
   Future<void> playSwipeSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio
@@ -83,6 +137,8 @@ class SoundManager {
   }
 
   Future<void> playPopSound() async {
+    if (!_shouldPlaySound()) return;
+    
     try {
       await initialize();
       await _audioPlayer.stop(); // Stop any currently playing audio

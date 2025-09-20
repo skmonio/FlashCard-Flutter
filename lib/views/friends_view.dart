@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/friends_service.dart';
 import '../utils/enhanced_snackbar.dart';
+import 'friend_profile_view.dart';
 
 class FriendsView extends StatefulWidget {
   const FriendsView({super.key});
@@ -111,6 +112,15 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
         _showErrorSnackBar('Failed to remove friend: $e');
       }
     }
+  }
+
+  void _viewFriendProfile(Friend friend) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FriendProfileView(friend: friend),
+      ),
+    );
   }
 
   void _showErrorSnackBar(String message) {
@@ -369,9 +379,9 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Level ${friend.level} • ${friend.xp} XP'),
-            if (friend.currentStreak > 0)
+            if ((friend.currentStreak ?? 0) > 0)
               Text(
-                '${friend.currentStreak} day streak',
+                '${friend.currentStreak ?? 0} day streak',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w500,
@@ -381,11 +391,23 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
-            if (value == 'remove') {
+            if (value == 'view_profile') {
+              _viewFriendProfile(friend);
+            } else if (value == 'remove') {
               _removeFriend(friend.friendId);
             }
           },
           itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'view_profile',
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('View Profile'),
+                ],
+              ),
+            ),
             const PopupMenuItem(
               value: 'remove',
               child: Row(

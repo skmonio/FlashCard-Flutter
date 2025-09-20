@@ -4,10 +4,11 @@ import '../models/flash_card.dart';
 import '../providers/flashcard_provider.dart';
 import '../services/xp_service.dart';
 import '../views/add_card_view.dart';
+import '../views/card_stats_view.dart';
 import 'hp_bar.dart';
 import 'package:intl/intl.dart';
 
-class CardDetailsDialog extends StatelessWidget {
+class CardDetailsDialog extends StatefulWidget {
   final FlashCard card;
 
   const CardDetailsDialog({
@@ -16,10 +17,15 @@ class CardDetailsDialog extends StatelessWidget {
   });
 
   @override
+  State<CardDetailsDialog> createState() => _CardDetailsDialogState();
+}
+
+class _CardDetailsDialogState extends State<CardDetailsDialog> {
+  @override
   Widget build(BuildContext context) {
     // Get the fresh card data from the provider to ensure we have the latest XP and learning progress
-    final provider = context.read<FlashcardProvider>();
-    final freshCard = provider.getCard(card.id) ?? card;
+    final provider = context.watch<FlashcardProvider>();
+    final freshCard = provider.getCard(widget.card.id) ?? widget.card;
     
     final xpService = XpService();
     final wordLevel = freshCard.learningMastery.rpgWordLevel;
@@ -218,23 +224,78 @@ class CardDetailsDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            // Navigate to edit card screen
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => AddCardView(
-                  cardToEdit: freshCard,
-                ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Navigate to detailed stats page
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => CardStatsView(card: freshCard),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.blue),
+              child: const Text('Stats'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Navigate to edit card screen
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => AddCardView(
+                      cardToEdit: freshCard,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Edit'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final provider = context.read<FlashcardProvider>();
+                try {
+                  await provider.updateCardPublicStatus(
+                    freshCard.id, 
+                    !freshCard.isPublic
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          freshCard.isPublic 
+                            ? 'Card made private' 
+                            : 'Card made public'
+                        ),
+                        backgroundColor: freshCard.isPublic ? Colors.orange : Colors.green,
+                      ),
+                    );
+                    // The dialog will automatically rebuild due to context.watch<FlashcardProvider>()
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to update card: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: freshCard.isPublic ? Colors.orange : Colors.blue,
               ),
-            );
-          },
-          child: const Text('Edit'),
+              child: Text(freshCard.isPublic ? 'Private' : 'Public'),
+            ),
+          ],
         ),
       ],
     );

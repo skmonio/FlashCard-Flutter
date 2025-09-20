@@ -59,6 +59,31 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _useSRSFiltering = true; // Default to SRS on
 
   @override
+  void initState() {
+    super.initState();
+    // Add listener to refresh when provider updates
+    final provider = context.read<FlashcardProvider>();
+    provider.addListener(_onProviderChanged);
+  }
+
+  @override
+  void dispose() {
+    // Remove listener when disposing
+    final provider = context.read<FlashcardProvider>();
+    provider.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    // Refresh the view when provider updates (e.g., after games are played)
+    if (mounted) {
+      setState(() {
+        // This will cause the build method to re-run with fresh data
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -126,6 +151,19 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       return _flippedMode == 'flipped';
     }
     return _startFlipped;
+  }
+
+  int? _getTimePerQuestion() {
+    if (!_useTimedMode) return null;
+    
+    switch (_selectedTimedDifficulty) {
+      case TimedDifficulty.easy:
+        return 30; // 30 seconds per question
+      case TimedDifficulty.medium:
+        return 20; // 20 seconds per question
+      case TimedDifficulty.hard:
+        return 15; // 15 seconds per question
+    }
   }
   
   
@@ -367,6 +405,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
     final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
     
+    // Debug logging
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Total cards: ${allCards.length}');
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - After SRS filtering: ${filteredCards.length}');
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Available cards (canBeStudiedToday): ${availableCards.length}');
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Limited cards (hasReachedDailyLimit): ${limitedCards.length}');
+    for (int i = 0; i < allCards.length && i < 5; i++) {
+      final card = allCards[i];
+      print('🔍 StudyTypeSelectionView: Card ${i + 1}: "${card.word}" - HP: ${card.currentHP}/${card.maxHP}, canBeStudied: ${card.canBeStudiedToday}');
+    }
+    
     // Show warning if some cards are excluded due to daily limits
     if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -380,14 +428,49 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     // Use available cards for study
     filteredCards = availableCards;
     
+    // Check if we have enough cards to play
+    if (filteredCards.isEmpty) {
+      final totalCards = allCards.length;
+      final defeatedCards = limitedCards.length;
+      final healthyCards = totalCards - defeatedCards;
+      
+      String errorMessage = 'No cards available for this game.\n\n';
+      errorMessage += 'Total cards: $totalCards\n';
+      errorMessage += 'Healthy cards: $healthyCards\n';
+      errorMessage += 'Defeated cards: $defeatedCards\n\n';
+      
+      if (defeatedCards == totalCards) {
+        errorMessage += 'All cards are defeated (0 HP). They need to rest until tomorrow to regain health.';
+      } else if (healthyCards < 5) {
+        errorMessage += 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
+      } else {
+        errorMessage += 'There seems to be an issue with card availability. Please try again or contact support.';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          duration: const Duration(seconds: 6),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Proceeding with ${filteredCards.length} available cards');
+    
     // Shuffle and take a subset of cards for quick study
     final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
     final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
     final studyCards = shuffledCards.take(cardCount).toList();
     
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Selected ${studyCards.length} cards for study (cardCount: $cardCount)');
+    
     // Navigate based on game mode
+    print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Game mode: ${widget.gameMode}');
     switch (widget.gameMode) {
       case GameMode.study:
+        print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Navigating to AdvancedStudyView');
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => AdvancedStudyView(
@@ -399,6 +482,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         );
         break;
       case GameMode.test:
+        print('🔍 StudyTypeSelectionView: _navigateToQuickStudy - Navigating to Test mode (timed: $_useTimedMode)');
         if (_useTimedMode) {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -458,6 +542,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               title: 'Quick Write',
               startFlipped: _getStartFlipped(),
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
+              useTimedMode: _useTimedMode,
+              timePerQuestion: _getTimePerQuestion(),
+              autoProgress: _autoProgress,
             ),
           ),
         );
@@ -750,14 +839,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord ||
-           widget.gameMode == GameMode.pickYourCard;
+           widget.gameMode == GameMode.pickYourCard ||
+           widget.gameMode == GameMode.write;
   }
   
   bool _shouldShowLivesMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord ||
-           widget.gameMode == GameMode.pickYourCard;
+           widget.gameMode == GameMode.pickYourCard ||
+           widget.gameMode == GameMode.write;
   }
   
   bool _shouldShowTimedMode() {
@@ -765,7 +856,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord ||
            widget.gameMode == GameMode.game ||
-           widget.gameMode == GameMode.pickYourCard;
+           widget.gameMode == GameMode.pickYourCard ||
+           widget.gameMode == GameMode.write;
   }
   
   Widget _buildFlippedModeSetting(StateSetter setState) {
@@ -1576,6 +1668,19 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     }
   }
 
+  int? _getTimePerQuestion() {
+    if (!widget.useTimedMode || widget.timedDifficulty == null) return null;
+    
+    switch (widget.timedDifficulty!) {
+      case TimedDifficulty.easy:
+        return 30; // 30 seconds per question
+      case TimedDifficulty.medium:
+        return 20; // 20 seconds per question
+      case TimedDifficulty.hard:
+        return 15; // 15 seconds per question
+    }
+  }
+
   void _toggleDeckSelection(String deckId) {
     setState(() {
       if (_selectedDeckIds.contains(deckId)) {
@@ -1640,6 +1745,16 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
     final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
     
+    // Debug logging
+    print('🔍 StudyTypeSelectionView: _startStudy - Total selected cards: ${allSelectedCards.length}');
+    print('🔍 StudyTypeSelectionView: _startStudy - After SRS filtering: ${filteredCards.length}');
+    print('🔍 StudyTypeSelectionView: _startStudy - Available cards (canBeStudiedToday): ${availableCards.length}');
+    print('🔍 StudyTypeSelectionView: _startStudy - Limited cards (hasReachedDailyLimit): ${limitedCards.length}');
+    for (int i = 0; i < allSelectedCards.length && i < 5; i++) {
+      final card = allSelectedCards[i];
+      print('🔍 StudyTypeSelectionView: Card ${i + 1}: "${card.word}" - HP: ${card.currentHP}/${card.maxHP}, canBeStudied: ${card.canBeStudiedToday}');
+    }
+    
     // Show warning if some cards are excluded due to daily limits
     if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1652,6 +1767,35 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     
     // Use available cards for study
     filteredCards = availableCards;
+    
+    // Check if we have enough cards to play
+    if (filteredCards.isEmpty) {
+      final totalCards = allSelectedCards.length;
+      final defeatedCards = limitedCards.length;
+      final healthyCards = totalCards - defeatedCards;
+      
+      String errorMessage = 'No cards available for this game.\n\n';
+      errorMessage += 'Total cards: $totalCards\n';
+      errorMessage += 'Healthy cards: $healthyCards\n';
+      errorMessage += 'Defeated cards: $defeatedCards\n\n';
+      
+      if (defeatedCards == totalCards) {
+        errorMessage += 'All cards are defeated (0 HP). They need to rest until tomorrow to regain health.';
+      } else if (healthyCards < 5) {
+        errorMessage += 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
+      } else {
+        errorMessage += 'There seems to be an issue with card availability. Please try again or contact support.';
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          duration: const Duration(seconds: 6),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     // Shuffle and limit cards if needed
     filteredCards.shuffle();
@@ -1740,6 +1884,11 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: allSelectedCards,
               title: title,
               startFlipped: widget.startFlipped,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
+              useTimedMode: widget.useTimedMode,
+              timePerQuestion: _getTimePerQuestion(),
+              autoProgress: widget.autoProgress,
             ),
           ),
         );

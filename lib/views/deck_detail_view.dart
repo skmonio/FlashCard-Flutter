@@ -605,6 +605,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       case 'study':
         _studyDeck();
         break;
+      case 'toggle_public':
+        _toggleDeckPublicStatus();
+        break;
       case 'delete':
         _deleteDeck();
         break;
@@ -752,6 +755,36 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     );
   }
 
+
+  void _toggleDeckPublicStatus() async {
+    try {
+      final provider = context.read<FlashcardProvider>();
+      final freshDeck = provider.getDeck(widget.deck.id) ?? widget.deck;
+      await provider.updateDeckPublicStatus(widget.deck.id, !freshDeck.isPublic);
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              freshDeck.isPublic 
+                ? 'Deck made private' 
+                : 'Deck made public'
+            ),
+            backgroundColor: freshDeck.isPublic ? Colors.orange : Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update deck: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _deleteDeck() {
     showDialog(
@@ -1059,6 +1092,24 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     Icon(Icons.school),
                     SizedBox(width: 8),
                     Text('Study Deck'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle_public',
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.deck.isPublic ? Icons.visibility_off : Icons.visibility,
+                      color: widget.deck.isPublic ? Colors.orange : Colors.blue,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.deck.isPublic ? 'Make Private' : 'Make Public',
+                      style: TextStyle(
+                        color: widget.deck.isPublic ? Colors.orange : Colors.blue,
+                      ),
+                    ),
                   ],
                 ),
               ),

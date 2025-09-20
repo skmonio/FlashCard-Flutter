@@ -754,6 +754,16 @@ class _AllDecksViewState extends State<AllDecksView> {
               ),
             ),
             const SizedBox(height: 16),
+            if (_selectedDeckIds.length == 1)
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.black),
+                title: const Text('Edit Selected Deck'),
+                subtitle: const Text('Edit the selected deck'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _editSelectedDeck();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
               title: const Text('Delete Selected Decks'),
@@ -761,6 +771,15 @@ class _AllDecksViewState extends State<AllDecksView> {
               onTap: () {
                 Navigator.pop(context);
                 _showBulkDeleteConfirmation();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.refresh, color: Colors.orange),
+              title: const Text('Reset Progress'),
+              subtitle: const Text('Reset learning progress for all cards in selected decks'),
+              onTap: () {
+                Navigator.pop(context);
+                _showResetProgressConfirmation();
               },
             ),
             ListTile(
@@ -787,6 +806,42 @@ class _AllDecksViewState extends State<AllDecksView> {
         _selectedDeckIds.add(deckId);
       }
     });
+  }
+
+  void _editSelectedDeck() {
+    try {
+      final provider = context.read<FlashcardProvider>();
+      final deckId = _selectedDeckIds.first;
+      final deck = provider.decks.firstWhere((d) => d.id == deckId);
+      _editDeck(deck);
+    } catch (e) {
+      print('🔍 AllDecksView: Error editing selected deck: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error finding deck to edit: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _editDeck(Deck deck) {
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EditDeckView(deck: deck),
+        ),
+      );
+    } catch (e) {
+      print('🔍 AllDecksView: Error navigating to edit deck: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening edit deck: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showBulkDeleteConfirmation() {
@@ -1257,5 +1312,95 @@ class _AllDecksViewState extends State<AllDecksView> {
         ],
       ),
     );
+  }
+
+  void _showResetProgressConfirmation() {
+    final provider = context.read<FlashcardProvider>();
+    final selectedDecks = _selectedDeckIds.map((id) => provider.getDeck(id)).whereType<Deck>().toList();
+    final deckNames = selectedDecks.map((d) => d.name).join(', ');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Progress'),
+        content: Text(
+          'Are you sure you want to reset the learning progress for all cards in the selected deck${selectedDecks.length == 1 ? '' : 's'}?\n\n'
+          'This will reset:\n'
+          '• Times shown\n'
+          '• Times correct\n'
+          '• Learning percentage\n'
+          '• All progress data\n\n'
+          'Selected deck${selectedDecks.length == 1 ? '' : 's'}: $deckNames\n\n'
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _resetSelectedDecksProgress();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('Reset Progress'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _resetSelectedDecksProgress() async {
+    final provider = context.read<FlashcardProvider>();
+    int successCount = 0;
+    int errorCount = 0;
+    
+    for (final deckId in _selectedDeckIds) {
+      try {
+        final deck = provider.getDeck(deckId);
+        if (deck == null) {
+          print('🔍 AllDecksView: Deck not found: $deckId');
+          errorCount++;
+          continue;
+        }
+        
+        // Get all cards in this deck (including sub-decks)
+        final cards = deck.isSubDeck 
+            ? provider.getCardsForDeck(deck.id)
+            : provider.getCardsForDeckWithSubDecks(deck.id);
+        
+        // Reset progress for each card
+        for (final card in cards) {
+          try {
+            await provider.resetCardProgress(card.id);
+            successCount++;
+          } catch (e) {
+            print('🔍 AllDecksView: Error resetting progress for card ${card.id}: $e');
+            errorCount++;
+          }
+        }
+      } catch (e) {
+        print('🔍 AllDecksView: Error resetting progress for deck $deckId: $e');
+        errorCount++;
+      }
+    }
+    
+    setState(() {
+      _isSelectionMode = false;
+      _selectedDeckIds.clear();
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Reset progress for $successCount card${successCount == 1 ? '' : 's'}'
+            '${errorCount > 0 ? ' ($errorCount failed)' : ''}',
+          ),
+          backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+        ),
+      );
+    }
   }
 } 

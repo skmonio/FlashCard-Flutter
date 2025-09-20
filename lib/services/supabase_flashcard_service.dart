@@ -347,8 +347,14 @@ class SupabaseFlashcardService {
             'flashcard_id': flashcardId,
           });
     } catch (e) {
-      print('Error adding card to deck: $e');
-      rethrow;
+      // Check if it's a duplicate key error - if so, it's actually fine
+      if (e.toString().contains('duplicate key value violates unique constraint')) {
+        print('Card $flashcardId already in deck $deckId, skipping');
+        return; // Don't rethrow for duplicate key errors
+      } else {
+        print('Error adding card to deck: $e');
+        rethrow;
+      }
     }
   }
   

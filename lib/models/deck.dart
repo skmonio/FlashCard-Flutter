@@ -9,6 +9,7 @@ class Deck {
   Set<String> subDeckIds; // Child deck IDs
   DateTime dateCreated;
   DateTime lastModified;
+  bool isPublic; // Whether this deck is visible to friends
   
   // CloudKit tracking
   String? cloudKitRecordName;
@@ -21,6 +22,7 @@ class Deck {
     Set<String>? subDeckIds,
     DateTime? dateCreated,
     DateTime? lastModified,
+    this.isPublic = false,
     this.cloudKitRecordName,
   }) : 
     id = id ?? const Uuid().v4(),
@@ -151,6 +153,7 @@ class Deck {
       'subDeckIds': subDeckIds.toList(),
       'dateCreated': dateCreated.toIso8601String(),
       'lastModified': lastModified.toIso8601String(),
+      'isPublic': isPublic,
       'cloudKitRecordName': cloudKitRecordName,
     };
   }
@@ -167,6 +170,7 @@ class Deck {
       lastModified: json['lastModified'] != null 
           ? DateTime.parse(json['lastModified']) 
           : DateTime.now(),
+      isPublic: json['isPublic'] ?? false,
       cloudKitRecordName: json['cloudKitRecordName'],
     );
   }
@@ -180,16 +184,18 @@ class Deck {
     Set<String>? subDeckIds,
     DateTime? dateCreated,
     DateTime? lastModified,
+    bool? isPublic,
     String? cloudKitRecordName,
   }) {
     return Deck(
       id: id,
       name: name ?? this.name,
-      cards: cards ?? this.cards,
+      cards: cards ?? List<FlashCard>.from(this.cards),
       parentId: parentId ?? this.parentId,
-      subDeckIds: subDeckIds ?? this.subDeckIds,
+      subDeckIds: subDeckIds ?? Set<String>.from(this.subDeckIds),
       dateCreated: dateCreated ?? this.dateCreated,
       lastModified: lastModified ?? this.lastModified,
+      isPublic: isPublic ?? this.isPublic,
       cloudKitRecordName: cloudKitRecordName ?? this.cloudKitRecordName,
     );
   }

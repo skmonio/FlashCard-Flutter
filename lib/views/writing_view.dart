@@ -20,6 +20,11 @@ class WritingView extends StatefulWidget {
   final Function(bool)? onComplete;
   final bool shuffleMode;
   final bool startFlipped;
+  final bool useLivesMode;
+  final int? customLives;
+  final bool useTimedMode;
+  final int? timePerQuestion;
+  final bool autoProgress;
 
   const WritingView({
     super.key,
@@ -28,6 +33,11 @@ class WritingView extends StatefulWidget {
     this.onComplete,
     this.shuffleMode = false,
     this.startFlipped = false,
+    this.useLivesMode = false,
+    this.customLives,
+    this.useTimedMode = false,
+    this.timePerQuestion,
+    this.autoProgress = false,
   });
 
   @override
@@ -44,10 +54,24 @@ class _WritingViewState extends State<WritingView> {
   String _displayWord = '';
   bool _isQuestionMode = true; // true = definition to word, false = word to definition
   int _lives = 5;
+  int _maxLives = 5;
+  bool _useLivesMode = false;
   String _userAnswer = '';
   final TextEditingController _textController = TextEditingController();
   Set<String> _guessedLetters = {};
   Set<String> _revealedLetters = {};
+  
+  // Timer system
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  bool _useTimedMode = false;
+  
+  // Auto progress system
+  Timer? _autoProgressTimer;
+  Set<int> _autoProgressedQuestions = {};
+  int _activeQuestionIndex = 0;
   
   // Track answered questions and their answers
   Map<int, String> _answeredQuestions = {}; // question index -> user answer
@@ -78,6 +102,20 @@ class _WritingViewState extends State<WritingView> {
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
     
+    // Initialize lives system
+    _useLivesMode = widget.useLivesMode;
+    if (_useLivesMode) {
+      _maxLives = widget.customLives ?? _getDefaultLives();
+      _lives = _maxLives;
+    }
+    
+    // Initialize timer if using timed mode
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode) {
+      _totalTime = widget.timePerQuestion ?? _getDefaultTimePerQuestion();
+      _timeRemaining = _totalTime;
+    }
+    
     _generateQuestion();
     
     // Listen for card updates from the provider
@@ -90,12 +128,78 @@ class _WritingViewState extends State<WritingView> {
   @override
   void dispose() {
     _textController.dispose();
+    _timer?.cancel();
+    _autoProgressTimer?.cancel();
     
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
     
     super.dispose();
+  }
+
+  int _getDefaultLives() {
+    return 5; // Default 5 lives
+  }
+  
+  int _getDefaultTimePerQuestion() {
+    return 30; // Default 30 seconds per question
+  }
+  
+  void _startTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          } else {
+            _timeUp = true;
+            _timer?.cancel();
+            _handleTimeUp();
+          }
+        });
+      }
+    });
+  }
+  
+  void _handleTimeUp() {
+    if (_answered) return;
+    
+    setState(() {
+      _answered = true;
+      _totalAnswered++;
+      _correctAnswersMap[_currentIndex] = false;
+      _answeredQuestions[_currentIndex] = _userAnswer;
+      _correctAnswersText[_currentIndex] = _correctAnswer;
+      _questionModes[_currentIndex] = _isQuestionMode;
+    });
+    
+    // Handle lives system
+    if (_useLivesMode) {
+      _lives--;
+      print('🔍 WritingView: Lost a life due to time up! Lives remaining: $_lives');
+      
+      if (_lives <= 0) {
+        print('🔍 WritingView: Game over! No lives remaining');
+        _showGameOverScreen();
+        return;
+      }
+    }
+    
+    // Auto progress logic
+    if (widget.autoProgress) {
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+        if (mounted && _currentIndex < _currentCards.length - 1) {
+          _autoProgressedQuestions.add(_currentIndex);
+          _activeQuestionIndex = _currentIndex + 1;
+          _goToNextQuestion();
+        }
+      });
+    }
   }
 
   void _onProviderChanged() {
@@ -259,10 +363,16 @@ class _WritingViewState extends State<WritingView> {
     
     setState(() {
       _answered = false;
-      _lives = 5;
       _userAnswer = '';
       _textController.clear();
+      _timeUp = false;
     });
+    
+    // Start timer if using timed mode
+    if (_useTimedMode) {
+      _timeRemaining = _totalTime;
+      _startTimer();
+    }
   }
 
   Color _getCardBorderColor(FlashCard card) {
@@ -323,12 +433,31 @@ class _WritingViewState extends State<WritingView> {
           _totalAnswered++;
           _correctAnswersMap[_currentIndex] = true;
           _answeredQuestions[_currentIndex] = _displayWord;
+          _correctAnswersText[_currentIndex] = _correctAnswer;
+          _questionModes[_currentIndex] = _isQuestionMode;
           
-                // Award XP to word for RPG system
+          // Award XP to word for RPG system
           _awardXPToWord(_currentCards[_currentIndex], true);
           
           // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
+          
+          // Stop timer if using timed mode
+          if (_useTimedMode) {
+            _timer?.cancel();
+          }
+          
+          // Auto progress logic
+          if (widget.autoProgress) {
+            _autoProgressTimer?.cancel();
+            _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+              if (mounted && _currentIndex < _currentCards.length - 1) {
+                _autoProgressedQuestions.add(_currentIndex);
+                _activeQuestionIndex = _currentIndex + 1;
+                _goToNextQuestion();
+              }
+            });
+          }
           
           // Auto-continue in shuffle mode after a short delay
           if (widget.shuffleMode) {
@@ -341,18 +470,23 @@ class _WritingViewState extends State<WritingView> {
         }
       } else {
         // Wrong guess
-        _lives--;
+        if (_useLivesMode) {
+          _lives--;
+          print('🔍 WritingView: Lost a life! Lives remaining: $_lives');
+        }
         SoundManager().playWrongSound();
         HapticService().errorFeedback();
         
-        // Check if game over
-        if (_lives <= 0) {
+        // Check if game over (only if using lives mode)
+        if (_useLivesMode && _lives <= 0) {
           _answered = true;
           _totalAnswered++;
           // Show the complete correct answer
           _displayWord = _correctAnswer;
           _correctAnswersMap[_currentIndex] = false;
           _answeredQuestions[_currentIndex] = _displayWord;
+          _correctAnswersText[_currentIndex] = _correctAnswer;
+          _questionModes[_currentIndex] = _isQuestionMode;
           
           // Award XP to word for RPG system
           _awardXPToWord(_currentCards[_currentIndex], false);
@@ -360,14 +494,18 @@ class _WritingViewState extends State<WritingView> {
           // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
           
-          // Auto-continue in shuffle mode after a short delay (failed)
-          if (widget.shuffleMode) {
-            Timer(const Duration(milliseconds: 1000), () {
-              if (mounted && widget.onComplete != null) {
-                widget.onComplete!(false); // Word failed (ran out of lives)
-              }
-            });
-          }
+          print('🔍 WritingView: Game over! No lives remaining');
+          _showGameOverScreen();
+          return;
+        }
+        
+        // Auto-continue in shuffle mode after a short delay (failed)
+        if (widget.shuffleMode) {
+          Timer(const Duration(milliseconds: 1000), () {
+            if (mounted && widget.onComplete != null) {
+              widget.onComplete!(false); // Word failed (ran out of lives)
+            }
+          });
         }
       }
     });
@@ -576,6 +714,12 @@ class _WritingViewState extends State<WritingView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
+                
+                // Game mode indicators (lives, timer)
+                if (_useLivesMode || _useTimedMode) ...[
+                  const SizedBox(height: 8),
+                  _buildGameModeIndicators(),
+                ],
               ],
             ),
           ),
@@ -1423,6 +1567,83 @@ class _WritingViewState extends State<WritingView> {
         duration: const Duration(seconds: 2),
       );
     }
+  }
+
+  Widget _buildGameModeIndicators() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Lives indicator
+          if (_useLivesMode) ...[
+            Row(
+              children: [
+                const Icon(Icons.favorite, color: Colors.red, size: 20),
+                const SizedBox(width: 4),
+                Text(
+                  '$_lives/$_maxLives',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          // Timer indicator
+          if (_useTimedMode) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.timer,
+                  color: _timeRemaining <= 5 ? Colors.red : Colors.blue,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '$_timeRemaining',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _timeRemaining <= 5 ? Colors.red : Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
+          // Auto progress indicator
+          if (widget.autoProgress) ...[
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.green, size: 20),
+                const SizedBox(width: 4),
+                const Text(
+                  'Auto',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showGameOverScreen() {
+    // Show results when game is over
+    setState(() {
+      _showingResults = true;
+    });
+    // Play completion sound when game is over
+    SoundManager().playCompleteSound();
   }
 
 }

@@ -347,16 +347,22 @@ class _MemoryGameViewState extends State<MemoryGameView>
   @override
   Widget build(BuildContext context) {
     if (_gameComplete) {
-      // Use a post-frame callback to avoid calling navigation during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showWordProgress();
-        }
-      });
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+      // Show the end screen directly instead of a loading screen
+      return UnifiedEndScreen(
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        studiedWords: _studiedWords,
+        title: 'Memory Game Complete',
+        showSwipeToReview: false,
+        onStudyAgain: () {
+          // Reset and restart game
+          if (mounted) {
+            _resetGame(); // This handles all the resetting and setState internally
+          }
+        },
+        onDone: () {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        },
       );
     }
 
@@ -373,7 +379,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => _showCloseConfirmation(),
                         icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                         iconSize: 20,
                       ),
@@ -708,8 +714,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
 
   void _selectCard(MemoryCard card) {
-    // Only allow selection of normal cards
-    if (!_canSelect || card.state != CardState.normal || card.state == CardState.removed) {
+    // Allow selection of normal cards, selected cards, and wrong cards (which will be reset to normal)
+    if (!_canSelect || (card.state != CardState.normal && card.state != CardState.selected && card.state != CardState.wrong)) {
       print('🔍 MemoryGameView: Card selection blocked - canSelect: $_canSelect, state: ${card.state}');
       return;
     }
@@ -727,7 +733,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
           card.state = CardState.selected;
           print('🔍 MemoryGameView: Flipped card to show word: ${card.content}');
         } else {
-          // Flip card back to show definition
+          // Flip card back to show definition and deselect it
           card.isFlipped = false;
           card.content = card.originalCard.definition;
           card.state = CardState.normal;
@@ -754,6 +760,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
         if (memoryCard.state == CardState.wrong) {
           memoryCard.state = CardState.normal;
         }
+      }
+      
+      // If the selected card was in wrong state, reset it to normal first
+      if (card.state == CardState.wrong) {
+        card.state = CardState.normal;
       }
       
       // Set this card as selected
@@ -866,11 +877,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
       print('🔍 MemoryGameView: Wrong match! Cards will reset to normal...');
       
       // Reset wrong cards after showing the red state briefly
-      Future.delayed(const Duration(milliseconds: 600), () {
+      Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
           setState(() {
             wrongFirstCard.state = CardState.normal;
             wrongSecondCard.state = CardState.normal;
+            print('🔍 MemoryGameView: Reset wrong cards to normal state');
           });
         }
       });
@@ -1047,7 +1059,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to study type selection
             },
             child: const Text('Leave'),
           ),
@@ -1082,7 +1095,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
 
   void _resetGame() {
-    // Reset game state without setState first
+    // Reset game state
     _memoryCards.clear();
     _firstCard = null;
     _secondCard = null;
@@ -1101,8 +1114,15 @@ class _MemoryGameViewState extends State<MemoryGameView>
     final shuffledCards = List<FlashCard>.from(widget.cards);
     shuffledCards.shuffle(Random());
     
-    // Initialize the game (this will call setState internally)
+    // Initialize the game
     _initializeGame();
+    
+    // Trigger a rebuild to return to the game view
+    if (mounted) {
+      setState(() {
+        // This will cause the build method to return the game view instead of the end screen
+      });
+    }
   }
 
   void _awardXp() {
@@ -1389,36 +1409,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
     }
   }
   
-  void _showWordProgress() {
-    // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
-    
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          studiedWords: sessionStudiedWords,
-          title: 'Memory Game Complete',
-          showSwipeToReview: false,
-          onStudyAgain: () {
-            // Reset and restart game BEFORE closing the word progress screen
-            _gameComplete = false;
-            _resetGame(); // This handles all the resetting internally
-            
-            Navigator.of(context).pop(); // Close word progress screen
-            
-            // Session data has been reset, ready for new game
-          },
-          onDone: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
-          },
-        ),
-      ),
-    );
-  }
   
 
 }
