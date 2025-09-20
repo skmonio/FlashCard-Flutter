@@ -62,11 +62,13 @@ class SoundManager {
   }
 
   Future<void> playBeginSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
       print('Attempting to play begin sound...');
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) {
+        print('Sound disabled, skipping begin sound');
+        return;
+      }
       await _audioPlayer.stop(); // Stop any currently playing audio
       print('Playing Begin.wav...');
       await _audioPlayer.play(AssetSource('audio/Begin.wav'));
@@ -77,10 +79,9 @@ class SoundManager {
   }
 
   Future<void> playCompleteSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Complete.wav'));
     } catch (e) {
@@ -89,10 +90,9 @@ class SoundManager {
   }
 
   Future<void> playCorrectSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Correct.wav'));
     } catch (e) {
@@ -101,10 +101,9 @@ class SoundManager {
   }
 
   Future<void> playWrongSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Wrong.wav'));
     } catch (e) {
@@ -113,10 +112,9 @@ class SoundManager {
   }
 
   Future<void> playGameSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Game.wav'));
     } catch (e) {
@@ -125,10 +123,9 @@ class SoundManager {
   }
 
   Future<void> playSwipeSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Swipe.wav'));
     } catch (e) {
@@ -137,10 +134,9 @@ class SoundManager {
   }
 
   Future<void> playPopSound() async {
-    if (!_shouldPlaySound()) return;
-    
     try {
-      await initialize();
+      await initialize(); // Load settings first
+      if (!_shouldPlaySound()) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Pop.wav'));
     } catch (e) {
