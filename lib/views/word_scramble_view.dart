@@ -87,6 +87,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   Map<int, int> _hintCount = {}; // Track how many hints used per question
   Map<int, List<String>> _hintRevealed = {}; // Track what pieces were revealed by hints
   Map<int, List<String>> _correctPieceOrder = {}; // Track correct piece order for each question
+  Map<int, Set<int>> _lockedPositions = {}; // Track which positions in user answer are locked (hinted)
   
   // Review system
   Set<String> _reviewCards = {}; // Track which cards are in review deck
@@ -214,12 +215,17 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       _correctWord = currentCard.definition.toLowerCase();
     }
     
-    // Create scrambled pieces (2-3 letters each, handling multi-word phrases)
-    _scrambledLetters = _createPiecesFromWords(_correctWord, random);
-    
-    // Store the correct piece order (before shuffling) for hint system
+    // Create pieces (2-3 letters each, handling multi-word phrases)
+    // First, create the pieces without shuffling to get the correct order
     final correctPieces = _createPiecesFromWords(_correctWord, Random(42)); // Use fixed seed for consistent order
     _correctPieceOrder[_currentIndex] = correctPieces;
+    
+    // Then create the scrambled version by shuffling the correct pieces
+    _scrambledLetters = List<String>.from(correctPieces);
+    _scrambledLetters.shuffle(random);
+    
+    print('🔍 WordScrambleView: Correct piece order: $correctPieces');
+    print('🔍 WordScrambleView: Scrambled pieces: $_scrambledLetters');
     
     // Store original letters for comparison (all letters without spaces)
     _originalLetters = _correctWord.split('').where((char) => char != ' ').toList();
@@ -234,6 +240,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       _userAnswer = [];
       _isCardFlipped = false;
       // Reset hint tracking for new question (hint tracking is per question)
+      _lockedPositions[_currentIndex] = <int>{}; // Reset locked positions for new question
     });
   }
 
@@ -256,10 +263,26 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   void _removeLetterAt(int index) {
     if (_answered || index < 0 || index >= _userAnswer.length) return;
     
+    // Check if this position is locked (hinted)
+    final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
+    if (lockedPositions.contains(index)) return;
+    
     setState(() {
       final removedPiece = _userAnswer.removeAt(index);
       // Add the piece back to available pieces
       _scrambledLetters.add(removedPiece);
+      
+      // Update locked positions - shift down indices after removed position
+      final newLockedPositions = <int>{};
+      for (final lockedIndex in lockedPositions) {
+        if (lockedIndex > index) {
+          newLockedPositions.add(lockedIndex - 1);
+        } else if (lockedIndex < index) {
+          newLockedPositions.add(lockedIndex);
+        }
+        // Skip the removed position itself
+      }
+      _lockedPositions[_currentIndex] = newLockedPositions;
     });
   }
 
@@ -924,9 +947,17 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           ..._userAnswer.asMap().entries.map((entry) {
             final index = entry.key;
             final piece = entry.value;
+            final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
+            final isLocked = lockedPositions.contains(index);
+            
+            if (isLocked) {
+              print('🔍 WordScrambleView: Piece "$piece" at position $index is LOCKED (orange border)');
+            } else {
+              print('🔍 WordScrambleView: Piece "$piece" at position $index is UNLOCKED (blue border)');
+            }
             
             return GestureDetector(
-              onTap: _answered ? null : () => _removeLetterAt(index),
+              onTap: _answered || isLocked ? null : () => _removeLetterAt(index),
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 width: piece.length > 2 ? 50 : 40, // Wider for longer pieces
@@ -936,13 +967,18 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                       ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
                           ? Colors.green.withValues(alpha: 0.2) 
                           : Colors.red.withValues(alpha: 0.2))
-                      : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      : isLocked 
+                          ? Colors.orange.withValues(alpha: 0.2) // Locked pieces have orange background
+                          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                   border: Border.all(
                     color: _answered 
                         ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
                             ? Colors.green 
                             : Colors.red)
-                        : Theme.of(context).colorScheme.primary,
+                        : isLocked 
+                            ? Colors.orange // Locked pieces have orange border
+                            : Theme.of(context).colorScheme.primary,
+                    width: isLocked ? 3 : 1, // Thicker border for locked pieces
                   ),
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -956,7 +992,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                           ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
                               ? Colors.green 
                               : Colors.red)
-                          : Theme.of(context).colorScheme.primary,
+                          : isLocked 
+                              ? Colors.orange // Locked pieces have orange text
+                              : Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
@@ -1397,34 +1435,38 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     print('🔍 WordScrambleView: Available pieces: $_scrambledLetters');
     print('🔍 WordScrambleView: Already revealed: $revealedPieces');
     
-    // Instead of trying to match pieces, let's find the next piece in the correct order
-    // by looking at the correct word and finding which piece should come next
-    final correctWordChars = correctWord.replaceAll(' ', '').split('');
-    final currentAnswerChars = _userAnswer.join('').replaceAll(' ', '').split('');
+    // Get the correct order of pieces for this question
+    final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
+    print('🔍 WordScrambleView: Correct piece order: $correctPieces');
+    print('🔍 WordScrambleView: Current user answer: $_userAnswer');
     
-    print('🔍 WordScrambleView: Correct word chars: $correctWordChars');
-    print('🔍 WordScrambleView: Current answer chars: $currentAnswerChars');
-    
-    // Find the next character that should be in the answer
-    String? nextChar;
-    for (int i = 0; i < correctWordChars.length; i++) {
-      if (i >= currentAnswerChars.length || currentAnswerChars[i] != correctWordChars[i]) {
-        nextChar = correctWordChars[i];
+    // Find the next piece that should be placed in the correct order
+    String? nextCorrectPiece;
+    for (int i = 0; i < correctPieces.length; i++) {
+      if (i >= _userAnswer.length || _userAnswer[i] != correctPieces[i]) {
+        nextCorrectPiece = correctPieces[i];
+        print('🔍 WordScrambleView: Found mismatch at position $i - expected piece: "${correctPieces[i]}", current piece: "${i < _userAnswer.length ? _userAnswer[i] : 'N/A'}"');
         break;
       }
     }
     
-    print('🔍 WordScrambleView: Next character needed: "$nextChar"');
+    print('🔍 WordScrambleView: Next correct piece needed: "$nextCorrectPiece"');
     
-    // Find a piece that contains the next character and hasn't been revealed yet
-    if (nextChar != null) {
+    // Find a piece that matches the next correct piece and hasn't been revealed yet
+    if (nextCorrectPiece != null) {
+      print('🔍 WordScrambleView: Looking for piece "$nextCorrectPiece" in: $_scrambledLetters');
       for (final piece in _scrambledLetters) {
-        if (piece.contains(nextChar) && !revealedPieces.contains(piece)) {
+        print('🔍 WordScrambleView: Checking piece "$piece" - matches "$nextCorrectPiece": ${piece == nextCorrectPiece}, already revealed: ${revealedPieces.contains(piece)}');
+        if (piece == nextCorrectPiece && !revealedPieces.contains(piece)) {
           hintPiece = piece;
-          print('🔍 WordScrambleView: Found hint piece: "$piece" (contains "$nextChar")');
+          print('🔍 WordScrambleView: Selected hint piece: "$piece" (matches "$nextCorrectPiece")');
           break;
         }
       }
+    }
+    
+    if (hintPiece == null) {
+      print('🔍 WordScrambleView: No suitable hint piece found for correct piece "$nextCorrectPiece"');
     }
     
     if (hintPiece != null) {
@@ -1439,21 +1481,34 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         _hintRevealed[_currentIndex]!.add(hintPiece!);
         
         // Check if we need to replace incorrectly placed pieces
-        // Get the correct order of pieces for this question
-        final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
-        print('🔍 WordScrambleView: Correct piece order: $correctPieces');
-        print('🔍 WordScrambleView: Current user answer: $_userAnswer');
+        print('🔍 WordScrambleView: Hint piece to place: "$hintPiece"');
         
         // Find the first position where the user's piece doesn't match the correct piece
+        // BUT only consider positions that are NOT locked
+        final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
         int wrongPosition = -1;
+        
+        print('🔍 WordScrambleView: Locked positions: $lockedPositions');
+        print('🔍 WordScrambleView: Checking positions for wrong pieces...');
+        
         for (int i = 0; i < _userAnswer.length && i < correctPieces.length; i++) {
+          // Skip locked positions - we can't replace those
+          if (lockedPositions.contains(i)) {
+            print('🔍 WordScrambleView: Position $i is locked, skipping');
+            continue;
+          }
+          
+          // Check if this position has the wrong piece
           if (_userAnswer[i] != correctPieces[i]) {
             wrongPosition = i;
+            print('🔍 WordScrambleView: Found wrong piece at position $i: user="${_userAnswer[i]}" vs correct="${correctPieces[i]}"');
             break;
+          } else {
+            print('🔍 WordScrambleView: Position $i is correct: "${_userAnswer[i]}"');
           }
         }
         
-        // If we found a wrong position, replace that piece
+        // If we found a wrong position that's not locked, replace that piece
         if (wrongPosition >= 0) {
           final oldPiece = _userAnswer[wrongPosition];
           _userAnswer[wrongPosition] = hintPiece!;
@@ -1466,10 +1521,77 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             _scrambledLetters.add(oldPiece);
           }
           
-          print('🔍 WordScrambleView: Replaced wrong piece at position $wrongPosition: "$oldPiece" -> "$hintPiece"');
+          // Lock this position (hinted piece cannot be removed)
+          if (_lockedPositions[_currentIndex] == null) {
+            _lockedPositions[_currentIndex] = <int>{};
+          }
+          _lockedPositions[_currentIndex]!.add(wrongPosition);
+          
+          print('🔍 WordScrambleView: Replaced wrong piece at position $wrongPosition: "$oldPiece" -> "$hintPiece" (locked)');
+          print('🔍 WordScrambleView: Locked positions after replacement: ${_lockedPositions[_currentIndex]}');
         } else {
-          // No wrong pieces to replace, just add the hint piece to the end
-          _addPiece(hintPiece!);
+          // No wrong pieces to replace (or all wrong positions are locked), 
+          // find the next correct position to place the piece
+          int nextPosition = -1;
+          
+          // Look for the next position that should have this piece
+          for (int i = 0; i < correctPieces.length; i++) {
+            if (correctPieces[i] == hintPiece && !lockedPositions.contains(i)) {
+              // This is where the hint piece should go and it's not locked
+              nextPosition = i;
+              break;
+            }
+          }
+          
+          if (nextPosition >= 0) {
+            // Place the piece at the correct position
+            if (nextPosition < _userAnswer.length) {
+              // Replace existing piece at this position
+              final oldPiece = _userAnswer[nextPosition];
+              _userAnswer[nextPosition] = hintPiece!;
+              
+              // Remove the hint piece from available pieces
+              _scrambledLetters.remove(hintPiece!);
+              
+              // Add the old piece back to available pieces if it's not empty
+              if (oldPiece.isNotEmpty) {
+                _scrambledLetters.add(oldPiece);
+              }
+            } else {
+              // Insert at specific position if beyond current answer length
+              // First, add empty strings to fill the gap
+              while (_userAnswer.length < nextPosition) {
+                _userAnswer.add('');
+              }
+              // Then add the hint piece
+              _userAnswer.add(hintPiece!);
+              
+              // Remove the hint piece from available pieces
+              _scrambledLetters.remove(hintPiece!);
+            }
+            
+            print('🔍 WordScrambleView: User answer after placement: $_userAnswer');
+            
+            // Lock this position (hinted piece cannot be removed)
+            if (_lockedPositions[_currentIndex] == null) {
+              _lockedPositions[_currentIndex] = <int>{};
+            }
+            _lockedPositions[_currentIndex]!.add(nextPosition);
+            
+            print('🔍 WordScrambleView: Placed hint piece at correct position $nextPosition: "$hintPiece" (locked)');
+            print('🔍 WordScrambleView: Locked positions after placement: ${_lockedPositions[_currentIndex]}');
+          } else {
+            // Fallback: just add the hint piece to the end
+            _addPiece(hintPiece!);
+            
+            // Lock the last position (hinted piece cannot be removed)
+            if (_lockedPositions[_currentIndex] == null) {
+              _lockedPositions[_currentIndex] = <int>{};
+            }
+            _lockedPositions[_currentIndex]!.add(_userAnswer.length - 1);
+            
+            print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece" (locked)');
+          }
         }
       });
       

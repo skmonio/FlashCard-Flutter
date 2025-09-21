@@ -84,11 +84,30 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Map<int, Set<int>> _hintedWheels = {}; // Track which wheels have been hinted per card
   Map<int, List<String>> _correctParts = {}; // Store correct parts for each card
   int _hintsUsed = 0;
+  bool _isApplyingHint = false; // Flag to prevent onChanged during hint application
+  
+  // Store user answers and results for each card
+  Map<int, String> _userAnswers = {}; // Store user's final answer for each card
+  Map<int, bool> _cardResults = {}; // Store whether each card was answered correctly
+  Map<int, List<String>> _userSelections = {}; // Store user's individual wheel selections for each card
   
   // Debounce mechanism for wheel changes
   Timer? _wheelChangeTimer;
   
   void _onWheelChanged(int wheelIndex, String value) {
+    // Don't update if we're currently applying a hint
+    if (_isApplyingHint) {
+      print('🔍 PickYourCardView: Ignoring wheel change during hint application - wheel $wheelIndex to $value');
+      return;
+    }
+    
+    // Don't update if this wheel has been hinted (locked)
+    final hintedWheels = _hintedWheels[currentCardIndex] ?? <int>{};
+    if (hintedWheels.contains(wheelIndex)) {
+      print('🔍 PickYourCardView: Ignoring wheel change - wheel $wheelIndex is locked (hinted)');
+      return;
+    }
+    
     // Cancel any existing timer
     _wheelChangeTimer?.cancel();
     
@@ -215,8 +234,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
   void _loadCurrentCard() {
     if (currentCardIndex >= widget.cards.length) return;
     
-    final FlashCard card = widget.cards[currentCardIndex];
-    final String dutch = card.word;
+    final FlashCard currentCard = widget.cards[currentCardIndex];
+    final String dutch = currentCard.word;
     
     // Start timer if using timed mode
     if (widget.useTimedMode) {
@@ -229,7 +248,17 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Store the correct parts for this card
     _correctParts[currentCardIndex] = List<String>.from(parts);
     
-    print('🔍 PickYourCardView: Setup - Word: "$dutch", Parts: $parts');
+    print('🔍 PickYourCardView: Setup - Word: "$dutch", Length: ${dutch.length}, Parts: $parts');
+    print('🔍 PickYourCardView: Part lengths: ${parts.map((p) => p.length).toList()}');
+    
+    // Debug: Test word splitting for common words
+    if (dutch.toLowerCase() == 'house') {
+      print('🔍 PickYourCardView: DEBUG - House splitting test:');
+      print('🔍 PickYourCardView: Card word: "${currentCard.word}"');
+      print('🔍 PickYourCardView: Card definition: "${currentCard.definition}"');
+      print('🔍 PickYourCardView: Expected: huisje (6 chars) -> [hui, sje] or [huis, je]');
+      print('🔍 PickYourCardView: Actual: $dutch (${dutch.length} chars) -> $parts');
+    }
     
     if (parts.length == 2) {
       hasThirdWheel = false;
@@ -237,50 +266,99 @@ class _PickYourCardViewState extends State<PickYourCardView>
       wheel2Items = _generateWheelItems(parts[1], 2);
       wheel3Items = [];
       
-      // Set initial values to first items in wheels
-      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
-      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
+      print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
+      
+      // Set initial values to correct parts (not first items)
+      selectedPart1 = parts[0];
+      selectedPart2 = parts[1];
       selectedPart3 = "";
+      
+      print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
     } else if (parts.length == 3) {
       hasThirdWheel = true;
       wheel1Items = _generateWheelItems(parts[0], 1);
       wheel2Items = _generateWheelItems(parts[1], 2);
       wheel3Items = _generateWheelItems(parts[2], 3);
       
-      // Set initial values to first items in wheels
-      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
-      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
-      selectedPart3 = wheel3Items.isNotEmpty ? wheel3Items.first : "";
+      print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
+      
+      // Set initial values to correct parts (not first items)
+      selectedPart1 = parts[0];
+      selectedPart2 = parts[1];
+      selectedPart3 = parts[2];
+      
+      print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
     } else {
       // For words with more than 3 parts, combine some parts
       hasThirdWheel = false;
       final String part1 = parts[0];
       final String part2 = parts.sublist(1).join('');
       
+      // Update the correct parts with the actual parts used in wheels
+      _correctParts[currentCardIndex] = [part1, part2];
+      
       wheel1Items = _generateWheelItems(part1, 1);
       wheel2Items = _generateWheelItems(part2, 2);
       wheel3Items = [];
       
-      // Set initial values to first items in wheels
-      selectedPart1 = wheel1Items.isNotEmpty ? wheel1Items.first : "";
-      selectedPart2 = wheel2Items.isNotEmpty ? wheel2Items.first : "";
+      print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
+      
+      // Set initial values to correct parts (not first items)
+      selectedPart1 = part1;
+      selectedPart2 = part2;
       selectedPart3 = "";
+      
+      print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
+    }
+    
+    // If this card was already answered, restore the user's previous selections
+    if (_userSelections.containsKey(currentCardIndex)) {
+      final userSelections = _userSelections[currentCardIndex]!;
+      
+      if (userSelections.length >= 2) {
+        final restoredPart1 = userSelections[0];
+        final restoredPart2 = userSelections[1];
+        final restoredPart3 = userSelections.length > 2 ? userSelections[2] : '';
+        
+        // Only restore if the parts exist in the current wheel items
+        if (wheel1Items.contains(restoredPart1) && wheel2Items.contains(restoredPart2) && 
+            (!hasThirdWheel || wheel3Items.contains(restoredPart3))) {
+          selectedPart1 = restoredPart1;
+          selectedPart2 = restoredPart2;
+          if (hasThirdWheel) {
+            selectedPart3 = restoredPart3;
+          }
+          
+          print('🔍 PickYourCardView: Restoring previous selections - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
+          
+          // Update wheel selections to match the stored selections
+          wheel1Key.currentState?.setSelection(selectedPart1);
+          wheel2Key.currentState?.setSelection(selectedPart2);
+          if (hasThirdWheel) {
+            wheel3Key.currentState?.setSelection(selectedPart3);
+          }
+        } else {
+          print('🔍 PickYourCardView: Cannot restore previous selections - parts not found in current wheels');
+          print('🔍 PickYourCardView: Attempted to restore: Part1: "$restoredPart1", Part2: "$restoredPart2", Part3: "$restoredPart3"');
+          print('🔍 PickYourCardView: Available in wheels: Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
+        }
+      }
     }
   }
 
   List<String> _splitWordIntoEqualParts(String word) {
-    if (word.length <= 4) {
+    if (word.length <= 5) {
       // Short words: split into 2 parts
       final int mid = (word.length / 2).ceil();
       return [word.substring(0, mid), word.substring(mid)];
     } else if (word.length <= 9) {
       // Medium words: split into 3 parts
       final int partLength = (word.length / 3).ceil();
-      final List<String> parts = [];
-      for (int i = 0; i < word.length; i += partLength) {
-        parts.add(word.substring(i, min(i + partLength, word.length)));
-      }
-      return parts;
+      return [
+        word.substring(0, partLength),
+        word.substring(partLength, min(partLength * 2, word.length)),
+        word.substring(min(partLength * 2, word.length)),
+      ];
     } else {
       // Long words: split into 3 parts with more equal distribution
       final int partLength = (word.length / 3).ceil();
@@ -293,6 +371,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   List<String> _generateWheelItems(String correctPart, int wheelIndex) {
+    print('🔍 PickYourCardView: Generating wheel $wheelIndex items for correct part: "$correctPart"');
     final Set<String> uniqueOptions = {correctPart};
     
     // Generate similar decoy letters based on the correct part
@@ -311,8 +390,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
             }
           }
         }
+      } else {
+        print('🔍 PickYourCardView: No similar letters found for character "$char" in part "$correctPart"');
       }
     }
+    
+    print('🔍 PickYourCardView: After similar letter generation: $uniqueOptions');
     
     // Add some random combinations if we don't have enough
     final Random random = Random();
@@ -331,6 +414,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     
     final List<String> items = uniqueOptions.toList();
     items.shuffle();
+    print('🔍 PickYourCardView: Final wheel $wheelIndex items: $items');
     return items;
   }
 
@@ -343,7 +427,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Use stored correct parts instead of recalculating
     final correctParts = _correctParts[currentCardIndex] ?? _splitWordIntoEqualParts(correctAnswer);
     
-    print('🔍 PickYourCardView: Hint - Word: "$correctAnswer", Parts: $correctParts');
+    print('🔍 PickYourCardView: Hint - Word: "$correctAnswer", Length: ${correctAnswer.length}');
+    print('🔍 PickYourCardView: Stored correct parts: $correctParts');
+    print('🔍 PickYourCardView: Recalculated parts: ${_splitWordIntoEqualParts(correctAnswer)}');
+    print('🔍 PickYourCardView: Current selections - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
     
     // Initialize hinted wheels set for this card if not exists
     if (!_hintedWheels.containsKey(currentCardIndex)) {
@@ -355,20 +442,29 @@ class _PickYourCardViewState extends State<PickYourCardView>
     int wheelToHint = -1;
     final totalDials = hasThirdWheel ? 3 : 2;
     
-    // Check each wheel in order to find the first wrong selection
+    // Check each wheel in order to find the first wrong selection that is NOT already locked
     // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
     // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
-    if (totalDials > 1 && selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
-      // First wheel is wrong - hint it
+    if (totalDials > 1 && 
+        !_hintedWheels[currentCardIndex]!.contains(0) &&
+        selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
+      // First wheel is wrong and not locked - hint it
       wheelToHint = 0;
-    } else if (totalDials > 2 && selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
-      // Second wheel is wrong - hint it (only for 3-wheel system)
+    } else if (totalDials > 2 && 
+               !_hintedWheels[currentCardIndex]!.contains(1) &&
+               selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
+      // Second wheel is wrong and not locked - hint it (only for 3-wheel system)
       wheelToHint = 1;
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
     
-    // Don't allow hints if no wheels need fixing
-    if (wheelToHint == -1) return;
+    // Don't allow hints if no wheels need fixing or all available wheels are already locked
+    if (wheelToHint == -1) {
+      print('🔍 PickYourCardView: No wheel to hint - all wheels correct or locked');
+      return;
+    }
+    
+    print('🔍 PickYourCardView: Will hint wheel $wheelToHint to: ${correctParts[wheelToHint]}');
     
     if (mounted) {
       setState(() {
@@ -378,34 +474,83 @@ class _PickYourCardViewState extends State<PickYourCardView>
       });
     }
     
+    // Set flag to prevent onChanged callback during hint application
+    _isApplyingHint = true;
+    
     // Animate the selected wheel to the correct value
-    // The wheel's onChanged callback will update the selectedPart variables
     switch (wheelToHint) {
       case 0:
-        print('🔍 PickYourCardView: Hinting wheel 1 to: ${correctParts[0]}');
+        print('🔍 PickYourCardView: Hinting wheel 1 from "$selectedPart1" to: ${correctParts[0]}');
         // Update the selectedPart immediately to match the hint
         selectedPart1 = correctParts[0];
         wheel1Key.currentState?.setSelection(correctParts[0]);
         break;
       case 1:
-        print('🔍 PickYourCardView: Hinting wheel 2 to: ${correctParts[1]}');
+        print('🔍 PickYourCardView: Hinting wheel 2 from "$selectedPart2" to: ${correctParts[1]}');
         // Update the selectedPart immediately to match the hint
         selectedPart2 = correctParts[1];
         wheel2Key.currentState?.setSelection(correctParts[1]);
         break;
       case 2:
-        print('🔍 PickYourCardView: Hinting wheel 3 to: ${correctParts[2]}');
+        print('🔍 PickYourCardView: Hinting wheel 3 from "$selectedPart3" to: ${correctParts[2]}');
         // Update the selectedPart immediately to match the hint
         selectedPart3 = correctParts[2];
         wheel3Key.currentState?.setSelection(correctParts[2]);
         break;
     }
     
+    // Reset flag after a longer delay to allow wheel animation to complete
+    Timer(const Duration(milliseconds: 1000), () {
+      _isApplyingHint = false;
+      print('🔍 PickYourCardView: Hint application flag reset - wheel $wheelToHint should now be locked');
+    });
+    
+    print('🔍 PickYourCardView: After hint - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
+    
     // Show hint message
     EnhancedSnackBar.showWarning(
       context,
-      message: 'Hint: Fixed wrong selection to "${correctParts[wheelToHint]}"',
+      message: 'Hint: Fixed wrong selection to "${correctParts[wheelToHint]}" (locked)',
       duration: const Duration(seconds: 2),
+    );
+  }
+
+  Widget _buildWheelWithLock(int wheelIndex, GlobalKey<_DialWheelState> wheelKey, List<String> items) {
+    final hintedWheels = _hintedWheels[currentCardIndex] ?? <int>{};
+    final isLocked = hintedWheels.contains(wheelIndex);
+    
+    print('🔍 PickYourCardView: Building wheel ${wheelIndex + 1} - isLocked: $isLocked, hintedWheels: $hintedWheels');
+    print('🔍 PickYourCardView: Building wheel ${wheelIndex + 1} with items: $items');
+    print('🔍 PickYourCardView: Current selections - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
+    
+    return DialWheel(
+      key: wheelKey,
+      items: items,
+      onChanged: (value) {
+        print('🔍 PickYourCardView: Wheel${wheelIndex + 1} changed to: $value');
+        _onWheelChanged(wheelIndex, value);
+      },
+      enabled: (!_showResult || !widget.autoProgress) && !isLocked,
+      showHintOutline: isLocked,
+    );
+  }
+
+  Widget _buildAnswerPieces() {
+    String combinedWord;
+    
+    if (hasThirdWheel) {
+      combinedWord = selectedPart1 + selectedPart2 + selectedPart3;
+    } else {
+      combinedWord = selectedPart1 + selectedPart2;
+    }
+    
+    return Text(
+      combinedWord,
+      style: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        color: Colors.blueGrey,
+      ),
     );
   }
 
@@ -497,6 +642,17 @@ class _PickYourCardViewState extends State<PickYourCardView>
     final bool isCorrect = userAnswer.toLowerCase() == correctAnswer.toLowerCase();
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
+    
+    // Store the user's answer and result for this card
+    _userAnswers[currentCardIndex] = userAnswer;
+    _cardResults[currentCardIndex] = isCorrect;
+    
+    // Store the user's individual wheel selections
+    if (hasThirdWheel) {
+      _userSelections[currentCardIndex] = [selectedPart1, selectedPart2, selectedPart3];
+    } else {
+      _userSelections[currentCardIndex] = [selectedPart1, selectedPart2];
+    }
     
     // Track the studied word
     if (!_studiedWords.contains(currentCard)) {
@@ -647,7 +803,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   void _showResults() {
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => UnifiedEndScreen(
           studiedWords: _studiedWords,
@@ -674,6 +830,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 _hintedWheels.clear();
                 _correctParts.clear();
                 _hintsUsed = 0;
+                
+                // Reset stored answers
+                _userAnswers.clear();
+                _cardResults.clear();
+                _userSelections.clear();
                 
                 // Reset result display
                 _showResult = false;
@@ -994,36 +1155,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              DialWheel(
-                key: wheel1Key,
-                items: wheel1Items,
-                onChanged: (value) {
-                  print('🔍 PickYourCardView: Wheel1 changed to: $value');
-                  _onWheelChanged(0, value);
-                },
-                enabled: !_showResult || !widget.autoProgress,
-              ),
+              _buildWheelWithLock(0, wheel1Key, wheel1Items),
               const SizedBox(width: 20),
-              DialWheel(
-                key: wheel2Key,
-                items: wheel2Items,
-                onChanged: (value) {
-                  print('🔍 PickYourCardView: Wheel2 changed to: $value');
-                  _onWheelChanged(1, value);
-                },
-                enabled: !_showResult || !widget.autoProgress,
-              ),
+              _buildWheelWithLock(1, wheel2Key, wheel2Items),
               if (hasThirdWheel) ...[
                 const SizedBox(width: 20),
-                DialWheel(
-                  key: wheel3Key,
-                  items: wheel3Items,
-                  onChanged: (value) {
-                    print('🔍 PickYourCardView: Wheel3 changed to: $value');
-                    _onWheelChanged(2, value);
-                  },
-                  enabled: !_showResult || !widget.autoProgress,
-                ),
+                _buildWheelWithLock(2, wheel3Key, wheel3Items),
               ],
             ],
           ),
@@ -1040,7 +1177,15 @@ class _PickYourCardViewState extends State<PickYourCardView>
                     if (mounted) {
                       setState(() {
                         currentCardIndex--;
-                        _showResult = false;
+                        // If this card was already answered, show the result
+                        if (_cardResults.containsKey(currentCardIndex)) {
+                          _showResult = true;
+                          _isLastAnswerCorrect = _cardResults[currentCardIndex]!;
+                          _lastUserAnswer = _userAnswers[currentCardIndex]!;
+                          _lastCorrectAnswer = widget.cards[currentCardIndex].word;
+                        } else {
+                          _showResult = false;
+                        }
                       });
                       _loadCurrentCard();
                     }
@@ -1073,7 +1218,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           
           const SizedBox(height: 20),
           
-          // Current selection display
+          // Current selection display with individual pieces
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
@@ -1081,16 +1226,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.blueGrey.shade300),
             ),
-            child: Text(
-              hasThirdWheel 
-                ? '$selectedPart1$selectedPart2$selectedPart3'
-                : '$selectedPart1$selectedPart2',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.blueGrey,
-              ),
-            ),
+            child: _buildAnswerPieces(),
           ),
           
           const SizedBox(height: 30),
@@ -1173,8 +1309,9 @@ class DialWheel extends StatefulWidget {
   final List<String> items;
   final ValueChanged<String> onChanged;
   final bool enabled;
+  final bool showHintOutline;
 
-  const DialWheel({super.key, required this.items, required this.onChanged, this.enabled = true});
+  const DialWheel({super.key, required this.items, required this.onChanged, this.enabled = true, this.showHintOutline = false});
 
   @override
   State<DialWheel> createState() => _DialWheelState();
@@ -1220,9 +1357,23 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
 
   void setSelection(String value) {
     final index = widget.items.indexOf(value);
-    if (index == -1) return;
+    if (index == -1) {
+      print('🔍 DialWheel: setSelection failed - value "$value" not found in items: ${widget.items}');
+      return;
+    }
     
     final targetAngle = -index * _itemAngle;
+    print('🔍 DialWheel: setSelection - value: "$value", index: $index, currentAngle: $_currentAngle, targetAngle: $targetAngle');
+    
+    // If the target is the same as current, don't animate
+    if ((targetAngle - _currentAngle).abs() < 0.01) {
+      print('🔍 DialWheel: setSelection - already at target position, skipping animation');
+      return;
+    }
+    
+    // Stop any existing animation
+    _controller.stop();
+    
     _animation = Tween<double>(begin: _currentAngle, end: targetAngle).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
@@ -1235,6 +1386,8 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
       })
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) {
+          _currentAngle = targetAngle; // Ensure exact position
+          print('🔍 DialWheel: Animation completed - final angle: $_currentAngle, selected item: ${_getSelectedItem()}');
           _reportSelection();
         }
       })
@@ -1321,6 +1474,11 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
             double opacity = lerp(1.0, 0.4, t);
             double scale = lerp(1.0, 0.7, t);
             bool isCenter = diff.abs() < 0.5;
+            
+            // Debug logging for hint outline issues
+            if (widget.showHintOutline && isCenter) {
+              print('🔍 DialWheel: Hint outline applied to item "$item" at index $index (normalizedCenter: $normalizedCenter, diff: $diff)');
+            }
 
             return Transform.scale(
               scale: scale,
@@ -1331,11 +1489,11 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: isCenter ? Colors.lightBlue.shade50 : Colors.transparent,
+                      color: isCenter ? (widget.showHintOutline ? Colors.orange.withValues(alpha: 0.2) : Colors.lightBlue.shade50) : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isCenter ? Colors.blue.shade600 : Colors.grey.shade400,
-                        width: isCenter ? 2.5 : 1.5,
+                        color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade600) : Colors.grey.shade400,
+                        width: isCenter ? (widget.showHintOutline ? 3 : 2.5) : 1.5,
                       ),
                     ),
                     child: Text(
@@ -1343,7 +1501,7 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
                       style: TextStyle(
                         fontSize: isCenter ? 26 : 20,
                         fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
-                        color: isCenter ? Colors.blue.shade900 : Colors.black87,
+                        color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade900) : Colors.black87,
                       ),
                     ),
                   ),

@@ -919,12 +919,10 @@ class _FriendProfileViewState extends State<FriendProfileView> with TickerProvid
                             overflow: TextOverflow.ellipsis,
                           ),
                           onTap: () {
-                            Navigator.of(context).pop(); // Close deck cards dialog
                             _showCardDetailsDialog(card);
                           },
                           trailing: IconButton(
                             onPressed: () {
-                              Navigator.of(context).pop(); // Close deck cards dialog
                               _showCopyCardDialog(card);
                             },
                             icon: const Icon(Icons.copy, color: Colors.blue),

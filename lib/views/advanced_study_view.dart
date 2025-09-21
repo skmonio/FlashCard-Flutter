@@ -347,7 +347,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       onPanStart: _handlePanStart,
       onPanUpdate: _handlePanUpdate,
       onPanEnd: _handlePanEnd,
-      onDoubleTap: _handleCardDoubleTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         child: Center(
@@ -756,21 +755,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     }
   }
 
-  void _handleCardDoubleTap() {
-    if (_nextCardActive) return;
-    
-    
-    // Toggle the flip state
-    _isShowingFront = !_isShowingFront;
-    
-    if (_isShowingFront) {
-      // Going to front (word) - animate to 0.0
-      _flipController.reverse();
-    } else {
-      // Going to back (definition) - animate to 1.0
-      _flipController.forward();
-    }
-  }
 
   void _goToPreviousCard() {
     print('🔍 AdvancedStudyView: _goToPreviousCard called, topIndex: $_topIndex');
@@ -1277,7 +1261,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             // Session data has been reset, ready for new game
           },
           onDone: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.of(context).pop(); // Close end screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),

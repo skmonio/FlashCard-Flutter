@@ -305,7 +305,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
       sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     }
     
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => WordProgressDisplay(
           studiedWords: sessionStudiedWords,
@@ -327,7 +327,8 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
             });
           },
           onDone: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.of(context).pop(); // Close end screen
+            Navigator.of(context).pop(); // Go back to study type screen
           },
         ),
       ),
@@ -760,18 +761,6 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
     ));
   }
 
-  void _handleCardDoubleTap() {
-    // Toggle the flip state
-    showBack = !showBack;
-    
-    if (showBack) {
-      // Going to back (definition) - animate to 1.0
-      _flipController.forward();
-    } else {
-      // Going to front (word) - animate to 0.0
-      _flipController.reverse();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -903,7 +892,6 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
           widget.onSwipeUpdate?.call(Offset.zero, 0.0);
         }
       },
-      onDoubleTap: _handleCardDoubleTap,
       child: SlideTransition(
         position: _exitAnimation,
         child: Transform.translate(

@@ -30,26 +30,52 @@ class _CardDetailsDialogState extends State<CardDetailsDialog> {
     final xpService = XpService();
     final wordLevel = freshCard.learningMastery.rpgWordLevel;
     
-    return AlertDialog(
-      title: Row(
-        children: [
-          Text(
-            freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
+    return Column(
+      children: [
+        // Handle bar for the bottom sheet
+        Container(
+          width: 40,
+          height: 4,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(2),
           ),
-          Expanded(child: Text(freshCard.word)),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        
+        // Title section
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
             children: [
+              Text(
+                freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 20,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  freshCard.word,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Content section
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Word and Definition
               Text(
                 freshCard.definition,
@@ -219,83 +245,131 @@ class _CardDetailsDialogState extends State<CardDetailsDialog> {
                   ),
                 ],
               ),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
-      ),
-      actions: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+        
+        // Action buttons at the bottom
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                width: 1,
+              ),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Navigate to detailed stats page
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => CardStatsView(card: freshCard),
-                  ),
-                );
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.blue),
-              child: const Text('Stats'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Navigate to edit card screen
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => AddCardView(
-                      cardToEdit: freshCard,
+          ),
+          child: Column(
+            children: [
+              // First row of buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        // Navigate to detailed stats page
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => CardStatsView(card: freshCard),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.analytics, size: 16),
+                      label: const Text('Stats'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
                     ),
                   ),
-                );
-              },
-              child: const Text('Edit'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final provider = context.read<FlashcardProvider>();
-                try {
-                  await provider.updateCardPublicStatus(
-                    freshCard.id, 
-                    !freshCard.isPublic
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          freshCard.isPublic 
-                            ? 'Card made private' 
-                            : 'Card made public'
-                        ),
-                        backgroundColor: freshCard.isPublic ? Colors.orange : Colors.green,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        // Navigate to edit card screen
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => AddCardView(
+                              cardToEdit: freshCard,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: const Text('Edit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
                       ),
-                    );
-                    // The dialog will automatically rebuild due to context.watch<FlashcardProvider>()
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to update card: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: freshCard.isPublic ? Colors.orange : Colors.blue,
+                    ),
+                  ),
+                ],
               ),
-              child: Text(freshCard.isPublic ? 'Private' : 'Public'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              // Second row of buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final provider = context.read<FlashcardProvider>();
+                        try {
+                          await provider.updateCardPublicStatus(
+                            freshCard.id, 
+                            !freshCard.isPublic
+                          );
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  freshCard.isPublic 
+                                    ? 'Card made private' 
+                                    : 'Card made public'
+                                ),
+                                backgroundColor: freshCard.isPublic ? Colors.orange : Colors.green,
+                              ),
+                            );
+                            // The dialog will automatically rebuild due to context.watch<FlashcardProvider>()
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to update card: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: Icon(
+                        freshCard.isPublic ? Icons.public_off : Icons.public,
+                        size: 16,
+                      ),
+                      label: Text(freshCard.isPublic ? 'Make Private' : 'Make Public'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: freshCard.isPublic ? Colors.orange : Colors.blue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Close'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
