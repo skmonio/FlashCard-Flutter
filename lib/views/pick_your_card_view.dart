@@ -268,9 +268,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
       
-      // Set initial values to correct parts (not first items)
-      selectedPart1 = parts[0];
-      selectedPart2 = parts[1];
+      // Set initial values to random selections (not correct parts)
+      final random = Random();
+      selectedPart1 = wheel1Items[random.nextInt(wheel1Items.length)];
+      selectedPart2 = wheel2Items[random.nextInt(wheel2Items.length)];
       selectedPart3 = "";
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
@@ -288,10 +289,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
       
-      // Set initial values to correct parts (not first items)
-      selectedPart1 = parts[0];
-      selectedPart2 = parts[1];
-      selectedPart3 = parts[2];
+      // Set initial values to random selections (not correct parts)
+      final random = Random();
+      selectedPart1 = wheel1Items[random.nextInt(wheel1Items.length)];
+      selectedPart2 = wheel2Items[random.nextInt(wheel2Items.length)];
+      selectedPart3 = wheel3Items[random.nextInt(wheel3Items.length)];
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
       
@@ -316,9 +318,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       print('🔍 PickYourCardView: After generation - Wheel1: $wheel1Items, Wheel2: $wheel2Items, Wheel3: $wheel3Items');
       
-      // Set initial values to correct parts (not first items)
-      selectedPart1 = part1;
-      selectedPart2 = part2;
+      // Set initial values to random selections (not correct parts)
+      final random = Random();
+      selectedPart1 = wheel1Items[random.nextInt(wheel1Items.length)];
+      selectedPart2 = wheel2Items[random.nextInt(wheel2Items.length)];
       selectedPart3 = "";
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
