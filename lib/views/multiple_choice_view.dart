@@ -82,7 +82,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   List<FlashCard> _studiedWords = [];
 
   // Hint and review tracking
-  Map<int, bool> _hintUsed = {}; // question index -> hint was used
+  Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, or 2)
   Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
   Set<String> _reviewCards = {}; // card IDs marked for review
 
@@ -183,7 +183,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     }
 
     // Reset hint and review state for new question
-    _hintUsed[_currentIndex] = false;
+    _hintCount[_currentIndex] = 0;
     _blockedOptions[_currentIndex] = <int>{};
 
     // Check if this question has already been answered
@@ -1086,7 +1086,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                           _studiedWords.clear();
                           
                           // Reset hint and review tracking
-                          _hintUsed.clear();
+                          _hintCount.clear();
                           _blockedOptions.clear();
                           _reviewCards.clear();
                         });
@@ -1234,10 +1234,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      // Reduce XP by 50% if hint was used
-      final finalXPGained = (_hintUsed[_currentIndex] == true) 
+      // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints)
+      final hintCount = _hintCount[_currentIndex] ?? 0;
+      final finalXPGained = hintCount == 1 
           ? (actualXPGained * 0.5).round() 
-          : actualXPGained;
+          : hintCount == 2 
+              ? (actualXPGained * 0.25).round()
+              : actualXPGained;
       
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
@@ -1381,24 +1384,55 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildHintIcon() {
-    final hintWasUsed = _hintUsed[_currentIndex] ?? false;
+    final hintCount = _hintCount[_currentIndex] ?? 0;
+    final canUseHint = hintCount < 2; // Allow up to 2 hints
+    
     return GestureDetector(
-      onTap: _useHint,
+      onTap: canUseHint ? _useHint : null,
       child: Container(
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: hintWasUsed ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.orange,
+            color: canUseHint ? Colors.orange : Colors.grey,
             width: 2,
           ),
         ),
-        child: Icon(
-          Icons.lightbulb,
-          size: 16,
-          color: hintWasUsed ? Colors.white : Colors.orange,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.lightbulb,
+              size: 16,
+              color: canUseHint ? Colors.orange : Colors.grey,
+            ),
+            if (hintCount > 0)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                  child: Center(
+                    child: Text(
+                      hintCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -1441,12 +1475,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   void _useHint() {
-    if (_answered || _hintUsed[_currentIndex] == true) return;
+    final currentHintCount = _hintCount[_currentIndex] ?? 0;
+    if (_answered || currentHintCount >= 2) return;
     
-    // Find a wrong option to block (not the correct answer)
+    // Find wrong options to block (not the correct answer and not already blocked)
     final wrongOptions = <int>[];
     for (int i = 0; i < _options.length; i++) {
-      if (i != _correctAnswerIndex) {
+      if (i != _correctAnswerIndex && !_blockedOptions[_currentIndex]!.contains(i)) {
         wrongOptions.add(i);
       }
     }
@@ -1456,14 +1491,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       final optionToBlock = wrongOptions[random.nextInt(wrongOptions.length)];
       
       setState(() {
-        _hintUsed[_currentIndex] = true;
+        _hintCount[_currentIndex] = currentHintCount + 1;
         _blockedOptions[_currentIndex]!.add(optionToBlock);
       });
       
-      // Show feedback
+      // Show feedback based on hint count
+      final remainingOptions = _options.length - _blockedOptions[_currentIndex]!.length;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Hint: Blocked one wrong answer'),
+          content: Text('Hint ${currentHintCount + 1}: Blocked one wrong answer ($remainingOptions options left)'),
           duration: const Duration(seconds: 2),
           backgroundColor: Colors.orange,
         ),
