@@ -112,13 +112,11 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                   ],
                 ),
               ),
-              
-              // Bottom Navigation
-              _buildBottomNavigation(),
             ],
           );
         },
       ),
+      bottomNavigationBar: _buildBottomNavigation(),
     );
   }
 
@@ -331,7 +329,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
 
   Widget _buildStatsTab(UserProfileProvider provider) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20), // Standard padding
       child: Column(
         children: [
           _buildStatCard(

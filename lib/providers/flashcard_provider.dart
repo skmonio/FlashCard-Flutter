@@ -1309,14 +1309,12 @@ class FlashcardProvider extends ChangeNotifier {
       // Update the deck in the service
       await _service.updateDeck(updatedDeck);
       
-      // If making deck public, also make all cards in the deck public
-      if (isPublic) {
-        final cardsInDeck = _service.getCardsForDeck(deckId);
-        for (final card in cardsInDeck) {
-          if (!card.isPublic) {
-            final updatedCard = card.copyWith(isPublic: true);
-            await _service.updateCard(updatedCard);
-          }
+      // Update all cards in the deck (including sub-decks) to match the deck's public status
+      final cardsInDeck = _service.getCardsForDeckWithSubDecks(deckId);
+      for (final card in cardsInDeck) {
+        if (card.isPublic != isPublic) {
+          final updatedCard = card.copyWith(isPublic: isPublic);
+          await _service.updateCard(updatedCard);
         }
       }
       

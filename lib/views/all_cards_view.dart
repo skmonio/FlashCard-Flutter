@@ -1210,9 +1210,21 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
   void _showCardDetails(FlashCard card) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => CardDetailsDialog(card: card),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: CardDetailsDialog(card: card),
+      ),
     );
   }
 

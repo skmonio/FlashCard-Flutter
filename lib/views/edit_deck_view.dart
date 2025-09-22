@@ -239,7 +239,7 @@ class _EditDeckViewState extends State<EditDeckView> {
            (!_isSubDeck || _selectedParentDeckId.isNotEmpty);
   }
 
-  void _updateDeck() {
+  void _updateDeck() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -261,17 +261,34 @@ class _EditDeckViewState extends State<EditDeckView> {
       cloudKitRecordName: widget.deck.cloudKitRecordName,
     );
 
-    // Update the deck
-    provider.updateDeck(updatedDeck);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Deck "$deckName" updated successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    Navigator.of(context).pop();
+    try {
+      // Update the deck
+      await provider.updateDeck(updatedDeck);
+      
+      // If public status changed, also update all cards in the deck
+      if (widget.deck.isPublic != _isPublic) {
+        await provider.updateDeckPublicStatus(widget.deck.id, _isPublic);
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deck "$deckName" updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update deck: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildCustomHeader(BuildContext context) {
