@@ -217,7 +217,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     // Create pieces (2-3 letters each, handling multi-word phrases)
     // First, create the pieces without shuffling to get the correct order
-    final correctPieces = _createPiecesFromWords(_correctWord, Random(42)); // Use fixed seed for consistent order
+    final correctPieces = _createPiecesFromWords(_correctWord, Random(42), shuffle: false); // Use fixed seed for consistent order, no shuffle
     _correctPieceOrder[_currentIndex] = correctPieces;
     
     // Then create the scrambled version by shuffling the correct pieces
@@ -487,7 +487,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     });
   }
   
-  List<String> _createPiecesFromWords(String phrase, Random random) {
+  List<String> _createPiecesFromWords(String phrase, Random random, {bool shuffle = true}) {
     final pieces = <String>[];
     
     // Split the phrase into words
@@ -501,8 +501,10 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       pieces.addAll(wordPieces);
     }
     
-    // Shuffle all pieces together
-    pieces.shuffle(random);
+    // Only shuffle if requested (for scrambled version)
+    if (shuffle) {
+      pieces.shuffle(random);
+    }
     return pieces;
   }
   
@@ -1521,77 +1523,37 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             _scrambledLetters.add(oldPiece);
           }
           
-          // Lock this position (hinted piece cannot be removed)
+          // Lock all positions from the start up to and including the replaced position
+          // This ensures that all correctly placed pieces (including user-placed ones) are locked
           if (_lockedPositions[_currentIndex] == null) {
             _lockedPositions[_currentIndex] = <int>{};
           }
-          _lockedPositions[_currentIndex]!.add(wrongPosition);
+          
+          // Lock all positions from 0 to the wrong position (inclusive)
+          for (int i = 0; i <= wrongPosition; i++) {
+            _lockedPositions[_currentIndex]!.add(i);
+          }
           
           print('🔍 WordScrambleView: Replaced wrong piece at position $wrongPosition: "$oldPiece" -> "$hintPiece" (locked)');
-          print('🔍 WordScrambleView: Locked positions after replacement: ${_lockedPositions[_currentIndex]}');
+          print('🔍 WordScrambleView: Locked all positions from 0 to $wrongPosition: ${_lockedPositions[_currentIndex]}');
         } else {
-          // No wrong pieces to replace (or all wrong positions are locked), 
-          // find the next correct position to place the piece
-          int nextPosition = -1;
+          // No wrong pieces to replace (or all wrong positions are locked)
+          // Simply add the hint piece to the end using the existing method
+          _addPiece(hintPiece!);
           
-          // Look for the next position that should have this piece
-          for (int i = 0; i < correctPieces.length; i++) {
-            if (correctPieces[i] == hintPiece && !lockedPositions.contains(i)) {
-              // This is where the hint piece should go and it's not locked
-              nextPosition = i;
-              break;
-            }
+          // Lock all positions from the start up to and including the hinted piece
+          // This ensures that all correctly placed pieces (including user-placed ones) are locked
+          if (_lockedPositions[_currentIndex] == null) {
+            _lockedPositions[_currentIndex] = <int>{};
           }
           
-          if (nextPosition >= 0) {
-            // Place the piece at the correct position
-            if (nextPosition < _userAnswer.length) {
-              // Replace existing piece at this position
-              final oldPiece = _userAnswer[nextPosition];
-              _userAnswer[nextPosition] = hintPiece!;
-              
-              // Remove the hint piece from available pieces
-              _scrambledLetters.remove(hintPiece!);
-              
-              // Add the old piece back to available pieces if it's not empty
-              if (oldPiece.isNotEmpty) {
-                _scrambledLetters.add(oldPiece);
-              }
-            } else {
-              // Insert at specific position if beyond current answer length
-              // First, add empty strings to fill the gap
-              while (_userAnswer.length < nextPosition) {
-                _userAnswer.add('');
-              }
-              // Then add the hint piece
-              _userAnswer.add(hintPiece!);
-              
-              // Remove the hint piece from available pieces
-              _scrambledLetters.remove(hintPiece!);
-            }
-            
-            print('🔍 WordScrambleView: User answer after placement: $_userAnswer');
-            
-            // Lock this position (hinted piece cannot be removed)
-            if (_lockedPositions[_currentIndex] == null) {
-              _lockedPositions[_currentIndex] = <int>{};
-            }
-            _lockedPositions[_currentIndex]!.add(nextPosition);
-            
-            print('🔍 WordScrambleView: Placed hint piece at correct position $nextPosition: "$hintPiece" (locked)');
-            print('🔍 WordScrambleView: Locked positions after placement: ${_lockedPositions[_currentIndex]}');
-          } else {
-            // Fallback: just add the hint piece to the end
-            _addPiece(hintPiece!);
-            
-            // Lock the last position (hinted piece cannot be removed)
-            if (_lockedPositions[_currentIndex] == null) {
-              _lockedPositions[_currentIndex] = <int>{};
-            }
-            _lockedPositions[_currentIndex]!.add(_userAnswer.length - 1);
-            
-            print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece" (locked)');
+          // Lock all positions from 0 to the current answer length (including the hinted piece)
+          for (int i = 0; i < _userAnswer.length; i++) {
+            _lockedPositions[_currentIndex]!.add(i);
           }
+          
+          print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece" (locked)');
+          print('🔍 WordScrambleView: Locked all positions from 0 to ${_userAnswer.length - 1}: ${_lockedPositions[_currentIndex]}');
         }
       });
       
