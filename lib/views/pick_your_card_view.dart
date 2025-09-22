@@ -274,6 +274,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
       selectedPart3 = "";
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
+      
+      // Synchronize wheels with initial selections after a short delay to ensure wheels are built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        wheel1Key.currentState?.setSelection(selectedPart1);
+        wheel2Key.currentState?.setSelection(selectedPart2);
+      });
     } else if (parts.length == 3) {
       hasThirdWheel = true;
       wheel1Items = _generateWheelItems(parts[0], 1);
@@ -288,6 +294,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
       selectedPart3 = parts[2];
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
+      
+      // Synchronize wheels with initial selections after a short delay to ensure wheels are built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        wheel1Key.currentState?.setSelection(selectedPart1);
+        wheel2Key.currentState?.setSelection(selectedPart2);
+        wheel3Key.currentState?.setSelection(selectedPart3);
+      });
     } else {
       // For words with more than 3 parts, combine some parts
       hasThirdWheel = false;
@@ -309,6 +322,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
       selectedPart3 = "";
       
       print('🔍 PickYourCardView: Initial selections set - Part1: "$selectedPart1", Part2: "$selectedPart2"');
+      
+      // Synchronize wheels with initial selections after a short delay to ensure wheels are built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        wheel1Key.currentState?.setSelection(selectedPart1);
+        wheel2Key.currentState?.setSelection(selectedPart2);
+      });
     }
     
     // If this card was already answered, restore the user's previous selections
@@ -351,14 +370,24 @@ class _PickYourCardViewState extends State<PickYourCardView>
       // Short words: split into 2 parts
       final int mid = (word.length / 2).ceil();
       return [word.substring(0, mid), word.substring(mid)];
-    } else if (word.length <= 9) {
-      // Medium words: split into 3 parts
+    } else if (word.length <= 8) {
+      // Medium words: split into 3 parts with better distribution
+      // Ensure no part is shorter than 2 characters
       final int partLength = (word.length / 3).ceil();
-      return [
-        word.substring(0, partLength),
-        word.substring(partLength, min(partLength * 2, word.length)),
-        word.substring(min(partLength * 2, word.length)),
-      ];
+      final int remainder = word.length - (partLength * 2);
+      
+      if (remainder >= 2) {
+        // Can make 3 parts of reasonable length
+        return [
+          word.substring(0, partLength),
+          word.substring(partLength, partLength * 2),
+          word.substring(partLength * 2),
+        ];
+      } else {
+        // Make 2 parts instead to avoid very short parts
+        final int mid = (word.length / 2).ceil();
+        return [word.substring(0, mid), word.substring(mid)];
+      }
     } else {
       // Long words: split into 3 parts with more equal distribution
       final int partLength = (word.length / 3).ceil();
@@ -499,8 +528,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
         break;
     }
     
-    // Reset flag after a longer delay to allow wheel animation to complete
-    Timer(const Duration(milliseconds: 1000), () {
+    // Reset flag after a shorter delay to allow wheel animation to complete
+    Timer(const Duration(milliseconds: 500), () {
       _isApplyingHint = false;
       print('🔍 PickYourCardView: Hint application flag reset - wheel $wheelToHint should now be locked');
     });
@@ -574,13 +603,15 @@ class _PickYourCardViewState extends State<PickYourCardView>
     
     // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
     // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
-    if (!_hintedWheels[currentCardIndex]!.contains(0) && 
-        selectedPart1.toLowerCase() != correctParts[0].toLowerCase() &&
-        totalDials > 1) { // Don't hint if only one wheel
+    if (totalDials > 1 && 
+        !_hintedWheels[currentCardIndex]!.contains(0) && 
+        selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
+      // First wheel is wrong and not locked - can hint it
       canUseHint = true;
-    } else if (!_hintedWheels[currentCardIndex]!.contains(1) && 
-               selectedPart2.toLowerCase() != correctParts[1].toLowerCase() &&
-               totalDials > 2) { // For 3-wheel system, can hint wheel 1
+    } else if (totalDials > 2 && 
+               !_hintedWheels[currentCardIndex]!.contains(1) && 
+               selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
+      // Second wheel is wrong and not locked - can hint it (only for 3-wheel system)
       canUseHint = true;
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
