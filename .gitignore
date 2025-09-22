@@ -58,3 +58,7 @@ GoogleService-Info.plist
 .env
 .env.local
 .env.production
+
+# iOS Archives
+ios/Runner.xcarchive/
+*.xcarchive
