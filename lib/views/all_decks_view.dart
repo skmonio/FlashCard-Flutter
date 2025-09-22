@@ -373,7 +373,12 @@ class _AllDecksViewState extends State<AllDecksView> {
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         onTap: _isSelectionMode ? () => _toggleDeckSelection(deck.id) : () => _openDeck(context, deck),
-        onLongPress: () => _toggleSelectionMode(),
+        onLongPress: () {
+          setState(() {
+            _isSelectionMode = true;
+            _selectedDeckIds.add(deck.id);
+          });
+        },
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(

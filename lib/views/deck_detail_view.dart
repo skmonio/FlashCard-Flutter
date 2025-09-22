@@ -63,9 +63,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           // Search and Sort
           _buildSearchAndSort(),
           
-          // Selection Mode Header
-          if (_isSelectionMode) _buildSelectionHeader(),
-          
           // Cards List
           Expanded(
             child: Consumer<FlashcardProvider>(
@@ -307,36 +304,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     );
   }
 
-  Widget _buildSelectionHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Text(
-            '${_selectedCardIds.length} card${_selectedCardIds.length == 1 ? '' : 's'} selected',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: _exitSelectionMode,
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildSelectionFooter() {
     return Container(

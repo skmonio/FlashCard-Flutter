@@ -366,9 +366,10 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Text(
-            friend.selectedAvatar,
-            style: const TextStyle(fontSize: 20),
+          child: Icon(
+            _getAvatarIcon(friend.selectedAvatar),
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            size: 24,
           ),
         ),
         title: Text(
@@ -436,9 +437,10 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
               children: [
                 CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Text(
-                    request.senderAvatar,
-                    style: const TextStyle(fontSize: 20),
+                  child: Icon(
+                    _getAvatarIcon(request.senderAvatar),
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    size: 24,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -514,9 +516,10 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Text(
-            user['selected_avatar'] ?? 'person',
-            style: const TextStyle(fontSize: 20),
+          child: Icon(
+            _getAvatarIcon(user['selected_avatar'] ?? 'person'),
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            size: 24,
           ),
         ),
         title: Text(
@@ -545,5 +548,36 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
               ),
       ),
     );
+  }
+
+  IconData _getAvatarIcon(String avatar) {
+    switch (avatar) {
+      case 'person.crop.circle.fill':
+        return Icons.person;
+      case 'person.crop.circle':
+        return Icons.person_outline;
+      case 'person.fill':
+        return Icons.person;
+      case 'person':
+        return Icons.person_outline;
+      case 'person.2.fill':
+        return Icons.group;
+      case 'person.2':
+        return Icons.group_outlined;
+      case 'graduationcap.fill':
+        return Icons.school;
+      case 'graduationcap':
+        return Icons.school_outlined;
+      case 'book.fill':
+        return Icons.book;
+      case 'book':
+        return Icons.book_outlined;
+      case 'brain.head.profile':
+        return Icons.psychology;
+      case 'brain':
+        return Icons.psychology_outlined;
+      default:
+        return Icons.person;
+    }
   }
 }
