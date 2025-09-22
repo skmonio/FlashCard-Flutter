@@ -536,7 +536,7 @@ class _FriendProfileViewState extends State<FriendProfileView> with TickerProvid
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                deck['icon'] != null ? IconData(deck['icon'], fontFamily: 'MaterialIcons') : Icons.folder,
+                Icons.folder,
                 color: Colors.white,
                 size: 24,
               ),

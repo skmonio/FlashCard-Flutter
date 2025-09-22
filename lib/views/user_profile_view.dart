@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:math';
 import '../providers/user_profile_provider.dart';
 import '../models/user_profile.dart';
+import '../utils/avatar_utils.dart';
 import 'edit_profile_view.dart';
 import 'friends_view.dart';
 import 'leaderboard_view.dart';
@@ -167,7 +168,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                           ),
                         )
                       : Icon(
-                          _getAvatarIcon(provider.selectedAvatar),
+                          AvatarUtils.getAvatarIcon(provider.selectedAvatar),
                           size: 50,
                           color: Colors.blue,
                         ),
@@ -414,20 +415,6 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
   }
 
   // Helper methods for icons and colors
-  IconData _getAvatarIcon(String avatar) {
-    switch (avatar) {
-      case 'person.crop.circle.fill':
-        return Icons.person;
-      case 'graduationcap.fill':
-        return Icons.school;
-      case 'book.fill':
-        return Icons.book;
-      case 'brain.head.profile':
-        return Icons.psychology;
-      default:
-        return Icons.person;
-    }
-  }
 
 
   // Helper method to calculate XP needed for next level

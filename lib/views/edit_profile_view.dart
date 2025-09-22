@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import '../providers/user_profile_provider.dart';
+import '../utils/avatar_utils.dart';
 
 class EditProfileView extends StatefulWidget {
   const EditProfileView({super.key});
@@ -142,36 +143,6 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
   }
 
-  IconData _getAvatarIcon(String avatar) {
-    switch (avatar) {
-      case 'person.crop.circle.fill':
-        return Icons.person;
-      case 'person.crop.circle':
-        return Icons.person_outline;
-      case 'person.fill':
-        return Icons.person;
-      case 'person':
-        return Icons.person_outline;
-      case 'person.2.fill':
-        return Icons.group;
-      case 'person.2':
-        return Icons.group_outlined;
-      case 'graduationcap.fill':
-        return Icons.school;
-      case 'graduationcap':
-        return Icons.school_outlined;
-      case 'book.fill':
-        return Icons.book;
-      case 'book':
-        return Icons.book_outlined;
-      case 'brain.head.profile':
-        return Icons.psychology;
-      case 'brain':
-        return Icons.psychology_outlined;
-      default:
-        return Icons.person;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +231,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                         ),
                       )
                     : Icon(
-                        _getAvatarIcon(_selectedAvatar),
+                        AvatarUtils.getAvatarIcon(_selectedAvatar),
                         size: 60,
                         color: Colors.grey,
                       ),
@@ -405,7 +376,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                   ),
                 ),
                 child: Icon(
-                  _getAvatarIcon(avatar),
+                  AvatarUtils.getAvatarIcon(avatar),
                   color: isSelected ? Colors.white : Colors.grey,
                   size: 30,
                 ),

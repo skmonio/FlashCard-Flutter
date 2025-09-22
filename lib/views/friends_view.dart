@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/friends_service.dart';
 import '../utils/enhanced_snackbar.dart';
+import '../utils/avatar_utils.dart';
 import 'friend_profile_view.dart';
 
 class FriendsView extends StatefulWidget {
@@ -367,7 +368,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           child: Icon(
-            _getAvatarIcon(friend.selectedAvatar),
+            AvatarUtils.getAvatarIcon(friend.selectedAvatar),
             color: Theme.of(context).colorScheme.onPrimaryContainer,
             size: 24,
           ),
@@ -438,7 +439,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
                 CircleAvatar(
                   backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                   child: Icon(
-                    _getAvatarIcon(request.senderAvatar),
+                    AvatarUtils.getAvatarIcon(request.senderAvatar),
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                     size: 24,
                   ),
@@ -517,7 +518,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           child: Icon(
-            _getAvatarIcon(user['selected_avatar'] ?? 'person'),
+            AvatarUtils.getAvatarIcon(user['selected_avatar'] ?? 'person'),
             color: Theme.of(context).colorScheme.onPrimaryContainer,
             size: 24,
           ),
@@ -550,34 +551,4 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
     );
   }
 
-  IconData _getAvatarIcon(String avatar) {
-    switch (avatar) {
-      case 'person.crop.circle.fill':
-        return Icons.person;
-      case 'person.crop.circle':
-        return Icons.person_outline;
-      case 'person.fill':
-        return Icons.person;
-      case 'person':
-        return Icons.person_outline;
-      case 'person.2.fill':
-        return Icons.group;
-      case 'person.2':
-        return Icons.group_outlined;
-      case 'graduationcap.fill':
-        return Icons.school;
-      case 'graduationcap':
-        return Icons.school_outlined;
-      case 'book.fill':
-        return Icons.book;
-      case 'book':
-        return Icons.book_outlined;
-      case 'brain.head.profile':
-        return Icons.psychology;
-      case 'brain':
-        return Icons.psychology_outlined;
-      default:
-        return Icons.person;
-    }
-  }
 }
