@@ -299,7 +299,12 @@ class _CardStatsViewState extends State<CardStatsView> {
       final totalCorrect = exerciseTypes.fold<int>(0, (sum, type) => sum + (gameCorrect[type] ?? 0));
       
       if (totalAttempts > 0) {
-        gameUsageWidgets.add(_buildStatRow(gameName, '$totalAttempts times (${totalCorrect} correct)'));
+        // Don't show counter for "Test Your Cards" - other games don't have counters
+        if (gameName == 'Test Your Cards' || gameName == 'Timed Test Your Cards') {
+          gameUsageWidgets.add(_buildStatRow(gameName, '${totalCorrect} correct'));
+        } else {
+          gameUsageWidgets.add(_buildStatRow(gameName, '$totalAttempts times (${totalCorrect} correct)'));
+        }
       }
     }
     

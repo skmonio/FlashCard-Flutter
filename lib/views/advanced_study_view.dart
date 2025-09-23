@@ -97,9 +97,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _isShowingFront = !widget.startFlipped;
     
     // Set mode based on startFlipped parameter
-    // If startFlipped is true, use flipped mode (single card)
-    // If startFlipped is false, use stacked mode
-    _useStackedMode = !widget.startFlipped;
+    // Both flipped and normal modes should use stacked mode
+    // The difference is just which side of the card is shown initially
+    _useStackedMode = true;
     
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -121,9 +121,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       curve: Curves.easeInOut,
     )    );
     
-    // Set initial position based on _isShowingFront
-    if (!_isShowingFront) {
-      _flipController.value = 1.0;
+    // Set initial position based on startFlipped
+    // When startFlipped is true, we want to show the definition (back) initially
+    // When startFlipped is false, we want to show the word (front) initially
+    if (widget.startFlipped) {
+      _flipController.value = 1.0; // Show back (definition) initially
+    } else {
+      _flipController.value = 0.0; // Show front (word) initially
     }
     
     // Initialize deal animation
@@ -781,8 +785,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _swipeIntensity = 0;
         _isShowingFront = !widget.startFlipped;
         _flipController.reset();
-        if (!_isShowingFront) {
-          _flipController.value = 1.0;
+        if (widget.startFlipped) {
+          _flipController.value = 1.0; // Show back (definition) initially
+        } else {
+          _flipController.value = 0.0; // Show front (word) initially
         }
         // Reset exit animation for previous card
         _exitController.reset();
@@ -1242,9 +1248,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
               _dealController.reset();
               _exitController.reset();
               
-              // Set flip controller based on _isShowingFront
-              if (!_isShowingFront) {
-                _flipController.value = 1.0;
+              // Set flip controller based on startFlipped
+              if (widget.startFlipped) {
+                _flipController.value = 1.0; // Show back (definition) initially
+              } else {
+                _flipController.value = 0.0; // Show front (word) initially
               }
               
               // Force a rebuild by triggering the deal animation
@@ -1637,6 +1645,8 @@ class TaalTrekFlashCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Simple logic: when flipAnimation.value >= 0.5, show the back (definition)
+    // When flipAnimation.value < 0.5, show the front (word)
     final isFlipped = flipAnimation.value >= 0.5;
     
     return Transform(

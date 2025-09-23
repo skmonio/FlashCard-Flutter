@@ -922,6 +922,8 @@ class TaalTrekFlashCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Simple logic: when flipAnimation.value >= 0.5, show the back (definition)
+    // When flipAnimation.value < 0.5, show the front (word)
     final isFlipped = flipAnimation.value >= 0.5;
     
     return Transform(

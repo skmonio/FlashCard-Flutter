@@ -1429,46 +1429,66 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     final remainingPieces = _scrambledLetters.length;
     if (remainingPieces <= 1) return;
     
-    // Find the next piece to reveal based on correct word order
-    String? hintPiece;
     final correctWord = _correctWords[_currentIndex] ?? '';
+    final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
     
     print('🔍 WordScrambleView: Using hint for word: "$correctWord"');
     print('🔍 WordScrambleView: Available pieces: $_scrambledLetters');
     print('🔍 WordScrambleView: Already revealed: $revealedPieces');
-    
-    // Get the correct order of pieces for this question
-    final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
     print('🔍 WordScrambleView: Correct piece order: $correctPieces');
     print('🔍 WordScrambleView: Current user answer: $_userAnswer');
     
-    // Find the next piece that should be placed in the correct order
-    String? nextCorrectPiece;
-    for (int i = 0; i < correctPieces.length; i++) {
-      if (i >= _userAnswer.length || _userAnswer[i] != correctPieces[i]) {
-        nextCorrectPiece = correctPieces[i];
-        print('🔍 WordScrambleView: Found mismatch at position $i - expected piece: "${correctPieces[i]}", current piece: "${i < _userAnswer.length ? _userAnswer[i] : 'N/A'}"');
+    // NEW IMPROVED HINT LOGIC:
+    // 1. Find the first position where user's piece is wrong
+    // 2. Find the correct piece for that position
+    // 3. If that piece is available, use it to replace the wrong piece
+    // 4. If not available, try the next wrong position
+    
+    String? hintPiece;
+    int positionToFix = -1;
+    
+    // Find the first wrong position that's not locked
+    final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
+    
+    for (int i = 0; i < _userAnswer.length && i < correctPieces.length; i++) {
+      if (!lockedPositions.contains(i) && _userAnswer[i] != correctPieces[i]) {
+        positionToFix = i;
+        print('🔍 WordScrambleView: Found wrong piece at position $i: user="${_userAnswer[i]}" vs correct="${correctPieces[i]}"');
         break;
       }
     }
     
-    print('🔍 WordScrambleView: Next correct piece needed: "$nextCorrectPiece"');
+    // If no wrong positions found, find the next missing piece
+    if (positionToFix == -1 && _userAnswer.length < correctPieces.length) {
+      positionToFix = _userAnswer.length;
+      print('🔍 WordScrambleView: No wrong pieces found, need to add piece at position $positionToFix');
+    }
     
-    // Find a piece that matches the next correct piece and hasn't been revealed yet
-    if (nextCorrectPiece != null) {
-      print('🔍 WordScrambleView: Looking for piece "$nextCorrectPiece" in: $_scrambledLetters');
-      for (final piece in _scrambledLetters) {
-        print('🔍 WordScrambleView: Checking piece "$piece" - matches "$nextCorrectPiece": ${piece == nextCorrectPiece}, already revealed: ${revealedPieces.contains(piece)}');
-        if (piece == nextCorrectPiece && !revealedPieces.contains(piece)) {
-          hintPiece = piece;
-          print('🔍 WordScrambleView: Selected hint piece: "$piece" (matches "$nextCorrectPiece")');
-          break;
+    if (positionToFix >= 0 && positionToFix < correctPieces.length) {
+      final correctPieceForPosition = correctPieces[positionToFix];
+      print('🔍 WordScrambleView: Looking for correct piece "$correctPieceForPosition" for position $positionToFix');
+      
+      // Check if the correct piece is available in scrambled letters
+      if (_scrambledLetters.contains(correctPieceForPosition)) {
+        hintPiece = correctPieceForPosition;
+        print('🔍 WordScrambleView: Found correct piece "$hintPiece" in available pieces');
+      } else {
+        print('🔍 WordScrambleView: Correct piece "$correctPieceForPosition" not available in: $_scrambledLetters');
+        
+        // If the correct piece is not available, try to find any piece that could help
+        // This handles cases where pieces are already used incorrectly
+        for (final piece in _scrambledLetters) {
+          if (!revealedPieces.contains(piece)) {
+            hintPiece = piece;
+            print('🔍 WordScrambleView: Using available piece "$piece" as hint (correct piece not available)');
+            break;
+          }
         }
       }
     }
     
     if (hintPiece == null) {
-      print('🔍 WordScrambleView: No suitable hint piece found for correct piece "$nextCorrectPiece"');
+      print('🔍 WordScrambleView: No suitable hint piece found');
     }
     
     if (hintPiece != null) {
@@ -1482,78 +1502,42 @@ class _WordScrambleViewState extends State<WordScrambleView> {
         }
         _hintRevealed[_currentIndex]!.add(hintPiece!);
         
-        // Check if we need to replace incorrectly placed pieces
-        print('🔍 WordScrambleView: Hint piece to place: "$hintPiece"');
+        // Use the improved hint logic with positionToFix
+        print('🔍 WordScrambleView: Hint piece to place: "$hintPiece" at position $positionToFix');
         
-        // Find the first position where the user's piece doesn't match the correct piece
-        // BUT only consider positions that are NOT locked
-        final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
-        int wrongPosition = -1;
-        
-        print('🔍 WordScrambleView: Locked positions: $lockedPositions');
-        print('🔍 WordScrambleView: Checking positions for wrong pieces...');
-        
-        for (int i = 0; i < _userAnswer.length && i < correctPieces.length; i++) {
-          // Skip locked positions - we can't replace those
-          if (lockedPositions.contains(i)) {
-            print('🔍 WordScrambleView: Position $i is locked, skipping');
-            continue;
-          }
-          
-          // Check if this position has the wrong piece
-          if (_userAnswer[i] != correctPieces[i]) {
-            wrongPosition = i;
-            print('🔍 WordScrambleView: Found wrong piece at position $i: user="${_userAnswer[i]}" vs correct="${correctPieces[i]}"');
-            break;
-          } else {
-            print('🔍 WordScrambleView: Position $i is correct: "${_userAnswer[i]}"');
-          }
-        }
-        
-        // If we found a wrong position that's not locked, replace that piece
-        if (wrongPosition >= 0) {
-          final oldPiece = _userAnswer[wrongPosition];
-          _userAnswer[wrongPosition] = hintPiece!;
-          
+        if (positionToFix >= 0) {
           // Remove the hint piece from available pieces
           _scrambledLetters.remove(hintPiece!);
           
-          // Add the old piece back to available pieces if it's not empty
-          if (oldPiece.isNotEmpty) {
-            _scrambledLetters.add(oldPiece);
+          if (positionToFix < _userAnswer.length) {
+            // Replace an existing wrong piece
+            final oldPiece = _userAnswer[positionToFix];
+            _userAnswer[positionToFix] = hintPiece!;
+            
+            // Add the old piece back to available pieces if it's not empty
+            if (oldPiece.isNotEmpty) {
+              _scrambledLetters.add(oldPiece);
+            }
+            
+            print('🔍 WordScrambleView: Replaced wrong piece at position $positionToFix: "$oldPiece" -> "$hintPiece"');
+          } else {
+            // Add a new piece at the end
+            _userAnswer.add(hintPiece!);
+            print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece"');
           }
           
-          // Lock all positions from the start up to and including the replaced position
+          // Lock all positions from the start up to and including the hinted position
           // This ensures that all correctly placed pieces (including user-placed ones) are locked
           if (_lockedPositions[_currentIndex] == null) {
             _lockedPositions[_currentIndex] = <int>{};
           }
           
-          // Lock all positions from 0 to the wrong position (inclusive)
-          for (int i = 0; i <= wrongPosition; i++) {
+          // Lock all positions from 0 to the hinted position (inclusive)
+          for (int i = 0; i <= positionToFix; i++) {
             _lockedPositions[_currentIndex]!.add(i);
           }
           
-          print('🔍 WordScrambleView: Replaced wrong piece at position $wrongPosition: "$oldPiece" -> "$hintPiece" (locked)');
-          print('🔍 WordScrambleView: Locked all positions from 0 to $wrongPosition: ${_lockedPositions[_currentIndex]}');
-        } else {
-          // No wrong pieces to replace (or all wrong positions are locked)
-          // Simply add the hint piece to the end using the existing method
-          _addPiece(hintPiece!);
-          
-          // Lock all positions from the start up to and including the hinted piece
-          // This ensures that all correctly placed pieces (including user-placed ones) are locked
-          if (_lockedPositions[_currentIndex] == null) {
-            _lockedPositions[_currentIndex] = <int>{};
-          }
-          
-          // Lock all positions from 0 to the current answer length (including the hinted piece)
-          for (int i = 0; i < _userAnswer.length; i++) {
-            _lockedPositions[_currentIndex]!.add(i);
-          }
-          
-          print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece" (locked)');
-          print('🔍 WordScrambleView: Locked all positions from 0 to ${_userAnswer.length - 1}: ${_lockedPositions[_currentIndex]}');
+          print('🔍 WordScrambleView: Locked all positions from 0 to $positionToFix: ${_lockedPositions[_currentIndex]}');
         }
       });
       

@@ -515,16 +515,23 @@ class LearningMastery {
   }
   
   /// Get the number of times this word was studied today
+  /// This counts study attempts per day, but limits HP reduction to once per day per card
   int get timesStudiedToday {
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
     
-    return exerciseHistory
+    // Count all exercise history entries for today
+    final todayEntries = exerciseHistory
         .where((entry) {
           final timestamp = DateTime.parse(entry['timestamp']);
           return timestamp.isAfter(todayStart);
         })
-        .length;
+        .toList();
+    
+    // For HP calculation, only count as 1 study attempt per day
+    // This prevents HP from going down multiple times when the same card is studied in different decks
+    // But still allows tracking of all exercise attempts for XP and statistics
+    return todayEntries.isNotEmpty ? 1 : 0;
   }
   
   /// Daily study limit per card (configurable) - this is the card's max HP
