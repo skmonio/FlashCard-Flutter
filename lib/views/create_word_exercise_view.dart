@@ -71,10 +71,10 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         title: Text(widget.editingExercise != null ? 'Edit Exercise' : 'Exercise'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         actions: [
           IconButton(
-            icon: const Icon(Icons.save),
+            icon: Icon(Icons.save, color: Theme.of(context).colorScheme.onSurface),
             onPressed: _saveExercise,
           ),
         ],

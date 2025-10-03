@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
@@ -8,6 +9,7 @@ import '../providers/user_profile_provider.dart';
 import '../components/word_progress_display.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
+import '../services/haptic_service.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
@@ -15,6 +17,10 @@ class PopYourCardView extends StatefulWidget {
   final String title;
   final bool shuffleMode;
   final Function(bool)? onComplete;
+  final bool useLivesMode;
+  final int? customLives;
+  final bool useTimedMode;
+  final int? timePerQuestion;
 
   const PopYourCardView({
     super.key,
@@ -22,6 +28,10 @@ class PopYourCardView extends StatefulWidget {
     required this.title,
     this.shuffleMode = false,
     this.onComplete,
+    this.useLivesMode = false,
+    this.customLives,
+    this.useTimedMode = false,
+    this.timePerQuestion,
   });
 
   @override
@@ -38,6 +48,16 @@ class _PopYourCardViewState extends State<PopYourCardView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+
+  // Lives and timer system
+  bool _useLivesMode = false;
+  bool _useTimedMode = false;
+  int _lives = 0;
+  int _maxLives = 0;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  Timer? _timer;
+  bool _timeUp = false;
 
   List<Bubble> bubbles = [];
   final Random random = Random();
@@ -69,13 +89,66 @@ class _PopYourCardViewState extends State<PopYourCardView>
     _ticker = createTicker(_updatePhysics)..start();
     _sessionStartTime = DateTime.now();
     _totalQuestions = widget.cards.length;
+    
+    // Initialize lives system
+    _useLivesMode = widget.useLivesMode;
+    if (_useLivesMode) {
+      _maxLives = widget.customLives ?? _getDefaultLives();
+      _lives = _maxLives;
+    }
+    
+    // Initialize timer if using timed mode
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode) {
+      _totalTime = widget.timePerQuestion ?? _getDefaultTimePerQuestion();
+      _timeRemaining = _totalTime;
+    }
+    
     _loadCurrentCard();
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _timer?.cancel();
     super.dispose();
+  }
+
+  int _getDefaultLives() {
+    return 5; // Default 5 lives
+  }
+  
+  int _getDefaultTimePerQuestion() {
+    return 30; // Default 30 seconds per question
+  }
+  
+  void _startTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          } else {
+            _timeUp = true;
+            _timer?.cancel();
+            _handleTimeUp();
+          }
+        });
+      }
+    });
+  }
+  
+  void _handleTimeUp() {
+    // Time's up - mark as incorrect and move to next question
+    _nextCard();
+  }
+
+  void _showGameOverScreen() {
+    // Show results when game is over
+    _showFinalXPSummary();
   }
 
   void _loadCurrentCard() {
@@ -87,6 +160,13 @@ class _PopYourCardViewState extends State<PopYourCardView>
     if (widget.cards.isEmpty) {
       print('❌ PopYourCardView: No cards available');
       return;
+    }
+
+    // Reset timer and time up flag for new card
+    _timeUp = false;
+    if (_useTimedMode) {
+      _timeRemaining = _totalTime;
+      _startTimer();
     }
 
     bubbles.clear();
@@ -200,6 +280,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final correct = currentCard.word;
     bool isCorrect = tappedBubble.text == correct;
 
+    // Stop timer if using timed mode
+    if (_useTimedMode) {
+      _timer?.cancel();
+    }
+
     // Play pop sound when bubble is tapped
     SoundManager().playPopSound();
 
@@ -213,9 +298,24 @@ class _PopYourCardViewState extends State<PopYourCardView>
     if (isCorrect) {
       _correctAnswers++;
       _awardXP(currentCard);
+      HapticService().successFeedback();
     } else {
       // Track incorrect answers with 0 XP
       _xpGainedPerWord[currentCard.id] = 0;
+      HapticService().errorFeedback();
+      
+      // Handle lives mode
+      if (_useLivesMode) {
+        _lives--;
+        print('🔍 PopYourCardView: Lost a life! Lives remaining: $_lives');
+        
+        // Check if game over
+        if (_lives <= 0) {
+          print('🔍 PopYourCardView: Game over! No lives remaining');
+          _showGameOverScreen();
+          return;
+        }
+      }
     }
 
     // Update mastery tracking for both correct and incorrect answers
@@ -525,13 +625,16 @@ class _PopYourCardViewState extends State<PopYourCardView>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "Question ${_currentIndex + 1} of ${widget.cards.length}",
+                            "${_currentIndex + 1}/${widget.cards.length}",
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
+                          // Show lives or timer in the middle if active
+                          if (_useLivesMode) _buildLivesIndicator(),
+                          if (_useTimedMode) _buildTimerIndicator(),
                           Text(
                             "${(progress * 100).round()}%",
                             style: TextStyle(
@@ -682,6 +785,58 @@ class _PopYourCardViewState extends State<PopYourCardView>
     else {
       return 28.0; // Extra large font for tablets
     }
+  }
+
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
   }
 }
 

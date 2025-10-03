@@ -13,6 +13,7 @@ import '../components/card_details_dialog.dart';
 
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
+import '../components/universal_add_button.dart';
 import 'add_card_view.dart';
 import 'shuffle_cards_view.dart';
 import 'dart:async'; // Added for Timer
@@ -88,11 +89,6 @@ class _AllCardsViewState extends State<AllCardsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addNewCard(),
-        tooltip: 'Add New Card',
-        child: const Icon(Icons.add),
-      ),
       body: Column(
         children: [
           // Fixed Header - matching Taal Trek header height
@@ -146,6 +142,7 @@ class _AllCardsViewState extends State<AllCardsView> {
           if (_isSelectionMode) _buildSelectionFooter(),
         ],
       ),
+      floatingActionButton: const UniversalAddButton(),
     );
   }
 
@@ -156,10 +153,10 @@ class _AllCardsViewState extends State<AllCardsView> {
         Center(
           child: Text(
             'Cards',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -171,7 +168,7 @@ class _AllCardsViewState extends State<AllCardsView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         

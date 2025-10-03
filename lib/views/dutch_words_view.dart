@@ -5,6 +5,7 @@ import '../models/dutch_word_exercise.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'dutch_words_practice_view.dart';
 import 'create_word_exercise_view.dart';
+import '../components/universal_add_button.dart';
 
 class DutchWordsView extends StatefulWidget {
   const DutchWordsView({super.key});
@@ -19,24 +20,27 @@ class _DutchWordsViewState extends State<DutchWordsView> {
   bool _isSelectionMode = false;
   Set<String> _selectedExerciseIds = {};
   bool _selectAll = false;
+  late TextEditingController _searchController;
 
   @override
   void initState() {
     super.initState();
+    _searchController = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DutchWordExerciseProvider>().initialize();
     });
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: null,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToCreateExercise(),
-        tooltip: 'Add Exercise',
-        child: const Icon(Icons.add),
-      ),
       body: Consumer<DutchWordExerciseProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
@@ -95,6 +99,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           );
         },
       ),
+      floatingActionButton: const UniversalAddButton(),
     );
   }
 
@@ -184,6 +189,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           // Search bar
           Expanded(
             child: TextField(
+              controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search exercises...',
                 prefixIcon: const Icon(Icons.search),
@@ -192,6 +198,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                         onPressed: () {
                           setState(() {
                             _searchQuery = '';
+                            _searchController.clear();
                           });
                         },
                         icon: const Icon(Icons.clear),
@@ -907,10 +914,10 @@ class _DutchWordsViewState extends State<DutchWordsView> {
         Center(
           child: Text(
             'Exercises',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -922,7 +929,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         

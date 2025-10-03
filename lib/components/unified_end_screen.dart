@@ -10,6 +10,7 @@ class UnifiedEndScreen extends StatefulWidget {
   final Map<String, LearningMastery> wordMastery;
   final VoidCallback? onStudyAgain;
   final VoidCallback? onDone;
+  final VoidCallback? onShuffle;
   final String title;
   final bool showSwipeToReview;
 
@@ -20,6 +21,7 @@ class UnifiedEndScreen extends StatefulWidget {
     required this.wordMastery,
     this.onStudyAgain,
     this.onDone,
+    this.onShuffle,
     this.title = 'Session Complete',
     this.showSwipeToReview = false,
   });
@@ -490,8 +492,8 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                       const SizedBox(width: 16),
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: widget.onDone,
-                          child: const Text('Done'),
+                          onPressed: widget.onShuffle ?? widget.onDone,
+                          child: Text(widget.onShuffle != null ? 'Shuffle' : 'Done'),
                         ),
                       ),
                     ],

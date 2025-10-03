@@ -689,7 +689,7 @@ class _DutchGrammarExerciseViewState extends State<DutchGrammarExerciseView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Exercise ${_currentIndex + 1} of ${widget.exercises.length}',
+                '${_currentIndex + 1}/${widget.exercises.length}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,

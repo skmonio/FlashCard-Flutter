@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
+import '../providers/sound_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/sound_manager.dart';
@@ -22,6 +23,7 @@ class AppInitializationView extends StatefulWidget {
 
 class _AppInitializationViewState extends State<AppInitializationView> {
   bool _themeInitialized = false;
+  bool _soundInitialized = false;
   bool _onboardingCompleted = false;
   bool _isAuthenticated = false;
   bool _authChecked = false;
@@ -31,21 +33,30 @@ class _AppInitializationViewState extends State<AppInitializationView> {
   void initState() {
     super.initState();
     
-    // Play begin sound when app loads
-    SoundManager().playBeginSound();
-    
-    _initializeTheme();
+    _initializeProviders();
     _checkAuthStatus();
   }
 
-  Future<void> _initializeTheme() async {
-    // Wait for theme provider to fully initialize
+  Future<void> _initializeProviders() async {
+    // Initialize theme provider
     final themeProvider = context.read<ThemeProvider>();
     await themeProvider.initialize();
+    
+    // Initialize sound provider
+    final soundProvider = context.read<SoundProvider>();
+    await soundProvider.initialize();
+    
+    // Initialize sound manager with the provider
+    await SoundManager().initialize(soundProvider: soundProvider);
+    SoundManager().setSoundProvider(soundProvider);
+    
+    // Play begin sound when app loads (after sound is initialized)
+    SoundManager().playBeginSound();
     
     if (mounted) {
       setState(() {
         _themeInitialized = true;
+        _soundInitialized = true;
       });
     }
   }
@@ -206,8 +217,8 @@ class _AppInitializationViewState extends State<AppInitializationView> {
     return LoadingView(
       minimumDisplayTime: const Duration(milliseconds: 1500),
       isReadyCheck: () async {
-        // Wait for theme, auth, and data sync to complete
-        while (!_themeInitialized || !_authChecked || (_isAuthenticated && !_dataSynced)) {
+        // Wait for theme, sound, auth, and data sync to complete
+        while (!_themeInitialized || !_soundInitialized || !_authChecked || (_isAuthenticated && !_dataSynced)) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
         return true;

@@ -469,30 +469,54 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _hintedWheels[currentCardIndex] = <int>{};
     }
     
-    // Find the first wheel that has a wrong selection (like Jumble Your Cards logic)
+    // Find the first wheel that has a wrong selection
     // Don't allow hints on the last wheel (would give away the answer)
     int wheelToHint = -1;
     final totalDials = hasThirdWheel ? 3 : 2;
     
-    // Check each wheel in order to find the first wrong selection that is NOT already locked
+    // First, lock all correct wheels before the hint
+    // This ensures that correct wheels cannot be changed after using a hint
+    for (int i = 0; i < totalDials - 1; i++) { // Don't lock the last wheel
+      String currentSelection = '';
+      String correctPart = '';
+      
+      switch (i) {
+        case 0:
+          currentSelection = selectedPart1.toLowerCase();
+          correctPart = correctParts[0].toLowerCase();
+          break;
+        case 1:
+          currentSelection = selectedPart2.toLowerCase();
+          correctPart = correctParts[1].toLowerCase();
+          break;
+        case 2:
+          currentSelection = selectedPart3.toLowerCase();
+          correctPart = correctParts[2].toLowerCase();
+          break;
+      }
+      
+      // If this wheel is correct and not already locked, lock it
+      if (currentSelection == correctPart && !_hintedWheels[currentCardIndex]!.contains(i)) {
+        _hintedWheels[currentCardIndex]!.add(i);
+        print('🔍 PickYourCardView: Locking correct wheel ${i + 1} with value "$currentSelection"');
+      }
+    }
+    
+    // Now find the first wheel that can be hinted (even if it's correct)
     // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
     // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
-    if (totalDials > 1 && 
-        !_hintedWheels[currentCardIndex]!.contains(0) &&
-        selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
-      // First wheel is wrong and not locked - hint it
+    if (totalDials > 1 && !_hintedWheels[currentCardIndex]!.contains(0)) {
+      // First wheel is not locked - hint it
       wheelToHint = 0;
-    } else if (totalDials > 2 && 
-               !_hintedWheels[currentCardIndex]!.contains(1) &&
-               selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
-      // Second wheel is wrong and not locked - hint it (only for 3-wheel system)
+    } else if (totalDials > 2 && !_hintedWheels[currentCardIndex]!.contains(1)) {
+      // Second wheel is not locked - hint it (only for 3-wheel system)
       wheelToHint = 1;
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
     
-    // Don't allow hints if no wheels need fixing or all available wheels are already locked
+    // Don't allow hints if all available wheels are already locked
     if (wheelToHint == -1) {
-      print('🔍 PickYourCardView: No wheel to hint - all wheels correct or locked');
+      print('🔍 PickYourCardView: No wheel to hint - all available wheels are locked');
       return;
     }
     
@@ -603,19 +627,20 @@ class _PickYourCardViewState extends State<PickYourCardView>
     // Don't allow hints on the last wheel (would give away the answer)
     bool canUseHint = false;
     final totalDials = hasThirdWheel ? 3 : 2;
+    final maxHints = totalDials - 1; // Can't hint the last wheel
     
-    // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
-    // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
-    if (totalDials > 1 && 
-        !_hintedWheels[currentCardIndex]!.contains(0) && 
-        selectedPart1.toLowerCase() != correctParts[0].toLowerCase()) {
-      // First wheel is wrong and not locked - can hint it
-      canUseHint = true;
-    } else if (totalDials > 2 && 
-               !_hintedWheels[currentCardIndex]!.contains(1) && 
-               selectedPart2.toLowerCase() != correctParts[1].toLowerCase()) {
-      // Second wheel is wrong and not locked - can hint it (only for 3-wheel system)
-      canUseHint = true;
+    // Allow hints if we haven't used all available hints yet
+    if (hintsUsed < maxHints) {
+      // Check if there are any wheels that can still be hinted
+      // For 2-wheel system: can hint wheel 0, not wheel 1 (last)
+      // For 3-wheel system: can hint wheel 0 and 1, not wheel 2 (last)
+      if (totalDials > 1 && !_hintedWheels[currentCardIndex]!.contains(0)) {
+        // First wheel is not locked - can hint it
+        canUseHint = true;
+      } else if (totalDials > 2 && !_hintedWheels[currentCardIndex]!.contains(1)) {
+        // Second wheel is not locked - can hint it (only for 3-wheel system)
+        canUseHint = true;
+      }
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
     
@@ -711,12 +736,17 @@ class _PickYourCardViewState extends State<PickYourCardView>
           ? currentCard.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      // Apply hint penalty based on number of hints used (reduce XP by 25% per hint)
+      // Apply hint penalty based on number of hints used
       final hintsUsed = _hintCount[currentCardIndex] ?? 0;
-      final hintPenalty = hintsUsed > 0 ? (0.25 * hintsUsed).clamp(0.0, 0.9) : 0.0;
-      final finalXPGained = hintsUsed > 0 
-          ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
-          : actualXPGained;
+      final totalDials = hasThirdWheel ? 3 : 2;
+      final maxHints = totalDials - 1; // Can't hint the last wheel
+      
+      // If all available hints were used, give 0 XP
+      final finalXPGained = hintsUsed >= maxHints 
+          ? 0 
+          : hintsUsed > 0 
+              ? (actualXPGained * (1.0 - (0.25 * hintsUsed).clamp(0.0, 0.9))).round().clamp(1, actualXPGained)
+              : actualXPGained;
       
       // Track XP gained for this word in this session
       _xpGainedPerWord[currentCard.id] = finalXPGained;
@@ -1012,6 +1042,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
 
   Widget _buildProgressBar() {
     final progress = currentCardIndex / widget.cards.length;
+    final accuracy = _totalAnswers > 0 ? (_correctAnswers / _totalAnswers * 100).toInt() : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -1019,11 +1050,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${currentCardIndex + 1} of ${widget.cards.length}'),
+              Text('${currentCardIndex + 1}/${widget.cards.length}'),
               // Show lives or timer in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
               if (widget.useTimedMode) _buildTimerIndicator(),
-              Text('${(progress * 100).toInt()}%'),
+              Text('$accuracy%'),
             ],
           ),
           const SizedBox(height: 8),

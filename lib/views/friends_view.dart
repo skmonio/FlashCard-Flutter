@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import '../services/friends_service.dart';
 import '../utils/enhanced_snackbar.dart';
 import '../utils/avatar_utils.dart';
@@ -367,11 +368,20 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(
-            AvatarUtils.getAvatarIcon(friend.selectedAvatar),
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            size: 24,
-          ),
+          child: friend.profileImageData != null
+              ? ClipOval(
+                  child: Image.memory(
+                    base64Decode(friend.profileImageData!),
+                    fit: BoxFit.cover,
+                    width: 40,
+                    height: 40,
+                  ),
+                )
+              : Icon(
+                  AvatarUtils.getAvatarIcon(friend.selectedAvatar),
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  size: 24,
+                ),
         ),
         title: Text(
           friend.username,

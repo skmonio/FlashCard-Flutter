@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/flashcard_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/sound_provider.dart';
 import 'providers/bubble_word_provider.dart';
 import 'providers/dutch_word_exercise_provider.dart';
 import 'providers/user_profile_provider.dart';
@@ -56,6 +57,7 @@ class FlashcardApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => FlashcardProvider()),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        ChangeNotifierProvider(create: (context) => SoundProvider()),
         ChangeNotifierProvider(create: (context) => BubbleWordProvider()),
         ChangeNotifierProvider(
           create: (context) {

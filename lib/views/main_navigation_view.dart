@@ -8,6 +8,7 @@ import 'cards_view.dart';
 import 'settings_view.dart';
 import '../components/bottom_navigation_view.dart';
 import '../components/main_header.dart';
+import '../components/universal_add_button.dart';
 
 class MainNavigationView extends StatefulWidget {
   const MainNavigationView({super.key});

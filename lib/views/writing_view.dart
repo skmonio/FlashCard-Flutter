@@ -714,12 +714,6 @@ class _WritingViewState extends State<WritingView> {
                 ),
                 // Progress bar
                 _buildProgressBar(),
-                
-                // Game mode indicators (lives, timer)
-                if (_useLivesMode || _useTimedMode) ...[
-                  const SizedBox(height: 8),
-                  _buildGameModeIndicators(),
-                ],
               ],
             ),
           ),
@@ -899,6 +893,7 @@ class _WritingViewState extends State<WritingView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -906,8 +901,11 @@ class _WritingViewState extends State<WritingView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
-              Text('${(progress * 100).toInt()}%'),
+              Text('${_currentIndex + 1}/${_currentCards.length}'),
+              // Show lives or timer in the middle if active
+              if (_useLivesMode) _buildLivesIndicator(),
+              if (_useTimedMode) _buildTimerIndicator(),
+              Text('$accuracy%'),
             ],
           ),
           const SizedBox(height: 8),
@@ -1569,71 +1567,55 @@ class _WritingViewState extends State<WritingView> {
     }
   }
 
-  Widget _buildGameModeIndicators() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Lives indicator
-          if (_useLivesMode) ...[
-            Row(
-              children: [
-                const Icon(Icons.favorite, color: Colors.red, size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  '$_lives/$_maxLives',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          
-          // Timer indicator
-          if (_useTimedMode) ...[
-            Row(
-              children: [
-                Icon(
-                  Icons.timer,
-                  color: _timeRemaining <= 5 ? Colors.red : Colors.blue,
-                  size: 20,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$_timeRemaining',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _timeRemaining <= 5 ? Colors.red : Colors.blue,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          
-          // Auto progress indicator
-          if (widget.autoProgress) ...[
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome, color: Colors.green, size: 20),
-                const SizedBox(width: 4),
-                const Text(
-                  'Auto',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.favorite,
+          color: Colors.red,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_lives/$_maxLives',
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

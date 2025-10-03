@@ -8,6 +8,7 @@ class Friend {
   final String friendId;
   final String username;
   final String selectedAvatar;
+  final String? profileImageData; // Base64 encoded profile image
   final int level;
   final int xp;
   final int currentStreak;
@@ -20,6 +21,7 @@ class Friend {
     required this.friendId,
     required this.username,
     required this.selectedAvatar,
+    this.profileImageData,
     required this.level,
     required this.xp,
     required this.currentStreak,
@@ -34,6 +36,7 @@ class Friend {
       friendId: json['friend_id'] ?? '',
       username: json['username'] ?? '',
       selectedAvatar: json['selected_avatar'] ?? 'person',
+      profileImageData: json['profile_image_data'],
       level: json['level'] ?? 1,
       xp: json['xp'] ?? 0,
       currentStreak: json['current_streak'] ?? 0,
@@ -51,6 +54,7 @@ class Friend {
       'friend_id': friendId,
       'username': username,
       'selected_avatar': selectedAvatar,
+      'profile_image_data': profileImageData,
       'level': level,
       'xp': xp,
       'current_streak': currentStreak,
@@ -261,7 +265,7 @@ class FriendsService {
       // Get friends' profiles
       final profilesResponse = await _client
           .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak, updated_at')
+          .select('id, username, selected_avatar, profile_image_data, level, xp, current_streak, updated_at')
           .inFilter('id', friendIds);
 
       return profilesResponse.map<Friend>((data) {
@@ -271,6 +275,7 @@ class FriendsService {
           friendId: data['id'] ?? '',
           username: data['username'] ?? '',
           selectedAvatar: data['selected_avatar'] ?? 'person',
+          profileImageData: data['profile_image_data'],
           level: data['level'] ?? 1,
           xp: data['xp'] ?? 0,
           currentStreak: data['current_streak'] ?? 0,

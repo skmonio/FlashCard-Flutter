@@ -783,7 +783,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('${_currentIndex + 1}/${_currentCards.length}'),
               // Show timer in the middle
               _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),

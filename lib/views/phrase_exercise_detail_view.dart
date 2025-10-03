@@ -261,7 +261,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
-        Color backgroundColor = Colors.white;
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
         Color borderColor = Colors.grey.withValues(alpha: 0.3);
         
         if (showCorrect) {

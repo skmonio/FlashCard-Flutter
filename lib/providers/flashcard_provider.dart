@@ -54,10 +54,10 @@ class FlashcardProvider extends ChangeNotifier {
   
   // MARK: - Deck Management
   
-  Future<Deck?> createDeck(String name, {String? parentId}) async {
+  Future<Deck?> createDeck(String name, {String? parentId, bool isPublic = false, int? colorValue}) async {
     print('Creating deck: $name');
     try {
-      final deck = await _service.createDeck(name, parentId: parentId);
+      final deck = await _service.createDeck(name, parentId: parentId, isPublic: isPublic, colorValue: colorValue);
       print('Deck created successfully: ${deck.name} (${deck.id})');
       // Refresh the decks list from the service instead of trying to modify the unmodifiable list
       _decks = _service.decks;

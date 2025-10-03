@@ -244,10 +244,11 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   List<String> _generateOptions(FlashCard currentCard, String correctAnswer, math.Random random) {
     List<String> options = [correctAnswer];
     
-    // Get other cards for wrong options
-    List<FlashCard> otherCards = _currentCards.where((card) => card.id != currentCard.id).toList();
+    // Get wrong options from ALL available cards (not just selected deck) for better difficulty
+    final allCards = context.read<FlashcardProvider>().cards;
+    List<FlashCard> otherCards = allCards.where((card) => card.id != currentCard.id).toList();
     
-    // Shuffle other cards and take up to 3 for wrong options
+    // Shuffle all other cards to get variety from any deck
     otherCards.shuffle();
     for (int i = 0; i < math.min(3, otherCards.length); i++) {
       String wrongOption;
@@ -608,7 +609,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('${_currentIndex + 1}/${_currentCards.length}'),
               // Show timer in the middle
               _buildTimerIndicator(),
               Text('${(progress * 100).toInt()}%'),

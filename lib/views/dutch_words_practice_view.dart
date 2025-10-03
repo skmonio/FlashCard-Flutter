@@ -150,7 +150,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Exercise ${_currentExerciseIndex + 1} of ${_shuffledExercises.length}',
+                '${_currentExerciseIndex + 1}/${_shuffledExercises.length}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -227,7 +227,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         final showCorrect = _showAnswer && isCorrect;
         final showIncorrect = _showAnswer && isSelected && !isCorrect;
         
-        Color backgroundColor = Colors.white;
+        Color backgroundColor = Theme.of(context).colorScheme.surface;
         Color borderColor = Colors.grey.withOpacity(0.3);
         
         if (showCorrect) {

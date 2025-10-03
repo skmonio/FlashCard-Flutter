@@ -5,6 +5,7 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
+import '../models/study_config.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -27,6 +28,7 @@ class TrueFalseView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool startFlipped;
+  final StudyConfig? studyConfig;
 
   const TrueFalseView({
     super.key,
@@ -38,6 +40,7 @@ class TrueFalseView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.startFlipped = false,
+    this.studyConfig,
   });
 
   @override
@@ -873,6 +876,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / widget.cards.length;
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -880,10 +884,10 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              Text('${_currentIndex + 1}/${widget.cards.length}'),
               // Show lives in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
-              Text('${(progress * 100).toInt()}%'),
+              Text('$accuracy%'),
             ],
           ),
           const SizedBox(height: 8),
@@ -1393,6 +1397,94 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     }
   }
   
+  void _shuffleAndRestart() {
+    if (widget.studyConfig == null) return;
+    
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same deck configuration
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (widget.studyConfig!.deckIds.isEmpty) {
+      // Empty deckIds means all decks
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in widget.studyConfig!.deckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Apply SRS filtering if enabled
+    List<FlashCard> filteredCards;
+    if (widget.studyConfig!.useSRSFiltering) {
+      final dueCards = allDeckCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allDeckCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      filteredCards = allDeckCards;
+    }
+    
+    // Apply daily study limit filtering
+    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take the specified number of cards
+    availableCards.shuffle();
+    final cardCount = widget.studyConfig!.cardCount >= 50 ? availableCards.length : widget.studyConfig!.cardCount;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset the view with new cards
+    setState(() {
+      _currentCards = newCards;
+      _currentIndex = 0;
+      _correctAnswers = 0;
+      _totalAnswered = 0;
+      _showingResults = false;
+      _answered = false;
+      _selectedAnswer = null;
+      _gameSession.reset();
+      
+      // Reset lives if using lives mode
+      if (_useLivesMode) {
+        _lives = _maxLives;
+      }
+      
+      // Reset all navigation state
+      _answeredQuestions.clear();
+      _correctAnswersMap.clear();
+      _questionTexts.clear();
+      _questionModes.clear();
+      _translations.clear();
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+    });
+    
+    _generateQuestion();
+  }
+
   void _showWordProgress() {
     // Create copies of the current session data for the display
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
@@ -1440,6 +1532,10 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             
             // Session data has been reset, ready for new game
           },
+          onShuffle: widget.studyConfig != null ? () {
+            Navigator.of(context).pop(); // Close end screen
+            _shuffleAndRestart();
+          } : null,
           onDone: () {
             Navigator.of(context).pop(); // Close end screen
             Navigator.of(context).pop(); // Go back to study type screen

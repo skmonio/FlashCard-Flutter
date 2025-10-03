@@ -22,6 +22,7 @@ class _AddDeckViewState extends State<AddDeckView> {
   final _descriptionController = TextEditingController();
   String _selectedParentDeckId = '';
   bool _isSubDeck = false;
+  bool _isPublic = false; // Private by default
 
   @override
   void initState() {
@@ -72,6 +73,8 @@ class _AddDeckViewState extends State<AddDeckView> {
                     _buildBasicInfoSection(),
                     const SizedBox(height: 24),
                     _buildParentDeckSection(),
+                    const SizedBox(height: 24),
+                    _buildVisibilitySection(),
                     const SizedBox(height: 24),
                     _buildActionsSection(),
                   ],
@@ -204,6 +207,41 @@ class _AddDeckViewState extends State<AddDeckView> {
     );
   }
 
+
+  Widget _buildVisibilitySection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Deck Visibility',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              title: const Text('Make this deck public'),
+              subtitle: const Text('Allow friends to see and study this deck'),
+              value: _isPublic,
+              onChanged: (value) {
+                setState(() {
+                  _isPublic = value ?? false;
+                });
+              },
+              secondary: Icon(
+                _isPublic ? Icons.visibility : Icons.visibility_off,
+                color: _isPublic ? Colors.blue : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionsSection() {
     return Row(
       children: [
@@ -273,7 +311,11 @@ class _AddDeckViewState extends State<AddDeckView> {
       return;
     }
 
-    provider.createDeck(deckName, parentId: parentId);
+    provider.createDeck(
+      deckName, 
+      parentId: parentId,
+      isPublic: _isPublic,
+    );
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -285,6 +327,7 @@ class _AddDeckViewState extends State<AddDeckView> {
     Navigator.of(context).pop();
   }
 
+
   Widget _buildCustomHeader(BuildContext context) {
     return Stack(
       children: [
@@ -292,10 +335,10 @@ class _AddDeckViewState extends State<AddDeckView> {
         Center(
           child: Text(
             'Create Deck',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -307,7 +350,7 @@ class _AddDeckViewState extends State<AddDeckView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
       ],

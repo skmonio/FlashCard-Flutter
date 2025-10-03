@@ -380,7 +380,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Card ${min(topIndex + 1, _currentCards.length)} of ${_currentCards.length}'),
+                    Text('${min(topIndex + 1, _currentCards.length)}/${_currentCards.length}'),
                     Text('${(progress * 100).toInt()}%'),
                   ],
                 ),

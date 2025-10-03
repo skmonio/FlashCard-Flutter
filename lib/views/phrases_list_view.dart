@@ -5,6 +5,7 @@ import '../models/phrase.dart';
 import 'phrase_exercise_detail_view.dart';
 import 'phrase_exercise_view.dart';
 import 'add_phrase_view.dart';
+import '../components/universal_add_button.dart';
 
 class PhrasesListView extends StatefulWidget {
   const PhrasesListView({super.key});
@@ -19,16 +20,24 @@ class _PhrasesListViewState extends State<PhrasesListView> {
   bool _isSelectionMode = false;
   Set<String> _selectedPhraseIds = {};
   bool _selectAll = false;
+  late TextEditingController _searchController;
   
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: null,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToAddPhrase(),
-        tooltip: 'Add Phrase',
-        child: const Icon(Icons.add),
-      ),
       body: Consumer<PhraseProvider>(
         builder: (context, phraseProvider, child) {
           final phrases = phraseProvider.phrases;
@@ -113,6 +122,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
           );
         },
       ),
+      floatingActionButton: const UniversalAddButton(),
     );
   }
 
@@ -125,10 +135,10 @@ class _PhrasesListViewState extends State<PhrasesListView> {
         Center(
           child: Text(
             'Phrases',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -140,7 +150,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -151,7 +161,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
           bottom: 0,
           child: IconButton(
             onPressed: _playPhrases,
-            icon: const Icon(Icons.play_arrow, color: Colors.black),
+            icon: const Icon(Icons.play_arrow, color: Colors.green),
             tooltip: 'Play Phrases',
           ),
         ),
@@ -574,6 +584,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
           // Search bar
           Expanded(
             child: TextField(
+              controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search phrases...',
                 prefixIcon: const Icon(Icons.search),
@@ -582,6 +593,7 @@ class _PhrasesListViewState extends State<PhrasesListView> {
                         onPressed: () {
                           setState(() {
                             _searchQuery = '';
+                            _searchController.clear();
                           });
                         },
                         icon: const Icon(Icons.clear),

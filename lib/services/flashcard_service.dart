@@ -213,12 +213,13 @@ class FlashcardService {
   
   // MARK: - Deck Management
   
-  Future<Deck> createDeck(String name, {String? parentId}) async {
+  Future<Deck> createDeck(String name, {String? parentId, bool isPublic = false, int? colorValue}) async {
     print('Service: Creating deck: $name');
     try {
       final deck = Deck(
         name: name,
         parentId: parentId,
+        isPublic: isPublic,
       );
       
       print('Service: Deck object created: ${deck.name} (${deck.id})');

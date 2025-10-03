@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/sound_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 
@@ -23,19 +24,20 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
-  bool _soundEnabled = true;
-
   @override
   void initState() {
     super.initState();
-    _loadSoundSettings();
+    _initializeProviders();
   }
 
-  Future<void> _loadSoundSettings() async {
-    await SoundManager().initialize();
-    setState(() {
-      _soundEnabled = SoundManager().soundEnabled;
-    });
+  Future<void> _initializeProviders() async {
+    // Initialize sound provider
+    final soundProvider = context.read<SoundProvider>();
+    await soundProvider.initialize();
+    
+    // Initialize sound manager with the provider
+    await SoundManager().initialize(soundProvider: soundProvider);
+    SoundManager().setSoundProvider(soundProvider);
   }
 
   @override
@@ -118,15 +120,20 @@ class _SettingsViewState extends State<SettingsView> {
                 },
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                title: const Text('Sound Effects'),
-                subtitle: const Text('Play sounds during study'),
-                value: _soundEnabled,
-                onChanged: (value) async {
-                  setState(() {
-                    _soundEnabled = value;
-                  });
-                  await SoundManager().setSoundEnabled(value);
+              Consumer<SoundProvider>(
+                builder: (context, soundProvider, child) {
+                  return ListTile(
+                    leading: Icon(
+                      soundProvider.getIcon(soundProvider.soundMode),
+                      color: soundProvider.getColor(soundProvider.soundMode),
+                    ),
+                    title: const Text('Sound Effects'),
+                    subtitle: Text(soundProvider.getDisplayName(soundProvider.soundMode)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      _showSoundSelectionDialog(context, soundProvider);
+                    },
+                  );
                 },
               ),
               const Divider(height: 1),
@@ -408,6 +415,93 @@ class _SettingsViewState extends State<SettingsView> {
             child: const Text('Cancel'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSoundSelectionDialog(BuildContext context, SoundProvider soundProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Sound Setting'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSoundOption(
+              context,
+              soundProvider,
+              SoundMode.system,
+              'System (Auto)',
+              'Follow device silent mode settings',
+              Icons.volume_up_outlined,
+              Colors.blue,
+            ),
+            const SizedBox(height: 8),
+            _buildSoundOption(
+              context,
+              soundProvider,
+              SoundMode.always,
+              'Sound On',
+              'Always play sounds',
+              Icons.volume_up,
+              Colors.green,
+            ),
+            const SizedBox(height: 8),
+            _buildSoundOption(
+              context,
+              soundProvider,
+              SoundMode.never,
+              'Sound Off',
+              'Never play sounds',
+              Icons.volume_off,
+              Colors.red,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSoundOption(
+    BuildContext context,
+    SoundProvider soundProvider,
+    SoundMode mode,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+  ) {
+    final isSelected = soundProvider.soundMode == mode;
+    
+    return Card(
+      margin: EdgeInsets.zero,
+      color: isSelected ? color.withValues(alpha: 0.1) : null,
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isSelected ? color : Colors.grey,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? color : null,
+          ),
+        ),
+        subtitle: Text(subtitle),
+        trailing: isSelected 
+            ? Icon(Icons.check, color: color)
+            : null,
+        onTap: () {
+          soundProvider.setSoundMode(mode);
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

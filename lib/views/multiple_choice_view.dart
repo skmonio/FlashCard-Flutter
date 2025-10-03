@@ -5,6 +5,7 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
+import '../models/study_config.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -27,6 +28,7 @@ class MultipleChoiceView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool startFlipped;
+  final StudyConfig? studyConfig;
 
   const MultipleChoiceView({
     super.key,
@@ -38,6 +40,7 @@ class MultipleChoiceView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.startFlipped = false,
+    this.studyConfig,
   });
 
   @override
@@ -82,7 +85,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   List<FlashCard> _studiedWords = [];
 
   // Hint and review tracking
-  Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, or 2)
+  Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, 2, or 3)
   Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
   Set<String> _reviewCards = {}; // card IDs marked for review
 
@@ -186,14 +189,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     _hintCount[_currentIndex] = 0;
     _blockedOptions[_currentIndex] = <int>{};
 
-    // Check if this question has already been answered
-    if (_answeredQuestions.containsKey(_currentIndex)) {
+    // Check if this question has already been generated
+    if (_questionOptions.containsKey(_currentIndex)) {
       // Load existing question data
       _isQuestionMode = _questionModes[_currentIndex]!;
       _options = _questionOptions[_currentIndex]!;
       _correctAnswerIndex = _correctAnswerIndices[_currentIndex]!;
-      _selectedAnswer = _answeredQuestions[_currentIndex]!;
-      _answered = true;
+      _selectedAnswer = _answeredQuestions[_currentIndex];
+      _answered = _answeredQuestions.containsKey(_currentIndex);
       return;
     }
 
@@ -206,11 +209,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Get correct answer
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
     
-    // Get other cards for wrong options
-    final otherCards = _currentCards.where((card) => card.id != currentCard.id).toList();
+    // Get wrong options from ALL available cards (not just selected deck) for better difficulty
+    final allCards = context.read<FlashcardProvider>().cards;
+    final otherCards = allCards.where((card) => card.id != currentCard.id).toList();
     final wrongOptions = <String>[];
     
-        // Get 3 wrong options from other cards
+    // Shuffle all other cards to get variety from any deck
     final shuffledOtherCards = List.from(otherCards)..shuffle(random);
     
     for (final card in shuffledOtherCards) {
@@ -219,25 +223,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       final wrongOption = _isQuestionMode ? card.definition : card.word;
       if (!wrongOptions.contains(wrongOption) && wrongOption != correctAnswer) {
         wrongOptions.add(wrongOption);
-      }
-    }
-    
-    // If we still don't have enough wrong options from cards, generate more cards
-    if (wrongOptions.length < 3) {
-      // Get all available cards and try again with more variety
-      final allCards = context.read<FlashcardProvider>().cards;
-      final moreCards = allCards.where((card) => 
-        card.id != currentCard.id && 
-        !otherCards.any((oc) => oc.id == card.id)
-      ).toList();
-      
-      for (final card in moreCards) {
-        if (wrongOptions.length >= 3) break;
-        
-        final wrongOption = _isQuestionMode ? card.definition : card.word;
-        if (!wrongOptions.contains(wrongOption) && wrongOption != correctAnswer) {
-          wrongOptions.add(wrongOption);
-        }
       }
     }
     
@@ -754,6 +739,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -761,10 +747,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${_currentCards.length}'),
+              Text('${_currentIndex + 1}/${_currentCards.length}'),
               // Show lives in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
-              Text('${(progress * 100).toInt()}%'),
+              Text('$accuracy%'),
             ],
           ),
           const SizedBox(height: 8),
@@ -1234,13 +1220,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints)
+      // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints, 0% for 3 hints)
       final hintCount = _hintCount[_currentIndex] ?? 0;
       final finalXPGained = hintCount == 1 
           ? (actualXPGained * 0.5).round() 
           : hintCount == 2 
               ? (actualXPGained * 0.25).round()
-              : actualXPGained;
+              : hintCount == 3
+                  ? 0
+                  : actualXPGained;
       
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
@@ -1262,6 +1250,94 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     }
   }
   
+  void _shuffleAndRestart() {
+    if (widget.studyConfig == null) return;
+    
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same deck configuration
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (widget.studyConfig!.deckIds.isEmpty) {
+      // Empty deckIds means all decks
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in widget.studyConfig!.deckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Apply SRS filtering if enabled
+    List<FlashCard> filteredCards;
+    if (widget.studyConfig!.useSRSFiltering) {
+      final dueCards = allDeckCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allDeckCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      filteredCards = allDeckCards;
+    }
+    
+    // Apply daily study limit filtering
+    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take the specified number of cards
+    availableCards.shuffle();
+    final cardCount = widget.studyConfig!.cardCount >= 50 ? availableCards.length : widget.studyConfig!.cardCount;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset the view with new cards
+    setState(() {
+      _currentCards = newCards;
+      _currentIndex = 0;
+      _correctAnswers = 0;
+      _totalAnswered = 0;
+      _showingResults = false;
+      _answered = false;
+      _selectedAnswer = null;
+      _gameSession.reset();
+      
+      // Reset lives if using lives mode
+      if (_useLivesMode) {
+        _lives = _maxLives;
+      }
+      
+      // Reset all navigation state
+      _answeredQuestions.clear();
+      _correctAnswersMap.clear();
+      _questionOptions.clear();
+      _correctAnswerIndices.clear();
+      _questionModes.clear();
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+    });
+    
+    _generateQuestion();
+  }
+
   void _showWordProgress() {
     // Create copies of the current session data for the display
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
@@ -1312,6 +1388,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             
             // Session data has been reset, ready for new game
           },
+          onShuffle: widget.studyConfig != null ? () {
+            Navigator.of(context).pop(); // Close end screen
+            _shuffleAndRestart();
+          } : null,
           onDone: () {
             Navigator.of(context).pop(); // Close end screen
             Navigator.of(context).pop(); // Go back to study type screen
@@ -1385,7 +1465,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   Widget _buildHintIcon() {
     final hintCount = _hintCount[_currentIndex] ?? 0;
-    final canUseHint = hintCount < 2; // Allow up to 2 hints
+    final canUseHint = hintCount < 3; // Allow up to 3 hints
     
     return GestureDetector(
       onTap: canUseHint ? _useHint : null,
@@ -1400,39 +1480,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             width: 2,
           ),
         ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Icon(
-              Icons.lightbulb,
-              size: 16,
-              color: canUseHint ? Colors.orange : Colors.grey,
-            ),
-            if (hintCount > 0)
-              Positioned(
-                top: 2,
-                right: 2,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1),
-                  ),
-                  child: Center(
-                    child: Text(
-                      hintCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey,
         ),
       ),
     );
@@ -1476,9 +1527,28 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   void _useHint() {
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
-    if (_answered || currentHintCount >= 2) return;
+    if (_answered || currentHintCount >= 3) return;
     
-    // Find wrong options to block (not the correct answer and not already blocked)
+    setState(() {
+      _hintCount[_currentIndex] = currentHintCount + 1;
+    });
+    
+    // Third hint: Complete the question automatically
+    if (currentHintCount == 2) {
+      // Auto-select the correct answer
+      _selectAnswer(_correctAnswerIndex!);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Final hint: Question completed automatically (0 XP awarded)'),
+          duration: Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    // First and second hints: Block wrong options
     final wrongOptions = <int>[];
     for (int i = 0; i < _options.length; i++) {
       if (i != _correctAnswerIndex && !_blockedOptions[_currentIndex]!.contains(i)) {
@@ -1491,7 +1561,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       final optionToBlock = wrongOptions[random.nextInt(wrongOptions.length)];
       
       setState(() {
-        _hintCount[_currentIndex] = currentHintCount + 1;
         _blockedOptions[_currentIndex]!.add(optionToBlock);
       });
       

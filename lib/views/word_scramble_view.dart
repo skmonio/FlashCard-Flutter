@@ -849,6 +849,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / widget.cards.length;
+    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -856,10 +857,10 @@ class _WordScrambleViewState extends State<WordScrambleView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Question ${_currentIndex + 1} of ${widget.cards.length}'),
+              Text('${_currentIndex + 1}/${widget.cards.length}'),
               // Show lives in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
-              Text('${(progress * 100).toInt()}%'),
+              Text('$accuracy%'),
             ],
           ),
           const SizedBox(height: 8),

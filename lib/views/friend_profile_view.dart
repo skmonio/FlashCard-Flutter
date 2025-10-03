@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../services/friends_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 import '../utils/enhanced_snackbar.dart';
+import '../utils/avatar_utils.dart';
 import 'add_card_view.dart';
 import 'add_deck_view.dart';
 
@@ -185,10 +187,20 @@ class _FriendProfileViewState extends State<FriendProfileView> with TickerProvid
                   CircleAvatar(
                     radius: 40,
                     backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Text(
-                      widget.friend.selectedAvatar,
-                      style: const TextStyle(fontSize: 32),
-                    ),
+                    child: widget.friend.profileImageData != null
+                        ? ClipOval(
+                            child: Image.memory(
+                              base64Decode(widget.friend.profileImageData!),
+                              fit: BoxFit.cover,
+                              width: 80,
+                              height: 80,
+                            ),
+                          )
+                        : Icon(
+                            AvatarUtils.getAvatarIcon(widget.friend.selectedAvatar),
+                            size: 40,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(

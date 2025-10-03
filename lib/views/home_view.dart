@@ -5,6 +5,7 @@ import '../models/deck.dart';
 import 'study_type_selection_view.dart';
 import 'memory_game_view.dart';
 import 'bubble_word_view.dart';
+import 'connect_cards_view.dart';
 
 import 'advanced_study_view.dart';
 import 'multiple_choice_view.dart';
@@ -99,6 +100,14 @@ class _HomeViewState extends State<HomeView> {
           const Color(0xFFFF6B4D),
           () => _navigateToWordScramble(context),
           'Unscramble the letters to form Dutch words. Drag and drop letters to spell the correct word.',
+        ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'Connect your cards',
+          Icons.grid_on,
+          Colors.purple,
+          () => _navigateToConnectCards(context),
+          'Connect letters in a grid to spell Dutch words. Drag to connect adjacent letters and form the correct translation.',
         ),
         const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
@@ -316,6 +325,16 @@ class _HomeViewState extends State<HomeView> {
       MaterialPageRoute(
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.bubbleWord,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToConnectCards(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.connectCards,
         ),
       ),
     );

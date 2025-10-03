@@ -160,7 +160,7 @@ class _StudyViewState extends State<StudyView> {
                       Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Card ${_currentCardIndex + 1} of ${_currentCards.length}'),
+                Text('${_currentCardIndex + 1}/${_currentCards.length}'),
                 Text('${(progress * 100).toInt()}%'),
               ],
             ),

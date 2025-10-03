@@ -515,57 +515,60 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   Widget _buildDeckSelection() {
-    return Consumer<FlashcardProvider>(
-      builder: (context, provider, child) {
-        final decks = provider.getAllDecksHierarchical();
-        
-        if (decks.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.folder_open, size: 48, color: Colors.grey),
-                const SizedBox(height: 8),
-                const Text(
-                  'No decks available',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get selected deck names for display
+    String selectedDecksText;
+    if (_selectedDeckIds.isEmpty) {
+      selectedDecksText = 'Uncategorized';
+    } else if (_selectedDeckIds.length == 1) {
+      final deck = provider.getDeck(_selectedDeckIds.first);
+      selectedDecksText = deck?.name ?? 'Unknown Deck';
+    } else {
+      selectedDecksText = '${_selectedDeckIds.length} decks selected';
+    }
+    
+    return Card(
+      child: InkWell(
+        onTap: () => _showDeckSelectionDialog(),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.folder, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select your deck(s)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      selectedDecksText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => _createNewDeck(context),
-                  child: const Text('Create New Deck'),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select Decks:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface,
               ),
-            ),
-            const SizedBox(height: 8),
-            ...decks.map((deck) => _buildDeckCheckbox(deck)),
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: () => _createNewDeck(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Create New Deck'),
-            ),
-          ],
-        );
-      },
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -610,62 +613,217 @@ class _AddCardViewState extends State<AddCardView> {
     );
   }
 
-  void _createNewDeck(BuildContext context) {
-    final nameController = TextEditingController();
+  void _showDeckSelectionDialog() {
+    final provider = context.read<FlashcardProvider>();
+    final allDecks = provider.getAllDecksHierarchical();
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create New Deck'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(
-            labelText: 'Deck Name',
-            hintText: 'Enter deck name...',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Select Decks'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // "Create Deck" button at the top
+                Container(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _createNewDeck(context);
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create Deck'),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // "Uncategorized" option
+                _buildDeckOption(
+                  'Uncategorized',
+                  'Card will not be assigned to any deck',
+                  _selectedDeckIds.isEmpty,
+                  () {
+                    setDialogState(() {
+                      _selectedDeckIds.clear();
+                    });
+                    setState(() {
+                      _selectedDeckIds.clear();
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Individual deck options
+                if (allDecks.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...allDecks.map((deck) => _buildDeckOption(
+                    deck.name,
+                    '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
+                    _selectedDeckIds.contains(deck.id),
+                    () {
+                      setDialogState(() {
+                        if (_selectedDeckIds.contains(deck.id)) {
+                          _selectedDeckIds.remove(deck.id);
+                        } else {
+                          _selectedDeckIds.add(deck.id);
+                        }
+                      });
+                      setState(() {
+                        // Update the main widget state to reflect the changes
+                        // The dialog state is already updated above
+                      });
+                    },
+                  )),
+                ],
+              ],
+            ),
           ),
-          autofocus: true,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isNotEmpty) {
-                final deckName = nameController.text.trim();
-                
-                // Check for duplicate deck
-                final provider = context.read<FlashcardProvider>();
-                final allDecks = provider.decks;
-                final duplicateDeck = allDecks.where(
-                  (deck) => deck.name.toLowerCase() == deckName.toLowerCase(),
-                ).firstOrNull;
-                
-                if (duplicateDeck != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('This deck already exists'),
-                      backgroundColor: Colors.orange,
-                      duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? Colors.blue : Colors.grey,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: isSelected ? Colors.blue : null,
+                      ),
                     ),
-                  );
-                  return;
-                }
-                
-                final navigator = Navigator.of(context);
-                final newDeck = await provider.createDeck(deckName);
-                if (mounted && newDeck != null) {
-                  setState(() {
-                    _selectedDeckIds.add(newDeck.id);
-                  });
-                  navigator.pop();
-                }
-              }
-            },
-            child: const Text('Create'),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  void _createNewDeck(BuildContext context) {
+    final nameController = TextEditingController();
+    bool isPublic = false; // Private by default
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Create New Deck'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Deck Name',
+                  hintText: 'Enter deck name...',
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              CheckboxListTile(
+                title: const Text('Make this deck public'),
+                subtitle: const Text('Allow friends to see and study this deck'),
+                value: isPublic,
+                onChanged: (value) {
+                  setState(() {
+                    isPublic = value ?? false;
+                  });
+                },
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.trim().isNotEmpty) {
+                  final deckName = nameController.text.trim();
+                  
+                  // Check for duplicate deck
+                  final provider = context.read<FlashcardProvider>();
+                  final allDecks = provider.decks;
+                  final duplicateDeck = allDecks.where(
+                    (deck) => deck.name.toLowerCase() == deckName.toLowerCase(),
+                  ).firstOrNull;
+                  
+                  if (duplicateDeck != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('This deck already exists'),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
+                  
+                  final navigator = Navigator.of(context);
+                  final newDeck = await provider.createDeck(
+                    deckName,
+                    isPublic: isPublic,
+                  );
+                  if (mounted && newDeck != null) {
+                    setState(() {
+                      _selectedDeckIds.add(newDeck.id);
+                    });
+                    navigator.pop();
+                  }
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1790,10 +1948,10 @@ class _AddCardViewState extends State<AddCardView> {
         Center(
           child: Text(
             widget.cardToEdit != null ? 'Edit Card' : 'Add Card',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -1811,7 +1969,7 @@ class _AddCardViewState extends State<AddCardView> {
                 Navigator.of(context).pop();
               }
             },
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -1826,20 +1984,18 @@ class _AddCardViewState extends State<AddCardView> {
                   height: 48,
                   child: Center(child: CircularProgressIndicator()),
                 )
-              : TextButton(
+              : IconButton(
                   onPressed: _canSave() ? _submitCard : null,
-                  child: Text(
-                    _canSave() 
-                        ? (widget.cardToEdit != null ? 'Save' : 'Add')
-                        : 'Add',
-                    style: TextStyle(
-                      color: _canSave() 
-                          ? Theme.of(context).colorScheme.primary 
-                          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  icon: Icon(
+                    Icons.save,
+                    color: _canSave() 
+                        ? Theme.of(context).colorScheme.primary 
+                        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
+                    size: 24,
                   ),
+                  tooltip: _canSave() 
+                      ? (widget.cardToEdit != null ? 'Save' : 'Add')
+                      : 'Add',
                 ),
         ),
       ],

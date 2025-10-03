@@ -1,5 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import '../providers/sound_provider.dart';
 
 class SoundManager {
   static final SoundManager _instance = SoundManager._internal();
@@ -8,57 +10,52 @@ class SoundManager {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isInitialized = false;
-  bool _soundEnabled = true;
-  String _soundMode = 'system'; // 'system', 'always', 'never'
+  SoundProvider? _soundProvider;
 
-  Future<void> initialize() async {
+  Future<void> initialize({SoundProvider? soundProvider}) async {
     if (_isInitialized) return;
     
     try {
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
-      await _loadSoundSettings();
+      _soundProvider = soundProvider;
       _isInitialized = true;
     } catch (e) {
       print('Error initializing SoundManager: $e');
     }
   }
 
-  Future<void> _loadSoundSettings() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-      _soundMode = prefs.getString('sound_mode') ?? 'system';
-    } catch (e) {
-      print('Error loading sound settings: $e');
-    }
+  void setSoundProvider(SoundProvider provider) {
+    _soundProvider = provider;
   }
-
-  Future<void> setSoundEnabled(bool enabled) async {
-    _soundEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('sound_enabled', enabled);
-  }
-
-  Future<void> setSoundMode(String mode) async {
-    _soundMode = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('sound_mode', mode);
-  }
-
-  bool get soundEnabled => _soundEnabled;
-  String get soundMode => _soundMode;
 
   bool _shouldPlaySound() {
-    if (!_soundEnabled) return false;
-    if (_soundMode == 'never') return false;
-    if (_soundMode == 'always') return true;
-    if (_soundMode == 'system') {
-      // For system mode, we'll respect the device's silent mode
-      // This is a simplified check - in a real app you might want to use
-      // a plugin to check the actual system volume/silent mode
-      return true; // For now, always play in system mode
+    if (_soundProvider == null) return true; // Default to playing sound if no provider
+    
+    switch (_soundProvider!.soundMode) {
+      case SoundMode.never:
+        return false;
+      case SoundMode.always:
+        return true;
+      case SoundMode.system:
+        // For system mode, we'll respect the device's silent mode
+        // This is a simplified check - in a real app you might want to use
+        // a plugin to check the actual system volume/silent mode
+        return _isDeviceNotSilent();
     }
-    return true;
+  }
+
+  bool _isDeviceNotSilent() {
+    // This is a simplified implementation
+    // In a real app, you might want to use a plugin like system_volume_controller
+    // or check the actual system volume/silent mode
+    try {
+      // For now, we'll assume the device is not silent
+      // You can enhance this with actual system volume detection
+      return true;
+    } catch (e) {
+      print('Error checking device silent mode: $e');
+      return true; // Default to playing sound if we can't determine
+    }
   }
 
   Future<void> playBeginSound() async {

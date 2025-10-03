@@ -200,6 +200,7 @@ class _EditDeckViewState extends State<EditDeckView> {
     );
   }
 
+
   Widget _buildVisibilitySection() {
     return Card(
       child: Padding(
@@ -290,6 +291,7 @@ class _EditDeckViewState extends State<EditDeckView> {
       }
     }
   }
+
 
   Widget _buildCustomHeader(BuildContext context) {
     return Stack(

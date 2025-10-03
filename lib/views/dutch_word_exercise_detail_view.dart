@@ -130,7 +130,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Exercise ${_currentExerciseIndex + 1} of ${_wordExercise.exercises.length}',
+                '${_currentExerciseIndex + 1}/${_wordExercise.exercises.length}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
