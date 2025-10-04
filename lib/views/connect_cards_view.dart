@@ -9,6 +9,122 @@ import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../components/unified_end_screen.dart';
 
+class GridPainter extends CustomPainter {
+  final List<String> letters;
+  final int gridSize;
+  final List<int> selectedIndexes;
+  final List<int> wrongIndexes;
+  final List<int> hintIndexes;
+  final bool answeredWords;
+  final int? pressedIndex; // Add pressed state
+  final Offset? dragPosition; // Add drag trail position
+
+  GridPainter({
+    required this.letters,
+    required this.gridSize,
+    required this.selectedIndexes,
+    required this.wrongIndexes,
+    required this.hintIndexes,
+    required this.answeredWords,
+    this.pressedIndex, // Add pressed state
+    this.dragPosition, // Add drag trail position
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    double cellSize = size.width / gridSize;
+
+    for (int i = 0; i < letters.length; i++) {
+      int row = i ~/ gridSize;
+      int col = i % gridSize;
+      
+      double x = col * cellSize;
+      double y = row * cellSize;
+
+      // Determine colors
+      Color backgroundColor = Colors.grey[200]!;
+      Color textColor = Colors.black87;
+      
+      bool isSelected = selectedIndexes.contains(i);
+      bool isWrong = wrongIndexes.contains(i);
+      bool isHintLetter = hintIndexes.contains(i);
+      bool isPressed = pressedIndex == i;
+
+      if (answeredWords) {
+        if (isSelected) {
+          backgroundColor = Colors.blue;
+          textColor = Colors.white;
+        }
+      } else {
+        if (isWrong) {
+          backgroundColor = Colors.red;
+          textColor = Colors.white;
+        } else if (isHintLetter) {
+          backgroundColor = Colors.green;
+          textColor = Colors.white;
+        } else if (isSelected) {
+          backgroundColor = Colors.blue;
+          textColor = Colors.white;
+        } else if (isPressed) {
+          // Show pressed state with darker background
+          backgroundColor = Colors.grey[400]!;
+          textColor = Colors.black;
+        }
+      }
+
+      // Draw cell background
+      paint.color = backgroundColor;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x + 2, y + 2, cellSize - 4, cellSize - 4),
+          const Radius.circular(8),
+        ),
+        paint,
+      );
+
+      // Draw letter with larger font size for better mobile visibility
+      double fontSize = cellSize * 0.4; // Scale font size with cell size
+      fontSize = fontSize.clamp(20.0, 32.0); // Keep within reasonable bounds
+      
+      textPainter.text = TextSpan(
+        text: letters[i],
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: textColor,
+        ),
+      );
+      textPainter.layout();
+      
+      final textOffset = Offset(
+        x + (cellSize - textPainter.width) / 2,
+        y + (cellSize - textPainter.height) / 2,
+      );
+      textPainter.paint(canvas, textOffset);
+    }
+    
+    // Draw drag trail if dragging
+    if (dragPosition != null) {
+      paint.color = Colors.orange.withOpacity(0.8);
+      canvas.drawCircle(dragPosition!, 8, paint);
+      
+      // Draw a smaller inner circle
+      paint.color = Colors.white;
+      canvas.drawCircle(dragPosition!, 4, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
 class ConnectCardsView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
@@ -65,6 +181,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   bool _isShowingHint = false;
   bool _isDragging = false;
   bool _gameCompleted = false;
+  int? _pressedIndex; // Track which letter is currently being pressed
+  Offset? _dragPosition; // Track drag position for visual trail
   // Auto-progress option from widget parameter
   bool _showFeedback = false; // Show feedback message
   String _feedbackMessage = ''; // Feedback message text
@@ -303,22 +421,18 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     }
     
     final word = _availableCards[_currentCardIndex].word.toUpperCase();
-    // Dynamic grid size based on word length
-    if (word.length <= 4) {
-      _gridSize = 5;
-    } else if (word.length <= 6) {
-      _gridSize = 6;
-    } else if (word.length <= 8) {
-      _gridSize = 7;
-    } else {
-      _gridSize = 8;
-    }
+    // Standardized 5x5 grid for all words - optimal mobile touch experience
+    _gridSize = 5; // 5x5 = 25 cells for all words
     
     _letters = List<String>.filled(_gridSize * _gridSize, '');
     _pathIndexes.clear();
     _correctPath.clear();
     _startIndex = null;
     _hintLevel = 0;
+    
+    // Debug logging for grid optimization
+    print('🔍 Word: $word (${word.length} letters)');
+    print('🔍 Grid size: ${_gridSize}x$_gridSize (${_gridSize * _gridSize} total cells)');
     
     // Generate a more complex path for the word
     int attempts = 0;
@@ -379,6 +493,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     _wrongIndexes.clear();
     _hintIndexes.clear();
     _isShowingHint = false;
+    _pressedIndex = null;
+    _dragPosition = null;
     
     // Save the grid state for this word
     _savedGridLetters[currentWordId] = List.from(_letters);
@@ -427,30 +543,60 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     return -1; // same position
   }
 
-  void _onPanStart(DragStartDetails details, BoxConstraints constraints) {
+  void _onPointerDown(PointerDownEvent details, BoxConstraints constraints) {
     if (_gameCompleted) return;
     
     // Don't allow interaction with answered words
     String currentWordId = _availableCards[_currentCardIndex].id;
     if (_answeredWords.containsKey(currentWordId)) return;
     
+    print('🔍 Pointer down at: ${details.localPosition}');
+    
     setState(() {
       // Don't clear selected indexes - keep hint letters selected
       _wrongIndexes.clear();
       _isDragging = true;
+      _dragPosition = details.localPosition; // Set initial drag position
     });
+    
+    // If we're starting a new drag and have a single letter selected, clear it
+    // This handles the case where user taps a letter and then tries to drag
+    if (_selectedIndexes.length == 1 && _hintIndexes.isEmpty) {
+      print('🔍 Clearing single letter selection to start new drag');
+      setState(() {
+        _selectedIndexes.clear();
+      });
+    }
+    
+    // Add haptic feedback for touch start
+    HapticService().lightImpact();
+    
     _handleTouch(details.localPosition, constraints);
   }
 
-  void _onPanUpdate(DragUpdateDetails details, BoxConstraints constraints) {
+  void _onPointerMove(PointerMoveEvent details, BoxConstraints constraints) {
     if (_isDragging && !_gameCompleted) {
+      setState(() {
+        _dragPosition = details.localPosition; // Update drag position
+      });
       _handleTouch(details.localPosition, constraints);
     }
   }
 
-  void _onPanEnd(DragEndDetails details) {
+  void _onPointerUp(PointerUpEvent details) {
+    print('🔍 Pointer up - selected indexes: $_selectedIndexes');
     setState(() {
       _isDragging = false;
+      _dragPosition = null; // Clear drag trail
+    });
+    
+    // Clear pressed state after a short delay for visual feedback
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          _pressedIndex = null;
+        });
+      }
     });
     
     // Check if the current selection is correct
@@ -458,12 +604,16 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       final word = _availableCards[_currentCardIndex].word.toUpperCase();
       String formedWord = _selectedIndexes.map((i) => _letters[i]).join('');
       
+      print('🔍 Checking word: "$formedWord" vs "$word"');
+      
       // Check if the formed word matches the target word
       if (formedWord == word) {
         // Correct word - this should trigger completion
+        print('✅ Word is correct!');
         _checkWordCompletion();
       } else {
         // Incorrect word, show error
+        print('❌ Word is incorrect');
         setState(() {
           _wrongIndexes = List.from(_selectedIndexes);
           
@@ -491,24 +641,69 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           });
         });
       }
+    } else {
+      print('🔍 No letters selected - clearing selection');
+      // If no letters selected, clear any existing selection
+      setState(() {
+        _selectedIndexes.clear();
+        _wrongIndexes.clear();
+        // Restore hint letters to selected indexes
+        _selectedIndexes.addAll(_hintIndexes);
+      });
     }
   }
 
+  void _onPointerCancel(PointerCancelEvent details) {
+    print('🔍 Pointer cancel - selected indexes: $_selectedIndexes');
+    setState(() {
+      _isDragging = false;
+      _dragPosition = null; // Clear drag trail
+      _pressedIndex = null; // Clear pressed state immediately
+    });
+    
+    // Don't check word completion on cancel - just clear selection
+    setState(() {
+      _selectedIndexes.clear();
+      _wrongIndexes.clear();
+      // Restore hint letters to selected indexes
+      _selectedIndexes.addAll(_hintIndexes);
+    });
+  }
+
   void _handleTouch(Offset position, BoxConstraints constraints) {
-    double cellSize = constraints.maxWidth / _gridSize;
+    // Debug logging for mobile touch issues
+    print('🔍 Touch at position: ${position.dx}, ${position.dy}');
+    print('🔍 Constraints: ${constraints.maxWidth} x ${constraints.maxHeight}');
+    
+    // Calculate cell size based on the actual grid size
+    double cellSize = (constraints.maxWidth - 32) / _gridSize; // 32 for padding
+    
+    print('🔍 Cell size: ${cellSize.toStringAsFixed(1)}px (${(cellSize * 0.4).clamp(20.0, 32.0).toStringAsFixed(1)}px font)');
+    
+    // Calculate which cell was touched
     int col = (position.dx ~/ cellSize);
     int row = (position.dy ~/ cellSize);
     
+    print('🔍 Calculated row: $row, col: $col');
+    
+    // Ensure we're within bounds
     if (row >= 0 && row < _gridSize && col >= 0 && col < _gridSize) {
       int index = row * _gridSize + col;
+      print('🔍 Selected index: $index, letter: ${_letters[index]}');
+      
+      // Set pressed index for visual feedback
+      setState(() {
+        _pressedIndex = index;
+      });
       
       // Don't allow selecting letters that are already selected (including hint letters)
       if (_selectedIndexes.contains(index)) {
         return;
       }
       
-      // Don't allow selecting hint letters that are already permanently highlighted
-      if (_hintIndexes.contains(index)) {
+      // Allow selecting hint letters if they're not already in the selection
+      if (_hintIndexes.contains(index) && _selectedIndexes.contains(index)) {
+        print('🔍 Hint letter already selected: ${_letters[index]}');
         return;
       }
       
@@ -521,11 +716,12 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
               _selectedIndexes.add(index);
             });
             HapticService().buttonTapFeedback();
+            print('🔍 Started selection from hint letter: ${_letters[index]}');
           }
           // If trying to start from wrong letter when hints exist, ignore the touch
-          // Validation will happen on pan end
           else {
-            return; // Ignore the touch, don't show error yet
+            print('🔍 Ignoring touch - must start from hint letter');
+            return;
           }
         } else {
           // No hints, allow starting from any letter
@@ -533,21 +729,33 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
             _selectedIndexes.add(index);
           });
           HapticService().buttonTapFeedback();
+          print('🔍 Started selection from letter: ${_letters[index]}');
         }
       }
-      // If we already have selected letters, allow building the selection freely
-      else if (_getNeighbors(_selectedIndexes.last).contains(index)) {
-        if (!_selectedIndexes.contains(index)) {
-          setState(() {
-            _selectedIndexes.add(index);
-          });
-          HapticService().buttonTapFeedback();
-        }
-      }
-      // If trying to select a non-adjacent letter, ignore the touch
-      // Validation will happen on pan end
+      // If we already have selected letters, allow building the selection
       else {
-        return; // Ignore the touch, don't show error yet
+        int lastSelectedIndex = _selectedIndexes.last;
+        List<int> neighbors = _getNeighbors(lastSelectedIndex);
+        print('🔍 Last selected: ${_letters[lastSelectedIndex]} (index: $lastSelectedIndex)');
+        print('🔍 Neighbors: ${neighbors.map((i) => '${_letters[i]}($i)').join(', ')}');
+        print('🔍 Trying to select: ${_letters[index]} (index: $index)');
+        
+        // Check if this letter is adjacent to the last selected letter
+        if (neighbors.contains(index)) {
+          if (!_selectedIndexes.contains(index)) {
+            setState(() {
+              _selectedIndexes.add(index);
+            });
+            HapticService().buttonTapFeedback();
+            print('✅ Added adjacent letter: ${_letters[index]}');
+          } else {
+            print('⚠️ Letter already selected: ${_letters[index]}');
+          }
+        } else {
+          print('❌ Letter not adjacent to last selected: ${_letters[index]}');
+          print('🔍 Available neighbors: ${neighbors.map((i) => _letters[i]).join(', ')}');
+          // Don't return here - let the user continue dragging
+        }
       }
     }
   }
@@ -1027,11 +1235,11 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
             ),
           ),
           
-          // Main content area
+          // Main content area with swipe navigation
           Expanded(
             child: GestureDetector(
               onHorizontalDragEnd: (details) {
-                // Swipe left to go to next word
+                // Swipe left to go to next word - only when not interacting with grid
                 if (details.primaryVelocity! > 0 && _hasNextUnansweredQuestion()) {
                   _goToNextWord();
                 }
@@ -1049,124 +1257,47 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
             ),
           ),
           
-          // Game grid with fixed height
+          // Game grid with fixed height - increased for larger cells
           SizedBox(
-            height: 380, // Slightly smaller height for tighter spacing
+            height: 420, // Increased height for larger, more touch-friendly cells
             child: LayoutBuilder(
               builder: (context, constraints) {
-                return GestureDetector(
-                  onPanStart: (details) => _onPanStart(details, constraints),
-                  onPanUpdate: (details) => _onPanUpdate(details, constraints),
-                  onPanEnd: _onPanEnd,
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (notification) => true, // Prevent scrolling
-                    child: GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(), // Disable scrolling
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: _gridSize,
-                        childAspectRatio: 1,
-                        crossAxisSpacing: 4,
-                        mainAxisSpacing: 0,
+                return Listener(
+                  onPointerDown: (details) {
+                    print('🔍 Pointer down at: ${details.localPosition}');
+                    _onPointerDown(details, constraints);
+                  },
+                  onPointerMove: (details) {
+                    if (_isDragging) {
+                      print('🔍 Pointer move at: ${details.localPosition}');
+                      _onPointerMove(details, constraints);
+                    }
+                  },
+                  onPointerUp: (details) {
+                    print('🔍 Pointer up');
+                    _onPointerUp(details);
+                  },
+                  onPointerCancel: (details) {
+                    print('🔍 Pointer cancel');
+                    _onPointerCancel(details);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: CustomPaint(
+                      painter: GridPainter(
+                        letters: _letters,
+                        gridSize: _gridSize,
+                        selectedIndexes: _selectedIndexes,
+                        wrongIndexes: _wrongIndexes,
+                        hintIndexes: _hintIndexes,
+                        answeredWords: _answeredWords.containsKey(_availableCards[_currentCardIndex].id),
+                        pressedIndex: _pressedIndex,
+                        dragPosition: _dragPosition,
                       ),
-                      itemCount: _letters.length,
-                    itemBuilder: (context, index) {
-                      bool isSelected = _selectedIndexes.contains(index);
-                      bool isWrong = _wrongIndexes.contains(index);
-                      bool isHintLetter = _hintIndexes.contains(index);
-                      
-                      // Check if this word is answered
-                      String currentWordId = _availableCards[_currentCardIndex].id;
-                      bool isAnswered = _answeredWords.containsKey(currentWordId);
-                      
-                      Color letterColor = Colors.grey[200]!;
-                      Color textColor = Colors.black87;
-                      List<BoxShadow>? boxShadow;
-                      
-                      if (isAnswered) {
-                        // For answered words, show all selected letters in blue
-                        if (isSelected) {
-                          letterColor = Colors.blue;
-                          textColor = Colors.white;
-                          boxShadow = [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            )
-                          ];
-                        }
-                      } else {
-                        // For unanswered words, use normal logic
-                        if (isWrong) {
-                          letterColor = Colors.red;
-                          textColor = Colors.white;
-                        } else if (isHintLetter) {
-                          // Hint letters are permanently highlighted in green
-                          letterColor = Colors.green;
-                          textColor = Colors.white;
-                          boxShadow = [
-                            BoxShadow(
-                              color: Colors.green.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            )
-                          ];
-                        } else if (isSelected) {
-                          letterColor = Colors.blue;
-                          textColor = Colors.white;
-                          boxShadow = [
-                            BoxShadow(
-                              color: Colors.blue.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            )
-                          ];
-                        }
-                      }
-                      
-                      return AnimatedBuilder(
-                        animation: _shakeAnimation,
-                        builder: (context, child) {
-                          double offset = (isWrong && _shakeController.isAnimating)
-                              ? _shakeAnimation.value
-                              : 0;
-                          return Transform.translate(
-                            offset: Offset(offset, 0),
-                            child: child,
-                          );
-                        },
-                          child: AnimatedBuilder(
-                            animation: _successAnimation,
-                            builder: (context, child) {
-                              double scale = (isSelected && _successController.isAnimating)
-                                  ? 1.0 + (_successAnimation.value * 0.2)
-                                  : 1.0;
-                              return Transform.scale(
-                                scale: scale,
-                                child: child,
-                              );
-                            },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: letterColor,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: boxShadow,
-                            ),
-                            child: Center(
-                              child: Text(
-                                _letters[index],
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: textColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                      child: Container(
+                        width: constraints.maxWidth - 32,
+                        height: constraints.maxWidth - 32,
+                      ),
                     ),
                   ),
                 );
