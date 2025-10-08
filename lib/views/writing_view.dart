@@ -1233,6 +1233,84 @@ class _WritingViewState extends State<WritingView> {
     }
   }
   
+  void _shuffleAndRestart() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take a reasonable number of cards (similar to original)
+    availableCards.shuffle();
+    final cardCount = availableCards.length >= 10 ? 10 : availableCards.length;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset the view with new cards
+    setState(() {
+      _currentCards = newCards;
+      _currentIndex = 0;
+      _correctAnswers = 0;
+      _totalAnswered = 0;
+      _showingResults = false;
+      _answered = false;
+      _lives = 5;
+      _userAnswer = '';
+      _textController.clear();
+      _guessedLetters.clear();
+      _revealedLetters.clear();
+      
+      // Reset all navigation state
+      _answeredQuestions.clear();
+      _correctAnswersMap.clear();
+      _correctAnswersText.clear();
+      _questionModes.clear();
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+    });
+    
+    _generateQuestion();
+  }
+
   void _showWordProgress() {
     // Create copies of the current session data for the display
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
@@ -1279,6 +1357,10 @@ class _WritingViewState extends State<WritingView> {
             _generateQuestion();
             
             // Session data has been reset, ready for new game
+          },
+          onShuffle: () {
+            Navigator.of(context).pop(); // Close end screen
+            _shuffleAndRestart();
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen

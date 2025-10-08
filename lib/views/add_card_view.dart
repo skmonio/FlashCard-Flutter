@@ -624,8 +624,8 @@ class _AddCardViewState extends State<AddCardView> {
           title: const Text('Select Decks'),
           content: SizedBox(
             width: double.maxFinite,
+            height: 400, // Fixed height to ensure scrolling works
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 // "Create Deck" button at the top
                 Container(
@@ -642,46 +642,55 @@ class _AddCardViewState extends State<AddCardView> {
                 
                 const SizedBox(height: 16),
                 
-                // "Uncategorized" option
-                _buildDeckOption(
-                  'Uncategorized',
-                  'Card will not be assigned to any deck',
-                  _selectedDeckIds.isEmpty,
-                  () {
-                    setDialogState(() {
-                      _selectedDeckIds.clear();
-                    });
-                    setState(() {
-                      _selectedDeckIds.clear();
-                    });
-                    Navigator.of(context).pop();
-                  },
+                // Scrollable list of deck options
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // "Uncategorized" option
+                        _buildDeckOption(
+                          'Uncategorized',
+                          'Card will not be assigned to any deck',
+                          _selectedDeckIds.isEmpty,
+                          () {
+                            setDialogState(() {
+                              _selectedDeckIds.clear();
+                            });
+                            setState(() {
+                              _selectedDeckIds.clear();
+                            });
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        // Individual deck options
+                        if (allDecks.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ...allDecks.map((deck) => _buildDeckOption(
+                            deck.name,
+                            '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
+                            _selectedDeckIds.contains(deck.id),
+                            () {
+                              setDialogState(() {
+                                if (_selectedDeckIds.contains(deck.id)) {
+                                  _selectedDeckIds.remove(deck.id);
+                                } else {
+                                  _selectedDeckIds.add(deck.id);
+                                }
+                              });
+                              setState(() {
+                                // Update the main widget state to reflect the changes
+                                // The dialog state is already updated above
+                              });
+                            },
+                          )),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                
-                const SizedBox(height: 8),
-                
-                // Individual deck options
-                if (allDecks.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  ...allDecks.map((deck) => _buildDeckOption(
-                    deck.name,
-                    '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
-                    _selectedDeckIds.contains(deck.id),
-                    () {
-                      setDialogState(() {
-                        if (_selectedDeckIds.contains(deck.id)) {
-                          _selectedDeckIds.remove(deck.id);
-                        } else {
-                          _selectedDeckIds.add(deck.id);
-                        }
-                      });
-                      setState(() {
-                        // Update the main widget state to reflect the changes
-                        // The dialog state is already updated above
-                      });
-                    },
-                  )),
-                ],
               ],
             ),
           ),

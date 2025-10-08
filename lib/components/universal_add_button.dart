@@ -42,18 +42,6 @@ class UniversalAddButton extends StatelessWidget {
           children: [
             _buildCreateOption(
               context,
-              icon: Icons.folder,
-              title: 'New Deck',
-              subtitle: 'Create a new deck to organize your cards',
-              color: Colors.blue,
-              onTap: () {
-                Navigator.of(context).pop();
-                _navigateToAddDeck(context);
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildCreateOption(
-              context,
               icon: Icons.style,
               title: 'New Card',
               subtitle: 'Add a new flashcard with word and definition',
@@ -61,6 +49,18 @@ class UniversalAddButton extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 _navigateToAddCard(context);
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildCreateOption(
+              context,
+              icon: Icons.folder,
+              title: 'New Deck',
+              subtitle: 'Create a new deck to organize your cards',
+              color: Colors.blue,
+              onTap: () {
+                Navigator.of(context).pop();
+                _navigateToAddDeck(context);
               },
             ),
             const SizedBox(height: 12),

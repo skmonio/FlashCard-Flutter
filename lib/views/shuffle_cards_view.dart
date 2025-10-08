@@ -148,6 +148,13 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _studiedWords.add(card);
     }
     
+    // Mark the card as correct/incorrect to properly record the attempt and reduce HP
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
+    
     // Track XP
     XpService.recordAnswer(_gameSession, wasCorrect);
     
@@ -175,6 +182,13 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     for (final card in cards) {
       if (!_studiedWords.any((w) => w.id == card.id)) {
         _studiedWords.add(card);
+      }
+      
+      // Mark the card as correct/incorrect to properly record the attempt and reduce HP
+      if (wasCorrect) {
+        card.markCorrect(GameDifficulty.medium);
+      } else {
+        card.markIncorrect(GameDifficulty.medium);
       }
       
       // For the main card (first one), track XP based on correctness

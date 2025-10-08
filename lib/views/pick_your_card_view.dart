@@ -866,6 +866,102 @@ class _PickYourCardViewState extends State<PickYourCardView>
     }
   }
 
+  void _shuffleAndRestart() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take a reasonable number of cards (similar to original)
+    availableCards.shuffle();
+    final cardCount = availableCards.length >= 10 ? 10 : availableCards.length;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset the view with new cards
+    setState(() {
+      // Update the widget's cards with new cards
+      // Note: We can't directly modify widget.cards, so we'll need to work with the new cards
+      currentCardIndex = 0;
+      _studiedWords.clear();
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _consecutiveCorrect = 0;
+      _totalAnswers = 0;
+      _correctAnswers = 0;
+      
+      // Reset hint system
+      _hintCount.clear();
+      _hintedWheels.clear();
+      _correctParts.clear();
+      _hintsUsed = 0;
+      
+      // Reset stored answers
+      _userAnswers.clear();
+      _cardResults.clear();
+      _userSelections.clear();
+      
+      // Reset result display
+      _showResult = false;
+      _isLastAnswerCorrect = false;
+      _lastUserAnswer = "";
+      _lastCorrectAnswer = "";
+      
+      // Reset lives if using lives mode
+      if (_useLivesMode) {
+        _lives = _maxLives;
+      }
+      
+      // Reset timer if using timed mode
+      if (widget.useTimedMode) {
+        _timeRemaining = _totalTime;
+        _resetTimer();
+      }
+    });
+    
+    // For Pick Your Card, we need to update the cards list
+    // Since we can't modify widget.cards directly, we'll need to recreate the widget
+    // For now, we'll work with the new cards in the current state
+    _loadCurrentCard();
+  }
+
   void _showResults() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -921,6 +1017,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
             
             // Reload the current card after state reset
             _loadCurrentCard();
+          },
+          onShuffle: () {
+            Navigator.of(context).pop(); // Close end screen
+            _shuffleAndRestart();
           },
           onDone: () {
             Navigator.of(context).pop(); // Close end screen

@@ -1688,6 +1688,10 @@ class _WordScrambleViewState extends State<WordScrambleView> {
             
             // Session data has been reset, ready for new game
           },
+          onShuffle: () {
+            Navigator.of(context).pop(); // Close end screen
+            _shuffleAndRestart();
+          },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen
             Navigator.of(context).pop(); // Go back to study type screen
@@ -1696,6 +1700,98 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       ),
     );
     }
+
+  void _shuffleAndRestart() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take a reasonable number of cards (similar to original)
+    availableCards.shuffle();
+    final cardCount = availableCards.length >= 10 ? 10 : availableCards.length;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset the view with new cards
+    setState(() {
+      _currentCards = newCards;
+      _currentIndex = 0;
+      _correctAnswers = 0;
+      _totalAnswered = 0;
+      _showingResults = false;
+      _answered = false;
+      _correctWord = '';
+      _scrambledLetters.clear();
+      _userAnswer.clear();
+      _originalLetters.clear();
+      _isCardFlipped = false;
+      _gameSession.reset();
+      
+      // Reset lives if using lives mode
+      if (_useLivesMode) {
+        _lives = _maxLives;
+      }
+      
+      // Reset all navigation state
+      _answeredQuestions.clear();
+      _correctAnswersMap.clear();
+      _correctWords.clear();
+      _scrambledLettersMap.clear();
+      _questionModes.clear();
+      
+      // Reset RPG tracking
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+      
+      // Reset hint tracking
+      _hintCount.clear();
+      _hintRevealed.clear();
+      
+      // Reset review tracking
+      _reviewCards.clear();
+    });
+    
+    _generateQuestion();
+  }
 
   void _showReviewScreen() {
     Navigator.of(context).push(

@@ -10,6 +10,7 @@ class WordProgressDisplay extends StatefulWidget {
   final Map<String, LearningMastery> wordMastery;
   final VoidCallback? onStudyAgain;
   final VoidCallback? onDone;
+  final VoidCallback? onShuffle;
   final bool hideNavigation;
 
   const WordProgressDisplay({
@@ -19,6 +20,7 @@ class WordProgressDisplay extends StatefulWidget {
     required this.wordMastery,
     this.onStudyAgain,
     this.onDone,
+    this.onShuffle,
     this.hideNavigation = false,
   });
 
@@ -540,7 +542,21 @@ class _WordProgressDisplayState extends State<WordProgressDisplay>
                         child: const Text('Study Again'),
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    if (widget.onShuffle != null) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: widget.onShuffle,
+                          icon: const Icon(Icons.shuffle, size: 18),
+                          label: const Text('Shuffle'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).colorScheme.secondary,
+                            foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton(
                         onPressed: widget.onDone,

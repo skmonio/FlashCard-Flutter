@@ -298,10 +298,14 @@ class _PopYourCardViewState extends State<PopYourCardView>
     if (isCorrect) {
       _correctAnswers++;
       _awardXP(currentCard);
+      // Mark the card as correct to properly record the attempt and reduce HP
+      currentCard.markCorrect(GameDifficulty.medium);
       HapticService().successFeedback();
     } else {
       // Track incorrect answers with 0 XP
       _xpGainedPerWord[currentCard.id] = 0;
+      // Mark the card as incorrect to properly record the attempt and reduce HP
+      currentCard.markIncorrect(GameDifficulty.medium);
       HapticService().errorFeedback();
       
       // Handle lives mode
@@ -425,6 +429,66 @@ class _PopYourCardViewState extends State<PopYourCardView>
     );
   }
 
+  void _shuffleAndRestart() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take a reasonable number of cards (similar to original)
+    availableCards.shuffle();
+    final cardCount = availableCards.length >= 10 ? 10 : availableCards.length;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Navigate to new Pop Your Card game with new cards
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PopYourCardView(
+          cards: newCards,
+          title: widget.title,
+        ),
+      ),
+    );
+  }
+
   void _showFinalXPSummary() {
     final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
     final accuracy = _totalQuestions > 0 ? (_correctAnswers / _totalQuestions) : 0.0;
@@ -460,6 +524,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
                 ),
               ),
             );
+          },
+          onShuffle: () {
+            Navigator.of(context).pop(); // Close word progress screen
+            Navigator.of(context).pop(); // Go back to study type screen
+            _shuffleAndRestart();
           },
           onDone: () {
             Navigator.of(context).pop(); // Close word progress screen

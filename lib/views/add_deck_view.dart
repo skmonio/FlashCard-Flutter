@@ -31,6 +31,13 @@ class _AddDeckViewState extends State<AddDeckView> {
       _selectedParentDeckId = widget.parentDeckId!;
       _isSubDeck = true;
     }
+    
+    // Add listener to update save button state
+    _nameController.addListener(() {
+      setState(() {
+        // This will trigger a rebuild to update the save button state
+      });
+    });
   }
 
   @override
@@ -289,6 +296,10 @@ class _AddDeckViewState extends State<AddDeckView> {
     return null;
   }
 
+  bool _canSave() {
+    return _nameController.text.trim().isNotEmpty;
+  }
+
   void _createDeck() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -351,6 +362,24 @@ class _AddDeckViewState extends State<AddDeckView> {
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+          ),
+        ),
+        
+        // Right side - Save button
+        Positioned(
+          right: 16, // Add proper padding from right edge
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: _canSave() ? _createDeck : null,
+            icon: Icon(
+              Icons.save,
+              color: _canSave() 
+                  ? Theme.of(context).colorScheme.primary 
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38),
+              size: 24,
+            ),
+            tooltip: 'Save Deck',
           ),
         ),
       ],

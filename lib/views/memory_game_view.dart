@@ -360,6 +360,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
             _resetGame(); // This handles all the resetting and setState internally
           }
         },
+        onShuffle: () {
+          // Reset and restart game with new cards
+          if (mounted) {
+            _shuffleAndRestart(); // This handles getting new cards and resetting
+          }
+        },
         onDone: () {
           Navigator.of(context).popUntil((route) => route.isFirst);
         },
@@ -1116,6 +1122,97 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     // Initialize the game
     _initializeGame();
+    
+    // Trigger a rebuild to return to the game view
+    if (mounted) {
+      setState(() {
+        // This will cause the build method to return the game view instead of the end screen
+      });
+    }
+  }
+
+  void _shuffleAndRestart() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    // Shuffle and take a reasonable number of cards (similar to original)
+    availableCards.shuffle();
+    final cardCount = availableCards.length >= 10 ? 10 : availableCards.length;
+    final newCards = availableCards.take(cardCount).toList();
+    
+    // Reset game state
+    _memoryCards.clear();
+    _firstCard = null;
+    _secondCard = null;
+    _canSelect = true;
+    _moves = 0;
+    _matches = 0;
+    _gameComplete = false;
+    _gameSession.reset(); // Reset XP tracking
+    // Reset RPG tracking
+    _xpGainedPerWord.clear();
+    _wordMastery.clear();
+    _studiedWords.clear();
+    _incorrectlyMatchedCards.clear();
+    
+    // Update the widget's cards with new cards
+    // Note: We can't directly modify widget.cards, so we'll need to recreate the widget
+    // For now, we'll use the new cards for initialization
+    _remainingCards = List.from(newCards);
+    _totalCardsProcessed = 0;
+    
+    // Initialize the game with new cards
+    if (newCards.length <= 5) {
+      _totalPairs = newCards.length;
+      _createMemoryCards(newCards);
+      _remainingCards.clear();
+    } else {
+      _totalPairs = 5;
+      final initialCards = _remainingCards.take(5).toList();
+      _remainingCards.removeRange(0, 5);
+      _totalCardsProcessed = 0;
+      _createMemoryCards(initialCards);
+    }
     
     // Trigger a rebuild to return to the game view
     if (mounted) {

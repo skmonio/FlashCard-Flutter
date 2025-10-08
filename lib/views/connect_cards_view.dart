@@ -304,7 +304,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
   
   void _handleTimeUp() {
-    // Time is up - move to next word
+    // Time is up - mark as incorrect and move to next word
+    _availableCards[_currentCardIndex].markIncorrect(GameDifficulty.medium);
     _nextWord();
   }
   
@@ -374,6 +375,98 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       // Reset current index to start from beginning
       _currentCardIndex = 0;
       _currentUnansweredIndex = 0;
+    }
+  }
+
+  void _getNewCardsFromDeck() {
+    // Get new cards from the same deck configuration as the original widget.cards
+    // This ensures we get fresh cards that can be studied today
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get all cards from the same decks as the original cards
+    Set<String> originalDeckIds = {};
+    for (final card in widget.cards) {
+      originalDeckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> allDeckCards = [];
+    Set<String> seenCardIds = {};
+    
+    if (originalDeckIds.isEmpty) {
+      // If no specific decks, get all cards
+      allDeckCards = provider.cards;
+    } else {
+      for (final deckId in originalDeckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (!seenCardIds.contains(card.id)) {
+            allDeckCards.add(card);
+            seenCardIds.add(card.id);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      // Fallback to original cards if no new cards found
+      return;
+    }
+    
+    // Filter cards that can be studied today (have HP remaining)
+    final availableCards = allDeckCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      // If no cards available today, use all cards (they'll be at 0 HP but still playable)
+      _availableCards = allDeckCards.where((card) {
+        final word = card.word.trim();
+        return word.length >= 3 && 
+               word.length <= 10 && 
+               !word.contains(' ') && 
+               card.definition.isNotEmpty &&
+               word.length == word.replaceAll(RegExp(r'[^a-zA-Z]'), '').length;
+      }).toList();
+    } else {
+      // Use available cards that can be studied today
+      _availableCards = availableCards.where((card) {
+        final word = card.word.trim();
+        return word.length >= 3 && 
+               word.length <= 10 && 
+               !word.contains(' ') && 
+               card.definition.isNotEmpty &&
+               word.length == word.replaceAll(RegExp(r'[^a-zA-Z]'), '').length;
+      }).toList();
+    }
+    
+    // If still no cards, use fallback cards
+    if (_availableCards.isEmpty) {
+      _availableCards = [
+        FlashCard(
+          word: 'HUIS',
+          definition: 'house',
+          example: '',
+          deckIds: {},
+          dateCreated: DateTime.now(),
+          learningMastery: LearningMastery(),
+          article: '',
+          plural: '',
+          pastTense: '',
+          futureTense: '',
+          pastParticiple: '',
+        ),
+        FlashCard(
+          word: 'BOEK',
+          definition: 'book',
+          example: '',
+          deckIds: {},
+          dateCreated: DateTime.now(),
+          learningMastery: LearningMastery(),
+          article: '',
+          plural: '',
+          pastTense: '',
+          futureTense: '',
+          pastParticiple: '',
+        ),
+      ];
     }
   }
 
@@ -614,6 +707,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       } else {
         // Incorrect word, show error
         print('❌ Word is incorrect');
+        
+        // Mark the card as incorrect to properly record the attempt and reduce HP
+        _availableCards[_currentCardIndex].markIncorrect(GameDifficulty.medium);
+        
         setState(() {
           _wrongIndexes = List.from(_selectedIndexes);
           
@@ -779,6 +876,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     
     // Track the studied word
     _studiedWords.add(_availableCards[_currentCardIndex]);
+    
+    // Mark the card as correct to properly record the attempt and reduce HP
+    _availableCards[_currentCardIndex].markCorrect(GameDifficulty.medium);
     
     // Advance the current unanswered index if this was the current question
     if (_currentCardIndex == _currentUnansweredIndex) {
@@ -977,6 +1077,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
 
   void _restartGameWithShuffle() {
+    // Get new cards from the same deck configuration
+    _getNewCardsFromDeck();
+    
     setState(() {
       _currentCardIndex = 0;
       _hintLevel = 0;
