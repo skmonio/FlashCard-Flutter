@@ -84,8 +84,11 @@ class XpService {
   }
 
   /// Record an attempt to a word (reduces HP but doesn't award XP)
+  /// NOTE: This method should NOT be called if markCorrect/markIncorrect will be called
+  /// as those methods already record the attempt in exerciseHistory
   void recordAttemptToWord(LearningMastery mastery, String exerciseType) {
-    // Record the attempt in exercise history to reduce HP
+    // Only record if this is a standalone attempt (not followed by markCorrect/markIncorrect)
+    // This is used for cases where we want to reduce HP without awarding XP
     mastery.exerciseHistory.add({
       'timestamp': DateTime.now().toIso8601String(),
       'exerciseType': exerciseType,
@@ -98,10 +101,29 @@ class XpService {
   }
 
   /// Add XP to a word and handle level ups (with daily diminishing returns)
+  /// NOTE: This method should be used when markCorrect/markIncorrect will NOT be called
+  /// If markCorrect/markIncorrect will be called, use addXPToWordWithoutRecordingAttempt instead
   void addXPToWord(LearningMastery mastery, String exerciseType, int consecutiveCorrect) {
     if (consecutiveCorrect > 0) {
       // Record the game attempt and get XP (with daily diminishing returns)
       final xpGained = mastery.recordGameAttempt(exerciseType);
+      
+      // Add the XP to the word
+      mastery.addXP(xpGained, exerciseType);
+      
+      // Update success count based on exercise type
+      _updateSuccessCount(mastery, exerciseType);
+      
+      // Update last review date to prevent immediate decay
+      mastery.lastReviewDate = DateTime.now();
+    }
+  }
+
+  /// Add XP to a word without recording the attempt (for use with markCorrect/markIncorrect)
+  void addXPToWordWithoutRecordingAttempt(LearningMastery mastery, String exerciseType, int consecutiveCorrect) {
+    if (consecutiveCorrect > 0) {
+      // Get XP without recording the attempt (markCorrect/markIncorrect will handle that)
+      final xpGained = mastery.getXPForGame(exerciseType);
       
       // Add the XP to the word
       mastery.addXP(xpGained, exerciseType);

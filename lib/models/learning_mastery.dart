@@ -404,16 +404,39 @@ class LearningMastery {
   
   // MARK: - Legacy Methods (for backward compatibility)
   
-  /// Legacy method - now delegates to processAnswer
+  /// Legacy method - now delegates to processAnswer and awards XP
   void markCorrect(GameDifficulty difficulty) {
+    // Record the attempt and get XP (with daily diminishing returns)
+    final xpGained = recordGameAttempt(_getExerciseTypeFromDifficulty(difficulty));
+    
     // Default to "good" quality for legacy calls
     processAnswer(difficulty, AnswerQuality.good);
+    
+    // Add the XP to the word
+    addXP(xpGained, _getExerciseTypeFromDifficulty(difficulty));
   }
   
-  /// Legacy method - now delegates to processAnswer
+  /// Legacy method - now delegates to processAnswer (no XP for incorrect)
   void markIncorrect(GameDifficulty difficulty) {
+    // Record the attempt (no XP for incorrect answers)
+    recordGameAttempt(_getExerciseTypeFromDifficulty(difficulty));
+    
     // Default to "incorrect" quality for legacy calls
     processAnswer(difficulty, AnswerQuality.incorrect);
+  }
+  
+  /// Helper method to convert GameDifficulty to exercise type string
+  String _getExerciseTypeFromDifficulty(GameDifficulty difficulty) {
+    switch (difficulty) {
+      case GameDifficulty.easy:
+        return 'multiple_choice';
+      case GameDifficulty.medium:
+        return 'test';
+      case GameDifficulty.hard:
+        return 'study';
+      case GameDifficulty.expert:
+        return 'timed_test';
+    }
   }
   
   /// Reset daily game attempts if it's a new day
@@ -509,7 +532,8 @@ class LearningMastery {
     return exerciseHistory
         .where((entry) {
           final timestamp = DateTime.parse(entry['timestamp']);
-          return timestamp.isAfter(todayStart);
+          final exerciseType = entry['exerciseType'] as String?;
+          return timestamp.isAfter(todayStart) && exerciseType != 'creation';
         })
         .fold(0, (sum, entry) => sum + (entry['xpGained'] as int));
   }
@@ -520,11 +544,12 @@ class LearningMastery {
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
     
-    // Count all exercise history entries for today
+    // Count all exercise history entries for today, excluding 'creation' entries
     final todayEntries = exerciseHistory
         .where((entry) {
           final timestamp = DateTime.parse(entry['timestamp']);
-          return timestamp.isAfter(todayStart);
+          final exerciseType = entry['exerciseType'] as String?;
+          return timestamp.isAfter(todayStart) && exerciseType != 'creation';
         })
         .toList();
     

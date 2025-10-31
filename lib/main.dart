@@ -7,7 +7,6 @@ import 'providers/sound_provider.dart';
 import 'providers/bubble_word_provider.dart';
 import 'providers/dutch_word_exercise_provider.dart';
 import 'providers/user_profile_provider.dart';
-import 'providers/dutch_grammar_provider.dart';
 
 import 'providers/phrase_provider.dart';
 import 'services/performance_service.dart';
@@ -73,7 +72,6 @@ class FlashcardApp extends StatelessWidget {
             return provider;
           },
         ),
-        ChangeNotifierProvider(create: (context) => DutchGrammarProvider()),
 
         ChangeNotifierProvider(
           create: (context) {

@@ -1453,14 +1453,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
     
     print('🔍 MemoryGameView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(card.learningMastery, "memory");
-    
     if (isCorrect) {
       // Check if this card was previously incorrectly matched
       final wasPreviouslyIncorrect = _incorrectlyMatchedCards.contains(card.id);
       
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
+      // Add XP to the word's learning mastery (this handles daily diminishing returns and records attempt)
       xpService.addXPToWord(card.learningMastery, "memory", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1491,6 +1488,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
       
       print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect${wasPreviouslyIncorrect ? ', was previously incorrect' : ''}) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Record attempt for incorrect answers (reduces HP but no XP)
+      xpService.recordAttemptToWord(card.learningMastery, "memory");
+      
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       

@@ -10,7 +10,6 @@ import 'all_decks_view.dart';
 import 'photo_import_view.dart';
 import 'phrases_list_view.dart';
 import 'dutch_words_view.dart';
-import 'dutch_grammar_rules_view.dart';
 import 'bubble_word_map_selection_view.dart';
 
 
@@ -436,41 +435,6 @@ class _CardsViewState extends State<CardsView> {
         ),
         const SizedBox(height: 12),
         
-        // Grammar Rules
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ElevatedButton(
-            onPressed: () => _navigateToGrammar(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.indigo.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.language,
-                  color: Colors.indigo,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Grammar Rules',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
         
         // Bubble Word
         Container(
@@ -553,13 +517,6 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
-  void _navigateToGrammar(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const DutchGrammarRulesView(),
-      ),
-    );
-  }
 
   void _navigateToBubbleWord(BuildContext context) {
     Navigator.of(context).push(

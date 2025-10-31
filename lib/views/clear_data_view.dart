@@ -5,7 +5,6 @@ import '../providers/dutch_word_exercise_provider.dart';
 
 import '../providers/user_profile_provider.dart';
 import '../providers/phrase_provider.dart';
-import '../providers/dutch_grammar_provider.dart';
 
 import '../models/learning_mastery.dart';
 
@@ -252,12 +251,6 @@ class _ClearDataViewState extends State<ClearDataView> {
     
 
     
-    try {
-      final grammarProvider = context.read<DutchGrammarProvider>();
-      grammarProvider.resetProgress();
-    } catch (e) {
-      print('DutchGrammarProvider not available: $e');
-    }
     
     // Clear individual word RPG progress (XP and learning mastery)
     try {

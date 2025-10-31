@@ -108,6 +108,22 @@ class SupabaseService {
   // Listen to auth state changes
   Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
   
+  // Check if username is available
+  Future<bool> isUsernameAvailable(String username) async {
+    try {
+      final response = await client
+          .from('user_profiles')
+          .select('username')
+          .eq('username', username)
+          .maybeSingle();
+      
+      return response == null; // Available if no user found with this username
+    } catch (e) {
+      print('❌ Error checking username availability: $e');
+      return false; // Assume not available on error
+    }
+  }
+  
   // Get user profile
   Future<Map<String, dynamic>?> getUserProfile() async {
     if (!isAuthenticated) return null;
@@ -146,18 +162,31 @@ class SupabaseService {
         return;
       }
       
-      // Generate a unique username based on email
-      final email = currentUser!.email ?? 'user';
-      final uniqueUsername = email.split('@')[0] + '_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      // Get username from user metadata or generate one
+      String username;
+      final userMetadata = currentUser!.userMetadata;
+      if (userMetadata != null && userMetadata['username'] != null) {
+        username = userMetadata['username'] as String;
+      } else {
+        // Generate a unique username based on email
+        final email = currentUser!.email ?? 'user';
+        username = email.split('@')[0] + '_${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      }
       
-      // Create default profile with unique username
-      print('🔧 Creating new user profile for ${currentUser!.id} with username: $uniqueUsername');
+      // Get selected avatar from metadata or use default
+      String selectedAvatar = 'person';
+      if (userMetadata != null && userMetadata['selected_avatar'] != null) {
+        selectedAvatar = userMetadata['selected_avatar'] as String;
+      }
+      
+      // Create default profile with username from metadata
+      print('🔧 Creating new user profile for ${currentUser!.id} with username: $username');
       await client
           .from('user_profiles')
           .insert({
             'id': currentUser!.id,
-            'username': uniqueUsername,
-            'selected_avatar': 'person',
+            'username': username,
+            'selected_avatar': selectedAvatar,
             'profile_image_data': null,
             'xp': 0,
             'level': 1,
@@ -175,6 +204,7 @@ class SupabaseService {
       print('✅ User profile created successfully');
     } catch (e) {
       print('❌ Error ensuring user profile exists: $e');
+      // Don't rethrow - this is a non-critical operation
     }
   }
 }

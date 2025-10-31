@@ -1194,11 +1194,8 @@ class _WritingViewState extends State<WritingView> {
     
     print('🔍 WritingView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(card.learningMastery, "writing");
-    
     if (isCorrect) {
-      // Award XP for correct answers
+      // Award XP for correct answers (this also records the attempt)
       xpService.addXPToWord(card.learningMastery, "writing", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1218,6 +1215,9 @@ class _WritingViewState extends State<WritingView> {
       
       print('🔍 WritingView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Record attempt for incorrect answers (reduces HP but no XP)
+      xpService.recordAttemptToWord(card.learningMastery, "writing");
+      
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       

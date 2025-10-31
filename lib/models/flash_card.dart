@@ -53,11 +53,18 @@ class FlashCard {
     deckIds = deckIds ?? {},
     dateCreated = dateCreated ?? DateTime.now(),
     lastModified = lastModified ?? DateTime.now(),
-    learningMastery = learningMastery ?? LearningMastery();
+    learningMastery = learningMastery ?? _createNewLearningMastery();
   
   // Enhanced learning percentage using the new mastery system
   int get learningPercentage {
     return learningMastery.learningPercentage.round();
+  }
+  
+  // Create a new LearningMastery with no initial XP for new cards
+  static LearningMastery _createNewLearningMastery() {
+    final mastery = LearningMastery();
+    // Don't give new cards any XP - they should start at 0% learned
+    return mastery;
   }
   
   // Check if card is fully learned (based on mastery state)

@@ -568,30 +568,32 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                                 )
                               : _buildUserAnswerDisplay(),
                         ),
-                        // Show correct answer if user answered incorrectly
-                        if (_answered && _userAnswer.join('').toLowerCase() != _correctWord.replaceAll(' ', '').toLowerCase()) ...[
+                        // Show feedback when answered
+                        if (_answered) ...[
                           const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'The correct answer is: $_correctWord',
+                          if (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase()) ...[
+                            // Show "Correct!" for correct answers
+                            Text(
+                              'Correct!',
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.green,
                               ),
                               textAlign: TextAlign.center,
-                              softWrap: true,
-                              overflow: TextOverflow.visible,
                             ),
-                          ),
+                          ] else ...[
+                            // Show correct answer for incorrect answers
+                            Text(
+                              'The correct answer is: $_correctWord',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.red,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -1028,6 +1030,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
         // Store the word mastery for display
         _wordMastery[card.id] = card.learningMastery;
       } else {
+        // Record attempt for incorrect answers (reduces HP but no XP)
+        xpService.recordAttemptToWord(card.learningMastery, "test");
+        
         // Explicitly set 0 XP for incorrect answers
         _xpGainedPerWord[card.id] = 0;
         

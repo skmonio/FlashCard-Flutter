@@ -463,6 +463,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
         
         print('🔍 TimedMultipleChoiceView: Awarded $actualXPGained XP to ${card.word}');
       } else {
+        // Record attempt for incorrect answers (reduces HP but no XP)
+        xpService.recordAttemptToWord(card.learningMastery, "test");
+        
         // Explicitly set 0 XP for incorrect answers
         _xpGainedPerWord[card.id] = 0;
         

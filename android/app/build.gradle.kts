@@ -47,15 +47,12 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            // Enable R8 for code obfuscation and size reduction
+            // Enable R8 for obfuscation and size reduction
             isMinifyEnabled = true
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Include debug symbols for better crash analysis
-            ndk {
-                debugSymbolLevel = "SYMBOL_TABLE"
-            }
-            // Disable debug symbol stripping completely
+            
+            // Disable debug symbol processing to avoid build issues
             packagingOptions {
                 jniLibs {
                     useLegacyPackaging = true

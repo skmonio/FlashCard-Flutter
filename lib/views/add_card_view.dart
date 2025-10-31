@@ -8,7 +8,6 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/translation_service.dart';
-import '../services/dutch_grammar_exercise_generator.dart';
 import '../utils/enhanced_snackbar.dart';
 
 class AddCardView extends StatefulWidget {
@@ -374,11 +373,11 @@ class _AddCardViewState extends State<AddCardView> {
         Row(
           children: [
             Expanded(
-              child: _buildArticleOption('de', 'De'),
+              child: _buildArticleOption('de'),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildArticleOption('het', 'Het'),
+              child: _buildArticleOption('het'),
             ),
           ],
         ),
@@ -386,7 +385,7 @@ class _AddCardViewState extends State<AddCardView> {
     );
   }
 
-  Widget _buildArticleOption(String article, String label) {
+  Widget _buildArticleOption(String article) {
     final isSelected = _selectedArticle == article;
     
     return GestureDetector(
@@ -410,30 +409,18 @@ class _AddCardViewState extends State<AddCardView> {
               ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
               : null,
         ),
-        child: Column(
-          children: [
-            Text(
-              article.toUpperCase(),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isSelected 
-                    ? Theme.of(context).colorScheme.primary 
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
+        child: Center(
+          child: Text(
+            article.toUpperCase(),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: isSelected 
+                  ? Theme.of(context).colorScheme.primary 
+                  : Theme.of(context).colorScheme.onSurface,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected 
-                    ? Theme.of(context).colorScheme.primary 
-                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );
@@ -647,42 +634,36 @@ class _AddCardViewState extends State<AddCardView> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        // "Uncategorized" option
-                        _buildDeckOption(
-                          'Uncategorized',
-                          'Card will not be assigned to any deck',
-                          _selectedDeckIds.isEmpty,
-                          () {
-                            setDialogState(() {
-                              _selectedDeckIds.clear();
-                            });
-                            setState(() {
-                              _selectedDeckIds.clear();
-                            });
-                            Navigator.of(context).pop();
-                          },
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Individual deck options
-                        if (allDecks.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          ...allDecks.map((deck) => _buildDeckOption(
+                        // Selected decks first (moved to top)
+                        if (_selectedDeckIds.isNotEmpty) ...[
+                          ...allDecks.where((deck) => _selectedDeckIds.contains(deck.id)).map((deck) => _buildDeckOption(
                             deck.name,
                             '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
-                            _selectedDeckIds.contains(deck.id),
+                            true,
                             () {
                               setDialogState(() {
-                                if (_selectedDeckIds.contains(deck.id)) {
-                                  _selectedDeckIds.remove(deck.id);
-                                } else {
-                                  _selectedDeckIds.add(deck.id);
-                                }
+                                _selectedDeckIds.remove(deck.id);
                               });
                               setState(() {
                                 // Update the main widget state to reflect the changes
-                                // The dialog state is already updated above
+                              });
+                            },
+                          )),
+                          const SizedBox(height: 8),
+                        ],
+                        
+                        // Individual deck options (excluding already selected ones)
+                        if (allDecks.isNotEmpty) ...[
+                          ...allDecks.where((deck) => !_selectedDeckIds.contains(deck.id)).map((deck) => _buildDeckOption(
+                            deck.name,
+                            '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
+                            false,
+                            () {
+                              setDialogState(() {
+                                _selectedDeckIds.add(deck.id);
+                              });
+                              setState(() {
+                                // Update the main widget state to reflect the changes
                               });
                             },
                           )),
@@ -746,6 +727,13 @@ class _AddCardViewState extends State<AddCardView> {
                   ],
                 ),
               ),
+              if (isSelected) ...[
+                Icon(
+                  Icons.remove_circle_outline,
+                  color: Colors.red[400],
+                  size: 20,
+                ),
+              ],
             ],
           ),
         ),
@@ -1014,6 +1002,11 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   String? _getDuplicateWarning() {
+    // Don't show duplicate warning if we're currently loading (creating the card)
+    if (_isLoading) {
+      return null;
+    }
+    
     final duplicateCard = _findDuplicateCard();
     if (duplicateCard != null) {
       return 'This word already exists';

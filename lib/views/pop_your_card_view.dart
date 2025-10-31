@@ -66,6 +66,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
   double _screenWidth = 0;
   double _screenHeight = 0;
   double _lastPhysicsUpdate = 0;
+  bool _dialogOpen = false;
 
   static const double _bubbleBaseSpeed = 100.0;
   double _bubbleHeight = 60.0; // Made responsive
@@ -109,6 +110,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
   @override
   void dispose() {
+    _dialogOpen = false;
     _ticker.dispose();
     _timer?.cancel();
     super.dispose();
@@ -339,7 +341,12 @@ class _PopYourCardViewState extends State<PopYourCardView>
       // In shuffle mode, call onComplete callback instead of showing end screen
       if (widget.shuffleMode && widget.onComplete != null) {
         final wasCorrect = _correctAnswers > 0; // Consider it successful if at least one correct
-        widget.onComplete!(wasCorrect);
+        // Add a small delay to ensure any open dialogs are closed first
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            widget.onComplete!(wasCorrect);
+          }
+        });
         return;
       }
       
@@ -351,34 +358,29 @@ class _PopYourCardViewState extends State<PopYourCardView>
   void _awardXP(FlashCard card) {
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
-    final xpService = XpService();
     
     print('🔍 PopYourCardView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Add XP to the word's learning mastery (this handles daily diminishing returns)
-    xpService.addXPToWord(card.learningMastery, "popYourCard", 1);
-    
-    // Get the actual XP gained (after diminishing returns)
-    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
-        : 0;
+    // Get the XP that will be gained (before markCorrect is called)
+    final xpGained = card.learningMastery.getXPForGame("popYourCard");
     
     // Track XP gained for this word in this session
-    _xpGainedPerWord[card.id] = actualXPGained;
-    _sessionXP += actualXPGained;
+    _xpGainedPerWord[card.id] = xpGained;
+    _sessionXP += xpGained;
     
     // Award XP to user profile (async but we don't await it)
-    userProfileProvider.addXp(actualXPGained);
+    userProfileProvider.addXp(xpGained);
     
     // Update the card in the provider
     provider.updateCard(card);
     
-    print('🔍 PopYourCardView: Awarded $actualXPGained XP to word "${card.word}" - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+    print('🔍 PopYourCardView: Will award $xpGained XP to word "${card.word}" - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
   }
 
   void _showCardXPFeedback(FlashCard card, bool isCorrect, String correctAnswer) {
     final xpGained = isCorrect ? _xpGainedPerWord[card.id] ?? 0 : 0;
     
+    _dialogOpen = true;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -410,9 +412,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
         actions: [
           TextButton(
             onPressed: () {
+              _dialogOpen = false;
               Navigator.pop(dialogContext);
               // Add a small delay to prevent rapid state changes
-              Future.delayed(const Duration(milliseconds: 100), () {
+              Future.delayed(const Duration(milliseconds: 200), () {
                 if (mounted) {
                   _nextCard();
                   // Only restart ticker if we're still on the same screen (not navigating away)
@@ -541,7 +544,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
 
   void _updatePhysics(Duration elapsed) {
-    if (_screenWidth <= 0 || _screenHeight <= 0) return;
+    if (_screenWidth <= 0 || _screenHeight <= 0 || !mounted || _dialogOpen) return;
     
     // Re-initialize bubbles if they haven't been properly positioned yet
     if (bubbles.any((b) => b.vx == 0 && b.vy == 0)) {

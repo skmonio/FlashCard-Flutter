@@ -56,6 +56,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   Map<int, String?> _selectedAnswers = {};
   Map<int, List<String>> _sentenceAnswers = {};
   Map<int, List<String>> _sentenceAvailable = {};
+  Map<int, bool> _correctAnswersMap = {}; // Track correctness for each question
   
   // RPG tracking for comprehensive completion screen
   Map<String, int> _xpGainedPerWord = {};
@@ -598,6 +599,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       _showAnswer = true;
       _answerWords = List<String>.from(_sentenceAnswers[_currentExerciseIndex] ?? []);
       _availableWords = List<String>.from(_sentenceAvailable[_currentExerciseIndex] ?? []);
+      _isCorrect = _correctAnswersMap[_currentExerciseIndex] ?? false; // Load stored correctness
     } else {
       // Reset for new question
       _selectedAnswer = null;
@@ -762,11 +764,15 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       final correctWords = currentExercise.correctAnswer.split(' ');
       isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctWords);
     } else {
-      // For multiple choice and fill in blank, check if the selected answer is at the correct index
-      // The correctAnswer field now contains the index (as string) of the correct option
+      // For multiple choice and fill in blank, check if the selected answer matches the correct answer
+      // The correctAnswer field contains the index (as string) of the correct option in the original options
       final options = _shuffledOptions[_currentExerciseIndex] ?? currentExercise.options;
-      final correctIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
-      isCorrect = _selectedAnswer != null && options.indexOf(_selectedAnswer!) == correctIndex;
+      final originalCorrectIndex = int.tryParse(currentExercise.correctAnswer) ?? 0;
+      // Get the actual correct answer value from the original options
+      final originalCorrectAnswer = currentExercise.options[originalCorrectIndex];
+      // Find the correct answer in the shuffled options and check if the selected answer matches it
+      final shuffledCorrectIndex = options.indexOf(originalCorrectAnswer);
+      isCorrect = _selectedAnswer != null && options.indexOf(_selectedAnswer!) == shuffledCorrectIndex;
     }
     
     // Update learning progress for the word exercise
@@ -797,6 +803,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       _selectedAnswers[_currentExerciseIndex] = _selectedAnswer;
       _sentenceAnswers[_currentExerciseIndex] = List<String>.from(_answerWords);
       _sentenceAvailable[_currentExerciseIndex] = List<String>.from(_availableWords);
+      _correctAnswersMap[_currentExerciseIndex] = isCorrect; // Store correctness value
     });
   }
 
@@ -882,9 +889,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   void _nextExercise() {
     // In single question mode, call the callback immediately after the first question
     if (widget.singleQuestionMode && widget.onComplete != null) {
-      final percentage = (_correctAnswers / _totalAnswered * 100).round();
-      final wasSuccessful = percentage >= 60; // 60% or higher is considered successful
-      widget.onComplete!(wasSuccessful);
+      // Use the stored correctness value to ensure consistency
+      final isCorrect = _correctAnswersMap[_currentExerciseIndex] ?? false;
+      widget.onComplete!(isCorrect);
       return;
     }
     

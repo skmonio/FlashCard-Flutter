@@ -5,7 +5,6 @@ import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
-import '../services/dutch_grammar_exercise_generator.dart';
 import '../services/data_sync_service.dart';
 import '../services/supabase_service.dart';
 import '../providers/dutch_word_exercise_provider.dart';
@@ -179,100 +178,6 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
   
-  /// Generate grammar exercises for a card and add them to the Dutch word exercise provider
-  Future<void> _generateGrammarExercisesForCard(FlashCard card) async {
-    try {
-      print('Provider: Generating grammar exercises for card: ${card.word}');
-      
-      // Generate grammar exercises
-      final grammarExercises = DutchGrammarExerciseGenerator.generateGrammarExercises(card);
-      
-      if (grammarExercises.isNotEmpty) {
-        print('Provider: Generated ${grammarExercises.length} grammar exercises');
-        
-        // Get the Dutch word exercise provider from the global instance
-        // Note: This should be called from a context where DutchWordExerciseProvider is available
-        // For now, we'll create a new instance and initialize it
-        final dutchProvider = DutchWordExerciseProvider();
-        await dutchProvider.initialize();
-        
-        // Check if there's already an exercise for this word
-        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-        
-        if (existingExercise != null) {
-          // Check for existing grammar exercises to avoid duplicates
-          final existingGrammarExercises = existingExercise.exercises.where((exercise) {
-            return exercise.prompt.contains('De or Het') || 
-                   exercise.prompt.contains('plural form') ||
-                   exercise.prompt.contains('Build the correct Dutch sentence');
-          }).toList();
-          
-          // Filter out exercises that already exist
-          final newGrammarExercises = grammarExercises.where((newExercise) {
-            return !existingGrammarExercises.any((existing) {
-              // Check if this type of exercise already exists
-              if (newExercise.prompt.contains('De or Het') && existing.prompt.contains('De or Het')) {
-                return true; // Article exercise already exists
-              }
-              if (newExercise.prompt.contains('plural form') && existing.prompt.contains('plural form')) {
-                return true; // Plural exercise already exists
-              }
-              if (newExercise.prompt.contains('Build the correct Dutch sentence') && existing.prompt.contains('Build the correct Dutch sentence')) {
-                return true; // Sentence builder exercise already exists
-              }
-              return false;
-            });
-          }).toList();
-          
-          if (newGrammarExercises.isNotEmpty) {
-            // Add only new exercises to existing word exercise
-            final updatedExercise = DutchWordExercise(
-              id: existingExercise.id,
-              targetWord: existingExercise.targetWord,
-              wordTranslation: existingExercise.wordTranslation,
-              deckId: existingExercise.deckId,
-              deckName: existingExercise.deckName,
-              category: existingExercise.category,
-              difficulty: existingExercise.difficulty,
-              exercises: [...existingExercise.exercises, ...newGrammarExercises],
-              createdAt: existingExercise.createdAt,
-              isUserCreated: existingExercise.isUserCreated,
-              learningProgress: existingExercise.learningProgress,
-            );
-            
-            await dutchProvider.updateWordExercise(updatedExercise);
-            print('Provider: Updated existing exercise with ${newGrammarExercises.length} new grammar exercises');
-          } else {
-            print('Provider: No new grammar exercises to add (all already exist)');
-          }
-        } else {
-          // Create new word exercise
-          final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
-          final deckName = getDeck(deckId)?.name ?? 'Default';
-          
-          final newWordExercise = DutchWordExercise(
-            id: card.id,
-            targetWord: card.word,
-            wordTranslation: card.definition,
-            deckId: deckId,
-            deckName: deckName,
-            category: WordCategory.common,
-            difficulty: ExerciseDifficulty.beginner,
-            exercises: grammarExercises,
-            createdAt: DateTime.now(),
-            isUserCreated: true,
-            learningProgress: LearningProgress(),
-          );
-          
-          await dutchProvider.addWordExercise(newWordExercise);
-          print('Provider: Created new word exercise with ${grammarExercises.length} grammar exercises');
-        }
-      }
-    } catch (e) {
-      print('Provider: Error generating grammar exercises: $e');
-      // Don't throw the error as this is not critical for card creation
-    }
-  }
   
   Future<bool> updateCard(FlashCard card) async {
     try {

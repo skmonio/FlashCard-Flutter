@@ -4,10 +4,8 @@ import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
-import '../providers/dutch_grammar_provider.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
-import '../models/dutch_grammar_rule.dart';
 import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'memory_game_view.dart';
@@ -16,7 +14,6 @@ import 'writing_view.dart';
 import 'pop_your_card_view.dart';
 import 'pick_your_card_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
-import 'dutch_grammar_exercise_view.dart';
 import '../components/unified_end_screen.dart';
 import '../models/learning_mastery.dart';
 import '../models/game_session.dart';
@@ -31,7 +28,6 @@ enum ShuffleMode {
   popYourCards,
   pickYourCards,
   dutchExercise,
-  grammarExercise,
 }
 
 class ShuffleCardsView extends StatefulWidget {
@@ -45,11 +41,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   int _currentScore = 0;
   int _highScore = 0;
   bool _isGameActive = false;
+  bool _isTransitioningToNextChallenge = false; // Track if we're transitioning between challenges
   ShuffleMode? _currentMode;
   FlashCard? _currentCard;
   DutchWordExercise? _currentExercise;
-  GrammarExercise? _currentGrammarExercise;
-  DutchGrammarRule? _currentGrammarRule;
   final Random _random = Random();
   
   // XP and card tracking for end screen
@@ -71,7 +66,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.popYourCards: true,
     ShuffleMode.pickYourCards: true,
     ShuffleMode.dutchExercise: true,
-    ShuffleMode.grammarExercise: true,
   };
 
   @override
@@ -100,7 +94,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.popYourCards: prefs.getBool('shuffle_mode_pop_your_cards') ?? true,
         ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
         ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
-        ShuffleMode.grammarExercise: prefs.getBool('shuffle_mode_grammar_exercise') ?? true,
       };
     });
   }
@@ -115,7 +108,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
     await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
     await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
-    await prefs.setBool('shuffle_mode_grammar_exercise', _enabledModes[ShuffleMode.grammarExercise] ?? true);
   }
 
   void _saveHighScore() async {
@@ -132,6 +124,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     setState(() {
       _currentScore = 0;
       _isGameActive = true;
+      _isTransitioningToNextChallenge = false;
       // Reset tracking data
       _studiedWords.clear();
       _xpGainedPerWord.clear();
@@ -178,43 +171,42 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   }
 
   void _trackAllCardsFromChallenge(List<FlashCard> cards, bool wasCorrect) {
-    // Track all cards involved in the challenge
-    for (final card in cards) {
-      if (!_studiedWords.any((w) => w.id == card.id)) {
-        _studiedWords.add(card);
-      }
-      
-      // Mark the card as correct/incorrect to properly record the attempt and reduce HP
-      if (wasCorrect) {
-        card.markCorrect(GameDifficulty.medium);
-      } else {
-        card.markIncorrect(GameDifficulty.medium);
-      }
-      
-      // For the main card (first one), track XP based on correctness
-      if (card.id == cards.first.id) {
-        if (wasCorrect) {
-          final xpService = XpService();
-          xpService.addXPToWord(card.learningMastery, "shuffleCards", 1);
-          
-          final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-              ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
-              : 0;
-          
-          _xpGainedPerWord[card.id] = actualXPGained;
-        } else {
-          _xpGainedPerWord[card.id] = 0;
-        }
-      } else {
-        // For other cards, they were just seen (0 XP)
-        _xpGainedPerWord[card.id] = 0;
-      }
-      
-      // Update mastery tracking for all cards
-      _wordMastery[card.id] = card.learningMastery;
+    // Only the primary (first) card should be counted as studied and have HP/XP adjusted.
+    if (cards.isEmpty) return;
+    final FlashCard primary = cards.first;
+
+    if (!_studiedWords.any((w) => w.id == primary.id)) {
+      _studiedWords.add(primary);
     }
-    
-    // Track overall XP
+
+    // Apply correctness to primary card only
+    if (wasCorrect) {
+      primary.markCorrect(GameDifficulty.medium);
+    } else {
+      primary.markIncorrect(GameDifficulty.medium);
+    }
+
+    // Track XP for primary card
+    if (wasCorrect) {
+      final xpService = XpService();
+      xpService.addXPToWord(primary.learningMastery, "shuffleCards", 1);
+      final actualXPGained = primary.learningMastery.exerciseHistory.isNotEmpty
+          ? primary.learningMastery.exerciseHistory.last['xpGained'] as int
+          : 0;
+      _xpGainedPerWord[primary.id] = actualXPGained;
+    } else {
+      _xpGainedPerWord[primary.id] = 0;
+    }
+
+    // Update mastery tracking map for primary only
+    _wordMastery[primary.id] = primary.learningMastery;
+
+    // Ensure distractor cards are not mistakenly counted as studied
+    for (final distractor in cards.skip(1)) {
+      _xpGainedPerWord[distractor.id] = 0; // explicitly zero XP for display purposes
+    }
+
+    // Track overall XP toward streaks/session
     XpService.recordAnswer(_gameSession, wasCorrect);
   }
 
@@ -223,26 +215,15 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final grammarProvider = context.read<DutchGrammarProvider>();
-    
     // Get all available cards and exercises
     final allCards = provider.cards;
     final allExercises = dutchProvider.wordExercises;
-    final allGrammarRules = grammarProvider.allRules;
-    final allGrammarExercises = <GrammarExercise>[];
-    
-    // Collect all grammar exercises from all rules
-    for (final rule in allGrammarRules) {
-      allGrammarExercises.addAll(rule.exercises);
-    }
     
     // Debug logging
     print('🔍 ShuffleCardsView: Available cards: ${allCards.length}');
     print('🔍 ShuffleCardsView: Available exercises: ${allExercises.length}');
-    print('🔍 ShuffleCardsView: Available grammar rules: ${allGrammarRules.length}');
-    print('🔍 ShuffleCardsView: Available grammar exercises: ${allGrammarExercises.length}');
     
-    if (allCards.isEmpty && allExercises.isEmpty && allGrammarExercises.isEmpty) {
+    if (allCards.isEmpty && allExercises.isEmpty) {
       _showGameOver('No cards or exercises available!');
       return;
     }
@@ -278,9 +259,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       availableModes.add(ShuffleMode.dutchExercise);
     }
     
-    if (allGrammarExercises.isNotEmpty && _enabledModes[ShuffleMode.grammarExercise] == true) {
-      availableModes.add(ShuffleMode.grammarExercise);
-    }
 
     if (availableModes.isEmpty) {
       _showGameOver('No content available!');
@@ -348,10 +326,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       case ShuffleMode.dutchExercise:
         _currentExercise = allExercises[_random.nextInt(allExercises.length)];
         _launchDutchExercise();
-        break;
-      case ShuffleMode.grammarExercise:
-        _currentGrammarExercise = allGrammarExercises[_random.nextInt(allGrammarExercises.length)];
-        _launchGrammarExercise();
         break;
     }
   }
@@ -541,7 +515,25 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       MaterialPageRoute(
         builder: (context) => targetView,
       ),
-    );
+    ).then((result) {
+      // If we return from a child view while game is still active
+      // and we're NOT transitioning to the next challenge,
+      // it means the user ended the test early - reset game state
+      if (_isGameActive && !_isTransitioningToNextChallenge && mounted) {
+        setState(() {
+          _isGameActive = false;
+          _currentScore = 0;
+          _currentMode = null;
+          _currentCard = null;
+          _currentExercise = null;
+          _currentChallengeCards.clear();
+        });
+      }
+      // Reset the flag after handling the return
+      _isTransitioningToNextChallenge = false;
+    });
+    // Reset the flag immediately after pushing, as we've successfully started the next challenge
+    _isTransitioningToNextChallenge = false;
   }
 
   void _launchDutchExercise() {
@@ -572,39 +564,27 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           singleQuestionMode: true,
         ),
       ),
-    );
-  }
-
-  void _launchGrammarExercise() {
-    if (_currentGrammarExercise == null) return;
-
-    // Find the rule that contains this exercise
-    final grammarProvider = context.read<DutchGrammarProvider>();
-    DutchGrammarRule? containingRule;
-    
-    for (final rule in grammarProvider.allRules) {
-      if (rule.exercises.contains(_currentGrammarExercise)) {
-        containingRule = rule;
-        break;
+    ).then((result) {
+      // If we return from a child view while game is still active
+      // and we're NOT transitioning to the next challenge,
+      // it means the user ended the test early - reset game state
+      if (_isGameActive && !_isTransitioningToNextChallenge && mounted) {
+        setState(() {
+          _isGameActive = false;
+          _currentScore = 0;
+          _currentMode = null;
+          _currentCard = null;
+          _currentExercise = null;
+          _currentChallengeCards.clear();
+        });
       }
-    }
-
-    if (containingRule == null) return;
-
-    // Create a single exercise view for shuffle mode
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DutchGrammarExerciseView(
-          exercises: [_currentGrammarExercise!],
-          ruleTitle: containingRule?.title ?? 'Grammar Exercise',
-          ruleId: containingRule?.id ?? 'unknown',
-          onComplete: _handleGrammarExerciseComplete,
-          shuffleMode: true,
-        ),
-      ),
-    );
+      // Reset the flag after handling the return
+      _isTransitioningToNextChallenge = false;
+    });
+    // Reset the flag immediately after pushing, as we've successfully started the next challenge
+    _isTransitioningToNextChallenge = false;
   }
+
 
   void _handleCardModeComplete(bool wasCorrect) {
     // Track all cards from the challenge
@@ -622,9 +602,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     _handleChallengeComplete(wasCorrect);
   }
 
-  void _handleGrammarExerciseComplete(bool wasCorrect) {
-    _handleChallengeComplete(wasCorrect);
-  }
 
   // For Dutch exercises, we need to track individual question results
   void _handleDutchExerciseQuestionComplete(bool wasCorrect) {
@@ -657,6 +634,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Wait a moment then continue to next challenge
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (_isGameActive && mounted) {
+        _isTransitioningToNextChallenge = true;
         _nextChallenge();
       }
     });
@@ -699,6 +677,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Much faster transition to next challenge
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_isGameActive && mounted) {
+        // Set flag before popping to indicate we're transitioning
+        _isTransitioningToNextChallenge = true;
         // Pop the current game view first, then launch next challenge
         Navigator.pop(context);
         // Use a small delay to ensure the pop completes before launching next challenge
@@ -712,6 +692,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   }
 
   void _showShuffleEndScreen(String message, bool wasSuccessful) {
+    final int correct = _currentScore; // number answered correctly
+    final int total = wasSuccessful ? _currentScore : _currentScore + 1; // include the wrong one if failed
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => UnifiedEndScreen(
@@ -720,6 +702,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           wordMastery: _wordMastery,
           title: 'Shuffle Cards Complete',
           showSwipeToReview: false,
+          correctAnswers: correct,
+          totalQuestions: total,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             _startGame(); // Restart the game
@@ -1116,7 +1100,6 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
                     _buildModeToggle('Pop Your Card', ShuffleMode.popYourCards, Icons.bubble_chart, Colors.purple),
                     _buildModeToggle('Pick Your Card', ShuffleMode.pickYourCards, Icons.touch_app, Colors.pink),
                     _buildModeToggle('Words', ShuffleMode.dutchExercise, Icons.school, Colors.green),
-                    _buildModeToggle('Grammar', ShuffleMode.grammarExercise, Icons.book, Colors.indigo),
                   ],
                 ),
               ),

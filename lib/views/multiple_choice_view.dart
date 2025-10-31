@@ -487,7 +487,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   void _goToNextQuestion() {
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
-      final isCorrect = _selectedAnswer == _correctAnswerIndex;
+      // Use the stored correctness value from when the answer was selected
+      // This ensures consistency with what the user saw when they answered
+      final isCorrect = _correctAnswersMap[_currentIndex] ?? false;
       if (widget.onComplete != null) {
         widget.onComplete!(isCorrect);
       }
@@ -1208,11 +1210,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(card.learningMastery, "test");
-    
     if (isCorrect) {
-      // Award XP for correct answers
+      // Award XP for correct answers (this also records the attempt)
       xpService.addXPToWord(card.learningMastery, "test", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1235,6 +1234,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       
       print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Record attempt for incorrect answers (reduces HP but no XP)
+      xpService.recordAttemptToWord(card.learningMastery, "test");
+      
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       

@@ -13,6 +13,8 @@ class UnifiedEndScreen extends StatefulWidget {
   final VoidCallback? onShuffle;
   final String title;
   final bool showSwipeToReview;
+  final int? correctAnswers; // Optional overall score
+  final int? totalQuestions; // Optional overall total
 
   const UnifiedEndScreen({
     super.key,
@@ -24,6 +26,8 @@ class UnifiedEndScreen extends StatefulWidget {
     this.onShuffle,
     this.title = 'Session Complete',
     this.showSwipeToReview = false,
+    this.correctAnswers,
+    this.totalQuestions,
   });
 
   @override
@@ -161,6 +165,16 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                                 '${widget.studiedWords.length} words studied',
                                 style: Theme.of(context).textTheme.bodyLarge,
                               ),
+                              if (widget.correctAnswers != null && widget.totalQuestions != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Score: ${widget.correctAnswers}/${widget.totalQuestions} '
+                                  '(${(widget.totalQuestions! > 0 ? (widget.correctAnswers! / widget.totalQuestions! * 100).toInt() : 0)}%)',
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 4),
                               // Check if user got any XP (any correct answers)
                               if (widget.xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp) > 0) ...[

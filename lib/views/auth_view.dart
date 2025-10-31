@@ -14,6 +14,8 @@ class AuthView extends StatefulWidget {
 class _AuthViewState extends State<AuthView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _isSignUp = false;
@@ -22,6 +24,8 @@ class _AuthViewState extends State<AuthView> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -32,9 +36,26 @@ class _AuthViewState extends State<AuthView> {
 
     try {
       if (_isSignUp) {
+        // Check username availability before signup
+        final username = _usernameController.text.trim();
+        final isUsernameAvailable = await SupabaseService.instance.isUsernameAvailable(username);
+        if (!isUsernameAvailable) {
+          if (mounted) {
+            EnhancedSnackBar.showError(
+              context,
+              message: 'Username "$username" is already taken. Please choose another.',
+            );
+          }
+          return;
+        }
+
         await SupabaseService.instance.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
+          data: {
+            'username': username,
+            'selected_avatar': 'person',
+          },
         );
         if (mounted) {
           EnhancedSnackBar.showInfo(
@@ -61,9 +82,24 @@ class _AuthViewState extends State<AuthView> {
       }
     } catch (error) {
       if (mounted) {
+        String errorMessage = error.toString();
+        
+        // Provide more user-friendly error messages
+        if (errorMessage.contains('validation_failed') && errorMessage.contains('email')) {
+          errorMessage = 'Please check your email address format and try again.';
+        } else if (errorMessage.contains('User already registered')) {
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (errorMessage.contains('Password should be at least')) {
+          errorMessage = 'Password must be at least 6 characters long.';
+        } else if (errorMessage.contains('Invalid login credentials')) {
+          errorMessage = 'Invalid email or password. Please check and try again.';
+        } else if (errorMessage.contains('Database error')) {
+          errorMessage = 'There was a problem creating your account. Please try again.';
+        }
+        
         EnhancedSnackBar.showError(
           context,
-          message: error.toString(),
+          message: errorMessage,
         );
       }
     } finally {
@@ -154,12 +190,23 @@ class _AuthViewState extends State<AuthView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
@@ -182,7 +229,26 @@ class _AuthViewState extends State<AuthView> {
                     color: Colors.grey[600],
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
+                // Mode indicator
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _isSignUp ? Colors.green.shade50 : Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _isSignUp ? Colors.green.shade200 : Colors.blue.shade200,
+                    ),
+                  ),
+                  child: Text(
+                    _isSignUp ? 'Creating New Account' : 'Sign In to Your Account',
+                    style: TextStyle(
+                      color: _isSignUp ? Colors.green.shade700 : Colors.blue.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -190,18 +256,115 @@ class _AuthViewState extends State<AuthView> {
                     labelText: 'Email',
                     prefixIcon: Icon(Icons.email),
                     border: OutlineInputBorder(),
+                    hintText: 'Enter your email address',
                   ),
+                  onChanged: (value) {
+                    // Auto-clean common email typos
+                    if (value.contains(',') || value.contains(';')) {
+                      final cleanedValue = value.replaceAll(RegExp(r'[,;]'), '');
+                      _emailController.value = _emailController.value.copyWith(
+                        text: cleanedValue,
+                        selection: TextSelection.collapsed(offset: cleanedValue.length),
+                      );
+                    }
+                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
                     }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
+                    
+                    // Clean the email value (remove extra spaces, commas, etc.)
+                    final cleanEmail = value.trim().replaceAll(RegExp(r'[,;]'), '');
+                    
+                    // Check for basic email format
+                    if (!cleanEmail.contains('@')) {
+                      return 'Please enter a valid email address';
                     }
+                    
+                    // More comprehensive email validation
+                    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                    if (!emailRegex.hasMatch(cleanEmail)) {
+                      return 'Please enter a valid email address (e.g., user@example.com)';
+                    }
+                    
+                    // Check for common typos
+                    if (value.contains(',') || value.contains(';')) {
+                      return 'Email contains invalid characters. Please remove commas or semicolons.';
+                    }
+                    
                     return null;
                   },
                 ),
+                const SizedBox(height: 8),
+                // Email help text
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Enter a valid email address (e.g., yourname@example.com)',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
+                if (_isSignUp) ...[
+                  TextFormField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      prefixIcon: Icon(Icons.person),
+                      border: OutlineInputBorder(),
+                      hintText: 'Choose a unique username',
+                    ),
+                    validator: (value) {
+                      if (_isSignUp) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        if (value.length < 3) {
+                          return 'Username must be at least 3 characters';
+                        }
+                        if (value.length > 20) {
+                          return 'Username must be less than 20 characters';
+                        }
+                        if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                          return 'Username can only contain letters, numbers, and underscores';
+                        }
+                      }
+                      return null;
+                    },
+                    onChanged: (value) async {
+                      if (_isSignUp && value.isNotEmpty && value.length >= 3) {
+                        // Check username availability in real-time
+                        final isAvailable = await SupabaseService.instance.isUsernameAvailable(value);
+                        if (!isAvailable && mounted) {
+                          // Show a subtle hint that username is taken
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Username "$value" is already taken'),
+                              duration: const Duration(seconds: 2),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  // Username help text
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Choose a unique username (3-20 characters, letters, numbers, and underscores only)',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
@@ -220,6 +383,29 @@ class _AuthViewState extends State<AuthView> {
                     return null;
                   },
                 ),
+                if (_isSignUp) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Password',
+                      prefixIcon: Icon(Icons.lock_outline),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (_isSignUp) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please confirm your password';
+                        }
+                        if (value != _passwordController.text) {
+                          return 'Passwords do not match';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -238,7 +424,14 @@ class _AuthViewState extends State<AuthView> {
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () {
-                    setState(() => _isSignUp = !_isSignUp);
+                    setState(() {
+                      _isSignUp = !_isSignUp;
+                      // Clear form fields when switching modes
+                      _emailController.clear();
+                      _passwordController.clear();
+                      _confirmPasswordController.clear();
+                      _usernameController.clear();
+                    });
                   },
                   child: Text(
                     _isSignUp
@@ -265,7 +458,10 @@ class _AuthViewState extends State<AuthView> {
                 ),
               ],
             ),
-          ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

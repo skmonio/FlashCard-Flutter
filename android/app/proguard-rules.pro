@@ -12,13 +12,11 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve the line number information for debugging stack traces.
+-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep the original source file name for better debugging.
+-renamesourcefileattribute SourceFile
 
 # Flutter specific rules
 -keep class io.flutter.app.** { *; }
@@ -72,6 +70,14 @@
 
 # Device info
 -keep class dev.fluttercommunity.plus.device_info.** { *; }
+
+# Google Play Core rules (fix R8 issues)
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+
+# Flutter Play Store Split Application rules
+-keep class io.flutter.embedding.android.FlutterPlayStoreSplitApplication { *; }
+-keep class io.flutter.embedding.engine.deferredcomponents.** { *; }
 
 # Keep all model classes
 -keep class * extends java.io.Serializable { *; }

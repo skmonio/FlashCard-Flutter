@@ -9,7 +9,6 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import '../models/dutch_word_exercise.dart';
-import '../services/dutch_grammar_exercise_generator.dart';
 import 'add_deck_view.dart';
 import 'deck_detail_view.dart';
 import 'add_card_view.dart';
@@ -1303,9 +1302,6 @@ class _AllDecksViewState extends State<AllDecksView> {
             exercises.add(_generateBasicMultipleChoiceExercise(card, provider));
           }
           
-          // Generate grammar exercises for this card
-          final grammarExercises = DutchGrammarExerciseGenerator.generateGrammarExercises(card);
-          exercises.addAll(grammarExercises);
           
           if (exercises.isNotEmpty) {
             // Create new word exercise

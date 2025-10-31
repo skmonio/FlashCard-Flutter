@@ -25,7 +25,9 @@ enum SortOption {
   definitionZA,
   srsLevel,
   learningPercentage,
+  learningPercentageLowHigh,
   dateCreated,
+  dateCreatedOldestFirst,
   lastModified,
 }
 
@@ -676,8 +678,12 @@ class _AllCardsViewState extends State<AllCardsView> {
         return 'SRS Level';
       case SortOption.learningPercentage:
         return 'Learning Progress';
+      case SortOption.learningPercentageLowHigh:
+        return 'Learning Progress (Low-High)';
       case SortOption.dateCreated:
-        return 'Date Created';
+        return 'Date Created (Recent)';
+      case SortOption.dateCreatedOldestFirst:
+        return 'Date Created (Oldest)';
       case SortOption.lastModified:
         return 'Last Modified';
     }
@@ -697,8 +703,12 @@ class _AllCardsViewState extends State<AllCardsView> {
         return Icons.timeline;
       case SortOption.learningPercentage:
         return Icons.trending_up;
+      case SortOption.learningPercentageLowHigh:
+        return Icons.trending_down;
       case SortOption.dateCreated:
-        return Icons.calendar_today;
+        return Icons.keyboard_arrow_up;
+      case SortOption.dateCreatedOldestFirst:
+        return Icons.keyboard_arrow_down;
       case SortOption.lastModified:
         return Icons.update;
     }
@@ -798,8 +808,14 @@ class _AllCardsViewState extends State<AllCardsView> {
         case SortOption.learningPercentage:
           cards.sort((a, b) => (b.learningPercentage ?? 0).compareTo(a.learningPercentage ?? 0));
           break;
+        case SortOption.learningPercentageLowHigh:
+          cards.sort((a, b) => (a.learningPercentage ?? 0).compareTo(b.learningPercentage ?? 0));
+          break;
         case SortOption.dateCreated:
           cards.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
+          break;
+        case SortOption.dateCreatedOldestFirst:
+          cards.sort((a, b) => a.dateCreated.compareTo(b.dateCreated));
           break;
         case SortOption.lastModified:
           cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
@@ -1553,7 +1569,8 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   void _showDeckSelectionDialog({required bool isMove}) {
     final provider = context.read<FlashcardProvider>();
-    final availableDecks = provider.decks.where((deck) => !deck.isSubDeck).toList();
+    // Include all decks (main and sub-decks) so users can target any folder
+    final availableDecks = provider.decks.toList();
     
     if (availableDecks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

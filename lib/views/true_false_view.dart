@@ -410,7 +410,11 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   void _goToNextQuestion() {
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
-      final isCorrect = _selectedAnswer == _correctAnswer;
+      // Use the stored correct answer value and compare with user's selected answer
+      // This ensures consistency even if _correctAnswer was reset
+      final storedCorrectAnswer = _correctAnswersMap[_currentIndex];
+      final userAnswer = _selectedAnswer ?? _answeredQuestions[_currentIndex];
+      final isCorrect = userAnswer != null && storedCorrectAnswer != null && userAnswer == storedCorrectAnswer;
       if (widget.onComplete != null) {
         widget.onComplete!(isCorrect);
       }
@@ -1042,10 +1046,15 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       correctAnswer = currentCard.word;
     }
     
-    if (isCorrectAnswer && _selectedAnswer == false) {
-      // User correctly answered FALSE - show green positive feedback
+    if (isCorrectAnswer) {
+      // User answered correctly - show green positive feedback
       textColor = Colors.green;
-      message = 'Correct! The answer is: $correctAnswer';
+      // If the correct answer was FALSE, also show the true translation/word
+      if (_correctAnswer == false) {
+        message = 'Correct – the answer is: $correctAnswer';
+      } else {
+        message = 'Correct!';
+      }
     } else {
       // User answered incorrectly - show red feedback
       textColor = Colors.red;
@@ -1365,11 +1374,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     print('🔍 TrueFalseView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(card.learningMastery, "true_false");
-    
     if (isCorrect) {
-      // Award XP for correct answers
+      // Award XP for correct answers (this also records the attempt)
       xpService.addXPToWord(card.learningMastery, "true_false", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1382,6 +1388,9 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       
       print('🔍 TrueFalseView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Record attempt for incorrect answers (reduces HP but no XP)
+      xpService.recordAttemptToWord(card.learningMastery, "true_false");
+      
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       
@@ -1499,6 +1508,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           studiedWords: sessionStudiedWords,
           title: 'True/False Complete',
           showSwipeToReview: false, // Disable review functionality
+          correctAnswers: _correctAnswers,
+          totalQuestions: _totalAnswered,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
             // Reset and restart test

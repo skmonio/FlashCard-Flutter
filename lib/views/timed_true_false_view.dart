@@ -742,10 +742,10 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
       correctAnswer = card.word;
     }
     
-    if (isCorrectAnswer && _selectedAnswer == false) {
-      // User correctly answered FALSE - show green positive feedback
+    if (isCorrectAnswer) {
+      // User answered correctly - show green positive feedback
       textColor = Colors.green;
-      message = 'Correct! The answer is: $correctAnswer';
+      message = 'Correct!';
     } else {
       // User answered incorrectly - show red feedback
       textColor = Colors.red;
@@ -968,6 +968,9 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
         // Store the word mastery for display
         _wordMastery[card.id] = card.learningMastery;
       } else {
+        // Record attempt for incorrect answers (reduces HP but no XP)
+        xpService.recordAttemptToWord(card.learningMastery, "test");
+        
         // Explicitly set 0 XP for incorrect answers
         _xpGainedPerWord[card.id] = 0;
         

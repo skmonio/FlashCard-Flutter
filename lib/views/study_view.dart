@@ -777,9 +777,6 @@ class _StudyViewState extends State<StudyView> {
         break;
     }
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(currentCard.learningMastery, exerciseType);
-    
     if (isCorrect) {
       currentCard.markCorrect(GameDifficulty.medium);
       

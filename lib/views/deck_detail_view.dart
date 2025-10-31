@@ -15,6 +15,7 @@ import 'study_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
 import 'dutch_words_practice_view.dart';
+import 'all_cards_view.dart'; // Import for SortOption enum
 
 class DeckDetailView extends StatefulWidget {
   final Deck deck;
@@ -30,7 +31,7 @@ class DeckDetailView extends StatefulWidget {
 
 class _DeckDetailViewState extends State<DeckDetailView> {
   String _searchQuery = '';
-  String _sortBy = 'word'; // word, definition, dateCreated, srsLevel
+  SortOption _sortOption = SortOption.wordAZ; // Changed from String to SortOption
   bool _showOnlyParentCards = false; // Track whether to show only parent deck cards
   
   // Selection mode variables
@@ -134,15 +135,15 @@ class _DeckDetailViewState extends State<DeckDetailView> {
               ),
               const SizedBox(width: 12),
               // Sort Button
-              PopupMenuButton<String>(
+              PopupMenuButton<SortOption>(
                 onSelected: (value) {
                   setState(() {
-                    _sortBy = value;
+                    _sortOption = value;
                   });
                 },
                 itemBuilder: (context) => [
                   PopupMenuItem(
-                    value: 'word',
+                    value: SortOption.wordAZ,
                     child: Row(
                       children: [
                         const Icon(Icons.sort_by_alpha),
@@ -152,7 +153,17 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     ),
                   ),
                   PopupMenuItem(
-                    value: 'definition',
+                    value: SortOption.wordZA,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.sort_by_alpha),
+                        const SizedBox(width: 8),
+                        const Text('Word Z-A'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.definitionAZ,
                     child: Row(
                       children: [
                         const Icon(Icons.sort_by_alpha),
@@ -162,22 +173,72 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     ),
                   ),
                   PopupMenuItem(
-                    value: 'dateCreated',
+                    value: SortOption.definitionZA,
                     child: Row(
                       children: [
-                        const Icon(Icons.access_time),
+                        const Icon(Icons.sort_by_alpha),
                         const SizedBox(width: 8),
-                        const Text('Date Added'),
+                        const Text('Definition Z-A'),
                       ],
                     ),
                   ),
                   PopupMenuItem(
-                    value: 'srsLevel',
+                    value: SortOption.dateCreated,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.keyboard_arrow_up),
+                        const SizedBox(width: 8),
+                        const Text('Date Added (Recent)'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.dateCreatedOldestFirst,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.keyboard_arrow_down),
+                        const SizedBox(width: 8),
+                        const Text('Date Added (Oldest)'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.srsLevel,
                     child: Row(
                       children: [
                         const Icon(Icons.trending_up),
                         const SizedBox(width: 8),
                         const Text('SRS Level'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.learningPercentage,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.trending_up),
+                        const SizedBox(width: 8),
+                        const Text('Learning % High-Low'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.learningPercentageLowHigh,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.trending_down),
+                        const SizedBox(width: 8),
+                        const Text('Learning % Low-High'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: SortOption.lastModified,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time),
+                        const SizedBox(width: 8),
+                        const Text('Last Modified'),
                       ],
                     ),
                   ),
@@ -191,9 +252,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_getSortIcon(_sortBy), size: 16),
+                      Icon(_getSortIcon(_sortOption), size: 16),
                       const SizedBox(width: 4),
-                      Text(_getSortOptionText(_sortBy)),
+                      Text(_getSortOptionText(_sortOption)),
                     ],
                   ),
                 ),
@@ -239,32 +300,46 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     return chip;
   }
   
-  IconData _getSortIcon(String sortBy) {
-    switch (sortBy) {
-      case 'word':
-      case 'definition':
+  IconData _getSortIcon(SortOption sortOption) {
+    switch (sortOption) {
+      case SortOption.wordAZ:
+      case SortOption.wordZA:
+      case SortOption.definitionAZ:
+      case SortOption.definitionZA:
         return Icons.sort_by_alpha;
-      case 'dateCreated':
+      case SortOption.dateCreated:
+      case SortOption.dateCreatedOldestFirst:
         return Icons.access_time;
-      case 'srsLevel':
+      case SortOption.lastModified:
+      case SortOption.srsLevel:
+      case SortOption.learningPercentage:
+      case SortOption.learningPercentageLowHigh:
         return Icons.trending_up;
-      default:
-        return Icons.sort_by_alpha;
     }
   }
 
-  String _getSortOptionText(String sortBy) {
-    switch (sortBy) {
-      case 'word':
+  String _getSortOptionText(SortOption sortOption) {
+    switch (sortOption) {
+      case SortOption.wordAZ:
         return 'Word A-Z';
-      case 'definition':
+      case SortOption.wordZA:
+        return 'Word Z-A';
+      case SortOption.definitionAZ:
         return 'Definition A-Z';
-      case 'dateCreated':
-        return 'Date Added';
-      case 'srsLevel':
+      case SortOption.definitionZA:
+        return 'Definition Z-A';
+      case SortOption.dateCreated:
+        return 'Date Added (Recent)';
+      case SortOption.dateCreatedOldestFirst:
+        return 'Date Added (Oldest)';
+      case SortOption.srsLevel:
         return 'SRS Level';
-      default:
-        return 'Word A-Z';
+      case SortOption.learningPercentage:
+        return 'Learning %';
+      case SortOption.learningPercentageLowHigh:
+        return 'Learning % (Low-High)';
+      case SortOption.lastModified:
+        return 'Last Modified';
     }
   }
 
@@ -451,6 +526,39 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        // Always show HP
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: card.hasReachedDailyLimit 
+                                  ? Colors.orange.withOpacity(0.1)
+                                  : Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              card.hasReachedDailyLimit 
+                                  ? 'Daily limit reached'
+                                  : '${card.currentHP}/${card.maxHP} HP',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: card.hasReachedDailyLimit
+                                    ? Colors.orange[700]
+                                    : card.isDefeated 
+                                        ? Colors.grey[600]
+                                        : card.hpPercentage > 0.6 
+                                            ? Colors.green[600]
+                                            : card.hpPercentage > 0.3 
+                                                ? Colors.orange[600]
+                                                : Colors.red[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                        // Show exercises if they exist
                         if (exerciseCount > 0) ...[
                           const SizedBox(width: 8),
                           Flexible(
@@ -465,54 +573,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                        // Daily limit indicator
-                        if (card.hasReachedDailyLimit) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Daily limit reached',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ] else if (card.timesStudiedToday > 0) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${card.currentHP}/${card.maxHP} HP',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: card.isDefeated 
-                                      ? Colors.grey[600]
-                                      : card.hpPercentage > 0.6 
-                                          ? Colors.green[600]
-                                          : card.hpPercentage > 0.3 
-                                              ? Colors.orange[600]
-                                              : Colors.red[600],
                                   fontWeight: FontWeight.w500,
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -661,18 +721,36 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     }
 
     // Sort cards
-    switch (_sortBy) {
-      case 'word':
+    switch (_sortOption) {
+      case SortOption.wordAZ:
         cards.sort((a, b) => a.word.compareTo(b.word));
         break;
-      case 'definition':
+      case SortOption.wordZA:
+        cards.sort((a, b) => b.word.compareTo(a.word));
+        break;
+      case SortOption.definitionAZ:
         cards.sort((a, b) => a.definition.compareTo(b.definition));
         break;
-      case 'dateCreated':
+      case SortOption.definitionZA:
+        cards.sort((a, b) => b.definition.compareTo(a.definition));
+        break;
+      case SortOption.dateCreated:
         cards.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
         break;
-      case 'srsLevel':
+      case SortOption.dateCreatedOldestFirst:
+        cards.sort((a, b) => a.dateCreated.compareTo(b.dateCreated));
+        break;
+      case SortOption.srsLevel:
         cards.sort((a, b) => a.srsLevel.compareTo(b.srsLevel));
+        break;
+      case SortOption.learningPercentage:
+        cards.sort((a, b) => (b.learningPercentage ?? 0).compareTo(a.learningPercentage ?? 0));
+        break;
+      case SortOption.learningPercentageLowHigh:
+        cards.sort((a, b) => (a.learningPercentage ?? 0).compareTo(b.learningPercentage ?? 0));
+        break;
+      case SortOption.lastModified:
+        cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
         break;
     }
 
@@ -1142,10 +1220,10 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         Center(
           child: Text(
             widget.deck.name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -1157,7 +1235,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -1507,12 +1585,190 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   void _showMoveCopyDialog() {
-    // TODO: Implement move/copy functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Move/Copy functionality coming soon!'),
-        backgroundColor: Colors.blue,
+    final provider = context.read<FlashcardProvider>();
+    // Include all decks except the current one
+    final availableDecks = provider.decks.where((d) => d.id != widget.deck.id).toList();
+
+    if (availableDecks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No decks available to move/copy cards to'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Move/Copy Cards', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.drive_file_move),
+                        label: const Text('Move'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showDeckSelectionDialog(isMove: true);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.copy),
+                        label: const Text('Copy'),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showDeckSelectionDialog(isMove: false);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('Choose Move to replace current decks, or Copy to add to decks.')
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDeckSelectionDialog({required bool isMove}) {
+    final provider = context.read<FlashcardProvider>();
+    final availableDecks = provider.decks.where((d) => d.id != widget.deck.id).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => _DeckSelectionDialog(
+        decks: availableDecks,
+        isMove: isMove,
+        onConfirm: (selectedDeckIds) {
+          Navigator.of(context).pop();
+          _performMoveCopy(selectedDeckIds, isMove: isMove);
+        },
+      ),
+    );
+  }
+
+  Future<void> _performMoveCopy(List<String> targetDeckIds, {required bool isMove}) async {
+    final provider = context.read<FlashcardProvider>();
+    int successCount = 0;
+    int errorCount = 0;
+
+    for (final cardId in _selectedCardIds) {
+      try {
+        final card = provider.getCard(cardId);
+        if (card == null) {
+          errorCount++;
+          continue;
+        }
+
+        if (isMove) {
+          final newDeckIds = targetDeckIds.toSet();
+          await provider.updateCard(card.copyWith(deckIds: newDeckIds));
+        } else {
+          final newDeckIds = {...card.deckIds, ...targetDeckIds};
+          await provider.updateCard(card.copyWith(deckIds: newDeckIds));
+        }
+
+        successCount++;
+      } catch (e) {
+        errorCount++;
+      }
+    }
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedCardIds.clear();
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${isMove ? 'Moved' : 'Copied'} $successCount card(s)${errorCount > 0 ? ', $errorCount failed' : ''}'),
+        backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
+      ),
+    );
+  }
+
+}
+
+class _DeckSelectionDialog extends StatefulWidget {
+  final List<Deck> decks;
+  final bool isMove;
+  final Function(List<String>) onConfirm;
+
+  const _DeckSelectionDialog({
+    required this.decks,
+    required this.isMove,
+    required this.onConfirm,
+  });
+  @override
+  State<_DeckSelectionDialog> createState() => _DeckSelectionDialogState();
+}
+
+class _DeckSelectionDialogState extends State<_DeckSelectionDialog> {
+  final Set<String> _selectedDeckIds = {};
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Select Deck${widget.decks.length > 1 ? 's' : ''} to ${widget.isMove ? 'Move' : 'Copy'} To'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 360,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: widget.decks.length,
+          itemBuilder: (context, index) {
+            final deck = widget.decks[index];
+            final isSelected = _selectedDeckIds.contains(deck.id);
+            return CheckboxListTile(
+              title: Text(deck.name),
+              subtitle: Text('${context.read<FlashcardProvider>().getCardsForDeck(deck.id).length} cards'),
+              value: isSelected,
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    _selectedDeckIds.add(deck.id);
+                  } else {
+                    _selectedDeckIds.remove(deck.id);
+                  }
+                });
+              },
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _selectedDeckIds.isEmpty ? null : () => widget.onConfirm(_selectedDeckIds.toList()),
+          style: TextButton.styleFrom(
+            foregroundColor: widget.isMove ? Colors.blue : Colors.green,
+          ),
+          child: Text('${widget.isMove ? "Move" : "Copy"} to ${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'}'),
+        ),
+      ],
     );
   }
 } 

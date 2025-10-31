@@ -802,30 +802,32 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                                 )
                               : _buildUserAnswerDisplay(),
                         ),
-                        // Show correct answer if user answered incorrectly
-                        if (_answered && _userAnswer.join('').toLowerCase() != _correctWord.replaceAll(' ', '').toLowerCase()) ...[
+                        // Show feedback when answered
+                        if (_answered) ...[
                           const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'The correct answer is: $_correctWord',
+                          if (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase()) ...[
+                            // Show "Correct!" for correct answers
+                            Text(
+                              'Correct!',
                               style: const TextStyle(
-                                fontSize: 14,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.green,
                               ),
                               textAlign: TextAlign.center,
-                              softWrap: true,
-                              overflow: TextOverflow.visible,
                             ),
-                          ),
+                          ] else ...[
+                            // Show correct answer for incorrect answers
+                            Text(
+                              'The correct answer is: $_correctWord',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.red,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -1586,11 +1588,8 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     print('🔍 WordScrambleView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
-    // Always record the attempt to reduce HP (both correct and incorrect)
-    xpService.recordAttemptToWord(card.learningMastery, "word_scramble");
-    
     if (isCorrect) {
-      // Award XP for correct answers
+      // Award XP for correct answers (this also records the attempt)
       xpService.addXPToWord(card.learningMastery, "word_scramble", 1);
       
       // Get the actual XP gained (after diminishing returns)
@@ -1611,6 +1610,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       final hintText = hintsUsed > 0 ? " (with ${hintsUsed} hint(s), penalty applied)" : "";
       print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect)$hintText - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
+      // Record attempt for incorrect answers (reduces HP but no XP)
+      xpService.recordAttemptToWord(card.learningMastery, "word_scramble");
+      
       // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
       
