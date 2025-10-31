@@ -9,13 +9,13 @@ class TranslationService {
   // Using Google Translate API (more reliable)
   static const String _baseUrl = 'https://translate.googleapis.com/translate_a/single';
   
-  /// Translate a Dutch word to English
-  Future<String?> translateDutchToEnglish(String dutchWord) async {
+  /// Translate a Dutch word to the specified target language (defaults to English)
+  Future<String?> translateDutchToLanguage(String dutchWord, {String targetLanguageCode = 'en'}) async {
     try {
-      print('TranslationService: Translating "$dutchWord" from Dutch to English');
+      print('TranslationService: Translating "$dutchWord" from Dutch to $targetLanguageCode');
       
       final response = await http.get(
-        Uri.parse('$_baseUrl?client=gtx&sl=nl&tl=en&dt=t&q=${Uri.encodeComponent(dutchWord)}'),
+        Uri.parse('$_baseUrl?client=gtx&sl=nl&tl=$targetLanguageCode&dt=t&q=${Uri.encodeComponent(dutchWord)}'),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
@@ -46,15 +46,23 @@ class TranslationService {
     }
   }
 
-  /// Translate multiple Dutch words to English
-  Future<Map<String, String>> translateMultipleWords(List<String> dutchWords) async {
+  /// Translate a Dutch word to English (backward compatibility method)
+  Future<String?> translateDutchToEnglish(String dutchWord) async {
+    return translateDutchToLanguage(dutchWord, targetLanguageCode: 'en');
+  }
+
+  /// Translate multiple Dutch words to the specified target language
+  Future<Map<String, String>> translateMultipleWords(
+    List<String> dutchWords, {
+    String targetLanguageCode = 'en',
+  }) async {
     final Map<String, String> translations = {};
     
-    print('TranslationService: Translating ${dutchWords.length} words');
+    print('TranslationService: Translating ${dutchWords.length} words to $targetLanguageCode');
     
     for (String word in dutchWords) {
       try {
-        final translation = await translateDutchToEnglish(word);
+        final translation = await translateDutchToLanguage(word, targetLanguageCode: targetLanguageCode);
         if (translation != null) {
           translations[word] = translation;
         }

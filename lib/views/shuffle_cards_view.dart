@@ -141,30 +141,23 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _studiedWords.add(card);
     }
     
-    // Mark the card as correct/incorrect to properly record the attempt and reduce HP
+    // In shuffle mode, HP was already reduced by child views when answer was given
+    // We just need to track XP for the summary (don't reduce HP again)
     if (wasCorrect) {
-      card.markCorrect(GameDifficulty.medium);
-    } else {
-      card.markIncorrect(GameDifficulty.medium);
-    }
-    
-    // Track XP
-    XpService.recordAnswer(_gameSession, wasCorrect);
-    
-    if (wasCorrect) {
-      // Award XP to the word
-      final xpService = XpService();
-      xpService.addXPToWord(card.learningMastery, "shuffleCards", 1);
-      
-      // Get the actual XP gained
+      // HP was already reduced by child view calling markCorrect
+      // Get the XP that was already awarded
       final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
       _xpGainedPerWord[card.id] = actualXPGained;
     } else {
+      // HP was already reduced by child view calling markIncorrect + recordAttemptToWord
       _xpGainedPerWord[card.id] = 0;
     }
+    
+    // Track XP for session stats
+    XpService.recordAnswer(_gameSession, wasCorrect);
     
     // Update mastery tracking
     _wordMastery[card.id] = card.learningMastery;
@@ -179,22 +172,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _studiedWords.add(primary);
     }
 
-    // Apply correctness to primary card only
+    // In shuffle mode, HP was already reduced by child views when answer was given
+    // We just need to track XP for the summary (don't reduce HP again)
     if (wasCorrect) {
-      primary.markCorrect(GameDifficulty.medium);
-    } else {
-      primary.markIncorrect(GameDifficulty.medium);
-    }
-
-    // Track XP for primary card
-    if (wasCorrect) {
-      final xpService = XpService();
-      xpService.addXPToWord(primary.learningMastery, "shuffleCards", 1);
+      // HP was already reduced by child view calling markCorrect
+      // Get the XP that was already awarded
       final actualXPGained = primary.learningMastery.exerciseHistory.isNotEmpty
           ? primary.learningMastery.exerciseHistory.last['xpGained'] as int
           : 0;
       _xpGainedPerWord[primary.id] = actualXPGained;
     } else {
+      // HP was already reduced by child view calling markIncorrect + recordAttemptToWord
       _xpGainedPerWord[primary.id] = 0;
     }
 
@@ -224,7 +212,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     print('🔍 ShuffleCardsView: Available exercises: ${allExercises.length}');
     
     if (allCards.isEmpty && allExercises.isEmpty) {
-      _showGameOver('No cards or exercises available!');
+      _showSetupRequiredDialog('No cards or exercises available. Please add some cards or exercises to play.');
       return;
     }
 
@@ -261,7 +249,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     
 
     if (availableModes.isEmpty) {
-      _showGameOver('No content available!');
+      _showSetupRequiredDialog('All game modes are disabled or no content is available. Please enable some game modes in settings or add cards/exercises.');
       return;
     }
 
@@ -295,27 +283,23 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         }
         
         if (availableCards.isEmpty) {
-          print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing game over');
+          print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing setup dialog');
           
-          // Create detailed error message
+          // Create friendly error message
           final totalCards = allCards.length;
           final defeatedCards = allCards.where((card) => card.isDefeated).length;
           final healthyCards = allCards.where((card) => !card.isDefeated).length;
           
-          String errorMessage = 'No cards available for this game.\n\n';
-          errorMessage += 'Total cards: $totalCards\n';
-          errorMessage += 'Healthy cards: $healthyCards\n';
-          errorMessage += 'Defeated cards: $defeatedCards\n\n';
-          
-          if (defeatedCards == totalCards) {
-            errorMessage += 'All cards are defeated (0 HP). They need to rest until tomorrow to regain health.';
-          } else if (healthyCards < 5) {
-            errorMessage += 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
+          String message;
+          if (defeatedCards == totalCards && totalCards > 0) {
+            message = 'All your cards are defeated (0 HP) and need to rest until tomorrow to regain health.';
+          } else if (healthyCards < 5 && totalCards > 0) {
+            message = 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
           } else {
-            errorMessage += 'There seems to be an issue with card availability. Please try again or contact support.';
+            message = 'No cards available for this game. Please add more cards or wait for cards to regain HP.';
           }
           
-          _showGameOver(errorMessage);
+          _showSetupRequiredDialog(message);
           return;
         }
         
@@ -481,6 +465,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           autoProgress: true, // Enable auto progress for shuffle mode
+          useLivesMode: false, // No lives in shuffle mode - one wrong letter ends the game
         );
         break;
       case ShuffleMode.popYourCards:
@@ -758,6 +743,45 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
               _startGame();
             },
             child: const Text('Play Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSetupRequiredDialog(String message) {
+    // Set game inactive when showing setup required dialog
+    setState(() {
+      _isGameActive = false;
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Setup Required'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            const SizedBox(height: 16),
+            const Text(
+              'To play Shuffle Your Cards:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• Add flashcards or exercises'),
+            const Text('• Enable game modes in settings'),
+            const Text('• Make sure cards have HP remaining'),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Just close the dialog, allow user to make changes
+            },
+            child: const Text('Back'),
           ),
         ],
       ),

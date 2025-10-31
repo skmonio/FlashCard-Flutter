@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/phrase_provider.dart';
+import '../providers/translation_language_provider.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../models/phrase.dart';
@@ -51,8 +52,12 @@ class _AddPhraseViewState extends State<AddPhraseView> {
     });
 
     try {
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final targetLanguageCode = langProvider.targetLanguageCode;
+      
       final translation = await context.read<PhraseProvider>().translatePhrase(
         _phraseController.text.trim(),
+        targetLanguageCode: targetLanguageCode,
       );
 
       if (translation != null) {

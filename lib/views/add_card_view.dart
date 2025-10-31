@@ -8,6 +8,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../models/dutch_word_exercise.dart';
 import '../services/translation_service.dart';
+import '../providers/translation_language_provider.dart';
 import '../utils/enhanced_snackbar.dart';
 
 class AddCardView extends StatefulWidget {
@@ -839,7 +840,13 @@ class _AddCardViewState extends State<AddCardView> {
     });
 
     try {
-      final translation = await _translationService.translateDutchToEnglish(dutchWord);
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final targetLanguageCode = langProvider.targetLanguageCode;
+      
+      final translation = await _translationService.translateDutchToLanguage(
+        dutchWord,
+        targetLanguageCode: targetLanguageCode,
+      );
       
       if (mounted) {
         setState(() {
@@ -886,7 +893,13 @@ class _AddCardViewState extends State<AddCardView> {
     });
 
     try {
-      final translation = await _translationService.translateDutchToEnglish(dutchSentence);
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final targetLanguageCode = langProvider.targetLanguageCode;
+      
+      final translation = await _translationService.translateDutchToLanguage(
+        dutchSentence,
+        targetLanguageCode: targetLanguageCode,
+      );
       
       if (mounted) {
         setState(() {

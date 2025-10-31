@@ -4,6 +4,7 @@ import '../providers/theme_provider.dart';
 import '../providers/sound_provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
+import '../providers/translation_language_provider.dart';
 
 
 import 'unified_import_export_view.dart';
@@ -132,6 +133,23 @@ class _SettingsViewState extends State<SettingsView> {
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
                       _showSoundSelectionDialog(context, soundProvider);
+                    },
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              Consumer<TranslationLanguageProvider>(
+                builder: (context, langProvider, child) {
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.translate,
+                      color: Colors.blue,
+                    ),
+                    title: const Text('Translation Language'),
+                    subtitle: Text(langProvider.targetLanguage.toString()),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                      _showTranslationLanguageDialog(context, langProvider);
                     },
                   );
                 },
@@ -468,6 +486,61 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  void _showTranslationLanguageDialog(
+    BuildContext context,
+    TranslationLanguageProvider langProvider,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Choose Translation Language'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: TranslationLanguageProvider.availableLanguages.length,
+            itemBuilder: (context, index) {
+              final language = TranslationLanguageProvider.availableLanguages[index];
+              final isSelected = langProvider.targetLanguage.code == language.code;
+              
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+                child: ListTile(
+                  leading: Icon(
+                    Icons.translate,
+                    color: isSelected ? Colors.blue : Colors.grey,
+                  ),
+                  title: Text(
+                    language.name,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? Colors.blue : null,
+                    ),
+                  ),
+                  subtitle: Text(language.nativeName),
+                  trailing: isSelected 
+                      ? const Icon(Icons.check, color: Colors.blue)
+                      : null,
+                  onTap: () {
+                    langProvider.setTargetLanguage(language);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSoundOption(
     BuildContext context,
     SoundProvider soundProvider,
@@ -599,33 +672,9 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ] else ...[
                 ListTile(
-                  leading: const Icon(Icons.person_outline, color: Colors.grey),
-                  title: const Text('Not Signed In'),
-                  subtitle: const Text('Sign in to sync your data across devices'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const AuthView()),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.person_add, color: Colors.blue),
-                  title: const Text('Create Account'),
-                  subtitle: const Text('Sign up for a new account'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (context) => const AuthView()),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.login, color: Colors.green),
-                  title: const Text('Sign In'),
-                  subtitle: const Text('Sign in to existing account'),
+                  leading: const Icon(Icons.login, color: Colors.blue),
+                  title: const Text('Sign In / Create Account'),
+                  subtitle: const Text('Sign in or create an account to sync your data across devices'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: () {
                     Navigator.of(context).pushReplacement(

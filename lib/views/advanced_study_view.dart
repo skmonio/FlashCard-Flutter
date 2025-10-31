@@ -933,11 +933,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         XpService.recordAnswer(_gameSession, false);
         // Explicitly set 0 XP for unknown cards
         _xpGainedPerWord[currentCard.id] = 0;
-        // Record attempt to reduce HP (like other games)
+        // Mark card as incorrect (this records the attempt via recordGameAttempt)
+        currentCard.markIncorrect(GameDifficulty.medium);
+        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
         final xpService = XpService();
         xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
-        // Mark card as incorrect to reduce HP (like other games)
-        currentCard.markIncorrect(GameDifficulty.medium);
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -1324,11 +1324,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         XpService.recordAnswer(_gameSession, false);
         // Explicitly set 0 XP for unknown cards
         _xpGainedPerWord[currentCard.id] = 0;
-        // Record attempt to reduce HP (like other games)
+        // Mark card as incorrect (this records the attempt via recordGameAttempt)
+        currentCard.markIncorrect(GameDifficulty.medium);
+        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
         final xpService = XpService();
         xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
-        // Mark card as incorrect to reduce HP (like other games)
-        currentCard.markIncorrect(GameDifficulty.medium);
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;

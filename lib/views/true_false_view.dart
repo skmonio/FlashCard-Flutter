@@ -494,11 +494,25 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // Award XP to word for RPG system
-    _awardXPToWord(currentCard, isCorrect);
-    
-    // Update the card in the provider to save the XP changes
-    _updateCardInProvider(currentCard);
+    // In shuffle mode, reduce HP immediately for every answer attempt
+    // (XP tracking is handled by shuffle view at completion)
+    if (widget.shuffleMode) {
+      if (isCorrect) {
+        currentCard.markCorrect(GameDifficulty.medium);
+        // markCorrect already adds to exerciseHistory, reducing HP
+      } else {
+        currentCard.markIncorrect(GameDifficulty.medium);
+        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt
+        final xpService = XpService();
+        xpService.recordAttemptToWord(currentCard.learningMastery, "true_false");
+      }
+      // Update the card immediately to save HP changes
+      _updateCardInProvider(currentCard);
+    } else {
+      // In standalone mode, handle full tracking
+      _awardXPToWord(currentCard, isCorrect);
+      _updateCardInProvider(currentCard);
+    }
     
     setState(() {
       _selectedAnswer = answer;

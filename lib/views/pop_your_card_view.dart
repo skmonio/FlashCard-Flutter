@@ -306,8 +306,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
     } else {
       // Track incorrect answers with 0 XP
       _xpGainedPerWord[currentCard.id] = 0;
-      // Mark the card as incorrect to properly record the attempt and reduce HP
+      // Mark the card as incorrect (this records the attempt via recordGameAttempt)
       currentCard.markIncorrect(GameDifficulty.medium);
+      // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
+      final xpService = XpService();
+      xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
       HapticService().errorFeedback();
       
       // Handle lives mode

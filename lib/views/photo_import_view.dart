@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/photo_import_service.dart';
 import '../services/translation_service.dart';
 import '../providers/flashcard_provider.dart';
+import '../providers/translation_language_provider.dart';
 
 import '../models/deck.dart';
 
@@ -744,14 +745,20 @@ class _PhotoImportViewState extends State<PhotoImportView> {
           .toList();
 
       if (wordsToTranslate.isNotEmpty) {
-        final translations = await _translationService.translateMultipleWords(wordsToTranslate);
+        final langProvider = context.read<TranslationLanguageProvider>();
+        final targetLanguageCode = langProvider.targetLanguageCode;
+        
+        final translations = await _translationService.translateMultipleWords(
+          wordsToTranslate,
+          targetLanguageCode: targetLanguageCode,
+        );
         
         setState(() {
           _translations = translations;
           _isTranslating = false;
         });
         
-        print('PhotoImportView: Successfully translated ${translations.length} words');
+        print('PhotoImportView: Successfully translated ${translations.length} words to $targetLanguageCode');
       } else {
         setState(() {
           _isTranslating = false;

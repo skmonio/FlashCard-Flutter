@@ -7,6 +7,7 @@ import 'providers/sound_provider.dart';
 import 'providers/bubble_word_provider.dart';
 import 'providers/dutch_word_exercise_provider.dart';
 import 'providers/user_profile_provider.dart';
+import 'providers/translation_language_provider.dart';
 
 import 'providers/phrase_provider.dart';
 import 'services/performance_service.dart';
@@ -57,6 +58,13 @@ class FlashcardApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => FlashcardProvider()),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SoundProvider()),
+        ChangeNotifierProvider(
+          create: (context) {
+            final provider = TranslationLanguageProvider();
+            provider.initialize(); // Initialize the provider
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (context) => BubbleWordProvider()),
         ChangeNotifierProvider(
           create: (context) {

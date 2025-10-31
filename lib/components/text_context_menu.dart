@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../services/translation_service.dart';
+import '../providers/translation_language_provider.dart';
 import '../utils/enhanced_snackbar.dart';
 
 class TextContextMenu extends StatelessWidget {
@@ -163,12 +165,18 @@ class TextContextMenu extends StatelessWidget {
   }
 
   Future<void> _showTranslationDialog(BuildContext context) async {
+    final langProvider = Provider.of<TranslationLanguageProvider>(context, listen: false);
+    final targetLanguageCode = langProvider.targetLanguageCode;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Translation'),
         content: FutureBuilder<String?>(
-          future: TranslationService().translateDutchToEnglish(selectedText),
+          future: TranslationService().translateDutchToLanguage(
+            selectedText,
+            targetLanguageCode: targetLanguageCode,
+          ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Row(

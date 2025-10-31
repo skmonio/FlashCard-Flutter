@@ -107,6 +107,11 @@ class _WritingViewState extends State<WritingView> {
     if (_useLivesMode) {
       _maxLives = widget.customLives ?? _getDefaultLives();
       _lives = _maxLives;
+      print('🔍 WritingView: Initialized with $_lives lives (max: $_maxLives)');
+    } else {
+      // Even if not using lives mode, initialize with default in case it's needed
+      _maxLives = _getDefaultLives();
+      _lives = _maxLives;
     }
     
     // Initialize timer if using timed mode
@@ -436,11 +441,17 @@ class _WritingViewState extends State<WritingView> {
           _correctAnswersText[_currentIndex] = _correctAnswer;
           _questionModes[_currentIndex] = _isQuestionMode;
           
-          // Award XP to word for RPG system
-          _awardXPToWord(_currentCards[_currentIndex], true);
-          
-          // Update the card in the provider to save the XP changes
-          _updateCardInProvider(_currentCards[_currentIndex]);
+          // In shuffle mode, reduce HP immediately for every answer attempt
+          // (XP tracking is handled by shuffle view at completion)
+          if (widget.shuffleMode) {
+            _currentCards[_currentIndex].markCorrect(GameDifficulty.medium);
+            // markCorrect already adds to exerciseHistory, reducing HP
+            _updateCardInProvider(_currentCards[_currentIndex]);
+          } else {
+            // In standalone mode, handle full tracking
+            _awardXPToWord(_currentCards[_currentIndex], true);
+            _updateCardInProvider(_currentCards[_currentIndex]);
+          }
           
           // Stop timer if using timed mode
           if (_useTimedMode) {
@@ -477,7 +488,30 @@ class _WritingViewState extends State<WritingView> {
         SoundManager().playWrongSound();
         HapticService().errorFeedback();
         
-        // Check if game over (only if using lives mode)
+        // In shuffle mode, one wrong letter immediately ends the game
+        if (widget.shuffleMode) {
+          _answered = true;
+          _totalAnswered++;
+          // Don't show the answer - it goes to end screen immediately anyway
+          _correctAnswersMap[_currentIndex] = false;
+          _answeredQuestions[_currentIndex] = _displayWord; // Store current incomplete state
+          _correctAnswersText[_currentIndex] = _correctAnswer;
+          _questionModes[_currentIndex] = _isQuestionMode;
+          
+          // Reduce HP and mark as incorrect
+          final xpService = XpService();
+          xpService.recordAttemptToWord(_currentCards[_currentIndex].learningMastery, "writing");
+          _currentCards[_currentIndex].markIncorrect(GameDifficulty.medium);
+          _updateCardInProvider(_currentCards[_currentIndex]);
+          
+          // Immediately end the game (no delay, no shuffle)
+          if (mounted && widget.onComplete != null) {
+            widget.onComplete!(false); // Word failed (wrong letter guessed)
+          }
+          return;
+        }
+        
+        // Check if game over (only if using lives mode in standalone)
         if (_useLivesMode && _lives <= 0) {
           _answered = true;
           _totalAnswered++;
@@ -488,24 +522,13 @@ class _WritingViewState extends State<WritingView> {
           _correctAnswersText[_currentIndex] = _correctAnswer;
           _questionModes[_currentIndex] = _isQuestionMode;
           
-          // Award XP to word for RPG system
+          // In standalone mode, handle full tracking
           _awardXPToWord(_currentCards[_currentIndex], false);
-          
-          // Update the card in the provider to save the XP changes
           _updateCardInProvider(_currentCards[_currentIndex]);
           
           print('🔍 WritingView: Game over! No lives remaining');
           _showGameOverScreen();
           return;
-        }
-        
-        // Auto-continue in shuffle mode after a short delay (failed)
-        if (widget.shuffleMode) {
-          Timer(const Duration(milliseconds: 1000), () {
-            if (mounted && widget.onComplete != null) {
-              widget.onComplete!(false); // Word failed (ran out of lives)
-            }
-          });
         }
       }
     });
@@ -1623,11 +1646,17 @@ class _WritingViewState extends State<WritingView> {
           _correctAnswersMap[_currentIndex] = true;
           _answeredQuestions[_currentIndex] = _displayWord;
           
-          // Award XP to word for RPG system (with hint penalty)
-          _awardXPToWord(_currentCards[_currentIndex], true);
-          
-          // Update the card in the provider to save the XP changes
-          _updateCardInProvider(_currentCards[_currentIndex]);
+          // In shuffle mode, reduce HP immediately for every answer attempt
+          // (XP tracking is handled by shuffle view at completion)
+          if (widget.shuffleMode) {
+            _currentCards[_currentIndex].markCorrect(GameDifficulty.medium);
+            // markCorrect already adds to exerciseHistory, reducing HP
+            _updateCardInProvider(_currentCards[_currentIndex]);
+          } else {
+            // In standalone mode, handle full tracking
+            _awardXPToWord(_currentCards[_currentIndex], true);
+            _updateCardInProvider(_currentCards[_currentIndex]);
+          }
           
           // Auto-continue in shuffle mode after a short delay (completed with hint)
           if (widget.shuffleMode) {
