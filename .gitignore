@@ -62,3 +62,12 @@ GoogleService-Info.plist
 # iOS Archives
 ios/Runner.xcarchive/
 *.xcarchive
+
+# Build artifacts - Android
+*.aab
+*.apk
+*-mapping.txt
+temp_aab/
+
+# Build artifacts - iOS
+*.ipa
