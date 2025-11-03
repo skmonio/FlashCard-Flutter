@@ -24,6 +24,7 @@ class MemoryGameView extends StatefulWidget {
   final bool timedMode;
   final int? timeLimitSeconds;
   final String? difficulty;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const MemoryGameView({
     super.key,
@@ -34,6 +35,7 @@ class MemoryGameView extends StatefulWidget {
     this.timedMode = false,
     this.timeLimitSeconds,
     this.difficulty,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -65,8 +67,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
-  // Track cards that have been incorrectly matched for partial XP rewards
+  // Track cards that have been incorrectly matched for potential partial XP rewards
   Set<String> _incorrectlyMatchedCards = {};
+  // Track wrong attempts per card (for XP penalty: -1 XP per wrong attempt, min 0 XP)
+  Map<String, int> _wrongAttemptsPerCard = {};
   // Old replacement queue system removed
   // Old processing replacements flag removed
 
@@ -812,13 +816,12 @@ class _MemoryGameViewState extends State<MemoryGameView>
         matchedSecondCard.state = CardState.matched;
       });
       
-      // Award XP to both matched cards for RPG system
+      // Award XP to the matched card (both memory cards represent the same flashcard)
+      // Only award once since matchedFirstCard and matchedSecondCard have the same originalCard
       _awardXPToWord(matchedFirstCard.originalCard, true);
-      _awardXPToWord(matchedSecondCard.originalCard, true);
       
-      // Update the cards in the provider to save the XP changes
+      // Update the card in the provider to save the XP changes
       _updateCardInProvider(matchedFirstCard.originalCard);
-      _updateCardInProvider(matchedSecondCard.originalCard);
 
       // Count each matched pair as one card processed
       _totalCardsProcessed++;
@@ -840,15 +843,25 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Check if game is complete
       _checkGameCompletion();
     } else {
-      // Track XP for incorrect match (0 XP)
+      // Track XP for incorrect match
       XpService.recordAnswer(_gameSession, false);
+      
+      // Increment wrong attempts for both cards involved in the incorrect match
+      _wrongAttemptsPerCard[_firstCard!.originalCard.id] = (_wrongAttemptsPerCard[_firstCard!.originalCard.id] ?? 0) + 1;
+      _wrongAttemptsPerCard[_secondCard!.originalCard.id] = (_wrongAttemptsPerCard[_secondCard!.originalCard.id] ?? 0) + 1;
       
       // Track these cards as incorrectly matched for potential partial XP later
       _incorrectlyMatchedCards.add(_firstCard!.originalCard.id);
       _incorrectlyMatchedCards.add(_secondCard!.originalCard.id);
-      print('🔍 MemoryGameView: Tracked incorrect match for cards: "${_firstCard!.originalCard.word}" and "${_secondCard!.originalCard.word}"');
       
-      // Award XP to both mismatched cards for RPG system (0 XP for incorrect)
+      int firstCardWrongAttempts = _wrongAttemptsPerCard[_firstCard!.originalCard.id] ?? 0;
+      int secondCardWrongAttempts = _wrongAttemptsPerCard[_secondCard!.originalCard.id] ?? 0;
+      
+      print('🔍 MemoryGameView: Tracked incorrect match for cards: "${_firstCard!.originalCard.word}" (wrong attempts: $firstCardWrongAttempts) and "${_secondCard!.originalCard.word}" (wrong attempts: $secondCardWrongAttempts)');
+      
+      // Award XP to both mismatched cards for RPG system (-1 XP per wrong attempt, min 0 XP)
+      // Note: We don't actually award negative XP here, we just track the attempts
+      // The XP penalty will be applied when the card is matched correctly
       _awardXPToWord(_firstCard!.originalCard, false);
       _awardXPToWord(_secondCard!.originalCard, false);
       
@@ -1454,47 +1467,66 @@ class _MemoryGameViewState extends State<MemoryGameView>
     print('🔍 MemoryGameView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
     if (isCorrect) {
-      // Check if this card was previously incorrectly matched
-      final wasPreviouslyIncorrect = _incorrectlyMatchedCards.contains(card.id);
+      // Get wrong attempts for this card
+      int wrongAttempts = _wrongAttemptsPerCard[card.id] ?? 0;
       
-      // Add XP to the word's learning mastery (this handles daily diminishing returns and records attempt)
+      // Calculate final XP: max 5, minus 1 per wrong attempt
+      // Cards with 0 wrong attempts get 5 XP
+      // Cards with 1 wrong attempt get 4 XP
+      // Cards with 5+ wrong attempts get 0 XP
+      int finalXPGained;
+      if (wrongAttempts >= 5) {
+        finalXPGained = 0;
+      } else {
+        finalXPGained = 5 - wrongAttempts;
+      }
+      
+      // Record the attempt first (this updates exercise history and may add XP with diminishing returns)
       xpService.addXPToWord(card.learningMastery, "memory", 1);
       
-      // Get the actual XP gained (after diminishing returns)
+      // Get the actual XP that was added (after diminishing returns)
       final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      // If card was previously incorrect, award partial XP (half of normal amount)
-      final finalXPGained = wasPreviouslyIncorrect ? (actualXPGained / 2).round() : actualXPGained;
+      // Always adjust the card's XP to match our calculated value based on wrong attempts
+      // This ensures we use 5 as the base max and apply wrong attempt penalties correctly
+      // Remove whatever XP was added and add the correct amount
+      card.learningMastery.currentXP -= actualXPGained;
+      card.learningMastery.currentXP += finalXPGained;
       
-      // If we're giving partial XP, we need to adjust the card's XP manually
-      if (wasPreviouslyIncorrect && finalXPGained != actualXPGained) {
-        // Remove the full XP that was added and add the partial XP instead
-        card.learningMastery.currentXP -= actualXPGained;
-        card.learningMastery.currentXP += finalXPGained;
-        
-        // Update the last exercise history entry
-        if (card.learningMastery.exerciseHistory.isNotEmpty) {
-          card.learningMastery.exerciseHistory.last['xpGained'] = finalXPGained;
-        }
+      // Update the last exercise history entry to reflect the actual XP awarded
+      if (card.learningMastery.exerciseHistory.isNotEmpty) {
+        card.learningMastery.exerciseHistory.last['xpGained'] = finalXPGained;
       }
       
-      // Track XP gained for this word in this session (add for multiple appearances in same session)
+      // Track XP gained for this word in this session
       _xpGainedPerWord[card.id] = finalXPGained;
       
       // Remove from incorrectly matched set since it's now correctly matched
       _incorrectlyMatchedCards.remove(card.id);
       
-      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect${wasPreviouslyIncorrect ? ', was previously incorrect' : ''}) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
-    } else {
-      // Record attempt for incorrect answers (reduces HP but no XP)
-      xpService.recordAttemptToWord(card.learningMastery, "memory");
+      // Reset wrong attempts for this card since it's now correctly matched
+      _wrongAttemptsPerCard.remove(card.id);
       
-      // Explicitly set 0 XP for incorrect answers
+      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect, wrong attempts: $wrongAttempts, actualXP was: $actualXPGained) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+    } else {
+      // For incorrect answers in shuffle mode, reduce HP
+      // In standalone "Remember Your Cards" mode, only reduce XP (don't reduce HP)
+      if (widget.shuffleMode) {
+        xpService.recordAttemptToWord(card.learningMastery, "memory");
+      }
+      
+      // Calculate XP penalty for incorrect match: -1 XP per wrong attempt, min 0 XP
+      int wrongAttempts = _wrongAttemptsPerCard[card.id] ?? 0;
+      
+      // For tracking purposes, we need to calculate what the XP would be if matched correctly
+      // But since it's not matched yet, we don't award any XP
+      // The wrong attempts counter is already incremented before this call
+      // So we just track 0 XP for now (will be calculated when card is matched correctly)
       _xpGainedPerWord[card.id] = 0;
       
-      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect, wrong attempts: $wrongAttempts${widget.shuffleMode ? ", HP reduced" : ", HP not reduced (Remember Your Cards mode)"}) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
     
     // Store the word mastery for display (for both correct and incorrect)

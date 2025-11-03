@@ -27,7 +27,8 @@ class TranslationLanguage {
 }
 
 class TranslationLanguageProvider extends ChangeNotifier {
-  static const String _languageKey = 'translation_language';
+  static const String _wordLanguageKey = 'word_language';
+  static const String _translationLanguageKey = 'translation_language';
   
   // Common languages for language learning
   static const List<TranslationLanguage> availableLanguages = [
@@ -45,40 +46,86 @@ class TranslationLanguageProvider extends ChangeNotifier {
     TranslationLanguage(code: 'nl', name: 'Dutch', nativeName: 'Nederlands'),
   ];
   
-  TranslationLanguage _targetLanguage = availableLanguages.first; // Default to English
+  // Word language is the language you're learning (source language)
+  TranslationLanguage _wordLanguage = availableLanguages.firstWhere(
+    (lang) => lang.code == 'nl',
+    orElse: () => availableLanguages.first,
+  ); // Default to Dutch for backward compatibility
   
-  TranslationLanguage get targetLanguage => _targetLanguage;
-  String get targetLanguageCode => _targetLanguage.code;
+  // Translation language is the language for translations (target language)
+  TranslationLanguage _translationLanguage = availableLanguages.first; // Default to English
   
-  // Initialize language from saved preferences
+  TranslationLanguage get wordLanguage => _wordLanguage;
+  String get wordLanguageCode => _wordLanguage.code;
+  
+  TranslationLanguage get targetLanguage => _translationLanguage; // Backward compatibility
+  String get targetLanguageCode => _translationLanguage.code;
+  
+  TranslationLanguage get translationLanguage => _translationLanguage;
+  String get translationLanguageCode => _translationLanguage.code;
+  
+  // Initialize languages from saved preferences
   Future<void> initialize() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final languageCode = prefs.getString(_languageKey) ?? 'en';
       
-      _targetLanguage = availableLanguages.firstWhere(
-        (lang) => lang.code == languageCode,
+      // Load word language (default to Dutch for backward compatibility)
+      final wordLanguageCode = prefs.getString(_wordLanguageKey) ?? 'nl';
+      _wordLanguage = availableLanguages.firstWhere(
+        (lang) => lang.code == wordLanguageCode,
+        orElse: () => availableLanguages.firstWhere(
+          (lang) => lang.code == 'nl',
+          orElse: () => availableLanguages.first,
+        ),
+      );
+      
+      // Load translation language (backward compatibility: check old key first)
+      final translationLanguageCode = prefs.getString(_translationLanguageKey) ?? 'en';
+      _translationLanguage = availableLanguages.firstWhere(
+        (lang) => lang.code == translationLanguageCode,
         orElse: () => availableLanguages.first,
       );
       
       notifyListeners();
     } catch (e) {
-      print('Error loading translation language: $e');
+      print('Error loading language preferences: $e');
     }
   }
   
-  // Set target language
-  Future<void> setTargetLanguage(TranslationLanguage language) async {
-    _targetLanguage = language;
-    await _saveLanguage();
+  // Set word language (the language you're learning)
+  Future<void> setWordLanguage(TranslationLanguage language) async {
+    _wordLanguage = language;
+    await _saveWordLanguage();
     notifyListeners();
   }
   
-  // Save language preference
-  Future<void> _saveLanguage() async {
+  // Set translation language (the language for translations)
+  Future<void> setTranslationLanguage(TranslationLanguage language) async {
+    _translationLanguage = language;
+    await _saveTranslationLanguage();
+    notifyListeners();
+  }
+  
+  // Set target language (backward compatibility)
+  Future<void> setTargetLanguage(TranslationLanguage language) async {
+    await setTranslationLanguage(language);
+  }
+  
+  // Save word language preference
+  Future<void> _saveWordLanguage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_languageKey, _targetLanguage.code);
+      await prefs.setString(_wordLanguageKey, _wordLanguage.code);
+    } catch (e) {
+      print('Error saving word language: $e');
+    }
+  }
+  
+  // Save translation language preference
+  Future<void> _saveTranslationLanguage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_translationLanguageKey, _translationLanguage.code);
     } catch (e) {
       print('Error saving translation language: $e');
     }
@@ -95,4 +142,5 @@ class TranslationLanguageProvider extends ChangeNotifier {
     }
   }
 }
+
 

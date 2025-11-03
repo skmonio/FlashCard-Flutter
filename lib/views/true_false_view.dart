@@ -29,6 +29,7 @@ class TrueFalseView extends StatefulWidget {
   final int? customLives;
   final bool startFlipped;
   final StudyConfig? studyConfig;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const TrueFalseView({
     super.key,
@@ -41,6 +42,7 @@ class TrueFalseView extends StatefulWidget {
     this.customLives,
     this.startFlipped = false,
     this.studyConfig,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -327,6 +329,11 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   bool _canUseNextButton() {
     if (!_answered) return false;
     
+    // In shuffle mode, always allow next button after answering
+    if (widget.shuffleMode) {
+      return true;
+    }
+    
     // Always allow finish button on the last question
     if (_currentIndex == widget.cards.length - 1) {
       return true;
@@ -544,8 +551,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       }
     });
     
-    // Auto progress logic
-    if (widget.autoProgress) {
+    // Auto progress logic (disabled in shuffle mode to allow manual control)
+    if (widget.autoProgress && !widget.shuffleMode) {
       _autoProgressTimer?.cancel();
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
         if (mounted && _currentIndex < _currentCards.length - 1) {
@@ -895,6 +902,16 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   Widget _buildProgressBar() {
     final progress = _currentIndex / widget.cards.length;
     final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
+    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
+    final String questionCountText;
+    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
+      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
+      questionCountText = '$currentQuestionNum/$currentQuestionNum';
+    } else {
+      questionCountText = '${_currentIndex + 1}/${widget.cards.length}';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -902,7 +919,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_currentIndex + 1}/${widget.cards.length}'),
+              Text(questionCountText),
               // Show lives in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
               Text('$accuracy%'),

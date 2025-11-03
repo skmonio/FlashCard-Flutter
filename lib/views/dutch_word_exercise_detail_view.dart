@@ -17,6 +17,7 @@ class DutchWordExerciseDetailView extends StatefulWidget {
   final bool showEditDeleteButtons;
   final Function(bool)? onComplete;
   final bool singleQuestionMode;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const DutchWordExerciseDetailView({
     super.key,
@@ -24,6 +25,7 @@ class DutchWordExerciseDetailView extends StatefulWidget {
     this.showEditDeleteButtons = true,
     this.onComplete,
     this.singleQuestionMode = false,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -123,6 +125,15 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   Widget _buildProgressBar() {
     final percentage = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     
+    // In shuffle mode (singleQuestionMode), show cumulative question count (e.g., 1/1, 2/2, 3/3...)
+    final String questionCountText;
+    if (widget.singleQuestionMode && widget.shuffleQuestionOffset != null) {
+      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + 1;
+      questionCountText = '$currentQuestionNum/$currentQuestionNum';
+    } else {
+      questionCountText = '${_currentExerciseIndex + 1}/${_wordExercise.exercises.length}';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -131,7 +142,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${_currentExerciseIndex + 1}/${_wordExercise.exercises.length}',
+                questionCountText,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -834,14 +845,22 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       );
       
       // Update learning mastery based on difficulty (assuming medium for exercises)
+      final xpService = XpService();
+      
       if (wasCorrect) {
         updatedCard.markCorrect(GameDifficulty.medium);
         
-        // Award XP using standard system
-        final xpService = XpService();
-        xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail', 1);
+        // Award XP using standard system (only if not in shuffle mode - shuffle mode handles XP separately)
+        if (!widget.singleQuestionMode) {
+          xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail', 1);
+        }
       } else {
         updatedCard.markIncorrect(GameDifficulty.medium);
+        
+        // In shuffle mode (singleQuestionMode), reduce HP for incorrect answers
+        if (widget.singleQuestionMode) {
+          xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail');
+        }
       }
       
       await flashcardProvider.updateCard(updatedCard);
@@ -1229,10 +1248,10 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         Center(
           child: Text(
             'Exercise',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -1244,7 +1263,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           bottom: 0,
           child: IconButton(
             onPressed: () => _showCloseConfirmation(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -1255,7 +1274,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           bottom: 0,
           child: IconButton(
             onPressed: () => _showHomeConfirmation(),
-            icon: const Icon(Icons.home, color: Colors.black),
+            icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
             tooltip: 'Go Home',
           ),
         ),

@@ -21,6 +21,7 @@ class PickYourCardView extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const PickYourCardView({
     super.key,
@@ -33,6 +34,7 @@ class PickYourCardView extends StatefulWidget {
     this.autoProgress = false,
     this.useLivesMode = false,
     this.customLives,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -1143,6 +1145,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Widget _buildProgressBar() {
     final progress = currentCardIndex / widget.cards.length;
     final accuracy = _totalAnswers > 0 ? (_correctAnswers / _totalAnswers * 100).toInt() : 0;
+    
+    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
+    final String questionCountText;
+    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
+      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + currentCardIndex + 1;
+      questionCountText = '$currentQuestionNum/$currentQuestionNum';
+    } else {
+      questionCountText = '${currentCardIndex + 1}/${widget.cards.length}';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -1150,7 +1162,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${currentCardIndex + 1}/${widget.cards.length}'),
+              Text(questionCountText),
               // Show lives or timer in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
               if (widget.useTimedMode) _buildTimerIndicator(),

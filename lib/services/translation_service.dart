@@ -9,13 +9,17 @@ class TranslationService {
   // Using Google Translate API (more reliable)
   static const String _baseUrl = 'https://translate.googleapis.com/translate_a/single';
   
-  /// Translate a Dutch word to the specified target language (defaults to English)
-  Future<String?> translateDutchToLanguage(String dutchWord, {String targetLanguageCode = 'en'}) async {
+  /// Translate a word from source language to target language
+  Future<String?> translate(
+    String word, {
+    required String sourceLanguageCode,
+    required String targetLanguageCode,
+  }) async {
     try {
-      print('TranslationService: Translating "$dutchWord" from Dutch to $targetLanguageCode');
+      print('TranslationService: Translating "$word" from $sourceLanguageCode to $targetLanguageCode');
       
       final response = await http.get(
-        Uri.parse('$_baseUrl?client=gtx&sl=nl&tl=$targetLanguageCode&dt=t&q=${Uri.encodeComponent(dutchWord)}'),
+        Uri.parse('$_baseUrl?client=gtx&sl=$sourceLanguageCode&tl=$targetLanguageCode&dt=t&q=${Uri.encodeComponent(word)}'),
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
@@ -31,38 +35,52 @@ class TranslationService {
             final translation = translations[0][0] as String?;
             
             if (translation != null && translation.isNotEmpty) {
-              print('TranslationService: Successfully translated "$dutchWord" to "$translation"');
+              print('TranslationService: Successfully translated "$word" to "$translation"');
               return translation;
             }
           }
         }
       }
       
-      print('TranslationService: Failed to translate "$dutchWord" - Status: ${response.statusCode}');
+      print('TranslationService: Failed to translate "$word" - Status: ${response.statusCode}');
       return null;
     } catch (e) {
-      print('TranslationService: Error translating "$dutchWord": $e');
+      print('TranslationService: Error translating "$word": $e');
       return null;
     }
+  }
+  
+  /// Translate a word from source language to target language (backward compatibility - defaults to Dutch)
+  Future<String?> translateDutchToLanguage(String word, {String targetLanguageCode = 'en', String? sourceLanguageCode}) async {
+    return translate(
+      word,
+      sourceLanguageCode: sourceLanguageCode ?? 'nl',
+      targetLanguageCode: targetLanguageCode,
+    );
   }
 
   /// Translate a Dutch word to English (backward compatibility method)
   Future<String?> translateDutchToEnglish(String dutchWord) async {
-    return translateDutchToLanguage(dutchWord, targetLanguageCode: 'en');
+    return translate(dutchWord, sourceLanguageCode: 'nl', targetLanguageCode: 'en');
   }
 
-  /// Translate multiple Dutch words to the specified target language
+  /// Translate multiple words from source language to target language
   Future<Map<String, String>> translateMultipleWords(
-    List<String> dutchWords, {
-    String targetLanguageCode = 'en',
+    List<String> words, {
+    required String sourceLanguageCode,
+    required String targetLanguageCode,
   }) async {
     final Map<String, String> translations = {};
     
-    print('TranslationService: Translating ${dutchWords.length} words to $targetLanguageCode');
+    print('TranslationService: Translating ${words.length} words from $sourceLanguageCode to $targetLanguageCode');
     
-    for (String word in dutchWords) {
+    for (String word in words) {
       try {
-        final translation = await translateDutchToLanguage(word, targetLanguageCode: targetLanguageCode);
+        final translation = await translate(
+          word,
+          sourceLanguageCode: sourceLanguageCode,
+          targetLanguageCode: targetLanguageCode,
+        );
         if (translation != null) {
           translations[word] = translation;
         }

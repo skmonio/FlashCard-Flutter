@@ -166,15 +166,17 @@ class TextContextMenu extends StatelessWidget {
 
   Future<void> _showTranslationDialog(BuildContext context) async {
     final langProvider = Provider.of<TranslationLanguageProvider>(context, listen: false);
-    final targetLanguageCode = langProvider.targetLanguageCode;
+    final wordLanguageCode = langProvider.wordLanguageCode;
+    final targetLanguageCode = langProvider.translationLanguageCode;
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Translation'),
         content: FutureBuilder<String?>(
-          future: TranslationService().translateDutchToLanguage(
+          future: TranslationService().translate(
             selectedText,
+            sourceLanguageCode: wordLanguageCode,
             targetLanguageCode: targetLanguageCode,
           ),
           builder: (context, snapshot) {

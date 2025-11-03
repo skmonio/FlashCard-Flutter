@@ -25,11 +25,24 @@ class _LoadingViewState extends State<LoadingView> {
   String _loadingText = "Loading your Dutch learning journey...";
   bool _isSyncing = false;
   double _syncProgress = 0.0;
+  bool _showTimeoutMessage = false;
 
   @override
   void initState() {
     super.initState();
+    _startTimeoutTimer();
     _startLoadingSequence();
+  }
+
+  void _startTimeoutTimer() {
+    // Show timeout message after 12 seconds
+    Future.delayed(const Duration(seconds: 12), () {
+      if (mounted && !_showContent) {
+        setState(() {
+          _showTimeoutMessage = true;
+        });
+      }
+    });
   }
 
   void _startLoadingSequence() async {
@@ -245,6 +258,26 @@ class _LoadingViewState extends State<LoadingView> {
                       textAlign: TextAlign.center,
                     ),
                   ),
+                  
+                  // Timeout message if stuck loading
+                  if (_showTimeoutMessage) ...[
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                      child: AnimatedOpacity(
+                        opacity: _showTimeoutMessage ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 500),
+                        child: Text(
+                          'If stuck loading, try re-opening the app in airplane mode.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7),
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

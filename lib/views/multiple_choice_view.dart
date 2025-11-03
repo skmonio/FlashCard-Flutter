@@ -29,6 +29,7 @@ class MultipleChoiceView extends StatefulWidget {
   final int? customLives;
   final bool startFlipped;
   final StudyConfig? studyConfig;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const MultipleChoiceView({
     super.key,
@@ -41,6 +42,7 @@ class MultipleChoiceView extends StatefulWidget {
     this.customLives,
     this.startFlipped = false,
     this.studyConfig,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -330,8 +332,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       }
     });
     
-    // Auto progress logic (only if not game over)
-    if (widget.autoProgress && !(_useLivesMode && _lives <= 0)) {
+    // Auto progress logic (only if not game over and not in shuffle mode)
+    if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
       _autoProgressTimer?.cancel();
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
         if (mounted && _currentIndex < _currentCards.length - 1) {
@@ -474,7 +476,17 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   bool _canUseNextButton() {
-    if (!_answered) return false;
+    print('🔍 MultipleChoiceView: _canUseNextButton called - _answered: $_answered, shuffleMode: ${widget.shuffleMode}');
+    if (!_answered) {
+      print('🔍 MultipleChoiceView: Button disabled - question not answered');
+      return false;
+    }
+    
+    // In shuffle mode, always allow next button after answering
+    if (widget.shuffleMode) {
+      print('🔍 MultipleChoiceView: Button enabled - shuffle mode');
+      return true;
+    }
     
     // Always allow finish button on the last question
     if (_currentIndex == _currentCards.length - 1) {
@@ -499,13 +511,18 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   void _goToNextQuestion() {
+    print('🔍 MultipleChoiceView: _goToNextQuestion called, shuffleMode: ${widget.shuffleMode}');
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
       // Use the stored correctness value from when the answer was selected
       // This ensures consistency with what the user saw when they answered
       final isCorrect = _correctAnswersMap[_currentIndex] ?? false;
+      print('🔍 MultipleChoiceView: Shuffle mode - calling onComplete with isCorrect: $isCorrect');
       if (widget.onComplete != null) {
         widget.onComplete!(isCorrect);
+        print('🔍 MultipleChoiceView: onComplete callback executed');
+      } else {
+        print('⚠️ MultipleChoiceView: onComplete is null!');
       }
       return;
     }
@@ -756,6 +773,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
     final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
+    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
+    final String questionCountText;
+    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
+      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
+      questionCountText = '$currentQuestionNum/$currentQuestionNum';
+    } else {
+      questionCountText = '${_currentIndex + 1}/${_currentCards.length}';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -763,7 +790,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_currentIndex + 1}/${_currentCards.length}'),
+              Text(questionCountText),
               // Show lives in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
               Text('$accuracy%'),

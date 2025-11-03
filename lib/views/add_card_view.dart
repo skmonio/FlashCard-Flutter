@@ -41,6 +41,7 @@ class _AddCardViewState extends State<AddCardView> {
   String _selectedArticle = '';
   List<String> _selectedDeckIds = [];
   bool _isLoading = false;
+  bool _isTranslatingDefinition = false;
   bool _isTranslatingExample = false;
   final TranslationService _translationService = TranslationService();
   
@@ -168,76 +169,102 @@ class _AddCardViewState extends State<AddCardView> {
                     _buildSectionHeader('Basic Information'),
                     const SizedBox(height: 16),
                     
-                    // Dutch Word with Translate Button
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextFormField(
-                                controller: _wordController,
-                                maxLength: 100,
+                    // Word with Translate Button
+                    Consumer<TranslationLanguageProvider>(
+                      builder: (context, langProvider, child) {
+                        final wordLanguageName = langProvider.wordLanguage.name;
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextFormField(
+                                    controller: _wordController,
+                                    maxLength: 100,
+                                    decoration: InputDecoration(
+                                      labelText: '$wordLanguageName Word *',
+                                      hintText: 'e.g., ${wordLanguageName == 'Dutch' ? 'huis' : 'word'}',
+                                      border: const OutlineInputBorder(),
+                                      prefixIcon: const Icon(Icons.text_fields),
+                                      counterText: '',
+                                      errorText: _getDuplicateWarning(),
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Please enter a $wordLanguageName word';
+                                      }
+                                      if (value.length > 100) {
+                                        return 'Word must be 100 characters or less';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: _wordController.text.trim().isEmpty ? null : _translateWord,
+                              icon: _isLoading ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ) : const Icon(Icons.translate),
+                              tooltip: 'Translate',
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Definition with Translate Button
+                    Consumer<TranslationLanguageProvider>(
+                      builder: (context, langProvider, child) {
+                        final translationLanguageName = langProvider.translationLanguage.name;
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _definitionController,
+                                maxLength: 200,
                                 decoration: InputDecoration(
-                                  labelText: 'Dutch Word *',
-                                  hintText: 'e.g., huis',
+                                  labelText: '$translationLanguageName Definition *',
+                                  hintText: 'e.g., translation',
                                   border: const OutlineInputBorder(),
-                                  prefixIcon: const Icon(Icons.text_fields),
+                                  prefixIcon: const Icon(Icons.translate),
                                   counterText: '',
-                                  errorText: _getDuplicateWarning(),
                                 ),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter a Dutch word';
+                                    return 'Please enter a definition';
                                   }
-                                  if (value.length > 100) {
-                                    return 'Word must be 100 characters or less';
+                                  if (value.length > 200) {
+                                    return 'Definition must be 200 characters or less';
                                   }
                                   return null;
                                 },
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          onPressed: _wordController.text.trim().isEmpty ? null : _translateWord,
-                          icon: _isLoading ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ) : const Icon(Icons.translate),
-                          label: const Text('Translate'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                          ),
-                        ),
-                      ],
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: _definitionController.text.trim().isEmpty ? null : _translateDefinition,
+                              icon: _isTranslatingDefinition ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ) : const Icon(Icons.translate),
+                              tooltip: 'Translate',
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     
                     // Article Selection
                     _buildArticleSelector(),
-                    const SizedBox(height: 16),
-                    
-                    // English Definition
-                    TextFormField(
-                      controller: _definitionController,
-                      maxLength: 200,
-                      decoration: const InputDecoration(
-                        labelText: 'English Definition (optional)',
-                        hintText: 'e.g., house (you can add this later)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.translate),
-                        counterText: '',
-                      ),
-                      validator: (value) {
-                        if (value != null && value.length > 200) {
-                          return 'Definition must be 200 characters or less';
-                        }
-                        return null;
-                      },
-                    ),
                     const SizedBox(height: 16),
                     
                     // Example Sentence
@@ -827,10 +854,12 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   void _translateWord() async {
-    final dutchWord = _wordController.text.trim();
-    if (dutchWord.isEmpty) {
+    final word = _wordController.text.trim();
+    if (word.isEmpty) {
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final wordLanguageName = langProvider.wordLanguage.name;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a Dutch word to translate')),
+        SnackBar(content: Text('Please enter a $wordLanguageName word to translate')),
       );
       return;
     }
@@ -841,10 +870,12 @@ class _AddCardViewState extends State<AddCardView> {
 
     try {
       final langProvider = context.read<TranslationLanguageProvider>();
-      final targetLanguageCode = langProvider.targetLanguageCode;
+      final wordLanguageCode = langProvider.wordLanguageCode;
+      final targetLanguageCode = langProvider.translationLanguageCode;
       
-      final translation = await _translationService.translateDutchToLanguage(
-        dutchWord,
+      final translation = await _translationService.translate(
+        word,
+        sourceLanguageCode: wordLanguageCode,
         targetLanguageCode: targetLanguageCode,
       );
       
@@ -854,13 +885,15 @@ class _AddCardViewState extends State<AddCardView> {
           _isLoading = false;
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Translated: "$dutchWord" → "$translation"'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        if (translation != null && translation.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Translated: "$word" → "$translation"'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -879,11 +912,73 @@ class _AddCardViewState extends State<AddCardView> {
     }
   }
 
-  void _translateExampleSentence() async {
-    final dutchSentence = _exampleController.text.trim();
-    if (dutchSentence.isEmpty) {
+  void _translateDefinition() async {
+    final definition = _definitionController.text.trim();
+    if (definition.isEmpty) {
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final translationLanguageName = langProvider.translationLanguage.name;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a Dutch sentence to translate')),
+        SnackBar(content: Text('Please enter a $translationLanguageName word to translate')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isTranslatingDefinition = true;
+    });
+
+    try {
+      final langProvider = context.read<TranslationLanguageProvider>();
+      // Reverse translation: from translation language to word language
+      final sourceLanguageCode = langProvider.translationLanguageCode;
+      final targetLanguageCode = langProvider.wordLanguageCode;
+      
+      final translation = await _translationService.translate(
+        definition,
+        sourceLanguageCode: sourceLanguageCode,
+        targetLanguageCode: targetLanguageCode,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _wordController.text = translation ?? '';
+          _isTranslatingDefinition = false;
+        });
+        
+        if (translation != null && translation.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Translated: "$definition" → "$translation"'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isTranslatingDefinition = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Translation failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _translateExampleSentence() async {
+    final sentence = _exampleController.text.trim();
+    if (sentence.isEmpty) {
+      final langProvider = context.read<TranslationLanguageProvider>();
+      final wordLanguageName = langProvider.wordLanguage.name;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a $wordLanguageName sentence to translate')),
       );
       return;
     }
@@ -894,10 +989,12 @@ class _AddCardViewState extends State<AddCardView> {
 
     try {
       final langProvider = context.read<TranslationLanguageProvider>();
-      final targetLanguageCode = langProvider.targetLanguageCode;
+      final wordLanguageCode = langProvider.wordLanguageCode;
+      final targetLanguageCode = langProvider.translationLanguageCode;
       
-      final translation = await _translationService.translateDutchToLanguage(
-        dutchSentence,
+      final translation = await _translationService.translate(
+        sentence,
+        sourceLanguageCode: wordLanguageCode,
         targetLanguageCode: targetLanguageCode,
       );
       
@@ -909,7 +1006,7 @@ class _AddCardViewState extends State<AddCardView> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Translated: "$dutchSentence" → "$translation"'),
+            content: Text('Translated: "$sentence" → "$translation"'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -933,7 +1030,8 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   bool _canSave() {
-    return _wordController.text.trim().isNotEmpty;
+    return _wordController.text.trim().isNotEmpty && 
+           _definitionController.text.trim().isNotEmpty;
   }
 
   bool _hasUnsavedChanges() {

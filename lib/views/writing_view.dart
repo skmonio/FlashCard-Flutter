@@ -25,6 +25,7 @@ class WritingView extends StatefulWidget {
   final bool useTimedMode;
   final int? timePerQuestion;
   final bool autoProgress;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const WritingView({
     super.key,
@@ -38,6 +39,7 @@ class WritingView extends StatefulWidget {
     this.useTimedMode = false,
     this.timePerQuestion,
     this.autoProgress = false,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -459,7 +461,7 @@ class _WritingViewState extends State<WritingView> {
           }
           
           // Auto progress logic
-          if (widget.autoProgress) {
+          if (widget.autoProgress && !widget.shuffleMode) {
             _autoProgressTimer?.cancel();
             _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
               if (mounted && _currentIndex < _currentCards.length - 1) {
@@ -470,14 +472,8 @@ class _WritingViewState extends State<WritingView> {
             });
           }
           
-          // Auto-continue in shuffle mode after a short delay
-          if (widget.shuffleMode) {
-            Timer(const Duration(milliseconds: 1000), () {
-              if (mounted && widget.onComplete != null) {
-                widget.onComplete!(true); // Word completed successfully
-              }
-            });
-          }
+          // In shuffle mode, don't auto-continue - let user click next/finish button
+          // The button will call onComplete when clicked
         }
       } else {
         // Wrong guess
@@ -628,22 +624,23 @@ class _WritingViewState extends State<WritingView> {
     // Only allow navigation if the question is answered
     if (!_answered) return;
     
+    // In shuffle mode, we only have one question, so call the callback immediately
+    if (widget.shuffleMode) {
+      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
+      if (widget.onComplete != null) {
+        widget.onComplete!(wasSuccessful);
+      }
+      return;
+    }
+    
     if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
       });
       _generateQuestion();
     } else {
-      // On last question, check if in shuffle mode
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
-      final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
-      
-      if (widget.shuffleMode && widget.onComplete != null) {
-        widget.onComplete!(wasSuccessful);
-        return;
-      }
-      
-      // Show results when on last question and clicking next
+      // On last question, show results
       setState(() {
         _showingResults = true;
       });
@@ -917,6 +914,16 @@ class _WritingViewState extends State<WritingView> {
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
     final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    
+    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
+    final String questionCountText;
+    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
+      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
+      questionCountText = '$currentQuestionNum/$currentQuestionNum';
+    } else {
+      questionCountText = '${_currentIndex + 1}/${_currentCards.length}';
+    }
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -924,7 +931,7 @@ class _WritingViewState extends State<WritingView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_currentIndex + 1}/${_currentCards.length}'),
+              Text(questionCountText),
               // Show lives or timer in the middle if active
               if (_useLivesMode) _buildLivesIndicator(),
               if (_useTimedMode) _buildTimerIndicator(),
@@ -1658,14 +1665,8 @@ class _WritingViewState extends State<WritingView> {
             _updateCardInProvider(_currentCards[_currentIndex]);
           }
           
-          // Auto-continue in shuffle mode after a short delay (completed with hint)
-          if (widget.shuffleMode) {
-            Timer(const Duration(milliseconds: 1000), () {
-              if (mounted && widget.onComplete != null) {
-                widget.onComplete!(true); // Word completed successfully (with hint)
-              }
-            });
-          }
+          // In shuffle mode, don't auto-continue - let user click next/finish button
+          // The button will call onComplete when clicked
         }
       });
       

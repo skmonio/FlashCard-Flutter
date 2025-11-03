@@ -746,10 +746,12 @@ class _PhotoImportViewState extends State<PhotoImportView> {
 
       if (wordsToTranslate.isNotEmpty) {
         final langProvider = context.read<TranslationLanguageProvider>();
-        final targetLanguageCode = langProvider.targetLanguageCode;
+        final wordLanguageCode = langProvider.wordLanguageCode;
+        final targetLanguageCode = langProvider.translationLanguageCode;
         
         final translations = await _translationService.translateMultipleWords(
           wordsToTranslate,
+          sourceLanguageCode: wordLanguageCode,
           targetLanguageCode: targetLanguageCode,
         );
         

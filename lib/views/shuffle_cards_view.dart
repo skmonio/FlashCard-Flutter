@@ -40,8 +40,10 @@ class ShuffleCardsView extends StatefulWidget {
 class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   int _currentScore = 0;
   int _highScore = 0;
+  int _totalQuestionsAsked = 0; // Track total questions asked across all challenges
   bool _isGameActive = false;
   bool _isTransitioningToNextChallenge = false; // Track if we're transitioning between challenges
+  bool _isShowingEndScreen = false; // Track if we're showing/hiding the end screen
   ShuffleMode? _currentMode;
   FlashCard? _currentCard;
   DutchWordExercise? _currentExercise;
@@ -55,6 +57,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   
   // Track cards used in current challenge
   List<FlashCard> _currentChallengeCards = [];
+  
+  // Track challenge sequence for "Study Again" retry
+  List<Map<String, dynamic>> _challengeSequence = []; // Stores mode, card ID, and exercise ID for each challenge
+  int _currentSequenceIndex = 0;
+  bool _isRetryingSameSequence = false;
   
   // Exercise type customization
   Map<ShuffleMode, bool> _enabledModes = {
@@ -120,9 +127,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     }
   }
 
-  void _startGame() {
+  void _startGame({bool useSameSequence = false}) {
     setState(() {
       _currentScore = 0;
+      _totalQuestionsAsked = 0;
       _isGameActive = true;
       _isTransitioningToNextChallenge = false;
       // Reset tracking data
@@ -131,6 +139,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _wordMastery.clear();
       _gameSession.reset();
       _currentChallengeCards.clear();
+      
+      // For "Study Again" - retry the same sequence
+      if (useSameSequence && _challengeSequence.isNotEmpty) {
+        _isRetryingSameSequence = true;
+        _currentSequenceIndex = 0;
+      } else {
+        // For "Shuffle" - start a new random sequence
+        _challengeSequence.clear();
+        _isRetryingSameSequence = false;
+        _currentSequenceIndex = 0;
+      }
     });
     _nextChallenge();
   }
@@ -200,6 +219,35 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 
   void _nextChallenge() {
     if (!_isGameActive) return;
+
+    // If retrying same sequence, use the saved challenge
+    if (_isRetryingSameSequence && _currentSequenceIndex < _challengeSequence.length) {
+      final savedChallenge = _challengeSequence[_currentSequenceIndex];
+      _currentSequenceIndex++;
+      
+      setState(() {
+        _currentMode = ShuffleMode.values[savedChallenge['mode'] as int];
+      });
+      
+      if (savedChallenge['cardId'] != null) {
+        final provider = context.read<FlashcardProvider>();
+        final cardId = savedChallenge['cardId'] as String;
+        _currentCard = provider.cards.firstWhere(
+          (card) => card.id == cardId,
+          orElse: () => provider.cards.firstWhere((card) => card.canBeStudiedToday, orElse: () => provider.cards.first),
+        );
+        _launchCardMode(_currentMode!);
+      } else if (savedChallenge['exerciseId'] != null) {
+        final dutchProvider = context.read<DutchWordExerciseProvider>();
+        final exerciseId = savedChallenge['exerciseId'] as String;
+        _currentExercise = dutchProvider.wordExercises.firstWhere(
+          (exercise) => exercise.id == exerciseId,
+          orElse: () => dutchProvider.wordExercises.first,
+        );
+        _launchDutchExercise();
+      }
+      return;
+    }
 
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
@@ -305,10 +353,30 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         
         _currentCard = availableCards[_random.nextInt(availableCards.length)];
         print('🔍 ShuffleCardsView: Pick Your Card - Selected card: "${_currentCard!.word}" with HP: ${_currentCard!.currentHP}/${_currentCard!.maxHP}');
+        
+        // Save to sequence for retry
+        if (!_isRetryingSameSequence) {
+          _challengeSequence.add({
+            'mode': selectedMode.index,
+            'cardId': _currentCard!.id,
+            'exerciseId': null,
+          });
+        }
+        
         _launchCardMode(selectedMode);
         break;
       case ShuffleMode.dutchExercise:
         _currentExercise = allExercises[_random.nextInt(allExercises.length)];
+        
+        // Save to sequence for retry
+        if (!_isRetryingSameSequence) {
+          _challengeSequence.add({
+            'mode': selectedMode.index,
+            'cardId': null,
+            'exerciseId': _currentExercise!.id,
+          });
+        }
+        
         _launchDutchExercise();
         break;
     }
@@ -354,11 +422,15 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Store cards for tracking
         _currentChallengeCards = multipleChoiceCards;
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = MultipleChoiceView(
           cards: multipleChoiceCards,
           title: 'Multiple Choice',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.trueFalse:
@@ -396,11 +468,15 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Store cards for tracking
         _currentChallengeCards = trueFalseCards;
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = TrueFalseView(
           cards: trueFalseCards,
           title: 'True or False',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.memoryGame:
@@ -438,27 +514,38 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Store cards for tracking
         _currentChallengeCards = memoryCards;
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = MemoryGameView(
           cards: memoryCards,
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.wordScramble:
         // Clear challenge cards for single-card games
         _currentChallengeCards.clear();
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = WordScrambleView(
           cards: [_currentCard!],
           title: 'Word Scramble',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.writing:
         // Clear challenge cards for single-card games
         _currentChallengeCards.clear();
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = WritingView(
           cards: [_currentCard!],
           title: 'Write Your Card',
@@ -466,29 +553,38 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           shuffleMode: true,
           autoProgress: true, // Enable auto progress for shuffle mode
           useLivesMode: false, // No lives in shuffle mode - one wrong letter ends the game
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.popYourCards:
         // Clear challenge cards for single-card games
         _currentChallengeCards.clear();
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = PopYourCardView(
           cards: [_currentCard!],
           title: 'Pop Your Card',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       case ShuffleMode.pickYourCards:
         // Clear challenge cards for single-card games
         _currentChallengeCards.clear();
         
+        setState(() {
+          _totalQuestionsAsked++;
+        });
         targetView = PickYourCardView(
           cards: [_currentCard!],
           title: 'Pick Your Card',
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           autoProgress: true, // Enable auto progress for shuffle mode
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         );
         break;
       default:
@@ -539,6 +635,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       isUserCreated: _currentExercise!.isUserCreated,
     );
 
+    setState(() {
+      _totalQuestionsAsked++;
+    });
+    
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -547,6 +647,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           showEditDeleteButtons: false,
           onComplete: _handleDutchExerciseComplete,
           singleQuestionMode: true,
+          shuffleQuestionOffset: _totalQuestionsAsked - 1,
         ),
       ),
     ).then((result) {
@@ -572,6 +673,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 
 
   void _handleCardModeComplete(bool wasCorrect) {
+    print('🔍 ShuffleCardsView: _handleCardModeComplete called with wasCorrect: $wasCorrect');
     // Track all cards from the challenge
     if (_currentChallengeCards.isNotEmpty) {
       _trackAllCardsFromChallenge(_currentChallengeCards, wasCorrect);
@@ -583,7 +685,44 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   }
 
   void _handleDutchExerciseComplete(bool wasCorrect) {
-    // Track the exercise completion (Dutch exercises don't have cards, so no card tracking)
+    // Track the Dutch word exercise by finding the corresponding FlashCard
+    // The DutchWordExerciseDetailView already updates the FlashCard with XP, so we read it from the provider
+    if (_currentExercise != null) {
+      final provider = context.read<FlashcardProvider>();
+      // Try to find the FlashCard that matches the target word from the exercise
+      // Read fresh from provider to get the updated XP values
+      final matchingCard = provider.cards.firstWhere(
+        (card) => card.word.toLowerCase() == _currentExercise!.targetWord.toLowerCase(),
+        orElse: () => FlashCard(
+          id: '',
+          word: _currentExercise!.targetWord,
+          definition: _currentExercise!.wordTranslation,
+          example: '',
+          deckIds: {},
+          dateCreated: DateTime.now(),
+          learningMastery: LearningMastery(),
+          article: '',
+          plural: '',
+          pastTense: '',
+          futureTense: '',
+          pastParticiple: '',
+        ),
+      );
+      
+      // Track the word (even if it doesn't match a card, create a virtual card entry)
+      if (matchingCard.id.isEmpty) {
+        // Create a temporary card for tracking purposes
+        // For words without cards, we still want to show them on the end screen
+        _trackCardStudy(matchingCard, wasCorrect);
+        // Store the word translation as definition if not already set
+        matchingCard.definition = _currentExercise!.wordTranslation;
+      } else {
+        // The card exists and has already been updated by DutchWordExerciseDetailView
+        // We just need to track it for the end screen display
+        _trackCardStudy(matchingCard, wasCorrect);
+      }
+    }
+    
     _handleChallengeComplete(wasCorrect);
   }
 
@@ -626,6 +765,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   }
 
   void _handleChallengeComplete(bool wasCorrect) {
+    print('🔍 ShuffleCardsView: _handleChallengeComplete called with wasCorrect: $wasCorrect, _isGameActive: $_isGameActive');
     if (!wasCorrect) {
       // Set game inactive and save high score first
       setState(() {
@@ -635,9 +775,15 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       
       // Pop the current game view and show end screen with XP/card tally
       if (mounted) {
+        print('🔍 ShuffleCardsView: Popping view for incorrect answer');
+        // Set flag to hide body during transition
+        setState(() {
+          _isShowingEndScreen = true;
+        });
+        // Pop the current game view and immediately push end screen to avoid showing shuffle screen
         Navigator.pop(context);
-        // Use a small delay to ensure the pop completes before showing end screen
-        Future.delayed(const Duration(milliseconds: 100), () {
+        // Use a minimal delay to ensure pop completes, then immediately show end screen
+        Future.delayed(const Duration(milliseconds: 50), () {
           if (mounted) {
             _showShuffleEndScreen('Game Over! You got one wrong.', false);
           }
@@ -650,6 +796,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _currentScore++;
     });
 
+    print('🔍 ShuffleCardsView: Correct answer - Score: $_currentScore, preparing to navigate to next challenge');
+
     // Show success message briefly before next challenge
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -659,19 +807,28 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       ),
     );
 
+    // Set flag immediately to prevent .then() callback from resetting game state
+    _isTransitioningToNextChallenge = true;
+    
     // Much faster transition to next challenge
     Future.delayed(const Duration(milliseconds: 500), () {
+      print('🔍 ShuffleCardsView: Delay completed - _isGameActive: $_isGameActive, mounted: $mounted');
       if (_isGameActive && mounted) {
-        // Set flag before popping to indicate we're transitioning
-        _isTransitioningToNextChallenge = true;
+        print('🔍 ShuffleCardsView: Popping current view and preparing next challenge');
         // Pop the current game view first, then launch next challenge
         Navigator.pop(context);
-        // Use a small delay to ensure the pop completes before launching next challenge
+        // Use a delay to ensure the pop completes before launching next challenge
         Future.delayed(const Duration(milliseconds: 100), () {
+          print('🔍 ShuffleCardsView: About to call _nextChallenge - _isGameActive: $_isGameActive, mounted: $mounted');
           if (_isGameActive && mounted) {
             _nextChallenge();
+          } else {
+            print('⚠️ ShuffleCardsView: Cannot call _nextChallenge - _isGameActive: $_isGameActive, mounted: $mounted');
           }
         });
+      } else {
+        print('⚠️ ShuffleCardsView: Cannot proceed - _isGameActive: $_isGameActive, mounted: $mounted');
+        _isTransitioningToNextChallenge = false;
       }
     });
   }
@@ -679,6 +836,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   void _showShuffleEndScreen(String message, bool wasSuccessful) {
     final int correct = _currentScore; // number answered correctly
     final int total = wasSuccessful ? _currentScore : _currentScore + 1; // include the wrong one if failed
+    // Push end screen (don't use pushReplacement to keep ShuffleCardsView in stack)
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => UnifiedEndScreen(
@@ -691,11 +849,40 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           totalQuestions: total,
           onStudyAgain: () {
             Navigator.of(context).pop(); // Close end screen
-            _startGame(); // Restart the game
+            // Reset flag and immediately start game
+            if (mounted) {
+              setState(() {
+                _isShowingEndScreen = false;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _startGame(useSameSequence: true); // Retry the same sequence of questions
+                }
+              });
+            }
+          },
+          onShuffle: () {
+            Navigator.of(context).pop(); // Close end screen
+            // Reset flag and immediately start game
+            if (mounted) {
+              setState(() {
+                _isShowingEndScreen = false;
+              });
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _startGame(useSameSequence: false); // Start a new game with new random challenges
+                }
+              });
+            }
           },
           onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            // Stay in shuffle cards view (don't pop again)
+            Navigator.of(context).pop(); // Close end screen (will return to shuffle cards view)
+            // Reset flag to show shuffle screen again
+            if (mounted) {
+              setState(() {
+                _isShowingEndScreen = false;
+              });
+            }
           },
         ),
       ),
@@ -833,7 +1020,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             ),
           ],
         ),
-      body: Container(
+      body: _isShowingEndScreen ? const SizedBox.shrink() : Container(
         color: Theme.of(context).colorScheme.surface,
         child: SingleChildScrollView(
           child: Padding(
@@ -975,13 +1162,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                     ),
                   ),
                 ],
-                
-
               ],
             ),
           ),
         ),
-        ),
+      ),
       ),
     );
   }

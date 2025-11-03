@@ -208,10 +208,15 @@ class PhraseProvider with ChangeNotifier {
   
   // MARK: - Translation Service Integration
   
-  Future<String?> translatePhrase(String phrase, {String targetLanguageCode = 'en'}) async {
+  Future<String?> translatePhrase(
+    String phrase, {
+    String sourceLanguageCode = 'nl',
+    String targetLanguageCode = 'en',
+  }) async {
     try {
-      return await _translationService.translateDutchToLanguage(
+      return await _translationService.translate(
         phrase,
+        sourceLanguageCode: sourceLanguageCode,
         targetLanguageCode: targetLanguageCode,
       );
     } catch (e) {

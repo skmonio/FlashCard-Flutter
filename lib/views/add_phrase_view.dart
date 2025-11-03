@@ -53,10 +53,12 @@ class _AddPhraseViewState extends State<AddPhraseView> {
 
     try {
       final langProvider = context.read<TranslationLanguageProvider>();
-      final targetLanguageCode = langProvider.targetLanguageCode;
+      final wordLanguageCode = langProvider.wordLanguageCode;
+      final targetLanguageCode = langProvider.translationLanguageCode;
       
       final translation = await context.read<PhraseProvider>().translatePhrase(
         _phraseController.text.trim(),
+        sourceLanguageCode: wordLanguageCode,
         targetLanguageCode: targetLanguageCode,
       );
 

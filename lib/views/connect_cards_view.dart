@@ -167,6 +167,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   Map<String, List<String>> _savedGridLetters = {}; // Track grid letters for each word
   Map<String, List<int>> _savedCorrectPaths = {}; // Track correct paths for each word
   Map<String, int> _savedGridSizes = {}; // Track grid sizes for each word
+  Map<String, int> _wrongAttemptsPerWord = {}; // Track wrong attempts per word (max 5 before showing solution)
+  Map<String, bool> _solutionRevealedPerWord = {}; // Track if solution has been revealed for each word
   int _currentUnansweredIndex = 0; // Track the current unanswered question index
   bool _hasNavigatedBack = false; // Track if user has pressed Back button
   
@@ -491,6 +493,14 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         _pathIndexes[_correctPath[i]] = true;
       }
       _startIndex = _correctPath.isNotEmpty ? _correctPath[0] : null;
+      
+      // If solution was revealed for this word and it's not answered yet, show the solution
+      if ((_solutionRevealedPerWord[currentWordId] ?? false) && 
+          !(_answeredWords.containsKey(currentWordId))) {
+        _selectedIndexes = List.from(_correctPath);
+        _hintIndexes.clear();
+      }
+      
       return;
     }
     
@@ -708,6 +718,12 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         // Incorrect word, show error
         print('❌ Word is incorrect');
         
+        String currentWordId = _availableCards[_currentCardIndex].id;
+        
+        // Increment wrong attempts counter
+        _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
+        int wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
+        
         // Mark the card as incorrect to properly record the attempt and reduce HP
         _availableCards[_currentCardIndex].markIncorrect(GameDifficulty.medium);
         
@@ -724,6 +740,28 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
             }
           }
         });
+        
+        // Check if we've reached 5 wrong attempts - show solution
+        if (wrongAttempts >= 5 && !(_solutionRevealedPerWord[currentWordId] ?? false)) {
+          print('🔍 5 wrong attempts reached - revealing solution');
+          _solutionRevealedPerWord[currentWordId] = true;
+          
+          setState(() {
+            // Reveal the correct path by selecting all correct indexes
+            _selectedIndexes = List.from(_correctPath);
+            _wrongIndexes.clear();
+            _hintIndexes.clear(); // Clear hints since we're showing the full solution
+          });
+          
+          // Auto-complete the word after showing solution
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            if (mounted) {
+              _completeWord();
+            }
+          });
+          
+          return;
+        }
         
         SoundManager().playWrongSound();
         _shakeController.forward(from: 0);
@@ -869,6 +907,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   
   void _completeWord() {
     final word = _availableCards[_currentCardIndex].word.toUpperCase();
+    String currentWordId = _availableCards[_currentCardIndex].id;
     
     setState(() {
       _hintLevel = 0;
@@ -886,20 +925,25 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     }
     
     // Calculate XP with hint penalty (-1 XP per hint used)
-    String currentWordId = _availableCards[_currentCardIndex].id;
+    // If solution was revealed (5 wrong attempts), reduce XP to 0
     int baseXP = 10;
     int hintPenalty = _hintsUsedPerWord[currentWordId] ?? 0;
-    int finalXP = (baseXP - hintPenalty).clamp(0, baseXP); // Don't go below 0
+    bool solutionRevealed = _solutionRevealedPerWord[currentWordId] ?? false;
+    int finalXP = solutionRevealed ? 0 : (baseXP - hintPenalty).clamp(0, baseXP); // 0 XP if solution was shown
     _xpGainedPerWord[currentWordId] = finalXP;
     _wordMastery[currentWordId] = _availableCards[_currentCardIndex].learningMastery;
     
     SoundManager().playCorrectSound();
     _successController.forward(from: 0);
     
-    // Show feedback message
+    // Show feedback message (different if solution was revealed)
     setState(() {
       _showFeedback = true;
-      _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+      if (solutionRevealed) {
+        _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+      } else {
+        _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+      }
     });
     
     // Save the answer state for this word (after feedback is set)
@@ -945,6 +989,15 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _showGameCompleteDialog();
     } else {
       _setupGrid();
+      
+      // Check if solution was already revealed for this word and restore it
+      String currentWordId = _availableCards[_currentCardIndex].id;
+      if (_solutionRevealedPerWord[currentWordId] ?? false) {
+        setState(() {
+          _selectedIndexes = List.from(_correctPath);
+        });
+      }
+      
       // Restart timer for timed mode
       if (_isTimedMode && widget.timePerQuestion != null) {
         _timeRemaining = widget.timePerQuestion!;
@@ -1063,6 +1116,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _savedGridLetters.clear();
       _savedCorrectPaths.clear();
       _savedGridSizes.clear();
+      _wrongAttemptsPerWord.clear();
+      _solutionRevealedPerWord.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
       
@@ -1097,6 +1152,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _savedGridLetters.clear();
       _savedCorrectPaths.clear();
       _savedGridSizes.clear();
+      _wrongAttemptsPerWord.clear();
+      _solutionRevealedPerWord.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
       
@@ -1127,8 +1184,20 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           _hintIndexes = List.from(_answeredHintIndexes[wordId] ?? []);
           _showFeedback = _answeredShowFeedback[wordId] ?? false;
           if (_showFeedback) {
-            _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            bool solutionRevealed = _solutionRevealedPerWord[wordId] ?? false;
+            if (solutionRevealed) {
+              _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            } else {
+              _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            }
           }
+        } else if (_solutionRevealedPerWord[wordId] ?? false) {
+          // Solution was revealed but word wasn't completed yet - show solution
+          _selectedIndexes = List.from(_correctPath);
+          _hintIndexes.clear();
+          _hintLevel = 0;
+          _showFeedback = false;
+          _feedbackMessage = '';
         } else {
           // Reset for unanswered word
           _selectedIndexes.clear();
@@ -1166,8 +1235,20 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           _hintIndexes = List.from(_answeredHintIndexes[wordId] ?? []);
           _showFeedback = _answeredShowFeedback[wordId] ?? false;
           if (_showFeedback) {
-            _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            bool solutionRevealed = _solutionRevealedPerWord[wordId] ?? false;
+            if (solutionRevealed) {
+              _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            } else {
+              _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+            }
           }
+        } else if (_solutionRevealedPerWord[wordId] ?? false) {
+          // Solution was revealed but word wasn't completed yet - show solution
+          _selectedIndexes = List.from(_correctPath);
+          _hintIndexes.clear();
+          _hintLevel = 0;
+          _showFeedback = false;
+          _feedbackMessage = '';
         } else {
           // Reset for unanswered word - clear all hint state for new exercise
           _selectedIndexes.clear();

@@ -21,6 +21,7 @@ class PopYourCardView extends StatefulWidget {
   final int? customLives;
   final bool useTimedMode;
   final int? timePerQuestion;
+  final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
   const PopYourCardView({
     super.key,
@@ -32,6 +33,7 @@ class PopYourCardView extends StatefulWidget {
     this.customLives,
     this.useTimedMode = false,
     this.timePerQuestion,
+    this.shuffleQuestionOffset,
   });
 
   @override
@@ -700,7 +702,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "${_currentIndex + 1}/${widget.cards.length}",
+                            widget.shuffleMode && widget.shuffleQuestionOffset != null
+                                ? "${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}/${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}"
+                                : "${_currentIndex + 1}/${widget.cards.length}",
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
