@@ -143,30 +143,13 @@ class _SettingsViewState extends State<SettingsView> {
                   return ListTile(
                     leading: const Icon(
                       Icons.language,
-                      color: Colors.green,
-                    ),
-                    title: const Text('Word Language'),
-                    subtitle: Text('Language you\'re learning: ${langProvider.wordLanguage.toString()}'),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      _showWordLanguageDialog(context, langProvider);
-                    },
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              Consumer<TranslationLanguageProvider>(
-                builder: (context, langProvider, child) {
-                  return ListTile(
-                    leading: const Icon(
-                      Icons.translate,
                       color: Colors.blue,
                     ),
-                    title: const Text('Translation Language'),
-                    subtitle: Text('Translation language: ${langProvider.translationLanguage.toString()}'),
+                    title: const Text('Language'),
+                    subtitle: Text('Word: ${langProvider.wordLanguage.toString()} | Translation: ${langProvider.translationLanguage.toString()}'),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      _showTranslationLanguageDialog(context, langProvider);
+                      _showLanguageDialog(context, langProvider);
                     },
                   );
                 },
@@ -325,21 +308,45 @@ class _SettingsViewState extends State<SettingsView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('About Taal Trek'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Version 1.0.0'),
-            SizedBox(height: 8),
-            Text('A Dutch language learning app with interactive flashcards and games.'),
-            SizedBox(height: 16),
-            Text('Features:'),
-            Text('• Spaced repetition learning'),
-            Text('• Multiple study modes'),
-            Text('• Interactive games'),
-            Text('• Progress tracking'),
-            Text('• Cloud sync (coming soon)'),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Version 3.3.4',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Your personalized Dutch language learning companion with AI-powered features and gamified study modes.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Features:',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text('• Interactive flashcards with spaced repetition'),
+              const Text('• Multiple study modes (Test, True/False, Write, Memory, etc.)'),
+              const Text('• Shuffle mode for mixed learning'),
+              const Text('• AI-powered text recognition'),
+              const Text('• Comprehensive grammar exercises'),
+              const Text('• Progress tracking and XP system'),
+              const Text('• Cloud sync across devices'),
+              const Text('• Multiple language support'),
+              const SizedBox(height: 16),
+              Text(
+                'Master Dutch vocabulary through engaging games and real-world text scanning.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -503,130 +510,148 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
-  void _showWordLanguageDialog(
+  void _showLanguageDialog(
     BuildContext context,
     TranslationLanguageProvider langProvider,
   ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Choose Word Language'),
+        title: const Text('Language Settings'),
         content: SizedBox(
           width: double.maxFinite,
-          height: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select the language you want to learn'),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: TranslationLanguageProvider.availableLanguages.length,
-                  itemBuilder: (context, index) {
-                    final language = TranslationLanguageProvider.availableLanguages[index];
-                    final isSelected = langProvider.wordLanguage.code == language.code;
-                    
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      color: isSelected ? Colors.green.withValues(alpha: 0.1) : null,
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.language,
-                          color: isSelected ? Colors.green : Colors.grey,
-                        ),
-                        title: Text(
-                          language.name,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.green : null,
-                          ),
-                        ),
-                        subtitle: Text(language.nativeName),
-                        trailing: isSelected 
-                            ? const Icon(Icons.check, color: Colors.green)
-                            : null,
-                        onTap: () {
-                          langProvider.setWordLanguage(language);
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    );
-                  },
+          height: 500,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(
+                      icon: Icon(Icons.language, color: Colors.green),
+                      text: 'Word Language',
+                    ),
+                    Tab(
+                      icon: Icon(Icons.translate, color: Colors.blue),
+                      text: 'Translation Language',
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Word Language Tab
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'Select the language you want to learn',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: TranslationLanguageProvider.availableLanguages.length,
+                              itemBuilder: (context, index) {
+                                final language = TranslationLanguageProvider.availableLanguages[index];
+                                final isSelected = langProvider.wordLanguage.code == language.code;
+                                
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8, left: 8, right: 8),
+                                  color: isSelected ? Colors.green.withValues(alpha: 0.1) : null,
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.language,
+                                      color: isSelected ? Colors.green : Colors.grey,
+                                    ),
+                                    title: Text(
+                                      language.name,
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected ? Colors.green : null,
+                                      ),
+                                    ),
+                                    subtitle: Text(language.nativeName),
+                                    trailing: isSelected 
+                                        ? const Icon(Icons.check, color: Colors.green)
+                                        : null,
+                                    onTap: () {
+                                      langProvider.setWordLanguage(language);
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Translation Language Tab
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'Select the language for translations',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: TranslationLanguageProvider.availableLanguages.length,
+                              itemBuilder: (context, index) {
+                                final language = TranslationLanguageProvider.availableLanguages[index];
+                                final isSelected = langProvider.translationLanguage.code == language.code;
+                                
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8, left: 8, right: 8),
+                                  color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.translate,
+                                      color: isSelected ? Colors.blue : Colors.grey,
+                                    ),
+                                    title: Text(
+                                      language.name,
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected ? Colors.blue : null,
+                                      ),
+                                    ),
+                                    subtitle: Text(language.nativeName),
+                                    trailing: isSelected 
+                                        ? const Icon(Icons.check, color: Colors.blue)
+                                        : null,
+                                    onTap: () {
+                                      langProvider.setTranslationLanguage(language);
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTranslationLanguageDialog(
-    BuildContext context,
-    TranslationLanguageProvider langProvider,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Choose Translation Language'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select the language for translations'),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: TranslationLanguageProvider.availableLanguages.length,
-                  itemBuilder: (context, index) {
-                    final language = TranslationLanguageProvider.availableLanguages[index];
-                    final isSelected = langProvider.translationLanguage.code == language.code;
-                    
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      color: isSelected ? Colors.blue.withValues(alpha: 0.1) : null,
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.translate,
-                          color: isSelected ? Colors.blue : Colors.grey,
-                        ),
-                        title: Text(
-                          language.name,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.blue : null,
-                          ),
-                        ),
-                        subtitle: Text(language.nativeName),
-                        trailing: isSelected 
-                            ? const Icon(Icons.check, color: Colors.blue)
-                            : null,
-                        onTap: () {
-                          langProvider.setTranslationLanguage(language);
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text('Done'),
           ),
         ],
       ),

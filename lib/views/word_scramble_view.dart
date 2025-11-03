@@ -46,7 +46,7 @@ class WordScrambleView extends StatefulWidget {
   State<WordScrambleView> createState() => _WordScrambleViewState();
 }
 
-class _WordScrambleViewState extends State<WordScrambleView> {
+class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
@@ -93,6 +93,14 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   
   // Review system
   Set<String> _reviewCards = {}; // Track which cards are in review deck
+  
+  // Wrong attempts tracking
+  Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts
+  
+  // Shake animation for wrong answers
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  bool _isShowingWrongAnswer = false; // Track if we're showing wrong answer state
 
   @override
   void initState() {
@@ -107,6 +115,15 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       _maxLives = widget.customLives ?? _getDefaultLives();
       _lives = _maxLives;
     }
+    
+    // Initialize shake animation
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _shakeAnimation = Tween<double>(begin: 0, end: 10)
+        .chain(CurveTween(curve: Curves.elasticOut))
+        .animate(_shakeController);
     
     _generateQuestion();
     
@@ -125,6 +142,9 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     
     // Cancel auto progress timer
     _autoProgressTimer?.cancel();
+    
+    // Dispose animation controller
+    _shakeController.dispose();
     
     super.dispose();
   }
@@ -158,16 +178,14 @@ class _WordScrambleViewState extends State<WordScrambleView> {
       }
     }
     
-    // Update the current question if it's using an updated card
-    if (_currentIndex < updatedCards.length) {
-      final currentCard = updatedCards[_currentIndex];
-      if (currentCard.id == _currentCards[_currentIndex].id) {
-        // Regenerate question with updated card data
-        _generateQuestion();
-      }
-    }
+    // Update cards WITHOUT regenerating question
+    // Regenerating would reset wrong answer state, attempts, and question progress
+    // CRITICAL: Don't call _generateQuestion() as it resets _isShowingWrongAnswer, _userAnswer, _wrongAttempts
+    // Just update the card references, preserve all question state
+    // Note: _currentCards is read-only in this widget (it's from widget.cards), so we don't update it
+    // The provider update just ensures we have the latest card data
     
-    print('🔍 WordScrambleView: Refreshed cards from provider');
+    print('🔍 WordScrambleView: Refreshed cards from provider (preserving wrong answer state and attempts, NOT regenerating question)');
   }
 
   void _generateQuestion() {
@@ -240,7 +258,15 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     setState(() {
       _answered = false;
       _userAnswer = [];
+      _isShowingWrongAnswer = false;
       _isCardFlipped = false;
+      // Reset wrong attempts only if this is a new question (not already attempted)
+      if (!_answeredQuestions.containsKey(_currentIndex)) {
+        _wrongAttempts[_currentIndex] = 0;
+      } else {
+        // Preserve wrong attempts for already attempted questions
+        _wrongAttempts[_currentIndex] ??= 0;
+      }
       // Reset hint tracking for new question (hint tracking is per question)
       _lockedPositions[_currentIndex] = <int>{}; // Reset locked positions for new question
     });
@@ -289,61 +315,147 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   }
 
   void _checkAnswer() {
-    if (_answered || _userAnswer.isEmpty) return;
+    if (_answered || _userAnswer.isEmpty || _isShowingWrongAnswer) return;
     
     final userWord = _userAnswer.join('');
     final correctWordWithoutSpaces = _correctWord.replaceAll(' ', '').toLowerCase();
     final isCorrect = userWord.toLowerCase() == correctWordWithoutSpaces;
     final currentCard = _currentCards[_currentIndex];
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
-    // Track XP for this answer
-    XpService.recordAnswer(_gameSession, isCorrect);
-    
-    // Award XP to word for RPG system
-    _awardXPToWord(currentCard, isCorrect);
-    
-    // Update the card in the provider to save the XP changes
-    _updateCardInProvider(currentCard);
-    
-    setState(() {
-      _answered = true;
-      _totalAnswered++;
+    if (isCorrect) {
+      // Correct answer - proceed normally
+      // Track XP for this answer
+      XpService.recordAnswer(_gameSession, isCorrect);
       
-      if (isCorrect) {
+      // Award XP to word for RPG system (with wrong attempts penalty)
+      _awardXPToWord(currentCard, true, wrongAttempts);
+      
+      // Update the card in the provider to save the XP changes
+      _updateCardInProvider(currentCard);
+      
+      setState(() {
+        _answered = true;
+        _totalAnswered++;
         _correctAnswers++;
         _correctAnswersMap[_currentIndex] = true;
-        SoundManager().playCorrectSound();
-      } else {
-        _correctAnswersMap[_currentIndex] = false;
-        SoundManager().playWrongSound();
-        
-        // Handle lives system
-        if (_useLivesMode) {
-          _lives--;
-          print('🔍 WordScrambleView: Lost a life! Lives remaining: $_lives');
-          
-          if (_lives <= 0) {
-            print('🔍 WordScrambleView: Game over! No lives remaining');
-            _showGameOverScreen();
-            return;
-          }
-        }
-      }
+      });
+      
+      SoundManager().playCorrectSound();
       
       // Store the answer for navigation
       _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
-    });
-    
-    // Auto progress logic (disabled in shuffle mode to allow manual control)
-    if (widget.autoProgress && !widget.shuffleMode) {
-      _autoProgressTimer?.cancel();
-      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-        if (mounted && _currentIndex < _currentCards.length - 1) {
-          // Mark this question as auto-progressed before moving to next
-          _autoProgressedQuestions.add(_currentIndex);
-          // Update the active question index to the next question
-          _activeQuestionIndex = _currentIndex + 1;
-          _goToNextQuestion();
+      
+      // Auto progress logic (disabled in shuffle mode to allow manual control)
+      if (widget.autoProgress && !widget.shuffleMode) {
+        _autoProgressTimer?.cancel();
+        _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+          if (mounted && _currentIndex < _currentCards.length - 1) {
+            // Mark this question as auto-progressed before moving to next
+            _autoProgressedQuestions.add(_currentIndex);
+            // Update the active question index to the next question
+            _activeQuestionIndex = _currentIndex + 1;
+            _goToNextQuestion();
+          }
+        });
+      }
+    } else {
+      // Wrong answer - shake, turn red, reset, and apply XP penalty
+      final newWrongAttempts = wrongAttempts + 1;
+      _wrongAttempts[_currentIndex] = newWrongAttempts;
+      
+      // Track XP for wrong attempt
+      XpService.recordAnswer(_gameSession, false);
+      
+      // Apply -1 XP penalty (record attempt)
+      final xpService = XpService();
+      if (widget.shuffleMode) {
+        currentCard.markIncorrect(GameDifficulty.medium);
+        xpService.recordAttemptToWord(currentCard.learningMastery, "word_scramble");
+      } else {
+        xpService.recordAttemptToWord(currentCard.learningMastery, "word_scramble");
+      }
+      _updateCardInProvider(currentCard);
+      
+      // Handle lives system
+      if (_useLivesMode) {
+        setState(() {
+          _lives--;
+        });
+        print('🔍 WordScrambleView: Lost a life! Lives remaining: $_lives');
+        
+        if (_lives <= 0) {
+          print('🔍 WordScrambleView: Game over! No lives remaining');
+          _showGameOverScreen();
+          return;
+        }
+      }
+      
+      // If 5 wrong attempts, auto-complete with correct answer (0 XP)
+      print('🔍 WordScrambleView: Wrong attempt $newWrongAttempts of 5');
+      if (newWrongAttempts >= 5) {
+        print('🔍 WordScrambleView: 5 wrong attempts reached! Auto-completing answer.');
+        
+        // Award 0 XP since they failed after 5 attempts
+        if (!widget.shuffleMode) {
+          _awardXPToWord(currentCard, false, newWrongAttempts);
+          _updateCardInProvider(currentCard);
+        }
+        
+        // Get the correct piece order and set it as the user answer
+        final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
+        
+        setState(() {
+          _isShowingWrongAnswer = false;
+          // Set user answer to the correct order of pieces
+          _userAnswer = List<String>.from(correctPieces);
+          _answered = true;
+          _totalAnswered++;
+          _correctAnswersMap[_currentIndex] = false; // Mark as incorrect (failed after 5 attempts)
+          
+          // Store the answer (even though it's incorrect due to 5 wrong attempts)
+          _answeredQuestions[_currentIndex] = List<String>.from(correctPieces);
+          
+          print('🔍 WordScrambleView: Auto-completed with correct pieces: $_userAnswer');
+        });
+        
+        return;
+      }
+      
+      // Show wrong answer state (red) and shake
+      // Keep the pieces in the answer position - don't clear them yet
+      print('🔍 WordScrambleView: Showing wrong answer. Wrong attempts: $newWrongAttempts/5, userAnswer: $_userAnswer');
+      
+      setState(() {
+        _isShowingWrongAnswer = true;
+        // IMPORTANT: Keep userAnswer visible so pieces stay in place
+        print('🔍 WordScrambleView: Set _isShowingWrongAnswer = true, userAnswer length: ${_userAnswer.length}');
+      });
+      
+      SoundManager().playWrongSound();
+      
+      // Start shake animation
+      _shakeController.forward(from: 0);
+      
+      // After shake animation completes, reset and allow retry
+      // Keep pieces visible (red and shaking) for longer to show feedback
+      // Wait for animation duration plus a pause to see the red highlight and "Incorrect, try again" message
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted && !_answered) { // Only reset if not already answered (i.e., not auto-completed)
+          print('🔍 WordScrambleView: Resetting wrong answer state after delay. UserAnswer before clear: $_userAnswer, ScrambledLetters before: $_scrambledLetters');
+          
+          // Store pieces to return them to the pool
+          final piecesToReturn = List<String>.from(_userAnswer);
+          
+          setState(() {
+            _isShowingWrongAnswer = false;
+            // Return all pieces from user answer back to scrambled letters pool
+            _scrambledLetters.addAll(piecesToReturn);
+            // Now clear user answer
+            _userAnswer.clear();
+            
+            print('🔍 WordScrambleView: After reset - ScrambledLetters: $_scrambledLetters, UserAnswer: $_userAnswer');
+          });
         }
       });
     }
@@ -809,32 +921,58 @@ class _WordScrambleViewState extends State<WordScrambleView> {
                                 )
                               : _buildUserAnswerDisplay(),
                         ),
-                        // Show feedback when answered
-                        if (_answered) ...[
+                        // Show feedback when answered or showing wrong answer
+                        // ALWAYS show feedback when _isShowingWrongAnswer is true OR when _answered is true
+                        if (_isShowingWrongAnswer || _answered) ...[
                           const SizedBox(height: 8),
-                          if (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase()) ...[
-                            // Show "Correct!" for correct answers
-                            Text(
-                              'Correct!',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.green,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ] else ...[
-                            // Show correct answer for incorrect answers
-                            Text(
-                              'The correct answer is: $_correctWord',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.red,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                          Builder(
+                            builder: (context) {
+                              // Debug: Print feedback state
+                              print('🔍 WordScrambleView: Building feedback - _isShowingWrongAnswer: $_isShowingWrongAnswer, _answered: $_answered, userAnswer: $_userAnswer');
+                              
+                              if (_isShowingWrongAnswer && !_answered) {
+                                // Show "Incorrect, try again" when wrong answer is shown (before 5 attempts)
+                                return Text(
+                                  'Incorrect, try again',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                );
+                              } else if (_answered) {
+                                // Check if this was marked as correct or incorrect
+                                final isMarkedCorrect = _correctAnswersMap[_currentIndex] ?? false;
+                                
+                                if (isMarkedCorrect) {
+                                  // Show "Correct!" for correct answers (user got it right)
+                                  return Text(
+                                    'Correct!',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.green,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  );
+                                } else {
+                                  // Show correct answer for incorrect answers (after 5 attempts or wrong answer)
+                                  // Even if pieces are in correct order, if _correctAnswersMap is false, show this
+                                  return Text(
+                                    'The correct answer is: $_correctWord',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.red,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  );
+                                }
+                              }
+                              return const SizedBox.shrink();
+                            },
+                          ),
                         ],
                       ],
                     ),
@@ -954,76 +1092,103 @@ class _WordScrambleViewState extends State<WordScrambleView> {
   
 
   Widget _buildUserAnswerDisplay() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (_userAnswer.isEmpty)
-          Text(
-            'Tap pieces to build your answer',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontStyle: FontStyle.italic,
-            ),
-          )
-        else
-          ..._userAnswer.asMap().entries.map((entry) {
-            final index = entry.key;
-            final piece = entry.value;
-            final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
-            final isLocked = lockedPositions.contains(index);
-            
-            if (isLocked) {
-              print('🔍 WordScrambleView: Piece "$piece" at position $index is LOCKED (orange border)');
-            } else {
-              print('🔍 WordScrambleView: Piece "$piece" at position $index is UNLOCKED (blue border)');
-            }
-            
-            return GestureDetector(
-              onTap: _answered || isLocked ? null : () => _removeLetterAt(index),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                width: piece.length > 2 ? 50 : 40, // Wider for longer pieces
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _answered 
-                      ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
-                          ? Colors.green.withValues(alpha: 0.2) 
-                          : Colors.red.withValues(alpha: 0.2))
-                      : isLocked 
-                          ? Colors.orange.withValues(alpha: 0.2) // Locked pieces have orange background
-                          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  border: Border.all(
-                    color: _answered 
-                        ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
-                            ? Colors.green 
-                            : Colors.red)
-                        : isLocked 
-                            ? Colors.orange // Locked pieces have orange border
-                            : Theme.of(context).colorScheme.primary,
-                    width: isLocked ? 3 : 1, // Thicker border for locked pieces
-                  ),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Center(
-                  child: Text(
-                    piece,
-                    style: TextStyle(
-                      fontSize: piece.length > 2 ? 14 : 16, // Smaller font for longer pieces
-                      fontWeight: FontWeight.bold,
-                      color: _answered 
-                          ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
-                              ? Colors.green 
-                              : Colors.red)
-                          : isLocked 
-                              ? Colors.orange // Locked pieces have orange text
-                              : Theme.of(context).colorScheme.primary,
+    return AnimatedBuilder(
+      animation: _shakeAnimation,
+      builder: (context, child) {
+        // Create a more visible shake effect when wrong answer is shown
+        double shakeOffset = 0;
+        if (_isShowingWrongAnswer && _shakeController.isAnimating) {
+          // Create a more pronounced shake by using sine waves
+          shakeOffset = _shakeAnimation.value * (2 * (1 - _shakeAnimation.value / 10)) * 
+                       ((_shakeAnimation.value * 10).round() % 2 == 0 ? 1 : -1);
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Note: "Incorrect, try again" text is now shown in the main feedback area below
+            Transform.translate(
+              offset: Offset(shakeOffset, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (_userAnswer.isEmpty && !_isShowingWrongAnswer)
+                    Text(
+                      'Tap pieces to build your answer',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else if (_userAnswer.isNotEmpty)
+                ..._userAnswer.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final piece = entry.value;
+                  final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
+                  final isLocked = lockedPositions.contains(index);
+                  
+                  if (isLocked) {
+                    print('🔍 WordScrambleView: Piece "$piece" at position $index is LOCKED (orange border)');
+                  } else {
+                    print('🔍 WordScrambleView: Piece "$piece" at position $index is UNLOCKED (blue border)');
+                  }
+                  
+                  return GestureDetector(
+                    onTap: _answered || isLocked || _isShowingWrongAnswer ? null : () => _removeLetterAt(index),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      width: piece.length > 2 ? 50 : 40, // Wider for longer pieces
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: _answered 
+                            ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
+                                ? Colors.green.withValues(alpha: 0.2) 
+                                : Colors.red.withValues(alpha: 0.2))
+                            : _isShowingWrongAnswer
+                                ? Colors.red.withValues(alpha: 0.4) // More visible red background when wrong
+                                : isLocked 
+                                    ? Colors.orange.withValues(alpha: 0.2) // Locked pieces have orange background
+                                    : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                        border: Border.all(
+                          color: _answered 
+                              ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
+                                  ? Colors.green 
+                                  : Colors.red)
+                              : _isShowingWrongAnswer
+                                  ? Colors.red.withValues(alpha: 1.0) // Bright red border when wrong
+                                  : isLocked 
+                                      ? Colors.orange // Locked pieces have orange border
+                                      : Theme.of(context).colorScheme.primary,
+                          width: _isShowingWrongAnswer ? 3 : (isLocked ? 3 : 1), // Thicker border when showing wrong answer
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Center(
+                        child: Text(
+                          piece,
+                          style: TextStyle(
+                            fontSize: piece.length > 2 ? 14 : 16, // Smaller font for longer pieces
+                            fontWeight: FontWeight.bold,
+                            color: _answered 
+                                ? (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase() 
+                                    ? Colors.green 
+                                    : Colors.red)
+                                : _isShowingWrongAnswer
+                                    ? Colors.red.withValues(alpha: 1.0) // Bright red text when wrong
+                                    : isLocked 
+                                        ? Colors.orange // Locked pieces have orange text
+                                        : Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
+                ],
               ),
-            );
-          }).toList(),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1600,7 +1765,7 @@ class _WordScrambleViewState extends State<WordScrambleView> {
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
   }
   
-  void _awardXPToWord(FlashCard card, bool isCorrect) {
+  void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
     final xpService = XpService();
     
     print('🔍 WordScrambleView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');

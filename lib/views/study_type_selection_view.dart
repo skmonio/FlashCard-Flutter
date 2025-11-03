@@ -1930,7 +1930,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         // Centered title - always in the center regardless of other elements
         Center(
           child: Text(
-            'Study Type',
+            _getGameModeTitle(),
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,

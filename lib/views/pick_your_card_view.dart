@@ -93,6 +93,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Map<int, bool> _cardResults = {}; // Store whether each card was answered correctly
   Map<int, List<String>> _userSelections = {}; // Store user's individual wheel selections for each card
   
+  // Wrong attempts tracking
+  Map<int, int> _wrongAttempts = {}; // card index -> number of wrong attempts (0-5)
+  bool _showAnswer = false; // Track if answer should be shown (after 5 attempts)
+  
   // Debounce mechanism for wheel changes
   Timer? _wheelChangeTimer;
   
@@ -847,6 +851,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   void _nextCard() {
+    // Reset wrong attempts tracking for new card
+    _wrongAttempts[currentCardIndex] = 0;
+    _showAnswer = false;
+    
     if (currentCardIndex + 1 < widget.cards.length) {
       if (mounted) {
         setState(() {
@@ -1441,7 +1449,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
             Text(
               _isLastAnswerCorrect 
                 ? "Correct!"
-                : "Correct answer is: $_lastCorrectAnswer",
+                : (_showAnswer 
+                    ? "Correct answer is: $_lastCorrectAnswer" 
+                    : "Incorrect, try again"),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

@@ -50,6 +50,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   List<FlashCard> _studiedWords = [];
+  
+  // Wrong attempts tracking
+  Map<int, int> _wrongAttempts = {}; // card index -> number of wrong attempts (0-5)
+  bool _showAnswerForCurrentCard = false; // Track if answer should be shown (after 5 attempts)
 
   // Lives and timer system
   bool _useLivesMode = false;
@@ -299,20 +303,41 @@ class _PopYourCardViewState extends State<PopYourCardView>
       _studiedWords.add(currentCard);
     }
 
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
+    
     if (isCorrect) {
       _correctAnswers++;
-      _awardXP(currentCard);
+      // Award XP with penalty for wrong attempts
+      _awardXP(currentCard, wrongAttempts);
       // Mark the card as correct to properly record the attempt and reduce HP
       currentCard.markCorrect(GameDifficulty.medium);
       HapticService().successFeedback();
+      
+      // Update mastery tracking and save
+      _wordMastery[currentCard.id] = currentCard.learningMastery;
+      final provider = context.read<FlashcardProvider>();
+      provider.updateCard(currentCard);
+      
+      setState(() {});
+      
+      // Show simple XP feedback and proceed to next card
+      _showCardXPFeedback(currentCard, true, correct);
     } else {
-      // Track incorrect answers with 0 XP
-      _xpGainedPerWord[currentCard.id] = 0;
-      // Mark the card as incorrect (this records the attempt via recordGameAttempt)
-      currentCard.markIncorrect(GameDifficulty.medium);
-      // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
+      // Wrong answer - increment wrong attempts
+      final newWrongAttempts = wrongAttempts + 1;
+      _wrongAttempts[_currentIndex] = newWrongAttempts;
+      
+      // Apply -1 XP penalty (record attempt)
       final xpService = XpService();
-      xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
+      if (widget.shuffleMode) {
+        currentCard.markIncorrect(GameDifficulty.medium);
+        xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
+      } else {
+        xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
+      }
+      
+      // Track incorrect answers with 0 XP (will be updated when correct)
+      _xpGainedPerWord[currentCard.id] = 0;
       HapticService().errorFeedback();
       
       // Handle lives mode
@@ -327,18 +352,27 @@ class _PopYourCardViewState extends State<PopYourCardView>
           return;
         }
       }
+      
+      // If 5 wrong attempts, show the answer
+      if (newWrongAttempts >= 5) {
+        _showAnswerForCurrentCard = true;
+        final provider = context.read<FlashcardProvider>();
+        provider.updateCard(currentCard);
+        _wordMastery[currentCard.id] = currentCard.learningMastery;
+        setState(() {});
+        _showCardXPFeedback(currentCard, false, correct);
+      } else {
+        // Show "Incorrect try again" message and allow retry
+        _showCardXPFeedback(currentCard, false, correct, showTryAgain: true);
+      }
     }
-
-    // Update mastery tracking for both correct and incorrect answers
-    _wordMastery[currentCard.id] = currentCard.learningMastery;
-
-    setState(() {});
-
-    // Show simple XP feedback and proceed to next card
-    _showCardXPFeedback(currentCard, isCorrect, correct);
   }
 
   void _nextCard() {
+    // Reset wrong attempts tracking for new card
+    _wrongAttempts[_currentIndex] = 0;
+    _showAnswerForCurrentCard = false;
+    
     _currentIndex++;
     if (_currentIndex < widget.cards.length) {
       _loadCurrentCard();
@@ -360,30 +394,43 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  void _awardXP(FlashCard card) {
+  void _awardXP(FlashCard card, [int wrongAttempts = 0]) {
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
     
-    print('🔍 PopYourCardView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    print('🔍 PopYourCardView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}, wrongAttempts: $wrongAttempts');
     
-    // Get the XP that will be gained (before markCorrect is called)
-    final xpGained = card.learningMastery.getXPForGame("popYourCard");
+    // Award XP using standard system
+    final xpService = XpService();
+    xpService.addXPToWord(card.learningMastery, "popYourCard", 1);
+    
+    // Get the actual XP gained (after diminishing returns)
+    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+        : 0;
+    
+    // Apply penalty for wrong attempts: -1 XP per wrong attempt, minimum 0 XP
+    final finalXPGained = wrongAttempts > 0 
+        ? (actualXPGained - wrongAttempts).clamp(0, actualXPGained)
+        : actualXPGained;
     
     // Track XP gained for this word in this session
-    _xpGainedPerWord[card.id] = xpGained;
-    _sessionXP += xpGained;
+    _xpGainedPerWord[card.id] = finalXPGained;
+    _sessionXP += finalXPGained;
     
     // Award XP to user profile (async but we don't await it)
-    userProfileProvider.addXp(xpGained);
+    userProfileProvider.addXp(finalXPGained);
     
     // Update the card in the provider
     provider.updateCard(card);
     
-    print('🔍 PopYourCardView: Will award $xpGained XP to word "${card.word}" - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+    String wrongText = wrongAttempts > 0 ? ", $wrongAttempts wrong attempt${wrongAttempts > 1 ? 's' : ''}" : "";
+    print('🔍 PopYourCardView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained$wrongText) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
   }
 
-  void _showCardXPFeedback(FlashCard card, bool isCorrect, String correctAnswer) {
+  void _showCardXPFeedback(FlashCard card, bool isCorrect, String correctAnswer, {bool showTryAgain = false}) {
     final xpGained = isCorrect ? _xpGainedPerWord[card.id] ?? 0 : 0;
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
     _dialogOpen = true;
     showDialog<void>(
@@ -391,7 +438,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
       barrierDismissible: false,
       builder: (BuildContext dialogContext) => AlertDialog(
         title: Text(
-          isCorrect ? "Correct!" : "Wrong!",
+          isCorrect ? "Correct!" : (showTryAgain ? "Incorrect, try again" : "Wrong!"),
           style: TextStyle(
             color: isCorrect ? Colors.green : Colors.red,
             fontWeight: FontWeight.bold,
@@ -400,7 +447,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("The correct answer was: $correctAnswer"),
+            if (isCorrect || _showAnswerForCurrentCard)
+              Text("The correct answer was: $correctAnswer"),
+            if (showTryAgain && !_showAnswerForCurrentCard)
+              Text("Wrong attempts: $wrongAttempts/5"),
             if (isCorrect && xpGained > 0) ...[
               const SizedBox(height: 8),
               Text(
@@ -419,18 +469,28 @@ class _PopYourCardViewState extends State<PopYourCardView>
             onPressed: () {
               _dialogOpen = false;
               Navigator.pop(dialogContext);
-              // Add a small delay to prevent rapid state changes
-              Future.delayed(const Duration(milliseconds: 200), () {
-                if (mounted) {
-                  _nextCard();
-                  // Only restart ticker if we're still on the same screen (not navigating away)
-                  if (mounted && _currentIndex < widget.cards.length) {
+              
+              if (isCorrect || _showAnswerForCurrentCard) {
+                // Go to next card if correct or answer was shown
+                Future.delayed(const Duration(milliseconds: 200), () {
+                  if (mounted) {
+                    _nextCard();
+                    // Only restart ticker if we're still on the same screen (not navigating away)
+                    if (mounted && _currentIndex < widget.cards.length) {
+                      _ticker.start();
+                    }
+                  }
+                });
+              } else {
+                // Allow retry - just restart the ticker
+                Future.delayed(const Duration(milliseconds: 200), () {
+                  if (mounted) {
                     _ticker.start();
                   }
-                }
-              });
+                });
+              }
             },
-            child: const Text("Next"),
+            child: Text(isCorrect || _showAnswerForCurrentCard ? "Next" : "Try Again"),
           ),
         ],
       ),

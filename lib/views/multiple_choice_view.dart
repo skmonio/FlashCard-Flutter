@@ -90,6 +90,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, 2, or 3)
   Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
   Set<String> _reviewCards = {}; // card IDs marked for review
+  
+  // Wrong attempts tracking for Test Your Cards mode
+  Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts (0-5)
+  Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
 
   @override
   void initState() {
@@ -155,17 +159,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       }
     }
     
-    // Update our current cards list
+    // Update our current cards list WITHOUT regenerating the question
+    // Regenerating would reset blocked options and question state
     setState(() {
       _currentCards = updatedCards;
-      
-      // If we're currently viewing a card that was updated, regenerate the question
-      if (_currentIndex < _currentCards.length && !_showingResults) {
-        _generateQuestion();
-      }
+      // DO NOT call _generateQuestion() here as it resets blocked options!
+      // Just update the card references, preserve all question state
     });
     
-    print('🔍 MultipleChoiceView: Refreshed cards from provider');
+    print('🔍 MultipleChoiceView: Refreshed cards from provider (preserving blocked options and question state)');
   }
 
   void _generateQuestion() {
@@ -187,9 +189,18 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       return;
     }
 
-    // Reset hint and review state for new question
-    _hintCount[_currentIndex] = 0;
-    _blockedOptions[_currentIndex] = <int>{};
+    // Reset hint and review state for new question (only if not already attempted)
+    if (!_answeredQuestions.containsKey(_currentIndex)) {
+      _hintCount[_currentIndex] = 0;
+      _blockedOptions[_currentIndex] = <int>{};
+      _wrongAttempts[_currentIndex] = 0;
+      _disabledOptions[_currentIndex] = <int>{};
+    } else {
+      // Preserve blocked and disabled options for already attempted questions
+      _blockedOptions[_currentIndex] ??= <int>{};
+      _disabledOptions[_currentIndex] ??= <int>{};
+      _wrongAttempts[_currentIndex] ??= 0;
+    }
 
     // Check if this question has already been generated
     if (_questionOptions.containsKey(_currentIndex)) {
@@ -199,6 +210,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _correctAnswerIndex = _correctAnswerIndices[_currentIndex]!;
       _selectedAnswer = _answeredQuestions[_currentIndex];
       _answered = _answeredQuestions.containsKey(_currentIndex);
+      // Preserve blocked and disabled options - don't reset them
+      _blockedOptions[_currentIndex] ??= <int>{};
+      _disabledOptions[_currentIndex] ??= <int>{};
+      _wrongAttempts[_currentIndex] ??= 0;
       return;
     }
 
@@ -265,10 +280,23 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   void _selectAnswer(int index) {
-    if (_answered) return;
+    // Don't allow selecting if already answered (correct answer selected or 5 wrong attempts)
+    if (_answered) {
+      print('🔍 MultipleChoiceView: Answer already selected, ignoring tap on option $index');
+      return;
+    }
+    
+    // Don't allow selecting blocked options (wrong answers that were already clicked or hints)
+    // Use same logic as hints - check _blockedOptions
+    _blockedOptions[_currentIndex] ??= <int>{};
+    if (_blockedOptions[_currentIndex]!.contains(index)) {
+      print('🔍 MultipleChoiceView: Option $index is blocked for question $_currentIndex, ignoring tap. Blocked set: ${_blockedOptions[_currentIndex]}');
+      return;
+    }
     
     final isCorrect = (index == _correctAnswerIndex);
     final currentCard = _currentCards[_currentIndex];
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
     // Provide haptic feedback based on answer correctness
     if (isCorrect) {
@@ -280,70 +308,144 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Track XP for the answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // In shuffle mode, reduce HP immediately for every answer attempt
-    // (XP tracking is handled by shuffle view at completion)
-    if (widget.shuffleMode) {
-      if (isCorrect) {
+    if (isCorrect) {
+      // Correct answer - show answer immediately and award XP
+      setState(() {
+        _selectedAnswer = index;
+        _answered = true;
+        _totalAnswered++;
+        _correctAnswers++;
+        
+        // Store the answer
+        _answeredQuestions[_currentIndex] = index;
+        _correctAnswersMap[_currentIndex] = true;
+      });
+      
+      // Play correct sound
+      SoundManager().playCorrectSound();
+      
+      // Award XP with penalty for wrong attempts
+      if (widget.shuffleMode) {
+        // In shuffle mode, HP reduction is handled by shuffle view
         currentCard.markCorrect(GameDifficulty.medium);
-        // markCorrect already adds to exerciseHistory, reducing HP
+        _updateCardInProvider(currentCard);
       } else {
+        // In standalone mode, award XP with penalty
+        _awardXPToWord(currentCard, true, wrongAttempts);
+        _updateCardInProvider(currentCard);
+      }
+      
+      // Auto progress logic (only if not game over and not in shuffle mode)
+      if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
+        _autoProgressTimer?.cancel();
+        _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+          if (mounted && _currentIndex < _currentCards.length - 1) {
+            // Mark this question as auto-progressed before moving to next
+            _autoProgressedQuestions.add(_currentIndex);
+            // Update the active question index to the next question
+            _activeQuestionIndex = _currentIndex + 1;
+            _goToNextQuestion();
+          }
+        });
+      }
+    } else {
+      // Wrong answer - disable this option, increment wrong attempts, and apply XP penalty
+      final newWrongAttempts = wrongAttempts + 1;
+      
+      // Disable this wrong option so it can't be clicked again (use same logic as hints)
+      // Add to both _disabledOptions (for tracking) and _blockedOptions (for UI blocking)
+      // CRITICAL: Must modify sets INSIDE setState to ensure state persists through rebuilds
+      setState(() {
+        // Initialize sets if needed
+        _disabledOptions[_currentIndex] ??= <int>{};
+        _blockedOptions[_currentIndex] ??= <int>{};
+        
+        // Add to blocked set INSIDE setState
+        if (!_blockedOptions[_currentIndex]!.contains(index)) {
+          _blockedOptions[_currentIndex]!.add(index);
+        }
+        if (!_disabledOptions[_currentIndex]!.contains(index)) {
+          _disabledOptions[_currentIndex]!.add(index);
+        }
+        
+        _wrongAttempts[_currentIndex] = newWrongAttempts;
+        // Keep track of the wrong answer to show visual feedback
+        _selectedAnswer = index; // Show which option was selected (wrong)
+        
+        print('🔍 MultipleChoiceView: INSIDE setState - Blocked option $index for question $_currentIndex. Blocked: ${_blockedOptions[_currentIndex]}, Disabled: ${_disabledOptions[_currentIndex]}, wrongAttempts: $newWrongAttempts');
+      });
+      
+      // Verify state persists after setState
+      print('🔍 MultipleChoiceView: AFTER setState - Verifying blocked state. Blocked: ${_blockedOptions[_currentIndex]}, Disabled: ${_disabledOptions[_currentIndex]}');
+      
+      // Play wrong sound
+      SoundManager().playWrongSound();
+      
+      // In shuffle mode, reduce HP immediately for wrong attempts
+      if (widget.shuffleMode) {
         currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt
         final xpService = XpService();
         xpService.recordAttemptToWord(currentCard.learningMastery, "multiple_choice");
-      }
-      // Update the card immediately to save HP changes
-      _updateCardInProvider(currentCard);
-    } else {
-      // In standalone mode, handle full tracking
-      _awardXPToWord(currentCard, isCorrect);
-      _updateCardInProvider(currentCard);
-    }
-    
-    setState(() {
-      _selectedAnswer = index;
-      _answered = true;
-      _totalAnswered++;
-      
-      // Store the answer
-      _answeredQuestions[_currentIndex] = index;
-      _correctAnswersMap[_currentIndex] = isCorrect;
-      
-      if (isCorrect) {
-        _correctAnswers++;
-        // Play correct sound
-        SoundManager().playCorrectSound();
+        _updateCardInProvider(currentCard);
       } else {
-        // Play wrong sound
-        SoundManager().playWrongSound();
-        
-        // Handle lives system
-        if (_useLivesMode) {
+        // In standalone mode, record wrong attempt (XP will be calculated when correct)
+        final xpService = XpService();
+        xpService.recordAttemptToWord(currentCard.learningMastery, "test");
+        _updateCardInProvider(currentCard);
+      }
+      
+      // Handle lives system (update without affecting disabled options)
+      if (_useLivesMode) {
+        setState(() {
           _lives--;
-          print('🔍 MultipleChoiceView: Lost a life! Lives remaining: $_lives');
-          
-          // Check if game over
-          if (_lives <= 0) {
-            print('🔍 MultipleChoiceView: Game over! No lives remaining');
-            _showGameOverScreen();
-            return;
+          // Ensure disabled and blocked options persist
+          _disabledOptions[_currentIndex] ??= <int>{};
+          _blockedOptions[_currentIndex] ??= <int>{};
+          if (!_disabledOptions[_currentIndex]!.contains(index)) {
+            _disabledOptions[_currentIndex]!.add(index);
           }
+          if (!_blockedOptions[_currentIndex]!.contains(index)) {
+            _blockedOptions[_currentIndex]!.add(index);
+          }
+        });
+        print('🔍 MultipleChoiceView: Lost a life! Lives remaining: $_lives');
+        
+        // Check if game over
+        if (_lives <= 0) {
+          print('🔍 MultipleChoiceView: Game over! No lives remaining');
+          _showGameOverScreen();
+          return;
         }
       }
-    });
-    
-    // Auto progress logic (only if not game over and not in shuffle mode)
-    if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
-      _autoProgressTimer?.cancel();
-      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-        if (mounted && _currentIndex < _currentCards.length - 1) {
-          // Mark this question as auto-progressed before moving to next
-          _autoProgressedQuestions.add(_currentIndex);
-          // Update the active question index to the next question
-          _activeQuestionIndex = _currentIndex + 1;
-          _goToNextQuestion();
+      
+      // If 5 wrong attempts, show the answer automatically
+      if (newWrongAttempts >= 5) {
+        // Award 0 XP since they failed after 5 attempts
+        if (!widget.shuffleMode) {
+          _awardXPToWord(currentCard, false, newWrongAttempts);
+          _updateCardInProvider(currentCard);
         }
-      });
+        
+        setState(() {
+          _answered = true;
+          _totalAnswered++;
+          
+          // Store the answer (wrong)
+          _answeredQuestions[_currentIndex] = index;
+          _correctAnswersMap[_currentIndex] = false;
+          // Show the correct answer
+          _selectedAnswer = _correctAnswerIndex;
+        });
+        
+        // Show message that answer will be revealed
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Maximum attempts reached. Showing correct answer (0 XP awarded)'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
   
@@ -882,23 +984,36 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildOptionButton(int index, String option) {
-    final isBlocked = _blockedOptions[_currentIndex]?.contains(index) ?? false;
+    // Initialize sets if they don't exist
+    _blockedOptions[_currentIndex] ??= <int>{};
+    _disabledOptions[_currentIndex] ??= <int>{};
     
-    return Container(
+    final isBlocked = _blockedOptions[_currentIndex]!.contains(index);
+    final isDisabled = _disabledOptions[_currentIndex]!.contains(index);
+    final isNotSelectable = isBlocked || isDisabled || (_answered && index != _correctAnswerIndex);
+    
+    // Debug: ALWAYS print to see what's happening
+    print('🔍 MultipleChoiceView: Building button for option $index (Q$_currentIndex) - isBlocked: $isBlocked, isDisabled: $isDisabled, isNotSelectable: $isNotSelectable');
+    
+    // Build the button content
+    Widget buttonContent = Container(
       width: double.infinity,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isBlocked ? null : () => _selectAnswer(index),
+          onTap: isNotSelectable ? () {
+            // Explicitly do nothing and log
+            print('🔍 MultipleChoiceView: Tapped blocked option $index - ignoring');
+          } : () => _selectAnswer(index),
           borderRadius: BorderRadius.circular(10),
           child: Container(
             padding: const EdgeInsets.all(12), // Reduced padding
             decoration: BoxDecoration(
-              color: isBlocked ? Colors.grey.withValues(alpha: 0.3) : _getOptionColor(index),
+              color: isNotSelectable ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isBlocked ? Colors.grey : _getOptionBorderColor(index),
-                width: 2,
+                color: isNotSelectable ? Colors.grey : _getOptionBorderColor(index),
+                width: isNotSelectable ? 3 : 2, // Thicker border when blocked
               ),
             ),
             child: Row(
@@ -907,12 +1022,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   width: 28, // Smaller circle
                   height: 28, // Smaller circle
                   decoration: BoxDecoration(
-                    color: isBlocked ? Colors.grey.withValues(alpha: 0.1) : _getOptionBorderColor(index).withValues(alpha: 0.1),
+                    color: isNotSelectable ? Colors.grey.withValues(alpha: 0.3) : _getOptionBorderColor(index).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: isBlocked 
-                      ? const Icon(Icons.block, color: Colors.grey, size: 16)
+                    child: isNotSelectable 
+                      ? const Icon(Icons.block, color: Colors.grey, size: 18)
                       : Text(
                           String.fromCharCode(65 + index), // A, B, C, D
                           style: TextStyle(
@@ -930,20 +1045,34 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                     style: TextStyle(
                       fontSize: 14, // Smaller font
                       fontWeight: FontWeight.w500,
-                      color: isBlocked ? Colors.grey : null,
+                      color: isNotSelectable ? Colors.grey : null,
                     ),
                   ),
                 ),
                 if (_answered && index == _correctAnswerIndex)
                   const Icon(Icons.check_circle, color: Colors.green, size: 20), // Smaller icon
-                if (_answered && index == _selectedAnswer && index != _correctAnswerIndex)
-                  const Icon(Icons.cancel, color: Colors.red, size: 20), // Smaller icon
+                // Show X icon for disabled/wrong answers (whether selected or not)
+                if ((isBlocked || isDisabled) && !_answered)
+                  const Icon(Icons.close, color: Colors.red, size: 20), // Show red X for wrong guessed answers
               ],
             ),
           ),
         ),
       ),
     );
+    
+    // Wrap in IgnorePointer if blocked to prevent any interaction
+    if (isNotSelectable) {
+      return IgnorePointer(
+        ignoring: true,
+        child: Opacity(
+          opacity: 0.6, // Make it look disabled
+          child: buttonContent,
+        ),
+      );
+    }
+    
+    return buttonContent;
   }
 
   Widget _buildResultsView() {
@@ -1118,6 +1247,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                           _hintCount.clear();
                           _blockedOptions.clear();
                           _reviewCards.clear();
+                          
+                          // Reset wrong attempts tracking
+                          _wrongAttempts.clear();
+                          _disabledOptions.clear();
                         });
                         _generateQuestion();
                       },
@@ -1246,10 +1379,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
   }
   
-  void _awardXPToWord(FlashCard card, bool isCorrect) {
+  void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
     final xpService = XpService();
     
-    print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}, wrongAttempts: $wrongAttempts');
     
     if (isCorrect) {
       // Award XP for correct answers (this also records the attempt)
@@ -1262,7 +1395,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       
       // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints, 0% for 3 hints)
       final hintCount = _hintCount[_currentIndex] ?? 0;
-      final finalXPGained = hintCount == 1 
+      var finalXPGained = hintCount == 1 
           ? (actualXPGained * 0.5).round() 
           : hintCount == 2 
               ? (actualXPGained * 0.25).round()
@@ -1270,18 +1403,21 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   ? 0
                   : actualXPGained;
       
+      // Apply penalty for wrong attempts: -1 XP per wrong attempt, minimum 0 XP
+      // If wrongAttempts >= 5, finalXPGained is already 0 (handled separately)
+      if (wrongAttempts > 0 && wrongAttempts < 5) {
+        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
+      }
+      
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      print('🔍 MultipleChoiceView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MultipleChoiceView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect, wrongAttempts: $wrongAttempts, base XP: $actualXPGained) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      // Record attempt for incorrect answers (reduces HP but no XP)
-      xpService.recordAttemptToWord(card.learningMastery, "test");
-      
-      // Explicitly set 0 XP for incorrect answers
+      // For 5 wrong attempts, explicitly set 0 XP
       _xpGainedPerWord[card.id] = 0;
       
-      print('🔍 MultipleChoiceView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MultipleChoiceView: 0 XP awarded to word "${card.word}" (Incorrect after 5 attempts) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
     
     // Store the word mastery for display (for both correct and incorrect)
@@ -1376,6 +1512,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _xpGainedPerWord.clear();
       _wordMastery.clear();
       _studiedWords.clear();
+      
+      // Reset wrong attempts tracking
+      _wrongAttempts.clear();
+      _disabledOptions.clear();
     });
     
     _generateQuestion();
@@ -1426,6 +1566,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
               _xpGainedPerWord.clear();
               _wordMastery.clear();
               _studiedWords.clear();
+              
+              // Reset wrong attempts tracking
+              _wrongAttempts.clear();
+              _disabledOptions.clear();
             });
             _generateQuestion();
             

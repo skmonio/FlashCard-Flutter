@@ -217,7 +217,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     XpService.recordAnswer(_gameSession, wasCorrect);
   }
 
-  void _nextChallenge() {
+  Future<void> _nextChallenge() async {
     if (!_isGameActive) return;
 
     // If retrying same sequence, use the saved challenge
@@ -251,6 +251,42 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
+    
+    // Ensure Dutch exercise provider has finished loading before checking exercises
+    // This fixes the issue where only "Words" exercises are enabled and provider hasn't loaded yet
+    if (dutchProvider.isLoading) {
+      print('🔍 ShuffleCardsView: Dutch exercise provider is still loading, waiting...');
+      // Wait for provider to finish loading (check every 100ms, max 5 seconds)
+      int attempts = 0;
+      while (dutchProvider.isLoading && attempts < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      }
+      if (dutchProvider.isLoading) {
+        print('⚠️ ShuffleCardsView: Dutch exercise provider still loading after timeout');
+      } else {
+        print('🔍 ShuffleCardsView: Dutch exercise provider finished loading, exercises: ${dutchProvider.wordExercises.length}');
+      }
+    }
+    
+    // If only Dutch exercises are enabled, ensure we have exercises available
+    // Check if Dutch exercises are the only enabled mode
+    bool onlyDutchExercisesEnabled = _enabledModes[ShuffleMode.dutchExercise] == true &&
+        _enabledModes[ShuffleMode.multipleChoice] != true &&
+        _enabledModes[ShuffleMode.trueFalse] != true &&
+        _enabledModes[ShuffleMode.memoryGame] != true &&
+        _enabledModes[ShuffleMode.wordScramble] != true &&
+        _enabledModes[ShuffleMode.writing] != true &&
+        _enabledModes[ShuffleMode.popYourCards] != true &&
+        _enabledModes[ShuffleMode.pickYourCards] != true;
+    
+    if (onlyDutchExercisesEnabled && dutchProvider.wordExercises.isEmpty) {
+      print('🔍 ShuffleCardsView: Only Dutch exercises enabled but none available yet');
+      // Give it one more brief moment for async loading to complete
+      await Future.delayed(const Duration(milliseconds: 200));
+      print('🔍 ShuffleCardsView: After brief delay, exercises: ${dutchProvider.wordExercises.length}');
+    }
+    
     // Get all available cards and exercises
     final allCards = provider.cards;
     final allExercises = dutchProvider.wordExercises;
@@ -258,6 +294,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Debug logging
     print('🔍 ShuffleCardsView: Available cards: ${allCards.length}');
     print('🔍 ShuffleCardsView: Available exercises: ${allExercises.length}');
+    print('🔍 ShuffleCardsView: Dutch provider isLoading: ${dutchProvider.isLoading}');
     
     if (allCards.isEmpty && allExercises.isEmpty) {
       _showSetupRequiredDialog('No cards or exercises available. Please add some cards or exercises to play.');
@@ -1301,11 +1338,11 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    _buildModeToggle('Multiple Choice', ShuffleMode.multipleChoice, Icons.check_circle, Colors.teal),
+                    _buildModeToggle('Test Your Cards', ShuffleMode.multipleChoice, Icons.check_circle, Colors.teal),
                     _buildModeToggle('True or False', ShuffleMode.trueFalse, Icons.help_outline, Colors.orange),
-                    _buildModeToggle('Memory Game', ShuffleMode.memoryGame, Icons.psychology, Colors.grey),
-                    _buildModeToggle('Word Scramble', ShuffleMode.wordScramble, Icons.text_fields, Colors.blue),
-                    _buildModeToggle('Write Your Card', ShuffleMode.writing, Icons.edit, Colors.blue),
+                    _buildModeToggle('Remember Your Cards', ShuffleMode.memoryGame, Icons.psychology, Colors.grey),
+                    _buildModeToggle('Jumble Your Cards', ShuffleMode.wordScramble, Icons.text_fields, Colors.blue),
+                    _buildModeToggle('Write Your Cards', ShuffleMode.writing, Icons.edit, Colors.blue),
                     _buildModeToggle('Pop Your Card', ShuffleMode.popYourCards, Icons.bubble_chart, Colors.purple),
                     _buildModeToggle('Pick Your Card', ShuffleMode.pickYourCards, Icons.touch_app, Colors.pink),
                     _buildModeToggle('Words', ShuffleMode.dutchExercise, Icons.school, Colors.green),
