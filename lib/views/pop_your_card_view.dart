@@ -50,6 +50,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
+  Set<String> _hpPenaltyAppliedWordIds = {};
   List<FlashCard> _studiedWords = [];
   
   // Wrong attempts tracking
@@ -151,8 +152,26 @@ class _PopYourCardViewState extends State<PopYourCardView>
   }
   
   void _handleTimeUp() {
-    // Time's up - mark as incorrect and move to next question
-    _nextCard();
+    if (_currentIndex >= widget.cards.length) return;
+    
+    final currentCard = widget.cards[_currentIndex];
+    
+    // Track the studied word and initial HP if not already tracked
+    if (!_studiedWords.contains(currentCard)) {
+      _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
+    
+    _ticker.stop();
+    _showAnswerForCurrentCard = true;
+    _wrongAttempts[_currentIndex] = 5;
+    _xpGainedPerWord[currentCard.id] = 0;
+    
+    _applyHpPenalty(currentCard, wasCorrect: false);
+    _wordMastery[currentCard.id] = currentCard.learningMastery;
+    context.read<FlashcardProvider>().updateCard(currentCard);
+    
+    _showCardXPFeedback(currentCard, false, currentCard.word);
   }
 
   void _showGameOverScreen() {
@@ -224,6 +243,16 @@ class _PopYourCardViewState extends State<PopYourCardView>
     // Use responsive max width based on screen size
     double maxWidth = _screenWidth * 0.7; // Increased to 70% for larger devices
     return calculatedWidth.clamp(_minBubbleWidth, maxWidth);
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
   }
 
   void _initializeBubblePositionsAndVelocities(List<String> texts) {
@@ -312,8 +341,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
       _correctAnswers++;
       // Award XP with penalty for wrong attempts
       _awardXP(currentCard, wrongAttempts);
-      // Mark the card as correct to properly record the attempt and reduce HP
-      currentCard.markCorrect(GameDifficulty.medium);
+      _applyHpPenalty(currentCard, wasCorrect: true);
       HapticService().successFeedback();
       
       // Update mastery tracking and save
@@ -329,16 +357,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
       // Wrong answer - increment wrong attempts
       final newWrongAttempts = wrongAttempts + 1;
       _wrongAttempts[_currentIndex] = newWrongAttempts;
-      
-      // Apply -1 XP penalty (record attempt)
-      final xpService = XpService();
-      if (widget.shuffleMode) {
-        currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect now adds to exerciseHistory automatically
-      } else {
-        // For standalone mode, record attempt without marking incorrect (handled elsewhere)
-        xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
-      }
       
       // Track incorrect answers with 0 XP (will be updated when correct)
       _xpGainedPerWord[currentCard.id] = 0;
@@ -360,6 +378,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
       // If 5 wrong attempts, show the answer
       if (newWrongAttempts >= 5) {
         _showAnswerForCurrentCard = true;
+        _applyHpPenalty(currentCard, wasCorrect: false);
         final provider = context.read<FlashcardProvider>();
         provider.updateCard(currentCard);
         _wordMastery[currentCard.id] = currentCard.learningMastery;
