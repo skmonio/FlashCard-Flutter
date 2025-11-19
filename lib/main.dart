@@ -109,6 +109,13 @@ class FlashcardApp extends StatelessWidget {
                 brightness: Brightness.light,
               ),
               useMaterial3: true,
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: {
+                  TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+                },
+              ),
               appBarTheme: AppBarTheme(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -129,6 +136,13 @@ class FlashcardApp extends StatelessWidget {
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
+              pageTransitionsTheme: const PageTransitionsTheme(
+                builders: {
+                  TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+                },
+              ),
               appBarTheme: AppBarTheme(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
