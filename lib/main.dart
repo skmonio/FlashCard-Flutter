@@ -111,9 +111,9 @@ class FlashcardApp extends StatelessWidget {
               useMaterial3: true,
               pageTransitionsTheme: const PageTransitionsTheme(
                 builders: {
-                  TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-                  TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
-                  TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                  TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+                  TargetPlatform.macOS: NoAnimationPageTransitionsBuilder(),
                 },
               ),
               appBarTheme: AppBarTheme(
@@ -138,9 +138,9 @@ class FlashcardApp extends StatelessWidget {
               useMaterial3: true,
               pageTransitionsTheme: const PageTransitionsTheme(
                 builders: {
-                  TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-                  TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
-                  TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+                  TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+                  TargetPlatform.macOS: NoAnimationPageTransitionsBuilder(),
                 },
               ),
               appBarTheme: AppBarTheme(
@@ -163,5 +163,20 @@ class FlashcardApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+class NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
+  const NoAnimationPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }
