@@ -11,6 +11,7 @@ class SoundManager {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isInitialized = false;
   SoundProvider? _soundProvider;
+  static const MethodChannel _channel = MethodChannel('com.skmonio.taaltrek/sound_mode');
 
   Future<void> initialize({SoundProvider? soundProvider}) async {
     if (_isInitialized) return;
@@ -28,7 +29,7 @@ class SoundManager {
     _soundProvider = provider;
   }
 
-  bool _shouldPlaySound() {
+  Future<bool> _shouldPlaySound() async {
     if (_soundProvider == null) return true; // Default to playing sound if no provider
     
     switch (_soundProvider!.soundMode) {
@@ -37,21 +38,20 @@ class SoundManager {
       case SoundMode.always:
         return true;
       case SoundMode.system:
-        // For system mode, we'll respect the device's silent mode
-        // This is a simplified check - in a real app you might want to use
-        // a plugin to check the actual system volume/silent mode
-        return _isDeviceNotSilent();
+        // For system mode, respect the device's silent mode
+        // If phone is on silent, return false (don't play sound)
+        // If phone is not on silent, return true (play sound)
+        return await _isDeviceNotSilent();
     }
   }
 
-  bool _isDeviceNotSilent() {
-    // This is a simplified implementation
-    // In a real app, you might want to use a plugin like system_volume_controller
-    // or check the actual system volume/silent mode
+  Future<bool> _isDeviceNotSilent() async {
+    // Check the device's ringer mode using platform channels
+    // Returns true if device is NOT silent (normal or vibrate mode)
+    // Returns false if device IS silent
     try {
-      // For now, we'll assume the device is not silent
-      // You can enhance this with actual system volume detection
-      return true;
+      final result = await _channel.invokeMethod<bool>('isDeviceNotSilent');
+      return result ?? true; // Default to playing sound if we can't determine
     } catch (e) {
       print('Error checking device silent mode: $e');
       return true; // Default to playing sound if we can't determine
@@ -62,7 +62,7 @@ class SoundManager {
     try {
       print('Attempting to play begin sound...');
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) {
+      if (!(await _shouldPlaySound())) {
         print('Sound disabled, skipping begin sound');
         return;
       }
@@ -78,7 +78,7 @@ class SoundManager {
   Future<void> playCompleteSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Complete.wav'));
     } catch (e) {
@@ -89,7 +89,7 @@ class SoundManager {
   Future<void> playCorrectSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Correct.wav'));
     } catch (e) {
@@ -100,7 +100,7 @@ class SoundManager {
   Future<void> playWrongSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Wrong.wav'));
     } catch (e) {
@@ -111,7 +111,7 @@ class SoundManager {
   Future<void> playGameSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Game.wav'));
     } catch (e) {
@@ -122,7 +122,7 @@ class SoundManager {
   Future<void> playSwipeSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Swipe.wav'));
     } catch (e) {
@@ -133,7 +133,7 @@ class SoundManager {
   Future<void> playPopSound() async {
     try {
       await initialize(); // Load settings first
-      if (!_shouldPlaySound()) return;
+      if (!(await _shouldPlaySound())) return;
       await _audioPlayer.stop(); // Stop any currently playing audio
       await _audioPlayer.play(AssetSource('audio/Pop.wav'));
     } catch (e) {

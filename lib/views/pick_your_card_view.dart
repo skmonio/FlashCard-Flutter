@@ -6,10 +6,9 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
-import '../utils/enhanced_snackbar.dart';
 
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -51,6 +50,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   int _consecutiveCorrect = 0;
   int _totalAnswers = 0;
@@ -87,6 +87,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Map<int, List<String>> _correctParts = {}; // Store correct parts for each card
   int _hintsUsed = 0;
   bool _isApplyingHint = false; // Flag to prevent onChanged during hint application
+  String? _hintStatusMessage;
+  Timer? _hintStatusTimer;
   
   // Store user answers and results for each card
   Map<int, String> _userAnswers = {}; // Store user's final answer for each card
@@ -234,6 +236,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     _timer?.cancel();
     _autoProgressTimer?.cancel();
     _wheelChangeTimer?.cancel();
+    _hintStatusTimer?.cancel();
     super.dispose();
   }
 
@@ -372,6 +375,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
         }
       }
     }
+    
+    _hintStatusTimer?.cancel();
+    _hintStatusMessage = null;
   }
 
   List<String> _splitWordIntoEqualParts(String word) {
@@ -569,12 +575,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
     
     print('🔍 PickYourCardView: After hint - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
     
-    // Show hint message
-    EnhancedSnackBar.showWarning(
-      context,
-      message: 'Hint: Fixed wrong selection to "${correctParts[wheelToHint]}" (locked)',
-      duration: const Duration(seconds: 2),
-    );
+    // Show hint message near button
+    _hintStatusTimer?.cancel();
+    setState(() {
+      _hintStatusMessage = 'Hint used';
+    });
+    _hintStatusTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() => _hintStatusMessage = null);
+      }
+    });
   }
 
   Widget _buildWheelWithLock(int wheelIndex, GlobalKey<_DialWheelState> wheelKey, List<String> items) {
@@ -650,37 +660,60 @@ class _PickYourCardViewState extends State<PickYourCardView>
     }
     // Never hint the last wheel (wheel 2 in 3-wheel system, wheel 1 in 2-wheel system)
     
-    return Tooltip(
-      message: canUseHint 
-          ? 'Use hint (${hintsUsed} used)'
-          : 'No more hints available',
-      child: GestureDetector(
-        onTap: canUseHint ? _useHint : null,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: canUseHint ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.orange.withValues(alpha: 0.5),
-              width: 2,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_hintStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.orange.withValues(alpha: 0.3),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+            child: Text(
+              _hintStatusMessage!,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
               ),
-            ],
+            ),
           ),
-          child: Icon(
-            Icons.lightbulb_outline,
-            color: canUseHint ? Colors.white : Colors.white.withValues(alpha: 0.5),
-            size: 20,
+        Tooltip(
+          message: canUseHint 
+              ? 'Use hint (${hintsUsed} used)'
+              : 'No more hints available',
+          child: GestureDetector(
+            onTap: canUseHint ? _useHint : null,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: canUseHint ? Colors.orange : Colors.orange.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.orange.withValues(alpha: 0.5),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.lightbulb_outline,
+                color: canUseHint ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                size: 20,
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -719,15 +752,19 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _userSelections[currentCardIndex] = [selectedPart1, selectedPart2];
     }
     
-    // Track the studied word
+    // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
     if (!_studiedWords.contains(currentCard)) {
       _studiedWords.add(currentCard);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
     }
     
     if (isCorrect) {
       currentCard.markCorrect(GameDifficulty.medium);
       _correctAnswers++;
       _consecutiveCorrect++;
+      _wrongAttempts[currentCardIndex] = 0;
+      _showAnswer = false;
       
       // Award XP using standard system
       final xpService = XpService();
@@ -771,6 +808,15 @@ class _PickYourCardViewState extends State<PickYourCardView>
       currentCard.markIncorrect(GameDifficulty.medium);
       _consecutiveCorrect = 0;
       _xpGainedPerWord[currentCard.id] = 0;
+      
+      final currentAttempts = (_wrongAttempts[currentCardIndex] ?? 0) + 1;
+      _wrongAttempts[currentCardIndex] = currentAttempts;
+      
+      if (currentAttempts >= 5) {
+        _showAnswer = true;
+      } else {
+        _showAnswer = false;
+      }
       
       // Handle lives system
       if (_useLivesMode) {
@@ -973,70 +1019,57 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   void _showResults() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          title: 'Pick Your Card Complete',
-          showSwipeToReview: false,
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close end screen first
-            
-            if (mounted) {
-              setState(() {
-                // Reset all game state
-                currentCardIndex = 0;
-                _studiedWords.clear();
-                _xpGainedPerWord.clear();
-                _wordMastery.clear();
-                _consecutiveCorrect = 0;
-                _totalAnswers = 0;
-                _correctAnswers = 0;
-                
-                // Reset hint system
-                _hintCount.clear();
-                _hintedWheels.clear();
-                _correctParts.clear();
-                _hintsUsed = 0;
-                
-                // Reset stored answers
-                _userAnswers.clear();
-                _cardResults.clear();
-                _userSelections.clear();
-                
-                // Reset result display
-                _showResult = false;
-                _isLastAnswerCorrect = false;
-                _lastUserAnswer = "";
-                _lastCorrectAnswer = "";
-                
-                // Reset lives if using lives mode
-                if (_useLivesMode) {
-                  _lives = _maxLives;
-                }
-                
-                // Reset timer if using timed mode
-                if (widget.useTimedMode) {
-                  _timeRemaining = _totalTime;
-                  _resetTimer();
-                }
-              });
-            }
-            
-            // Reload the current card after state reset
-            _loadCurrentCard();
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close end screen
-            _shuffleAndRestart();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Pick Your Card Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswers,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          if (mounted) {
+            setState(() {
+              currentCardIndex = 0;
+              _studiedWords.clear();
+              _xpGainedPerWord.clear();
+              _wordMastery.clear();
+              _consecutiveCorrect = 0;
+              _totalAnswers = 0;
+              _correctAnswers = 0;
+              _hintCount.clear();
+              _hintedWheels.clear();
+              _correctParts.clear();
+              _hintsUsed = 0;
+              _userAnswers.clear();
+              _cardResults.clear();
+              _userSelections.clear();
+              _showResult = false;
+              _isLastAnswerCorrect = false;
+              _lastUserAnswer = "";
+              _lastCorrectAnswer = "";
+              if (_useLivesMode) {
+                _lives = _maxLives;
+              }
+              if (widget.useTimedMode) {
+                _timeRemaining = _totalTime;
+                _resetTimer();
+              }
+            });
+          }
+          _loadCurrentCard();
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          _shuffleAndRestart();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -1388,11 +1421,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
               // Next/Finish button
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _showResult ? _nextCard : null,
+                  onPressed: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? _nextCard : null,
                   icon: const Icon(Icons.arrow_forward, size: 16),
                   label: Text(currentCardIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _showResult ? Colors.green : Colors.grey,
+                    backgroundColor: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? Colors.green : Colors.grey,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                   ),
@@ -1417,7 +1450,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           const SizedBox(height: 30),
           
           // Hint button and Check Answer button row (only show if not showing result)
-          if (!_showResult)
+          if (!_showResult || (!_isLastAnswerCorrect && !_showAnswer))
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -1426,20 +1459,20 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 
                 // Check Answer button
                 ElevatedButton(
-              onPressed: _checkAnswer,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey.shade700,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  onPressed: _checkAnswer,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    "Check Answer",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
-              ),
-              child: const Text(
-                "Check Answer",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
               ],
             ),
           
@@ -1451,7 +1484,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 ? "Correct!"
                 : (_showAnswer 
                     ? "Correct answer is: $_lastCorrectAnswer" 
-                    : "Incorrect, try again"),
+                    : "Incorrect, try again (${_wrongAttempts[currentCardIndex] ?? 0}/5 attempts)"),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,

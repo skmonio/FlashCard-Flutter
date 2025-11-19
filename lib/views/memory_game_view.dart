@@ -14,7 +14,7 @@ import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 
 import '../components/animated_xp_counter.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 
 class MemoryGameView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -66,6 +66,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   // Track cards that have been incorrectly matched for potential partial XP rewards
   Set<String> _incorrectlyMatchedCards = {};
@@ -352,27 +353,29 @@ class _MemoryGameViewState extends State<MemoryGameView>
   Widget build(BuildContext context) {
     if (_gameComplete) {
       // Show the end screen directly instead of a loading screen
-      return UnifiedEndScreen(
-        xpGainedPerWord: _xpGainedPerWord,
-        wordMastery: _wordMastery,
-        studiedWords: _studiedWords,
-        title: 'Memory Game Complete',
-        showSwipeToReview: false,
-        onStudyAgain: () {
-          // Reset and restart game
-          if (mounted) {
-            _resetGame(); // This handles all the resetting and setState internally
-          }
-        },
-        onShuffle: () {
-          // Reset and restart game with new cards
-          if (mounted) {
-            _shuffleAndRestart(); // This handles getting new cards and resetting
-          }
-        },
-        onDone: () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        },
+      return GameEndScreen.view(
+        GameEndResult(
+          title: 'Memory Game Complete',
+          studiedWords: _studiedWords,
+          xpGainedPerWord: _xpGainedPerWord,
+          wordMastery: _wordMastery,
+          initialHPPerWord: _initialHPPerWord,
+          correctAnswers: _matches,
+          totalQuestions: _studiedWords.isNotEmpty ? _studiedWords.length : _matches,
+          onStudyAgain: () {
+            if (mounted) {
+              _resetGame();
+            }
+          },
+          onShuffle: () {
+            if (mounted) {
+              _shuffleAndRestart();
+            }
+          },
+          onDone: () {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          },
+        ),
       );
     }
 
@@ -843,10 +846,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Check if game is complete
       _checkGameCompletion();
     } else {
-      // Track XP for incorrect match
+      // Track XP for incorrect match (for combo tracking) but avoid reducing HP twice
       XpService.recordAnswer(_gameSession, false);
       
-      // Increment wrong attempts for both cards involved in the incorrect match
+      // Increment wrong attempts for both cards involved in the incorrect match (for XP penalty)
       _wrongAttemptsPerCard[_firstCard!.originalCard.id] = (_wrongAttemptsPerCard[_firstCard!.originalCard.id] ?? 0) + 1;
       _wrongAttemptsPerCard[_secondCard!.originalCard.id] = (_wrongAttemptsPerCard[_secondCard!.originalCard.id] ?? 0) + 1;
       
@@ -1462,11 +1465,20 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    final xpService = XpService();
     
     print('🔍 MemoryGameView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
+    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
+    
     if (isCorrect) {
+      // Mark the card as correct to properly record the attempt and reduce HP
+      card.markCorrect(GameDifficulty.medium);
+      
       // Get wrong attempts for this card
       int wrongAttempts = _wrongAttemptsPerCard[card.id] ?? 0;
       
@@ -1481,10 +1493,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
         finalXPGained = 5 - wrongAttempts;
       }
       
-      // Record the attempt first (this updates exercise history and may add XP with diminishing returns)
-      xpService.addXPToWord(card.learningMastery, "memory", 1);
-      
-      // Get the actual XP that was added (after diminishing returns)
+      // Get the actual XP that was added by markCorrect (after diminishing returns)
       final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
           ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
@@ -1509,14 +1518,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Reset wrong attempts for this card since it's now correctly matched
       _wrongAttemptsPerCard.remove(card.id);
       
-      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect, wrong attempts: $wrongAttempts, actualXP was: $actualXPGained) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MemoryGameView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect, wrong attempts: $wrongAttempts, actualXP was: $actualXPGained, HP reduced) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      // For incorrect answers in shuffle mode, reduce HP
-      // In standalone "Remember Your Cards" mode, only reduce XP (don't reduce HP)
-      if (widget.shuffleMode) {
-        xpService.recordAttemptToWord(card.learningMastery, "memory");
-      }
-      
       // Calculate XP penalty for incorrect match: -1 XP per wrong attempt, min 0 XP
       int wrongAttempts = _wrongAttemptsPerCard[card.id] ?? 0;
       
@@ -1526,16 +1529,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // So we just track 0 XP for now (will be calculated when card is matched correctly)
       _xpGainedPerWord[card.id] = 0;
       
-      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect, wrong attempts: $wrongAttempts${widget.shuffleMode ? ", HP reduced" : ", HP not reduced (Remember Your Cards mode)"}) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MemoryGameView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect, wrong attempts: $wrongAttempts) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
     
     // Store the word mastery for display (for both correct and incorrect)
     _wordMastery[card.id] = card.learningMastery;
-    
-    // Track studied words (regardless of correctness)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-    }
   }
   
   

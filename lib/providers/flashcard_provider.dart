@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 import '../models/learning_mastery.dart';
@@ -17,6 +18,11 @@ class FlashcardProvider extends ChangeNotifier {
   Map<String, dynamic> _settings = {};
   bool _isLoading = false;
   String? _error;
+  
+  // Performance optimization: Debounce notifyListeners to reduce rebuilds
+  Timer? _notifyDebounceTimer;
+  static const Duration _notifyDebounceDelay = Duration(milliseconds: 100);
+  bool _hasPendingNotify = false;
   
   // Getters
   List<Deck> get decks => _decks;
@@ -41,14 +47,40 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
   
+  // Optimized notifyListeners with debouncing
+  @override
+  void notifyListeners() {
+    _hasPendingNotify = true;
+    _notifyDebounceTimer?.cancel();
+    _notifyDebounceTimer = Timer(_notifyDebounceDelay, () {
+      if (_hasPendingNotify) {
+        _hasPendingNotify = false;
+        super.notifyListeners();
+      }
+    });
+  }
+  
+  // Immediate notify for critical updates (like loading states)
+  void notifyListenersImmediate() {
+    _notifyDebounceTimer?.cancel();
+    _hasPendingNotify = false;
+    super.notifyListeners();
+  }
+  
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    notifyListenersImmediate(); // Loading states need immediate feedback
   }
   
   void _setError(String? error) {
     _error = error;
-    notifyListeners();
+    notifyListenersImmediate(); // Errors need immediate feedback
+  }
+  
+  @override
+  void dispose() {
+    _notifyDebounceTimer?.cancel();
+    super.dispose();
   }
   
   // MARK: - Deck Management

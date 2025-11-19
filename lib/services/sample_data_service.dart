@@ -5,6 +5,23 @@ import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 
+class SampleDataResult {
+  SampleDataResult({
+    required this.newCardsCreated,
+    required this.cardsReattached,
+    required this.cardsAlreadyPresent,
+    this.deckCreated = false,
+  });
+
+  final int newCardsCreated;
+  final int cardsReattached;
+  final int cardsAlreadyPresent;
+  final bool deckCreated;
+
+  int get totalChanges => newCardsCreated + cardsReattached;
+  bool get madeChanges => totalChanges > 0 || deckCreated;
+}
+
 class SampleDataService {
   static const String _sampleDataKey = 'sample_data_offered';
   
@@ -167,38 +184,92 @@ class SampleDataService {
     },
   ];
 
-  static Future<void> addSampleData(FlashcardProvider provider) async {
-    // Check if "Dutch Basics" deck already exists
-    final existingDeck = provider.decks.firstWhere(
-      (deck) => deck.name == 'Dutch Basics',
-      orElse: () => Deck(id: '', name: '', cards: [], dateCreated: DateTime.now()),
-    );
-    
+  static Future<SampleDataResult> addSampleData(FlashcardProvider provider) async {
+    const deckName = 'Dutch Basics';
+
     Deck? deck;
-    if (existingDeck.id.isEmpty) {
-      // Create a new sample deck only if it doesn't exist
-      deck = await provider.createDeck('Dutch Basics');
-    } else {
-      deck = existingDeck;
-    }
-    
-    // Only add cards if the deck is empty
-    if (deck != null && provider.getCardsForDeck(deck.id).isEmpty) {
-      // Add sample cards to the deck
-      for (final cardData in _sampleCards) {
-        await provider.createCard(
-          word: cardData['word']!,
-          definition: cardData['definition']!,
-          example: cardData['example']!,
-          article: cardData['article']!,
-          plural: cardData['plural']!,
-          pastTense: cardData['pastTense'] ?? '',
-          futureTense: cardData['futureTense'] ?? '',
-          pastParticiple: cardData['pastParticiple'] ?? '',
-          deckIds: {deck.id},
-        );
+    for (final existing in provider.decks) {
+      if (existing.name == deckName) {
+        deck = existing;
+        break;
       }
     }
+
+    bool createdDeck = false;
+    if (deck == null) {
+      deck = await provider.createDeck(deckName);
+      createdDeck = deck != null;
+    }
+
+    if (deck == null) {
+      return SampleDataResult(
+        newCardsCreated: 0,
+        cardsReattached: 0,
+        cardsAlreadyPresent: 0,
+        deckCreated: createdDeck,
+      );
+    }
+
+    final existingDeckCards =
+        provider.getCardsForDeck(deck.id).map((card) => card.word.toLowerCase().trim()).toSet();
+
+    int createdCount = 0;
+    int reattachedCount = 0;
+    int alreadyPresentCount = 0;
+
+    for (final cardData in _sampleCards) {
+      final word = cardData['word']!.trim();
+      final normalizedWord = word.toLowerCase();
+
+      if (existingDeckCards.contains(normalizedWord)) {
+        alreadyPresentCount += 1;
+        continue;
+      }
+
+      FlashCard? existingCard;
+      for (final card in provider.cards) {
+        if (card.word.toLowerCase().trim() == normalizedWord) {
+          existingCard = card;
+          break;
+        }
+      }
+
+      if (existingCard != null) {
+        if (!existingCard.deckIds.contains(deck.id)) {
+          final updatedDeckIds = Set<String>.from(existingCard.deckIds)..add(deck.id);
+          final updatedCard = existingCard.copyWith(deckIds: updatedDeckIds);
+          final updated = await provider.updateCard(updatedCard);
+          if (updated) {
+            reattachedCount += 1;
+            existingDeckCards.add(normalizedWord);
+          }
+        } else {
+          alreadyPresentCount += 1;
+        }
+        continue;
+      }
+
+      await provider.createCard(
+        word: word,
+        definition: cardData['definition']!,
+        example: cardData['example']!,
+        article: cardData['article'] ?? '',
+        plural: cardData['plural'] ?? '',
+        pastTense: cardData['pastTense'] ?? '',
+        futureTense: cardData['futureTense'] ?? '',
+        pastParticiple: cardData['pastParticiple'] ?? '',
+        deckIds: {deck.id},
+      );
+      createdCount += 1;
+      existingDeckCards.add(normalizedWord);
+    }
+
+    return SampleDataResult(
+      newCardsCreated: createdCount,
+      cardsReattached: reattachedCount,
+      cardsAlreadyPresent: alreadyPresentCount,
+      deckCreated: createdDeck,
+    );
   }
 
   static Future<void> addSampleDataIfEmpty(FlashcardProvider provider) async {
@@ -267,13 +338,16 @@ class SampleDataService {
               ElevatedButton(
                 onPressed: () async {
                   Navigator.of(context).pop();
-                  await addSampleData(provider);
+                  final result = await addSampleData(provider);
                   if (context.mounted) {
+                    String message;
+                    if (result.totalChanges > 0) {
+                      message = 'Sample Dutch vocabulary added to your decks!';
+                    } else {
+                      message = 'Sample Dutch vocabulary is already in your decks.';
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Sample Dutch vocabulary added! You can now start studying.'),
-                        duration: Duration(seconds: 3),
-                      ),
+                      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
                     );
                   }
                 },

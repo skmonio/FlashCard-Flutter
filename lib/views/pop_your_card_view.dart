@@ -6,7 +6,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
@@ -49,6 +49,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
   int _sessionXP = 0;
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Wrong attempts tracking
@@ -298,9 +299,11 @@ class _PopYourCardViewState extends State<PopYourCardView>
 
     _ticker.stop();
 
-    // Track the studied word
+    // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
     if (!_studiedWords.contains(currentCard)) {
       _studiedWords.add(currentCard);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
     }
 
     final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
@@ -331,8 +334,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
       final xpService = XpService();
       if (widget.shuffleMode) {
         currentCard.markIncorrect(GameDifficulty.medium);
-        xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
+        // markIncorrect now adds to exerciseHistory automatically
       } else {
+        // For standalone mode, record attempt without marking incorrect (handled elsewhere)
         xpService.recordAttemptToWord(currentCard.learningMastery, "popYourCard");
       }
       
@@ -573,36 +577,37 @@ class _PopYourCardViewState extends State<PopYourCardView>
     context.read<UserProfileProvider>().updateStreakFromStudyActivity();
 
     // Show the proper card XP screen like other games
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          hideNavigation: false,
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-            // Restart the game with the same cards
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => PopYourCardView(
-                  cards: widget.cards,
-                  title: widget.title,
-                ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalQuestions,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => PopYourCardView(
+                cards: widget.cards,
+                title: widget.title,
               ),
-            );
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-            _shuffleAndRestart();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+            ),
+          );
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+          _shuffleAndRestart();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

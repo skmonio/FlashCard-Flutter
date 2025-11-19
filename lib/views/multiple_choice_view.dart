@@ -15,7 +15,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../utils/game_difficulty_helper.dart';
 import 'add_card_view.dart';
 
@@ -30,6 +30,7 @@ class MultipleChoiceView extends StatefulWidget {
   final bool startFlipped;
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final List<FlashCard>? answerPoolCards;
 
   const MultipleChoiceView({
     super.key,
@@ -43,6 +44,7 @@ class MultipleChoiceView extends StatefulWidget {
     this.startFlipped = false,
     this.studyConfig,
     this.shuffleQuestionOffset,
+    this.answerPoolCards,
   });
 
   @override
@@ -84,6 +86,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
 
   // Hint and review tracking
@@ -226,16 +229,19 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Get correct answer
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
     
-    // Get wrong options from ALL available cards (not just selected deck) for better difficulty
-    final allCards = context.read<FlashcardProvider>().cards;
-    final otherCards = allCards.where((card) => card.id != currentCard.id).toList();
+    // Get wrong options from configured answer pool
+    final answerPool = _getAnswerPoolForCard(currentCard);
+    final otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
+    // Test Your Cards mode should have 4 options, other modes have 6
+    final int desiredTotalOptions = widget.title.toLowerCase().contains('test') ? 4 : 6;
+    final int desiredWrongOptions = desiredTotalOptions - 1;
     final wrongOptions = <String>[];
     
     // Shuffle all other cards to get variety from any deck
     final shuffledOtherCards = List.from(otherCards)..shuffle(random);
     
     for (final card in shuffledOtherCards) {
-      if (wrongOptions.length >= 3) break;
+      if (wrongOptions.length >= desiredWrongOptions) break;
       
       final wrongOption = _isQuestionMode ? card.definition : card.word;
       if (!wrongOptions.contains(wrongOption) && wrongOption != correctAnswer) {
@@ -244,21 +250,39 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     }
     
     // Only use generic options as absolute last resort
-    if (wrongOptions.length < 3) {
+    if (wrongOptions.length < desiredWrongOptions) {
       final genericOptions = _isQuestionMode
-          ? ['Not applicable', 'Different meaning', 'Other definition']
-          : ['Unknown word', 'Different word', 'Other term'];
+          ? [
+              'Not applicable',
+              'Different meaning',
+              'Other definition',
+              'Alternative translation',
+              'Similar phrase',
+            ]
+          : [
+              'Unknown word',
+              'Different word',
+              'Other term',
+              'Similar spelling',
+              'Random choice',
+            ];
       
-      while (wrongOptions.length < 3) {
-        final generic = genericOptions[wrongOptions.length];
+      int fallbackIndex = 0;
+      while (wrongOptions.length < desiredWrongOptions && fallbackIndex < genericOptions.length) {
+        final generic = genericOptions[fallbackIndex];
         if (!wrongOptions.contains(generic)) {
           wrongOptions.add(generic);
         }
+        fallbackIndex++;
       }
     }
     
     // Create options list with correct answer first
     _options = [correctAnswer, ...wrongOptions];
+    
+    if (_options.length > desiredTotalOptions) {
+      _options = _options.take(desiredTotalOptions).toList();
+    }
     
     // Shuffle options in study mode (but keep correct answer first in edit mode)
     // Check if this is edit mode by looking for the edit button in the UI
@@ -277,6 +301,36 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _answered = false;
       _selectedAnswer = null;
     });
+  }
+
+  List<FlashCard> _getAnswerPoolForCard(FlashCard currentCard) {
+    if (widget.answerPoolCards != null && widget.answerPoolCards!.isNotEmpty) {
+      return widget.answerPoolCards!;
+    }
+
+    final provider = context.read<FlashcardProvider>();
+
+    if (widget.studyConfig == null || widget.studyConfig!.useAllCardsForAnswers) {
+      return provider.cards;
+    }
+
+    if (widget.studyConfig!.deckIds.isEmpty) {
+      return provider.cards;
+    }
+
+    final Set<String> seenIds = {};
+    final List<FlashCard> deckCards = [];
+
+    for (final deckId in widget.studyConfig!.deckIds) {
+      final cards = provider.getCardsForDeckWithSubDecks(deckId);
+      for (final card in cards) {
+        if (seenIds.add(card.id)) {
+          deckCards.add(card);
+        }
+      }
+    }
+
+    return deckCards.isEmpty ? provider.cards : deckCards;
   }
 
   void _selectAnswer(int index) {
@@ -381,18 +435,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       // Play wrong sound
       SoundManager().playWrongSound();
       
-      // In shuffle mode, reduce HP immediately for wrong attempts
-      if (widget.shuffleMode) {
-        currentCard.markIncorrect(GameDifficulty.medium);
-        final xpService = XpService();
-        xpService.recordAttemptToWord(currentCard.learningMastery, "multiple_choice");
-        _updateCardInProvider(currentCard);
-      } else {
-        // In standalone mode, record wrong attempt (XP will be calculated when correct)
-        final xpService = XpService();
-        xpService.recordAttemptToWord(currentCard.learningMastery, "test");
-        _updateCardInProvider(currentCard);
-      }
+      // Incorrect answers should only reduce XP (via wrong attempts tracking), not HP
+      // HP will only be reduced when the card is used in a completed game (when answer is correct)
+      // Wrong attempts are already tracked in _wrongAttempts and will be applied as XP penalty when correct
       
       // Handle lives system (update without affecting disabled options)
       if (_useLivesMode) {
@@ -990,10 +1035,18 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     final isBlocked = _blockedOptions[_currentIndex]!.contains(index);
     final isDisabled = _disabledOptions[_currentIndex]!.contains(index);
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
+    
+    // Block interactions: if answered, wrong answers are not selectable
+    // If answered correctly on first try (wrongAttempts == 0), wrong answers still aren't selectable but look normal
     final isNotSelectable = isBlocked || isDisabled || (_answered && index != _correctAnswerIndex);
     
+    // Visual appearance: only show as blocked if there were wrong attempts or if it's actually blocked/disabled
+    // If answered correctly on first try, wrong answers look normal (not greyed out)
+    final shouldShowAsBlocked = (isBlocked || isDisabled) || (_answered && index != _correctAnswerIndex && wrongAttempts > 0);
+    
     // Debug: ALWAYS print to see what's happening
-    print('🔍 MultipleChoiceView: Building button for option $index (Q$_currentIndex) - isBlocked: $isBlocked, isDisabled: $isDisabled, isNotSelectable: $isNotSelectable');
+    print('🔍 MultipleChoiceView: Building button for option $index (Q$_currentIndex) - isBlocked: $isBlocked, isDisabled: $isDisabled, wrongAttempts: $wrongAttempts, isNotSelectable: $isNotSelectable, shouldShowAsBlocked: $shouldShowAsBlocked');
     
     // Build the button content
     Widget buttonContent = Container(
@@ -1009,11 +1062,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
           child: Container(
             padding: const EdgeInsets.all(12), // Reduced padding
             decoration: BoxDecoration(
-              color: isNotSelectable ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
+              color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isNotSelectable ? Colors.grey : _getOptionBorderColor(index),
-                width: isNotSelectable ? 3 : 2, // Thicker border when blocked
+                color: shouldShowAsBlocked ? Colors.grey : _getOptionBorderColor(index),
+                width: shouldShowAsBlocked ? 3 : 2, // Thicker border when blocked
               ),
             ),
             child: Row(
@@ -1022,11 +1075,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   width: 28, // Smaller circle
                   height: 28, // Smaller circle
                   decoration: BoxDecoration(
-                    color: isNotSelectable ? Colors.grey.withValues(alpha: 0.3) : _getOptionBorderColor(index).withValues(alpha: 0.1),
+                    color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.3) : _getOptionBorderColor(index).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: isNotSelectable 
+                    child: shouldShowAsBlocked 
                       ? const Icon(Icons.block, color: Colors.grey, size: 18)
                       : Text(
                           String.fromCharCode(65 + index), // A, B, C, D
@@ -1045,13 +1098,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                     style: TextStyle(
                       fontSize: 14, // Smaller font
                       fontWeight: FontWeight.w500,
-                      color: isNotSelectable ? Colors.grey : null,
+                      color: shouldShowAsBlocked ? Colors.grey : null,
                     ),
                   ),
                 ),
                 if (_answered && index == _correctAnswerIndex)
                   const Icon(Icons.check_circle, color: Colors.green, size: 20), // Smaller icon
-                // Show X icon for disabled/wrong answers (whether selected or not)
+                // Show X icon for disabled/wrong answers (only if there were wrong attempts)
+                // Don't show X if answered correctly on first try
                 if ((isBlocked || isDisabled) && !_answered)
                   const Icon(Icons.close, color: Colors.red, size: 20), // Show red X for wrong guessed answers
               ],
@@ -1061,12 +1115,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       ),
     );
     
-    // Wrap in IgnorePointer if blocked to prevent any interaction
+    // Wrap in IgnorePointer if not selectable to prevent any interaction
+    // But only apply opacity if it should show as blocked (not for correct first try)
     if (isNotSelectable) {
       return IgnorePointer(
         ignoring: true,
         child: Opacity(
-          opacity: 0.6, // Make it look disabled
+          opacity: shouldShowAsBlocked ? 0.6 : 1.0, // Only make it look disabled if it should show as blocked
           child: buttonContent,
         ),
       );
@@ -1382,6 +1437,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
     final xpService = XpService();
     
+    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
+    
     print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}, wrongAttempts: $wrongAttempts');
     
     if (isCorrect) {
@@ -1422,11 +1484,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     // Store the word mastery for display (for both correct and incorrect)
     _wordMastery[card.id] = card.learningMastery;
-    
-    // Track studied words (regardless of correctness)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-    }
   }
   
   void _shuffleAndRestart() {
@@ -1511,6 +1568,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       // Reset RPG tracking
       _xpGainedPerWord.clear();
       _wordMastery.clear();
+      _initialHPPerWord.clear();
       _studiedWords.clear();
       
       // Reset wrong attempts tracking
@@ -1526,64 +1584,56 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          studiedWords: sessionStudiedWords,
-          title: 'Multiple Choice Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close end screen
-            // Reset and restart test
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _selectedAnswer = null;
-              _gameSession.reset(); // Reset XP tracking
-              
-              // Shuffle the cards for a different order
-              _currentCards.shuffle(Random());
-              
-              // Reset lives if using lives mode
-              if (_useLivesMode) {
-                _lives = _maxLives;
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Multiple Choice Complete',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _selectedAnswer = null;
+            _gameSession.reset();
+            _currentCards.shuffle(Random());
+            if (_useLivesMode) {
+              _lives = _maxLives;
+            }
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _questionOptions.clear();
+            _correctAnswerIndices.clear();
+            _questionModes.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
+            _wrongAttempts.clear();
+            _disabledOptions.clear();
+          });
+          _generateQuestion();
+        },
+        onShuffle: widget.studyConfig != null
+            ? () {
+                Navigator.of(context).pop();
+                _shuffleAndRestart();
               }
-              
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _questionOptions.clear();
-              _correctAnswerIndices.clear();
-              _questionModes.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-              
-              // Reset wrong attempts tracking
-              _wrongAttempts.clear();
-              _disabledOptions.clear();
-            });
-            _generateQuestion();
-            
-            // Session data has been reset, ready for new game
-          },
-          onShuffle: widget.studyConfig != null ? () {
-            Navigator.of(context).pop(); // Close end screen
-            _shuffleAndRestart();
-          } : null,
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+            : null,
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

@@ -321,18 +321,15 @@ class LearningMastery {
       _incrementCorrect(difficulty);
       consecutiveCorrect++;
       consecutiveIncorrect = 0;
+      _handleSuccess(quality);
+ 
+       // Restore HP to full after a successful answer
+      dailyGameAttempts.clear();
+      lastGameResetDate = DateTime.now();
     } else {
       consecutiveIncorrect++;
       consecutiveCorrect = 0;
-    }
-    
-    // SuperMemo SM-2 algorithm
-    if (quality.value < 3) {
-      // Lapse: forgot the item
       _handleLapse();
-    } else {
-      // Success: remembered the item
-      _handleSuccess(quality);
     }
     
     // Calculate next review date
@@ -418,8 +415,19 @@ class LearningMastery {
   
   /// Legacy method - now delegates to processAnswer (no XP for incorrect)
   void markIncorrect(GameDifficulty difficulty) {
+    final exerciseType = _getExerciseTypeFromDifficulty(difficulty);
+    
     // Record the attempt (no XP for incorrect answers)
-    recordGameAttempt(_getExerciseTypeFromDifficulty(difficulty));
+    recordGameAttempt(exerciseType);
+    
+    // Add to exerciseHistory with 0 XP to keep game usage in sync with timesShown
+    // This ensures that game usage stats match the total attempts count
+    exerciseHistory.add({
+      'timestamp': DateTime.now().toIso8601String(),
+      'exerciseType': exerciseType,
+      'xpGained': 0, // No XP for incorrect answers
+      'totalXP': currentXP,
+    });
     
     // Default to "incorrect" quality for legacy calls
     processAnswer(difficulty, AnswerQuality.incorrect);
@@ -558,12 +566,64 @@ class LearningMastery {
     return todayEntries.length;
   }
   
+  /// Get the timestamp of the most recent exercise (when card was last used)
+  DateTime? get _lastExerciseTime {
+    if (exerciseHistory.isEmpty) return null;
+    
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    
+    // Find the most recent exercise entry from today
+    final todayEntries = exerciseHistory
+        .where((entry) {
+          final timestamp = DateTime.parse(entry['timestamp']);
+          final exerciseType = entry['exerciseType'] as String?;
+          return timestamp.isAfter(todayStart) && exerciseType != 'creation';
+        })
+        .toList();
+    
+    if (todayEntries.isEmpty) return null;
+    
+    // Get the most recent entry
+    todayEntries.sort((a, b) {
+      final timeA = DateTime.parse(a['timestamp']);
+      final timeB = DateTime.parse(b['timestamp']);
+      return timeB.compareTo(timeA); // Sort descending (most recent first)
+    });
+    
+    return DateTime.parse(todayEntries.first['timestamp']);
+  }
+  
+  /// Calculate how much HP has been healed based on hours since last use
+  /// Cards heal 1 HP per hour, encouraging users to take breaks
+  int get _healedHP {
+    final lastUseTime = _lastExerciseTime;
+    if (lastUseTime == null) return 0; // No exercises today, no healing needed
+    
+    final now = DateTime.now();
+    final hoursSinceLastUse = now.difference(lastUseTime).inHours;
+    
+    // Heal 1 HP per hour, but can't heal more than the HP that was lost
+    final hpLost = timesStudiedToday;
+    final hpHealed = hoursSinceLastUse.clamp(0, hpLost);
+    
+    return hpHealed;
+  }
+  
   /// Daily study limit per card (configurable) - this is the card's max HP
   static const int dailyStudyLimit = 10;
   
-  /// Get current HP (Health Points) - remaining study attempts
+  /// Get current HP (Health Points) - remaining study attempts with gradual healing
+  /// Cards heal 1 HP per hour since last use, encouraging breaks
   int get currentHP {
-    return (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+    // Base HP after all uses today
+    final baseHP = (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+    
+    // Add healed HP (1 HP per hour since last use)
+    final healedHP = _healedHP;
+    final currentHP = (baseHP + healedHP).clamp(0, dailyStudyLimit);
+    
+    return currentHP;
   }
   
   /// Get max HP (Health Points) - total daily study limit
@@ -571,24 +631,30 @@ class LearningMastery {
     return dailyStudyLimit;
   }
   
-  /// Check if this card has reached its daily study limit (HP is 0)
+  /// Check if this card has reached its daily study limit (10 uses per day)
+  /// Note: HP can heal during the day, but daily use limit is still enforced
   bool get hasReachedDailyLimit {
     return timesStudiedToday >= dailyStudyLimit;
   }
   
   /// Check if card is defeated (HP is 0)
+  /// With gradual healing, a card is only defeated if it has 0 HP right now
   bool get isDefeated {
     return currentHP <= 0;
   }
   
-  /// Get remaining study attempts for today (same as current HP)
+  /// Get remaining study attempts for today
+  /// This is the minimum of: remaining HP and remaining daily uses
   int get remainingStudyAttemptsToday {
-    return currentHP;
+    final remainingDailyUses = (dailyStudyLimit - timesStudiedToday).clamp(0, dailyStudyLimit);
+    return currentHP.clamp(0, remainingDailyUses);
   }
   
-  /// Check if card can be studied (has HP remaining)
+  /// Check if card can be studied (has HP remaining and hasn't reached daily limit)
+  /// Cards can heal during the day, but still can't exceed 10 uses per day
   bool get canBeStudiedToday {
-    return !hasReachedDailyLimit;
+    // Card can be studied if it has HP AND hasn't reached the daily use limit
+    return currentHP > 0 && !hasReachedDailyLimit;
   }
   
   /// Get HP percentage (0.0 to 1.0)
@@ -609,6 +675,35 @@ class LearningMastery {
     } else {
       return 'Defeated';
     }
+  }
+  
+  /// Get the time when the next HP will be healed (if applicable)
+  /// Returns null if card is at full HP or hasn't been used today
+  DateTime? get nextHPHealTime {
+    if (currentHP >= maxHP) return null; // Already at full HP
+    if (timesStudiedToday == 0) return null; // Not used today, no healing needed
+    
+    final lastUseTime = _lastExerciseTime;
+    if (lastUseTime == null) return null;
+    
+    // Next HP heals 1 hour after last use
+    return lastUseTime.add(const Duration(hours: 1));
+  }
+  
+  /// Get minutes until next HP heals (for display purposes)
+  /// Returns null if no healing is pending
+  int? get minutesUntilNextHPHeal {
+    final nextHealTime = nextHPHealTime;
+    if (nextHealTime == null) return null;
+    
+    final now = DateTime.now();
+    if (now.isAfter(nextHealTime)) {
+      // Should have healed already, return 0 to indicate healing is due
+      return 0;
+    }
+    
+    final difference = nextHealTime.difference(now);
+    return difference.inMinutes;
   }
   
   /// Calculate XP for next correct answer based on daily decay

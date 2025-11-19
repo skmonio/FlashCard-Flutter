@@ -9,6 +9,7 @@ import '../utils/enhanced_snackbar.dart';
 import '../utils/avatar_utils.dart';
 import 'add_card_view.dart';
 import 'add_deck_view.dart';
+import '../components/cached_profile_avatar.dart';
 
 class FriendProfileView extends StatefulWidget {
   final Friend friend;
@@ -184,23 +185,13 @@ class _FriendProfileViewState extends State<FriendProfileView> with TickerProvid
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 40,
+                  CachedProfileAvatar(
+                    size: 80,
+                    base64Image: widget.friend.profileImageData,
+                    fallbackIcon: AvatarUtils.getAvatarIcon(widget.friend.selectedAvatar),
                     backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: widget.friend.profileImageData != null
-                        ? ClipOval(
-                            child: Image.memory(
-                              base64Decode(widget.friend.profileImageData!),
-                              fit: BoxFit.cover,
-                              width: 80,
-                              height: 80,
-                            ),
-                          )
-                        : Icon(
-                            AvatarUtils.getAvatarIcon(widget.friend.selectedAvatar),
-                            size: 40,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                          ),
+                    iconColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                    semanticLabel: '${widget.friend.username} profile picture',
                   ),
                   const SizedBox(width: 16),
                   Expanded(

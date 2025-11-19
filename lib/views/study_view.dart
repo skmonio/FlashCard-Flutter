@@ -6,7 +6,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 
 enum StudyMode {
@@ -51,6 +51,7 @@ class _StudyViewState extends State<StudyView> {
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   int _consecutiveCorrect = 0;
 
@@ -777,6 +778,12 @@ class _StudyViewState extends State<StudyView> {
         break;
     }
     
+    // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.contains(currentCard)) {
+      _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
+    
     if (isCorrect) {
       currentCard.markCorrect(GameDifficulty.medium);
       
@@ -894,46 +901,38 @@ class _StudyViewState extends State<StudyView> {
       sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     }
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true, // Hide back button and swipe for study sessions
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart study session
-            setState(() {
-              _currentCardIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswers = 0;
-              _showAnswer = false;
-              _isFlipped = widget.startFlipped;
-              _consecutiveCorrect = 0;
-              
-              // Shuffle the cards for a different order
-              _currentCards.shuffle(Random());
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            
-            _generateMultipleChoiceOptions();
-            _generateScrambledWord();
-            
-            // Force UI update after regenerating content
-            setState(() {});
-            
-            // Session data has been reset, ready for new game
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswers,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentCardIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswers = 0;
+            _showAnswer = false;
+            _isFlipped = widget.startFlipped;
+            _consecutiveCorrect = 0;
+            _currentCards.shuffle(Random());
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _studiedWords.clear();
+          });
+          
+          _generateMultipleChoiceOptions();
+          _generateScrambledWord();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

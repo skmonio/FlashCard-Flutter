@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'data_sync_service.dart';
+import 'dart:async';
 
 class Friend {
   final String id;
@@ -100,23 +101,33 @@ class FriendRequest {
 }
 
 class FriendsService {
+  static const Duration _defaultTimeout = Duration(seconds: 15);
   static final FriendsService _instance = FriendsService._internal();
   factory FriendsService() => _instance;
   FriendsService._internal();
 
   SupabaseClient get _client => SupabaseService.instance.client;
 
+  Future<T> _runWithTimeout<T>(Future<T> future) => future.timeout(_defaultTimeout);
+
   // MARK: - Friend Management
 
   /// Search for users by username
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
-      final response = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak')
-          .ilike('username', '%$query%')
-          .neq('id', SupabaseService.instance.currentUser!.id)
-          .limit(20);
+      final currentUser = SupabaseService.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not logged in');
+      }
+
+      final response = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, level, xp, current_streak')
+            .ilike('username', '%$query%')
+            .neq('id', currentUser.id)
+            .limit(20),
+      );
       
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -152,18 +163,25 @@ class FriendsService {
   /// Get pending friend requests
   Future<List<FriendRequest>> getPendingFriendRequests() async {
     try {
-      final response = await _client
-          .from('friend_requests')
-          .select('''
-            *,
-            sender:user_profiles!friend_requests_sender_id_fkey(
-              username,
-              selected_avatar
-            )
-          ''')
-          .eq('receiver_id', SupabaseService.instance.currentUser!.id)
-          .eq('status', 'pending')
-          .order('created_at', ascending: false);
+      final currentUser = SupabaseService.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not logged in');
+      }
+
+      final response = await _runWithTimeout(
+        _client
+            .from('friend_requests')
+            .select('''
+              *,
+              sender:user_profiles!friend_requests_sender_id_fkey(
+                username,
+                selected_avatar
+              )
+            ''')
+            .eq('receiver_id', currentUser.id)
+            .eq('status', 'pending')
+            .order('created_at', ascending: false),
+      );
 
       return response.map<FriendRequest>((data) {
         final sender = data['sender'] as Map<String, dynamic>?;
@@ -247,14 +265,21 @@ class FriendsService {
   /// Get user's friends
   Future<List<Friend>> getFriends() async {
     try {
-      final userId = SupabaseService.instance.currentUser!.id;
+      final currentUser = SupabaseService.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not logged in');
+      }
+      
+      final userId = currentUser.id;
       
       // Get friends relationships
-      final friendsResponse = await _client
-          .from('friends')
-          .select('friend_id')
-          .eq('user_id', userId)
-          .eq('status', 'accepted');
+      final friendsResponse = await _runWithTimeout(
+        _client
+            .from('friends')
+            .select('friend_id')
+            .eq('user_id', userId)
+            .eq('status', 'accepted'),
+      );
 
       if (friendsResponse.isEmpty) {
         return [];
@@ -263,10 +288,12 @@ class FriendsService {
       final friendIds = friendsResponse.map((f) => f['friend_id'] as String).toList();
       
       // Get friends' profiles
-      final profilesResponse = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, profile_image_data, level, xp, current_streak, updated_at')
-          .inFilter('id', friendIds);
+      final profilesResponse = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, profile_image_data, level, xp, current_streak, updated_at')
+            .inFilter('id', friendIds),
+      );
 
       return profilesResponse.map<Friend>((data) {
         return Friend(

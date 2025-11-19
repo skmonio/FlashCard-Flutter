@@ -14,7 +14,7 @@ import 'writing_view.dart';
 import 'pop_your_card_view.dart';
 import 'pick_your_card_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../models/learning_mastery.dart';
 import '../models/game_session.dart';
 import '../services/xp_service.dart';
@@ -53,6 +53,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   List<FlashCard> _studiedWords = [];
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   final GameSession _gameSession = GameSession();
   
   // Track cards used in current challenge
@@ -74,6 +75,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.pickYourCards: true,
     ShuffleMode.dutchExercise: true,
   };
+  bool _useAllCardsForAnswers = true; // true = answers pulled from all cards, false = selected decks only
 
   @override
   void initState() {
@@ -102,10 +104,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
         ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
       };
+      _useAllCardsForAnswers = prefs.getBool('shuffle_use_all_cards_for_answers') ?? true;
     });
   }
-
-  void _saveEnabledModes() async {
+ 
+   void _saveEnabledModes() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('shuffle_mode_multiple_choice', _enabledModes[ShuffleMode.multipleChoice] ?? true);
     await prefs.setBool('shuffle_mode_true_false', _enabledModes[ShuffleMode.trueFalse] ?? true);
@@ -115,6 +118,36 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
     await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
     await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
+    await prefs.setBool('shuffle_use_all_cards_for_answers', _useAllCardsForAnswers);
+  }
+
+  List<FlashCard> _getAnswerPoolCards(FlashCard primaryCard) {
+    final provider = context.read<FlashcardProvider>();
+    if (_useAllCardsForAnswers) {
+      return provider.cards;
+    }
+
+    if (primaryCard.deckIds.isEmpty) {
+      return provider.cards;
+    }
+
+    final Set<String> seenIds = {primaryCard.id};
+    final List<FlashCard> deckCards = [primaryCard];
+
+    for (final deckId in primaryCard.deckIds) {
+      final cards = provider.getCardsForDeckWithSubDecks(deckId);
+      for (final card in cards) {
+        if (seenIds.add(card.id)) {
+          deckCards.add(card);
+        }
+      }
+    }
+
+    if (deckCards.length <= 1) {
+      return provider.cards;
+    }
+
+    return deckCards;
   }
 
   void _saveHighScore() async {
@@ -137,6 +170,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _studiedWords.clear();
       _xpGainedPerWord.clear();
       _wordMastery.clear();
+      _initialHPPerWord.clear();
       _gameSession.reset();
       _currentChallengeCards.clear();
       
@@ -158,6 +192,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Track the studied word
     if (!_studiedWords.any((w) => w.id == card.id)) {
       _studiedWords.add(card);
+    }
+    
+    if (!_initialHPPerWord.containsKey(card.id)) {
+      final assumedInitialHp = min(card.maxHP, card.currentHP + 1);
+      _initialHPPerWord[card.id] = assumedInitialHp;
     }
     
     // In shuffle mode, HP was already reduced by child views when answer was given
@@ -189,6 +228,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 
     if (!_studiedWords.any((w) => w.id == primary.id)) {
       _studiedWords.add(primary);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      // Note: In shuffle mode, HP is reduced by child views, so we need to track it before
+      // the child view processes the answer. However, since child views handle the answer,
+      // we'll track it here when we first see the card in the challenge.
+      // The actual HP reduction happens in the child view, so we capture it here.
+      _initialHPPerWord[primary.id] = primary.currentHP;
     }
 
     // In shuffle mode, HP was already reduced by child views when answer was given
@@ -232,11 +277,55 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       if (savedChallenge['cardId'] != null) {
         final provider = context.read<FlashcardProvider>();
         final cardId = savedChallenge['cardId'] as String;
-        _currentCard = provider.cards.firstWhere(
+        
+        // Try to find the original card
+        final originalCard = provider.cards.firstWhere(
           (card) => card.id == cardId,
-          orElse: () => provider.cards.firstWhere((card) => card.canBeStudiedToday, orElse: () => provider.cards.first),
+          orElse: () => FlashCard(
+            id: '',
+            word: '',
+            definition: '',
+            example: '',
+            deckIds: {},
+            dateCreated: DateTime.now(),
+            learningMastery: LearningMastery(),
+            article: '',
+            plural: '',
+            pastTense: '',
+            futureTense: '',
+            pastParticiple: '',
+          ),
         );
-        _launchCardMode(_currentMode!);
+        
+        // Check if original card exists and has HP
+        if (originalCard.id.isNotEmpty && originalCard.canBeStudiedToday) {
+          _currentCard = originalCard;
+          _launchCardMode(_currentMode!);
+        } else {
+          // Original card has 0 HP or doesn't exist, try to find a replacement
+          final availableCards = provider.cards.where((card) => card.canBeStudiedToday).toList();
+          
+          if (availableCards.isEmpty) {
+            // No cards with HP available - show message and end game
+            setState(() {
+              _isGameActive = false;
+            });
+            _showSetupRequiredDialog('All cards in this sequence have 0 HP and need to rest until tomorrow to regain health.');
+            return;
+          } else {
+            // Use a replacement card with HP
+            _currentCard = availableCards[_random.nextInt(availableCards.length)];
+            // Show message that some cards couldn't be used
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Some cards in this sequence have 0 HP and were skipped. Using a replacement card.'),
+                duration: const Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            _launchCardMode(_currentMode!);
+          }
+        }
       } else if (savedChallenge['exerciseId'] != null) {
         final dutchProvider = context.read<DutchWordExerciseProvider>();
         final exerciseId = savedChallenge['exerciseId'] as String;
@@ -370,6 +459,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         if (availableCards.isEmpty) {
           print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing setup dialog');
           
+          // Set game inactive immediately to prevent blank loading screen
+          setState(() {
+            _isGameActive = false;
+            _isTransitioningToNextChallenge = false;
+          });
+          
           // Create friendly error message
           final totalCards = allCards.length;
           final defeatedCards = allCards.where((card) => card.isDefeated).length;
@@ -384,7 +479,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             message = 'No cards available for this game. Please add more cards or wait for cards to regain HP.';
           }
           
-          _showSetupRequiredDialog(message);
+          // Show dialog after a brief delay to ensure UI is ready
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              _showSetupRequiredDialog(message);
+            }
+          });
           return;
         }
         
@@ -427,11 +527,15 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       case ShuffleMode.multipleChoice:
         // For multiple choice, we need multiple cards to create meaningful wrong options
         // Get 5 random cards for variety
-        final allCards = context.read<FlashcardProvider>().cards;
+        final answerPool = _getAnswerPoolCards(_currentCard!);
         final multipleChoiceCards = <FlashCard>[];
         
-        // Check if current card can be studied today
+        // Check if current card can be studied today (safety check)
         if (!_currentCard!.canBeStudiedToday) {
+          // This shouldn't happen since we filter cards before selecting, but handle it gracefully
+          setState(() {
+            _isGameActive = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
@@ -445,7 +549,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         multipleChoiceCards.add(_currentCard!);
         
         // Add 4 more random cards (avoiding duplicates and daily limits)
-        final otherCards = allCards.where((card) => 
+        final otherCards = answerPool.where((card) => 
           card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
@@ -471,8 +575,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.trueFalse:
-        // Check if current card can be studied today
+        // Check if current card can be studied today (safety check)
         if (!_currentCard!.canBeStudiedToday) {
+          // This shouldn't happen since we filter cards before selecting, but handle it gracefully
+          setState(() {
+            _isGameActive = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
@@ -484,14 +592,14 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         
         // For true/false, we need multiple cards to create false questions
         // Get 5 random cards for variety
-        final allCards = context.read<FlashcardProvider>().cards;
+        final answerPool = _getAnswerPoolCards(_currentCard!);
         final trueFalseCards = <FlashCard>[];
         
         // Add the current card first
         trueFalseCards.add(_currentCard!);
         
         // Add 4 more random cards (avoiding duplicates and daily limits)
-        final otherCards = allCards.where((card) => 
+        final otherCards = answerPool.where((card) => 
           card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
@@ -517,8 +625,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         );
         break;
       case ShuffleMode.memoryGame:
-        // Check if current card can be studied today
+        // Check if current card can be studied today (safety check)
         if (!_currentCard!.canBeStudiedToday) {
+          // This shouldn't happen since we filter cards before selecting, but handle it gracefully
+          setState(() {
+            _isGameActive = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('This card is defeated (0 HP). It needs to rest until tomorrow to regain health.'),
@@ -530,14 +642,14 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         
         // For memory game, we need multiple cards to create pairs
         // Get 5 random cards for the memory game
-        final allCards = context.read<FlashcardProvider>().cards;
+        final answerPool = _getAnswerPoolCards(_currentCard!);
         final memoryCards = <FlashCard>[];
         
         // Add the current card first
         memoryCards.add(_currentCard!);
         
         // Add 4 more random cards (avoiding duplicates and daily limits)
-        final otherCards = allCards.where((card) => 
+        final otherCards = answerPool.where((card) => 
           card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
@@ -874,54 +986,50 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     final int correct = _currentScore; // number answered correctly
     final int total = wasSuccessful ? _currentScore : _currentScore + 1; // include the wrong one if failed
     // Push end screen (don't use pushReplacement to keep ShuffleCardsView in stack)
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          title: 'Shuffle Cards Complete',
-          showSwipeToReview: false,
-          correctAnswers: correct,
-          totalQuestions: total,
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close end screen
-            // Reset flag and immediately start game
-            if (mounted) {
-              setState(() {
-                _isShowingEndScreen = false;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _startGame(useSameSequence: true); // Retry the same sequence of questions
-                }
-              });
-            }
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close end screen
-            // Reset flag and immediately start game
-            if (mounted) {
-              setState(() {
-                _isShowingEndScreen = false;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _startGame(useSameSequence: false); // Start a new game with new random challenges
-                }
-              });
-            }
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen (will return to shuffle cards view)
-            // Reset flag to show shuffle screen again
-            if (mounted) {
-              setState(() {
-                _isShowingEndScreen = false;
-              });
-            }
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Shuffle Cards Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: correct,
+        totalQuestions: total,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          if (mounted) {
+            setState(() {
+              _isShowingEndScreen = false;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _startGame(useSameSequence: true);
+              }
+            });
+          }
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          if (mounted) {
+            setState(() {
+              _isShowingEndScreen = false;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _startGame(useSameSequence: false);
+              }
+            });
+          }
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          if (mounted) {
+            setState(() {
+              _isShowingEndScreen = false;
+            });
+          }
+        },
       ),
     );
   }
@@ -1083,12 +1191,16 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                 
                 // Title
                 Text(
-                  'Shuffle Your Cards',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
+                  'Shuffle',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ) ??
+                      TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                 ),
                 const SizedBox(height: 16),
                 
@@ -1209,18 +1321,54 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   }
 
   void _showCustomizationDialog() {
+    final availableModes = _getAvailableModesForDialog();
     showDialog(
       context: context,
       builder: (context) => ShuffleCustomizationDialog(
         enabledModes: Map.from(_enabledModes),
+        useAllCardsForAnswers: _useAllCardsForAnswers,
+        availableModes: availableModes,
         onSettingsChanged: (newEnabledModes) {
           setState(() {
             _enabledModes = newEnabledModes;
           });
           _saveEnabledModes();
         },
+        onAnswerPoolChanged: (value) {
+          setState(() {
+            _useAllCardsForAnswers = value;
+          });
+          _saveEnabledModes();
+        },
       ),
     );
+  }
+  
+  Set<ShuffleMode> _getAvailableModesForDialog() {
+    final provider = context.read<FlashcardProvider>();
+    final dutchProvider = context.read<DutchWordExerciseProvider>();
+    
+    final hasCards = provider.cards.isNotEmpty;
+    final hasExercises = dutchProvider.wordExercises.isNotEmpty;
+    final Set<ShuffleMode> modes = {};
+    
+    if (hasCards) {
+      modes.addAll({
+        ShuffleMode.multipleChoice,
+        ShuffleMode.trueFalse,
+        ShuffleMode.memoryGame,
+        ShuffleMode.wordScramble,
+        ShuffleMode.writing,
+        ShuffleMode.popYourCards,
+        ShuffleMode.pickYourCards,
+      });
+    }
+    
+    if (hasExercises) {
+      modes.add(ShuffleMode.dutchExercise);
+    }
+    
+    return modes;
   }
 
   List<Widget> _buildEnabledModeChips() {
@@ -1292,11 +1440,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 class ShuffleCustomizationDialog extends StatefulWidget {
   final Map<ShuffleMode, bool> enabledModes;
   final Function(Map<ShuffleMode, bool>) onSettingsChanged;
+  final bool useAllCardsForAnswers;
+  final ValueChanged<bool> onAnswerPoolChanged;
+  final Set<ShuffleMode> availableModes;
 
   const ShuffleCustomizationDialog({
     super.key,
     required this.enabledModes,
     required this.onSettingsChanged,
+    required this.useAllCardsForAnswers,
+    required this.onAnswerPoolChanged,
+    required this.availableModes,
   });
 
   @override
@@ -1305,11 +1459,13 @@ class ShuffleCustomizationDialog extends StatefulWidget {
 
 class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog> {
   late Map<ShuffleMode, bool> _localEnabledModes;
+  late bool _useAllCardsForAnswers;
 
   @override
   void initState() {
     super.initState();
     _localEnabledModes = Map.from(widget.enabledModes);
+    _useAllCardsForAnswers = widget.useAllCardsForAnswers;
   }
 
   void _updateMode(ShuffleMode mode, bool value) {
@@ -1319,38 +1475,107 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
     widget.onSettingsChanged(_localEnabledModes);
   }
 
+  void _updateAnswerPool(bool value) {
+    setState(() {
+      _useAllCardsForAnswers = value;
+    });
+    widget.onAnswerPoolChanged(value);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final modeConfigs = [
+      {
+        'title': 'Test Your Cards',
+        'mode': ShuffleMode.multipleChoice,
+        'icon': Icons.check_circle,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'True or False',
+        'mode': ShuffleMode.trueFalse,
+        'icon': Icons.help_outline,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'Remember Your Cards',
+        'mode': ShuffleMode.memoryGame,
+        'icon': Icons.psychology,
+        'color': Colors.grey,
+      },
+      {
+        'title': 'Jumble Your Cards',
+        'mode': ShuffleMode.wordScramble,
+        'icon': Icons.text_fields,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Write Your Cards',
+        'mode': ShuffleMode.writing,
+        'icon': Icons.edit,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Pop Your Card',
+        'mode': ShuffleMode.popYourCards,
+        'icon': Icons.bubble_chart,
+        'color': Colors.purple,
+      },
+      {
+        'title': 'Pick Your Card',
+        'mode': ShuffleMode.pickYourCards,
+        'icon': Icons.touch_app,
+        'color': Colors.pink,
+      },
+      {
+        'title': 'Words',
+        'mode': ShuffleMode.dutchExercise,
+        'icon': Icons.school,
+        'color': Colors.green,
+      },
+    ];
+
+    final visibleModeTiles = modeConfigs
+        .where((config) => widget.availableModes.contains(config['mode']))
+        .map(
+          (config) => _buildModeToggle(
+            config['title'] as String,
+            config['mode'] as ShuffleMode,
+            config['icon'] as IconData,
+            config['color'] as Color,
+          ),
+        )
+        .toList();
+
     return AlertDialog(
       title: const Text('Customize Exercise Types'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 350, // Reduced height to prevent overflow
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select which exercise types to include in shuffle mode:',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildModeToggle('Test Your Cards', ShuffleMode.multipleChoice, Icons.check_circle, Colors.teal),
-                    _buildModeToggle('True or False', ShuffleMode.trueFalse, Icons.help_outline, Colors.orange),
-                    _buildModeToggle('Remember Your Cards', ShuffleMode.memoryGame, Icons.psychology, Colors.grey),
-                    _buildModeToggle('Jumble Your Cards', ShuffleMode.wordScramble, Icons.text_fields, Colors.blue),
-                    _buildModeToggle('Write Your Cards', ShuffleMode.writing, Icons.edit, Colors.blue),
-                    _buildModeToggle('Pop Your Card', ShuffleMode.popYourCards, Icons.bubble_chart, Colors.purple),
-                    _buildModeToggle('Pick Your Card', ShuffleMode.pickYourCards, Icons.touch_app, Colors.pink),
-                    _buildModeToggle('Words', ShuffleMode.dutchExercise, Icons.school, Colors.green),
-                  ],
-                ),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select which exercise types to include in shuffle mode:',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _buildAnswerPoolSection(),
+              const SizedBox(height: 16),
+              if (visibleModeTiles.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'Add cards or exercises to unlock game modes.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                )
+              else
+                ...visibleModeTiles,
+            ],
+          ),
         ),
       ),
       actions: [
@@ -1380,6 +1605,51 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
       ),
       value: _localEnabledModes[mode] ?? true,
       onChanged: (value) => _updateMode(mode, value),
+    );
+  }
+
+  Widget _buildAnswerPoolSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.library_books, color: Colors.blue[600]),
+            const SizedBox(width: 8),
+            Text(
+              'Answer Pool',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.blue[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        RadioListTile<bool>(
+          value: true,
+          groupValue: _useAllCardsForAnswers,
+          onChanged: (value) {
+            if (value != null) {
+              _updateAnswerPool(value);
+            }
+          },
+          title: const Text('Use cards from all decks'),
+          subtitle: const Text('Wrong answers can come from any card in your collection.'),
+        ),
+        RadioListTile<bool>(
+          value: false,
+          groupValue: _useAllCardsForAnswers,
+          onChanged: (value) {
+            if (value != null) {
+              _updateAnswerPool(value);
+            }
+          },
+          title: const Text('Use cards from selected decks'),
+          subtitle: const Text('Wrong answers are taken only from the decks included in this shuffle.'),
+        ),
+      ],
     );
   }
 }

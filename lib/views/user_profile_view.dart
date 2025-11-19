@@ -8,6 +8,7 @@ import '../utils/avatar_utils.dart';
 import 'edit_profile_view.dart';
 import 'friends_view.dart';
 import 'leaderboard_view.dart';
+import '../components/cached_profile_avatar.dart';
 
 class UserProfileView extends StatefulWidget {
   const UserProfileView({super.key});
@@ -150,8 +151,8 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                   height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white,
-                    border: Border.all(color: Colors.blue.withOpacity(0.3), width: 2),
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), width: 2),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.1),
@@ -160,18 +161,14 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                       ),
                     ],
                   ),
-                  child: provider.profileImageData != null
-                      ? ClipOval(
-                          child: Image.memory(
-                            base64Decode(provider.profileImageData!),
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : Icon(
-                          AvatarUtils.getAvatarIcon(provider.selectedAvatar),
-                          size: 50,
-                          color: Colors.blue,
-                        ),
+                  child: CachedProfileAvatar(
+                    size: 100,
+                    base64Image: provider.profileImageData,
+                    fallbackIcon: AvatarUtils.getAvatarIcon(provider.selectedAvatar),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    iconColor: Theme.of(context).colorScheme.primary,
+                    semanticLabel: '${provider.username} profile picture',
+                  ),
                 ),
               ),
               
@@ -182,7 +179,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.blue,
+                    color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
@@ -220,9 +217,9 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
               const SizedBox(height: 8),
               Text(
                 'Level ${provider.level}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
-                  color: Colors.blue,
+                  color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -231,7 +228,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
                 '${provider.xp} XP / ${_getXpForNextLevel(provider.level)} XP',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey[600],
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),

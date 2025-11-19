@@ -15,7 +15,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../utils/game_difficulty_helper.dart';
 import 'add_card_view.dart';
 
@@ -30,6 +30,7 @@ class TrueFalseView extends StatefulWidget {
   final bool startFlipped;
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final List<FlashCard>? answerPoolCards;
 
   const TrueFalseView({
     super.key,
@@ -43,6 +44,7 @@ class TrueFalseView extends StatefulWidget {
     this.startFlipped = false,
     this.studyConfig,
     this.shuffleQuestionOffset,
+    this.answerPoolCards,
   });
 
   @override
@@ -64,7 +66,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   
   // Track answered questions and their answers
   Map<int, bool> _answeredQuestions = {}; // question index -> selected answer
-  Map<int, bool> _correctAnswersMap = {}; // question index -> is correct
+  Map<int, bool> _correctAnswersMap = {}; // question index -> correct answer value (true/false)
+  Map<int, bool> _isCorrectMap = {}; // question index -> whether user's answer was correct
   Map<int, String> _questionTexts = {}; // question index -> question text
   Map<int, bool> _questionModes = {}; // question index -> is question mode
   Map<int, String> _translations = {}; // question index -> translation being tested
@@ -85,7 +88,13 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+
+  Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
+  
+  // Review tracking
+  Set<String> _reviewCards = {}; // card IDs marked for review
 
   @override
   void initState() {
@@ -214,7 +223,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     final correctAnswer = _isQuestionMode ? currentCard.definition : currentCard.word;
     
     // Get other cards for wrong options
-    final otherCards = widget.cards.where((card) => card.id != currentCard.id).toList();
+    final answerPool = _getAnswerPoolForCard(currentCard);
+    final otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
     
     // 50% chance of true, 50% chance of false
     final isTrue = random.nextBool();
@@ -417,13 +427,24 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   void _goToNextQuestion() {
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
-      // Use the stored correct answer value and compare with user's selected answer
-      // This ensures consistency even if _correctAnswer was reset
-      final storedCorrectAnswer = _correctAnswersMap[_currentIndex];
-      final userAnswer = _selectedAnswer ?? _answeredQuestions[_currentIndex];
-      final isCorrect = userAnswer != null && storedCorrectAnswer != null && userAnswer == storedCorrectAnswer;
-      if (widget.onComplete != null) {
-        widget.onComplete!(isCorrect);
+      // Use the stored isCorrect value from when the answer was selected
+      // This ensures we use the exact same correctness check that was used when the answer was submitted
+      final isCorrect = _isCorrectMap[_currentIndex] ?? false;
+      
+      // Fallback: if for some reason isCorrect wasn't stored, calculate it from stored values
+      if (!_isCorrectMap.containsKey(_currentIndex)) {
+        final storedCorrectAnswer = _correctAnswersMap[_currentIndex];
+        final userAnswer = _selectedAnswer ?? _answeredQuestions[_currentIndex];
+        final calculatedIsCorrect = userAnswer != null && storedCorrectAnswer != null && userAnswer == storedCorrectAnswer;
+        print('⚠️ TrueFalseView: isCorrect not found in map, calculated: $calculatedIsCorrect (user: $userAnswer, correct: $storedCorrectAnswer)');
+        if (widget.onComplete != null) {
+          widget.onComplete!(calculatedIsCorrect);
+        }
+      } else {
+        print('🔍 TrueFalseView: Using stored isCorrect value: $isCorrect');
+        if (widget.onComplete != null) {
+          widget.onComplete!(isCorrect);
+        }
       }
       return;
     }
@@ -485,6 +506,16 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   void _selectAnswer(bool answer) {
     if (_answered) return;
     
+    // Ensure _correctAnswer is not null before comparing
+    if (_correctAnswer == null) {
+      print('⚠️ TrueFalseView: _correctAnswer is null! Attempting to use stored value from map.');
+      _correctAnswer = _correctAnswersMap[_currentIndex];
+      if (_correctAnswer == null) {
+        print('❌ TrueFalseView: Cannot determine correct answer! Question may not have been generated properly.');
+        return;
+      }
+    }
+    
     final isCorrect = (answer == _correctAnswer);
     final currentCard = _currentCards[_currentIndex];
     
@@ -509,9 +540,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
         // markCorrect already adds to exerciseHistory, reducing HP
       } else {
         currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt
-        final xpService = XpService();
-        xpService.recordAttemptToWord(currentCard.learningMastery, "true_false");
+        // markIncorrect now adds to exerciseHistory automatically
       }
       // Update the card immediately to save HP changes
       _updateCardInProvider(currentCard);
@@ -526,8 +555,9 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _answered = true;
       _totalAnswered++;
       
-      // Store the answer
+      // Store the answer and whether it was correct
       _answeredQuestions[_currentIndex] = answer;
+      _isCorrectMap[_currentIndex] = isCorrect;
       
       if (isCorrect) {
         _correctAnswers++;
@@ -720,8 +750,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           
           // Question area
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), // Reduced top padding
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Column(
                 children: [
                   // Question text above card
@@ -734,51 +764,62 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                     ),
                   ),
                   
-                  const SizedBox(height: 16), // Reduced spacing
+                  const SizedBox(height: 16),
                   
                   // Card with theme-adaptive background and colored outline
-                  Container(
-                    width: double.infinity,
-                    height: _getAdaptiveCardHeight(context), // Adaptive height based on screen size
-                    padding: const EdgeInsets.all(24), // Reduced padding
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Theme.of(context).colorScheme.surface 
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20), // Slightly smaller radius
-                      border: Border.all(
-                        color: _getCardBorderColor(currentCard),
-                        width: 4, // Slightly thinner border
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                        BoxShadow(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
-                          blurRadius: 15,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        _isQuestionMode ? currentCard.word : currentCard.definition,
-                        style: TextStyle(
-                          fontSize: _getAdaptiveFontSize(context), // Adaptive font size
-                          fontWeight: FontWeight.bold,
+                  Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: _getAdaptiveCardHeight(context),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark 
-                              ? Theme.of(context).colorScheme.onSurface 
-                              : Colors.black87,
+                              ? Theme.of(context).colorScheme.surface 
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _getCardBorderColor(currentCard),
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _getCardBorderColor(currentCard).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
+                        child: Center(
+                          child: Text(
+                            _isQuestionMode ? currentCard.word : currentCard.definition,
+                            style: TextStyle(
+                              fontSize: _getAdaptiveFontSize(context),
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness == Brightness.dark 
+                                  ? Theme.of(context).colorScheme.onSurface 
+                                  : Colors.black87,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ),
-                    ),
+                      
+                      // Review flag (top left)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: _buildReviewFlag(currentCard),
+                      ),
+                    ],
                   ),
                   
-                  const SizedBox(height: 16), // Reduced spacing
+                  const SizedBox(height: 16),
                   
                   // Navigation and Edit buttons row
                   Row(
@@ -832,7 +873,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                     ],
                   ),
                   
-                  const SizedBox(height: 20), // Reduced spacing
+                  const SizedBox(height: 20),
                   
                   // "Translates to" text
                   Text(
@@ -873,7 +914,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   
                   const SizedBox(height: 24),
                   
-                  // True/False buttons side by side
+                  // True/False buttons
                   Row(
                     children: [
                       Expanded(
@@ -885,6 +926,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                       ),
                     ],
                   ),
+                  
+                  const SizedBox(height: 24),
                   
                   // Answer feedback (show when incorrect OR when correctly answered FALSE)
                   if (_answered && (_selectedAnswer != _correctAnswer || (_selectedAnswer == false && _correctAnswer == false)))
@@ -1261,6 +1304,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           // Reset all navigation state
                           _answeredQuestions.clear();
                           _correctAnswersMap.clear();
+                          _isCorrectMap.clear();
                           _questionTexts.clear();
                           _questionModes.clear();
                           _translations.clear();
@@ -1269,6 +1313,9 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+                          _reviewCards.clear();
+ 
+                          // Reset wrong attempts tracking
                         });
                         _generateQuestion();
                       },
@@ -1403,6 +1450,13 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   void _awardXPToWord(FlashCard card, bool isCorrect) {
     final xpService = XpService();
     
+    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
+    
     print('🔍 TrueFalseView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
     if (isCorrect) {
@@ -1430,11 +1484,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     // Store the word mastery for display (for both correct and incorrect)
     _wordMastery[card.id] = card.learningMastery;
-    
-    // Track studied words (regardless of correctness)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-    }
   }
   
   void _shuffleAndRestart() {
@@ -1512,6 +1561,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       // Reset all navigation state
       _answeredQuestions.clear();
       _correctAnswersMap.clear();
+      _isCorrectMap.clear();
       _questionTexts.clear();
       _questionModes.clear();
       _translations.clear();
@@ -1530,59 +1580,54 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          studiedWords: sessionStudiedWords,
-          title: 'True/False Complete',
-          showSwipeToReview: false, // Disable review functionality
-          correctAnswers: _correctAnswers,
-          totalQuestions: _totalAnswered,
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close end screen
-            // Reset and restart test
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _selectedAnswer = null;
-              _gameSession.reset(); // Reset XP tracking
-              
-              // Reset lives if using lives mode
-              if (_useLivesMode) {
-                _lives = _maxLives;
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'True/False Complete',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _selectedAnswer = null;
+            _gameSession.reset();
+            if (_useLivesMode) {
+              _lives = _maxLives;
+            }
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _isCorrectMap.clear();
+            _questionTexts.clear();
+            _questionModes.clear();
+            _translations.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
+          });
+          _generateQuestion();
+        },
+        onShuffle: widget.studyConfig != null
+            ? () {
+                Navigator.of(context).pop();
+                _shuffleAndRestart();
               }
-              
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _questionTexts.clear();
-              _questionModes.clear();
-              _translations.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            _generateQuestion();
-            
-            // Session data has been reset, ready for new game
-          },
-          onShuffle: widget.studyConfig != null ? () {
-            Navigator.of(context).pop(); // Close end screen
-            _shuffleAndRestart();
-          } : null,
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+            : null,
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -1623,6 +1668,110 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     else {
       return 28.0; // Larger font for large screens
     }
+  }
+
+  Widget _buildReviewFlag(FlashCard card) {
+    final isInReview = _reviewCards.contains(card.id);
+    return Semantics(
+      label: isInReview ? 'Remove from review deck' : 'Add to review deck',
+      button: true,
+      child: GestureDetector(
+        onTap: () => _toggleReviewCard(card),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.orange,
+              width: 2,
+            ),
+          ),
+          child: Icon(
+            Icons.flag,
+            size: 16,
+            color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleReviewCard(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Added "${card.word}" to review deck'),
+              duration: const Duration(seconds: 1),
+              backgroundColor: Colors.yellow.shade700,
+            ),
+          );
+        }
+      } else {
+        await provider.removeCardFromReview(card);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Removed "${card.word}" from review deck'),
+              duration: const Duration(seconds: 1),
+              backgroundColor: Colors.grey.shade600,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating review deck: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  List<FlashCard> _getAnswerPoolForCard(FlashCard currentCard) {
+    if (widget.answerPoolCards != null && widget.answerPoolCards!.isNotEmpty) {
+      return widget.answerPoolCards!;
+    }
+
+    final provider = context.read<FlashcardProvider>();
+
+    if (widget.studyConfig == null || widget.studyConfig!.useAllCardsForAnswers) {
+      return provider.cards;
+    }
+
+    if (widget.studyConfig!.deckIds.isEmpty) {
+      return provider.cards;
+    }
+
+    final Set<String> seenIds = {};
+    final List<FlashCard> deckCards = [];
+
+    for (final deckId in widget.studyConfig!.deckIds) {
+      final cards = provider.getCardsForDeckWithSubDecks(deckId);
+      for (final card in cards) {
+        if (seenIds.add(card.id)) {
+          deckCards.add(card);
+        }
+      }
+    }
+
+    return deckCards.isEmpty ? provider.cards : deckCards;
   }
 
 

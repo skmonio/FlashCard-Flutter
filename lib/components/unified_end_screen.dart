@@ -8,6 +8,7 @@ class UnifiedEndScreen extends StatefulWidget {
   final List<FlashCard> studiedWords;
   final Map<String, int> xpGainedPerWord;
   final Map<String, LearningMastery> wordMastery;
+  final Map<String, int>? initialHPPerWord; // Initial HP when session started
   final VoidCallback? onStudyAgain;
   final VoidCallback? onDone;
   final VoidCallback? onShuffle;
@@ -21,6 +22,7 @@ class UnifiedEndScreen extends StatefulWidget {
     required this.studiedWords,
     required this.xpGainedPerWord,
     required this.wordMastery,
+    this.initialHPPerWord,
     this.onStudyAgain,
     this.onDone,
     this.onShuffle,
@@ -443,6 +445,52 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                                                         : Colors.red[600],
                                           ),
                                         ),
+                                        const Spacer(),
+                                        // HP Loss indicator (far right, same line as HP info)
+                                        if (widget.initialHPPerWord != null && widget.initialHPPerWord!.containsKey(word.id))
+                                          Builder(
+                                            builder: (context) {
+                                              final initialHP = widget.initialHPPerWord![word.id] ?? word.maxHP;
+                                              final rawHpLoss = initialHP - word.currentHP;
+                                              final hpLoss = rawHpLoss > 0 ? 1 : 0;
+                                              if (hpLoss <= 0) return const SizedBox.shrink();
+                                              
+                                              return AnimatedBuilder(
+                                                animation: _scaleAnimation,
+                                                builder: (context, child) {
+                                                  return Transform.scale(
+                                                    scale: _scaleAnimation.value,
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.red.withValues(alpha: 0.1),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(
+                                                            Icons.favorite,
+                                                            size: 14,
+                                                            color: Colors.red[700],
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Text(
+                                                            '-$hpLoss HP',
+                                                            style: TextStyle(
+                                                              fontSize: 12,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Colors.red[700],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          ),
                                       ],
                                     ),
                                     

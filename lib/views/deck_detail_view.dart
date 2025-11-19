@@ -30,6 +30,7 @@ class DeckDetailView extends StatefulWidget {
 }
 
 class _DeckDetailViewState extends State<DeckDetailView> {
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   SortOption _sortOption = SortOption.wordAZ; // Changed from String to SortOption
   bool _showOnlyParentCards = false; // Track whether to show only parent deck cards
@@ -37,6 +38,12 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   // Selection mode variables
   bool _isSelectionMode = false;
   Set<String> _selectedCardIds = {};
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,12 +115,14 @@ class _DeckDetailViewState extends State<DeckDetailView> {
               // Search Bar
               Expanded(
                 child: TextField(
+                  controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search cards...',
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             onPressed: () {
+                              _searchController.clear();
                               setState(() {
                                 _searchQuery = '';
                               });
@@ -344,18 +353,27 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
   Widget _buildEmptyState() {
+    final provider = context.read<FlashcardProvider>();
+    final hasSearchQuery = _searchQuery.isNotEmpty;
+    final allCards = widget.deck.isSubDeck
+        ? provider.getCardsForDeck(widget.deck.id)
+        : provider.getCardsForDeckWithSubDecks(widget.deck.id);
+    final hasCardsInDeck = allCards.isNotEmpty;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.folder_open,
+            hasSearchQuery ? Icons.search_off : Icons.folder_open,
             size: 64,
             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
-            'No cards in this deck',
+            hasSearchQuery
+                ? 'This card does not exist in this deck'
+                : 'No cards in this deck',
             style: TextStyle(
               fontSize: 18,
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
@@ -363,16 +381,18 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Tap the + button to add your first card',
+            hasSearchQuery
+                ? 'Tap the button below to add "${_searchQuery}" to this deck'
+                : 'Tap the + button to add your first card',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: _addCardToDeck,
+            onPressed: () => _addCardToDeck(preFilledWord: hasSearchQuery ? _searchQuery : null),
             icon: const Icon(Icons.add),
-            label: const Text('Add First Card'),
+            label: Text(hasSearchQuery ? 'Add This Card' : 'Add First Card'),
           ),
         ],
       ),
@@ -791,10 +811,13 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     }
   }
 
-  void _addCardToDeck() {
+  void _addCardToDeck({String? preFilledWord}) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => AddCardView(selectedDeck: widget.deck),
+        builder: (context) => AddCardView(
+          selectedDeck: widget.deck,
+          preFilledWord: preFilledWord,
+        ),
       ),
     );
   }

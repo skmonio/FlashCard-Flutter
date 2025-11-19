@@ -44,8 +44,11 @@ class _CardStatsViewState extends State<CardStatsView> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
         ),
       ),
       body: SingleChildScrollView(
@@ -148,6 +151,8 @@ class _CardStatsViewState extends State<CardStatsView> {
                   showText: true,
                   showStatus: true,
                 ),
+                const SizedBox(height: 12),
+                _buildHpHealingInfo(freshCard),
               ],
             ),
             
@@ -420,15 +425,6 @@ class _CardStatsViewState extends State<CardStatsView> {
       ));
     }
     
-    // HP insight
-    if (card.currentHP < card.maxHP * 0.5) {
-      insights.add(_buildInsightItem(
-        Icons.favorite_border,
-        Colors.red,
-        'Low HP! This card needs more practice to regain health.',
-      ));
-    }
-    
     if (insights.isEmpty) {
       insights.add(_buildInsightItem(
         Icons.emoji_events,
@@ -522,5 +518,96 @@ class _CardStatsViewState extends State<CardStatsView> {
     } else {
       return 'Just now';
     }
+  }
+
+  Widget _buildHpHealingInfo(FlashCard card) {
+    final minutesUntilHeal = card.learningMastery.minutesUntilNextHPHeal;
+
+    if (minutesUntilHeal == null) {
+      if (card.currentHP >= card.maxHP) {
+        return _buildInfoChip(
+          icon: Icons.check_circle,
+          color: Colors.green,
+          label: 'Full health',
+          message: 'This word is fully rested and ready to study again.',
+        );
+      }
+
+      return _buildInfoChip(
+        icon: Icons.favorite,
+        color: Colors.blue,
+        label: 'Recovering',
+        message: 'HP is regenerating. Mix in other cards while this one rests.',
+      );
+    }
+
+    final clampedMinutes = minutesUntilHeal.clamp(0, 60 * 24);
+    final hours = clampedMinutes ~/ 60;
+    final minutes = clampedMinutes % 60;
+
+    String countdownText;
+    if (clampedMinutes == 0) {
+      countdownText = 'HP should refresh any moment. Refresh this page to see the latest points.';
+    } else if (hours > 0) {
+      countdownText = 'Next HP in $hours hour${hours == 1 ? '' : 's'}'
+          '${minutes > 0 ? ' $minutes min' : ''}.';
+    } else {
+      countdownText = 'Next HP in $minutes minute${minutes == 1 ? '' : 's'}.';
+    }
+
+    return _buildInfoChip(
+      icon: Icons.timer,
+      color: Colors.orange,
+      label: 'Healing in progress',
+      message: countdownText,
+    );
+  }
+
+  Widget _buildInfoChip({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -14,19 +14,21 @@ import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../models/timed_difficulty.dart';
 
 class TimedTrueFalseView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
   final TimedDifficulty difficulty;
+  final List<FlashCard>? answerPoolCards;
 
   const TimedTrueFalseView({
     super.key,
     required this.cards,
     required this.title,
     required this.difficulty,
+    this.answerPoolCards,
   });
 
   @override
@@ -62,6 +64,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Maintain our own copy of cards that can be updated
@@ -206,6 +209,24 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     
     // Randomly decide if the answer should be true or false
     _correctAnswer = random.nextBool();
+
+    if (_correctAnswer == false) {
+      final answerPool = _getAnswerPoolForCard(card);
+      final otherCards = answerPool.where((c) => c.id != card.id).toList();
+      otherCards.shuffle();
+
+      String? wrongAnswer;
+      for (final other in otherCards) {
+        final candidate = _isQuestionMode ? other.definition : other.word;
+        if (candidate.toLowerCase().trim() != _currentTranslation.toLowerCase().trim()) {
+          wrongAnswer = candidate;
+          break;
+        }
+      }
+
+      wrongAnswer ??= _generateFallbackAnswer(card);
+      _currentTranslation = wrongAnswer;
+    }
     
     // Store question data
     _questionTexts[_currentIndex] = _question;
@@ -218,6 +239,21 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     });
     
     _resetTimer();
+  }
+
+  String _generateFallbackAnswer(FlashCard card) {
+    if (_isQuestionMode) {
+      return '${card.definition} (not)';
+    }
+    return '${card.word}-alt';
+  }
+
+  List<FlashCard> _getAnswerPoolForCard(FlashCard currentCard) {
+    if (widget.answerPoolCards != null && widget.answerPoolCards!.isNotEmpty) {
+      return widget.answerPoolCards!;
+    }
+    final provider = context.read<FlashcardProvider>();
+    return provider.cards;
   }
 
   void _selectAnswer(bool answer) {
@@ -946,12 +982,17 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   }
 
   void _awardXp() {
-    // Populate RPG tracking variables for WordProgressDisplay
+    // Populate RPG tracking variables for the end screen
     final xpService = XpService();
     
     for (int i = 0; i < _currentCards.length; i++) {
       final card = _currentCards[i];
       final isCorrect = _correctAnswersMap[i] == true;
+      
+      // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+      if (!_initialHPPerWord.containsKey(card.id)) {
+        _initialHPPerWord[card.id] = card.currentHP;
+      }
       
       if (isCorrect) {
         // Add XP to the word's learning mastery
@@ -997,47 +1038,41 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   }
 
   void _showWordProgress() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          studiedWords: _studiedWords,
-          title: 'Timed Test Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            // Reset and restart test BEFORE closing the word progress screen
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _selectedAnswer = null;
-              _gameSession.reset(); // Reset XP tracking
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _questionTexts.clear();
-              _questionModes.clear();
-              _translations.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            _generateQuestion();
-
-            Navigator.of(context).pop(); // Close word progress screen
-
-            // Session data has been reset, ready for new test
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Timed Test Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _selectedAnswer = null;
+            _gameSession.reset();
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _questionTexts.clear();
+            _questionModes.clear();
+            _translations.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _studiedWords.clear();
+          });
+          _generateQuestion();
+          Navigator.of(context).pop();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

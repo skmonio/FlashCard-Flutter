@@ -11,11 +11,13 @@ import 'unified_import_export_view.dart';
 import 'clear_data_view.dart';
 import 'onboarding_view.dart';
 import 'auth_view.dart';
+import 'help_center_view.dart';
 import '../providers/user_profile_provider.dart';
 import '../services/haptic_service.dart';
 import '../services/sound_manager.dart';
 import '../services/supabase_service.dart';
 import '../utils/global_navigator.dart';
+import '../services/sample_data_service.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -25,6 +27,8 @@ class SettingsView extends StatefulWidget {
 }
 
 class _SettingsViewState extends State<SettingsView> {
+  bool _isAddingSampleData = false;
+
   @override
   void initState() {
     super.initState();
@@ -191,6 +195,28 @@ class _SettingsViewState extends State<SettingsView> {
         Card(
           child: Column(
             children: [
+              Consumer<FlashcardProvider>(
+                builder: (context, flashcardProvider, child) {
+                  final trailingWidget = _isAddingSampleData
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.arrow_forward_ios, size: 16);
+
+                  return ListTile(
+                    leading: const Icon(Icons.library_add),
+                    title: const Text('Add Starter Cards'),
+                    subtitle: const Text('Restore the Dutch Basics sample deck'),
+                    trailing: trailingWidget,
+                    onTap: _isAddingSampleData
+                        ? null
+                        : () => _handleAddSampleData(context, flashcardProvider),
+                  );
+                },
+              ),
+              const Divider(height: 1),
 
               ListTile(
                 leading: const Icon(Icons.sync),
@@ -226,6 +252,65 @@ class _SettingsViewState extends State<SettingsView> {
     );
   }
 
+  Future<void> _handleAddSampleData(
+    BuildContext context,
+    FlashcardProvider provider,
+  ) async {
+    if (_isAddingSampleData) return;
+
+    setState(() {
+      _isAddingSampleData = true;
+    });
+
+    try {
+      final result = await SampleDataService.addSampleData(provider);
+
+      if (!mounted) return;
+
+      HapticService().buttonTapFeedback();
+
+      String message;
+      if (result.totalChanges > 0) {
+        final additions = result.newCardsCreated;
+        final reattachments = result.cardsReattached;
+
+        final parts = <String>[];
+        if (additions > 0) {
+          parts.add('$additions new card${additions == 1 ? '' : 's'} added');
+        }
+        if (reattachments > 0) {
+          parts.add('${reattachments == 1 ? '1 card' : '$reattachments cards'} restored');
+        }
+
+        message = 'Dutch Basics updated: ${parts.join(' and ')}.';
+      } else {
+        message = 'Dutch Basics sample cards are already available.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error adding sample cards: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddingSampleData = false;
+        });
+      }
+    }
+  }
+
   Widget _buildAboutSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,9 +343,10 @@ class _SettingsViewState extends State<SettingsView> {
                 subtitle: const Text('Get help and contact support'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // TODO: Navigate to help
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Help section coming soon!')),
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const HelpCenterView(),
+                    ),
                   );
                 },
               ),

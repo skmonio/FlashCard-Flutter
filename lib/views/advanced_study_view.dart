@@ -5,6 +5,7 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
+import '../models/study_config.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
@@ -13,7 +14,7 @@ import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../services/sound_manager.dart';
 
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import 'add_card_view.dart';
 
 enum SwipeDirection {
@@ -28,12 +29,14 @@ class AdvancedStudyView extends StatefulWidget {
   final List<FlashCard> cards;
   final bool startFlipped;
   final String title;
+  final StudyConfig? studyConfig;
 
   const AdvancedStudyView({
     super.key,
     required this.cards,
     this.startFlipped = false,
     required this.title,
+    this.studyConfig,
   });
 
   @override
@@ -84,11 +87,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   FlashCard? _selectedCardForEdit;
   
   // Maintain our own copy of cards that can be updated
+  late List<FlashCard> _sessionCards;
   late List<FlashCard> _currentCards;
   
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
 
   @override
@@ -102,7 +107,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _useStackedMode = true;
     
     // Initialize our copy of cards
-    _currentCards = List<FlashCard>.from(widget.cards);
+    _sessionCards = List<FlashCard>.from(widget.cards);
+    _currentCards = List<FlashCard>.from(_sessionCards);
     
     // Add listener to refresh cards when provider updates
     final provider = context.read<FlashcardProvider>();
@@ -200,6 +206,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     // Update our current cards list
     setState(() {
       _currentCards = updatedCards;
+      _sessionCards = List<FlashCard>.from(updatedCards);
     });
     
     print('🔍 AdvancedStudyView: Refreshed cards from provider');
@@ -207,7 +214,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.cards.isEmpty) {
+    if (_sessionCards.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Study Your Cards')),
         body: const Center(
@@ -924,6 +931,12 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     // Save to history
     _cardHistory.add(_currentIndex);
     
+    // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+      _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
+    
     switch (direction) {
       case SwipeDirection.left: // Don't Know
         _unknownCards.add(currentCard.id);
@@ -935,9 +948,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _xpGainedPerWord[currentCard.id] = 0;
         // Mark card as incorrect (this records the attempt via recordGameAttempt)
         currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
-        final xpService = XpService();
-        xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
+        // markIncorrect now adds to exerciseHistory automatically
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -958,6 +969,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // But still track them for end screen display
         if (!_studiedWords.any((word) => word.id == currentCard.id)) {
           _studiedWords.add(currentCard);
+          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
         }
         break;
       case SwipeDirection.down: // Skip
@@ -987,6 +999,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       // Track all studied words (known, unknown, and skipped) for end screen display
       if (!_studiedWords.any((word) => word.id == card.id)) {
         _studiedWords.add(card);
+        _initialHPPerWord[card.id] = card.currentHP;
       }
       
       // Update the card in the provider to save the XP changes
@@ -1198,83 +1211,154 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       }
     }
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true, // Disable swipe gestures like Remember Your Cards
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart study session
-            setState(() {
-              // Reset all card state
-              _currentIndex = 0;
-              _topIndex = 0; // Reset stacked mode index
-              _currentCards = List<FlashCard>.from(widget.cards); // Restore original cards
-              _currentCards.shuffle(math.Random()); // Shuffle the cards for a different order
-              _knownCards.clear();
-              _unknownCards.clear();
-              _skippedCards.clear();
-              _combo = 0;
-              _maxCombo = 0;
-              
-              // Reset history tracking
-              _cardHistory.clear();
-              _knownHistory.clear();
-              _unknownHistory.clear();
-              _skippedHistory.clear();
-              
-              // Reset swipe/drag state
-              _dragOffset = Offset.zero;
-              _swipeDirection = SwipeDirection.none;
-              _swipeIntensity = 0;
-              _nextCardActive = false;
-              
-              // Reset session tracking
-              _gameSession.reset();
-              _sessionStartTime = DateTime.now();
-              _sessionXP = 0;
-              
-              // Reset UI state
-              _showingResults = false;
-              _hasShownResults = false; // Reset guard for new session
-              _isShowingFront = !widget.startFlipped;
-              _selectedCardForEdit = null;
-              
-              // Reset all animation controllers
-              _flipController.reset();
-              _dealController.reset();
-              _exitController.reset();
-              
-              // Set flip controller based on startFlipped
-              if (widget.startFlipped) {
-                _flipController.value = 1.0; // Show back (definition) initially
-              } else {
-                _flipController.value = 0.0; // Show front (word) initially
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _knownCards.length,
+        totalQuestions: sessionStudiedWords.isNotEmpty ? sessionStudiedWords.length : _currentCards.length,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          _resetStudySession();
+        },
+        onShuffle: widget.studyConfig != null
+            ? () {
+                Navigator.of(context).pop();
+                _shuffleAndRestart();
               }
-              
-              // Force a rebuild by triggering the deal animation
-              _dealController.forward();
-            });
-            
-            // Start initial deal animation for first card
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                _dealController.forward();
-              }
-            });
-            
-            // Session data has been reset, ready for new game
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+            : null,
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
+  }
+
+  void _resetStudySession({bool shuffleCards = true}) {
+    setState(() {
+      // Reset all card state
+      _currentIndex = 0;
+      _topIndex = 0;
+      _currentCards = List<FlashCard>.from(_sessionCards);
+      if (shuffleCards) {
+        _currentCards.shuffle(math.Random());
+      }
+      _knownCards.clear();
+      _unknownCards.clear();
+      _skippedCards.clear();
+      _studiedWords.clear();
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _initialHPPerWord.clear();
+      _combo = 0;
+      _maxCombo = 0;
+      
+      // Reset history tracking
+      _cardHistory.clear();
+      _knownHistory.clear();
+      _unknownHistory.clear();
+      _skippedHistory.clear();
+      
+      // Reset swipe/drag state
+      _dragOffset = Offset.zero;
+      _swipeDirection = SwipeDirection.none;
+      _swipeIntensity = 0;
+      _nextCardActive = false;
+      
+      // Reset session tracking
+      _gameSession.reset();
+      _sessionStartTime = DateTime.now();
+      _sessionXP = 0;
+      
+      // Reset UI state
+      _showingResults = false;
+      _hasShownResults = false;
+      _isShowingFront = !widget.startFlipped;
+      _selectedCardForEdit = null;
+      
+      // Reset all animation controllers
+      _flipController.reset();
+      _dealController.reset();
+      _exitController.reset();
+      
+      if (widget.startFlipped) {
+        _flipController.value = 1.0;
+      } else {
+        _flipController.value = 0.0;
+      }
+    });
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _dealController.forward();
+      }
+    });
+  }
+
+  void _shuffleAndRestart() {
+    if (widget.studyConfig == null) return;
+    
+    final provider = context.read<FlashcardProvider>();
+    
+    List<FlashCard> allDeckCards = [];
+    final seenCardIds = <String>{};
+    
+    if (widget.studyConfig!.deckIds.isEmpty) {
+      allDeckCards = List<FlashCard>.from(provider.cards);
+    } else {
+      for (final deckId in widget.studyConfig!.deckIds) {
+        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in deckCards) {
+          if (seenCardIds.add(card.id)) {
+            allDeckCards.add(card);
+          }
+        }
+      }
+    }
+    
+    if (allDeckCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available in selected decks.')),
+      );
+      return;
+    }
+    
+    List<FlashCard> filteredCards;
+    if (widget.studyConfig!.useSRSFiltering) {
+      final dueCards = allDeckCards.where((card) => card.isDueForReview).toList();
+      final notDueCards = allDeckCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...notDueCards];
+    } else {
+      filteredCards = allDeckCards;
+    }
+    
+    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
+    
+    if (availableCards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No cards available for study today.')),
+      );
+      return;
+    }
+    
+    availableCards.shuffle(math.Random());
+    final desiredCount = widget.studyConfig!.cardCount >= 50
+        ? availableCards.length
+        : widget.studyConfig!.cardCount;
+    final clampedDesired = desiredCount.clamp(1, availableCards.length);
+    final cardCount = clampedDesired is int ? clampedDesired : clampedDesired.toInt();
+    final refreshedCards = availableCards.take(cardCount).toList();
+    
+    setState(() {
+      _sessionCards = List<FlashCard>.from(refreshedCards);
+    });
+    
+    _resetStudySession();
   }
 
   void _awardXp() {
@@ -1316,6 +1400,12 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _unknownCards.remove(currentCard.id);
     _skippedCards.remove(currentCard.id);
     
+    // Track the studied word and capture initial HP before we modify it
+    if (!_studiedWords.any((word) => word.id == currentCard.id)) {
+      _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
+    
     switch (direction) {
       case SwipeDirection.left: // Don't Know
         _unknownCards.add(currentCard.id);
@@ -1326,9 +1416,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _xpGainedPerWord[currentCard.id] = 0;
         // Mark card as incorrect (this records the attempt via recordGameAttempt)
         currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect doesn't add to exerciseHistory, so we need to record the attempt to reduce HP
-        final xpService = XpService();
-        xpService.recordAttemptToWord(currentCard.learningMastery, 'study');
+        // markIncorrect now adds to exerciseHistory automatically
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -1348,6 +1436,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // But still track them for end screen display
         if (!_studiedWords.any((word) => word.id == currentCard.id)) {
           _studiedWords.add(currentCard);
+          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
         }
         break;
       case SwipeDirection.down: // Skip

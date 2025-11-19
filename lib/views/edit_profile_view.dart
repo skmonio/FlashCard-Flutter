@@ -389,16 +389,19 @@ class _EditProfileViewState extends State<EditProfileView> {
   }
 
   Widget _buildCustomHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onSurface = colorScheme.onSurface;
+
     return Stack(
       children: [
         // Centered title - always in the center regardless of other elements
         Center(
           child: Text(
             'Edit Profile',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: onSurface,
             ),
           ),
         ),
@@ -410,7 +413,9 @@ class _EditProfileViewState extends State<EditProfileView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: onSurface),
+            tooltip: 'Back',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
         
@@ -419,12 +424,15 @@ class _EditProfileViewState extends State<EditProfileView> {
           right: 16, // Add proper padding from right edge
           top: 0,
           bottom: 0,
-          child: TextButton(
+          child: IconButton(
             onPressed: _saveProfile,
-            child: const Text(
-              'Save',
-              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+            icon: Icon(
+              Icons.save,
+              color: colorScheme.primary,
+              size: 24,
             ),
+            tooltip: 'Save profile',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
       ],

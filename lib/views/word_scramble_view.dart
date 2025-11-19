@@ -13,10 +13,9 @@ import '../services/xp_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../utils/enhanced_snackbar.dart';
 import '../models/dutch_word_exercise.dart';
 import '../utils/game_difficulty_helper.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -83,6 +82,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Hint system
@@ -90,9 +90,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   Map<int, List<String>> _hintRevealed = {}; // Track what pieces were revealed by hints
   Map<int, List<String>> _correctPieceOrder = {}; // Track correct piece order for each question
   Map<int, Set<int>> _lockedPositions = {}; // Track which positions in user answer are locked (hinted)
+  String? _hintStatusMessage;
+  Timer? _hintStatusTimer;
   
   // Review system
   Set<String> _reviewCards = {}; // Track which cards are in review deck
+  String? _reviewStatusMessage;
+  Timer? _reviewStatusTimer;
   
   // Wrong attempts tracking
   Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts
@@ -142,6 +146,8 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     
     // Cancel auto progress timer
     _autoProgressTimer?.cancel();
+    _hintStatusTimer?.cancel();
+    _reviewStatusTimer?.cancel();
     
     // Dispose animation controller
     _shakeController.dispose();
@@ -260,6 +266,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       _userAnswer = [];
       _isShowingWrongAnswer = false;
       _isCardFlipped = false;
+      _hintStatusTimer?.cancel();
+      _hintStatusMessage = null;
+      _reviewStatusTimer?.cancel();
+      _reviewStatusMessage = null;
       // Reset wrong attempts only if this is a new question (not already attempted)
       if (!_answeredQuestions.containsKey(_currentIndex)) {
         _wrongAttempts[_currentIndex] = 0;
@@ -371,8 +381,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       final xpService = XpService();
       if (widget.shuffleMode) {
         currentCard.markIncorrect(GameDifficulty.medium);
-        xpService.recordAttemptToWord(currentCard.learningMastery, "word_scramble");
+        // markIncorrect now adds to exerciseHistory automatically
       } else {
+        // For standalone mode, record attempt without marking incorrect (handled elsewhere)
         xpService.recordAttemptToWord(currentCard.learningMastery, "word_scramble");
       }
       _updateCardInProvider(currentCard);
@@ -903,80 +914,28 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                         color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        // User answer display
-                        SizedBox(
-                          height: 80,
-                          child: _userAnswer.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    'Tap pieces to build the word',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                )
-                              : _buildUserAnswerDisplay(),
-                        ),
-                        // Show feedback when answered or showing wrong answer
-                        // ALWAYS show feedback when _isShowingWrongAnswer is true OR when _answered is true
-                        if (_isShowingWrongAnswer || _answered) ...[
-                          const SizedBox(height: 8),
-                          Builder(
-                            builder: (context) {
-                              // Debug: Print feedback state
-                              print('🔍 WordScrambleView: Building feedback - _isShowingWrongAnswer: $_isShowingWrongAnswer, _answered: $_answered, userAnswer: $_userAnswer');
-                              
-                              if (_isShowingWrongAnswer && !_answered) {
-                                // Show "Incorrect, try again" when wrong answer is shown (before 5 attempts)
-                                return Text(
-                                  'Incorrect, try again',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                );
-                              } else if (_answered) {
-                                // Check if this was marked as correct or incorrect
-                                final isMarkedCorrect = _correctAnswersMap[_currentIndex] ?? false;
-                                
-                                if (isMarkedCorrect) {
-                                  // Show "Correct!" for correct answers (user got it right)
-                                  return Text(
-                                    'Correct!',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.green,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  );
-                                } else {
-                                  // Show correct answer for incorrect answers (after 5 attempts or wrong answer)
-                                  // Even if pieces are in correct order, if _correctAnswersMap is false, show this
-                                  return Text(
-                                    'The correct answer is: $_correctWord',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.red,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  );
-                                }
-                              }
-                              return const SizedBox.shrink();
-                            },
-                          ),
-                        ],
-                      ],
+                    child: SizedBox(
+                      height: 80,
+                      child: _userAnswer.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Tap pieces to build the word',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : _buildUserAnswerDisplay(),
                     ),
                   ),
+                  
+                  // Feedback should appear below the answer box
+                  if (_isShowingWrongAnswer || _answered) ...[
+                    const SizedBox(height: 12),
+                    _buildAnswerFeedback(),
+                  ],
                   
                   const SizedBox(height: 32),
                   
@@ -1190,6 +1149,50 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         );
       },
     );
+  }
+
+  Widget _buildAnswerFeedback() {
+    print('🔍 WordScrambleView: Building feedback - _isShowingWrongAnswer: $_isShowingWrongAnswer, _answered: $_answered, userAnswer: $_userAnswer');
+    
+    if (_isShowingWrongAnswer && !_answered) {
+      return Text(
+        'Incorrect, try again',
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Colors.red,
+        ),
+        textAlign: TextAlign.center,
+      );
+    }
+    
+    if (_answered) {
+      final isMarkedCorrect = _correctAnswersMap[_currentIndex] ?? false;
+      
+      if (isMarkedCorrect) {
+        return Text(
+          'Correct!',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.green,
+          ),
+          textAlign: TextAlign.center,
+        );
+      }
+      
+      return Text(
+        'The correct answer is: $_correctWord',
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.red,
+        ),
+        textAlign: TextAlign.center,
+      );
+    }
+    
+    return const SizedBox.shrink();
   }
 
   Widget _buildScrambledLetters() {
@@ -1507,64 +1510,111 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   Widget _buildReviewFlag(FlashCard card) {
     final isInReview = _reviewCards.contains(card.id);
     
-    return GestureDetector(
-      onTap: () => _toggleReviewCard(card),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.orange.withValues(alpha: 0.7),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.yellow.withValues(alpha: 0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () => _toggleReviewCard(card),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Colors.orange.withValues(alpha: 0.7),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.yellow.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
+            child: Icon(
+              Icons.flag,
+              color: isInReview ? Colors.orange.shade700 : Colors.orange.shade400,
+              size: 18,
+            ),
+          ),
         ),
-        child: Icon(
-          Icons.flag,
-          color: isInReview ? Colors.orange.shade700 : Colors.orange.shade400,
-          size: 18,
-        ),
-      ),
+        if (_reviewStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              _reviewStatusMessage!,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
   Widget _buildHintIcon() {
     final hintsUsed = _hintCount[_currentIndex] ?? 0;
     final remainingPieces = _scrambledLetters.length;
-    final canUseHint = remainingPieces > 1; // Can't hint if only last piece remains
+    // Allow hints even when only 1 piece remains - it will confirm/place pieces in order
+    final canUseHint = remainingPieces > 0 && !_answered;
     
-    return Tooltip(
-      message: canUseHint 
-          ? 'Use hint (${hintsUsed} used)'
-          : 'No more hints available',
-      child: GestureDetector(
-        onTap: canUseHint ? _useHint : null,
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: canUseHint ? Colors.orange : Colors.grey,
-              width: 2,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_hintStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              _hintStatusMessage!,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          child: Icon(
-            Icons.lightbulb,
-            size: 16,
-            color: canUseHint ? Colors.orange : Colors.grey,
+        Tooltip(
+          message: canUseHint 
+              ? 'Use hint (${hintsUsed} used)'
+              : 'No more hints available',
+          child: GestureDetector(
+            onTap: canUseHint ? _useHint : null,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: canUseHint ? Colors.orange : Colors.grey,
+                  width: 2,
+                ),
+              ),
+              child: Icon(
+                Icons.lightbulb,
+                size: 16,
+                color: canUseHint ? Colors.orange : Colors.grey,
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1582,25 +1632,35 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       final provider = context.read<FlashcardProvider>();
       if (_reviewCards.contains(card.id)) {
         await provider.addCardToReview(card);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added "${card.word}" to review deck'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.yellow.shade700,
-          ),
-        );
+        _reviewStatusTimer?.cancel();
+        setState(() {
+          _reviewStatusMessage = 'Added to review';
+        });
       } else {
         await provider.removeCardFromReview(card);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Removed "${card.word}" from review deck'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.grey.shade600,
-          ),
-        );
+        _reviewStatusTimer?.cancel();
+        setState(() {
+          _reviewStatusMessage = 'Removed from review';
+        });
       }
+      _reviewStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _reviewStatusMessage = null;
+          });
+        }
+      });
     } catch (e) {
       print('🔍 WordScrambleView: Error toggling review card: $e');
+      _reviewStatusTimer?.cancel();
+      setState(() {
+        _reviewStatusMessage = 'Action failed';
+      });
+      _reviewStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _reviewStatusMessage = null);
+        }
+      });
     }
   }
 
@@ -1609,10 +1669,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
     final revealedPieces = _hintRevealed[_currentIndex] ?? [];
-    
-    // Don't allow hints if there's only one piece left (the last piece)
     final remainingPieces = _scrambledLetters.length;
-    if (remainingPieces <= 1) return;
     
     final correctWord = _correctWords[_currentIndex] ?? '';
     final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
@@ -1622,12 +1679,14 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     print('🔍 WordScrambleView: Already revealed: $revealedPieces');
     print('🔍 WordScrambleView: Correct piece order: $correctPieces');
     print('🔍 WordScrambleView: Current user answer: $_userAnswer');
+    print('🔍 WordScrambleView: Remaining pieces: $remainingPieces');
     
-    // NEW IMPROVED HINT LOGIC:
-    // 1. Find the first position where user's piece is wrong
+    // IMPROVED HINT LOGIC:
+    // When only 1 piece remains, place pieces in correct order sequentially
+    // 1. Find the first position where user's piece is wrong or missing
     // 2. Find the correct piece for that position
-    // 3. If that piece is available, use it to replace the wrong piece
-    // 4. If not available, try the next wrong position
+    // 3. If that piece is available, use it to replace/add the piece
+    // 4. If not available, swap pieces as needed to get the correct one in place
     
     String? hintPiece;
     int positionToFix = -1;
@@ -1660,13 +1719,29 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       } else {
         print('🔍 WordScrambleView: Correct piece "$correctPieceForPosition" not available in: $_scrambledLetters');
         
-        // If the correct piece is not available, try to find any piece that could help
-        // This handles cases where pieces are already used incorrectly
-        for (final piece in _scrambledLetters) {
-          if (!revealedPieces.contains(piece)) {
-            hintPiece = piece;
-            print('🔍 WordScrambleView: Using available piece "$piece" as hint (correct piece not available)');
+        // If the correct piece is not available, check if it's already in user answer at wrong position
+        // If so, swap it to the correct position
+        int wrongPosition = -1;
+        for (int i = 0; i < _userAnswer.length; i++) {
+          if (!lockedPositions.contains(i) && _userAnswer[i] == correctPieceForPosition) {
+            wrongPosition = i;
             break;
+          }
+        }
+        
+        if (wrongPosition >= 0) {
+          // The correct piece is in the wrong position - we'll swap it
+          print('🔍 WordScrambleView: Correct piece "$correctPieceForPosition" is at wrong position $wrongPosition, will swap');
+          hintPiece = correctPieceForPosition;
+        } else {
+          // If the correct piece is not available and not in user answer, use any available piece
+          // This handles cases where pieces are already used incorrectly
+          for (final piece in _scrambledLetters) {
+            if (!revealedPieces.contains(piece)) {
+              hintPiece = piece;
+              print('🔍 WordScrambleView: Using available piece "$piece" as hint (correct piece not available)');
+              break;
+            }
           }
         }
       }
@@ -1691,24 +1766,52 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         print('🔍 WordScrambleView: Hint piece to place: "$hintPiece" at position $positionToFix');
         
         if (positionToFix >= 0) {
-          // Remove the hint piece from available pieces
-          _scrambledLetters.remove(hintPiece!);
-          
-          if (positionToFix < _userAnswer.length) {
-            // Replace an existing wrong piece
-            final oldPiece = _userAnswer[positionToFix];
-            _userAnswer[positionToFix] = hintPiece!;
-            
-            // Add the old piece back to available pieces if it's not empty
-            if (oldPiece.isNotEmpty) {
-              _scrambledLetters.add(oldPiece);
+          // Check if the correct piece is already in user answer at wrong position
+          int wrongPosition = -1;
+          final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
+          for (int i = 0; i < _userAnswer.length; i++) {
+            if (!lockedPositions.contains(i) && _userAnswer[i] == hintPiece) {
+              wrongPosition = i;
+              break;
             }
-            
-            print('🔍 WordScrambleView: Replaced wrong piece at position $positionToFix: "$oldPiece" -> "$hintPiece"');
+          }
+          
+          if (wrongPosition >= 0 && wrongPosition != positionToFix) {
+            // Swap pieces: move the correct piece from wrong position to correct position
+            // Simple swap: exchange the values at the two positions
+            if (positionToFix < _userAnswer.length) {
+              // There's a piece at the correct position - swap them
+              final pieceAtCorrectPosition = _userAnswer[positionToFix];
+              _userAnswer[positionToFix] = hintPiece!; // Put correct piece at correct position
+              _userAnswer[wrongPosition] = pieceAtCorrectPosition; // Put wrong piece at wrong position
+              print('🔍 WordScrambleView: Swapped piece "$hintPiece" from position $wrongPosition to position $positionToFix, moved "$pieceAtCorrectPosition" to position $wrongPosition');
+            } else {
+              // No piece at correct position yet - just move the correct piece there
+              _userAnswer.removeAt(wrongPosition);
+              _userAnswer.add(hintPiece!);
+              print('🔍 WordScrambleView: Moved piece "$hintPiece" from position $wrongPosition to end (position ${_userAnswer.length - 1})');
+            }
           } else {
-            // Add a new piece at the end
-            _userAnswer.add(hintPiece!);
-            print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece"');
+            // Normal case: piece is in scrambled letters, add/replace it
+            // Remove the hint piece from available pieces
+            _scrambledLetters.remove(hintPiece!);
+            
+            if (positionToFix < _userAnswer.length) {
+              // Replace an existing wrong piece
+              final oldPiece = _userAnswer[positionToFix];
+              _userAnswer[positionToFix] = hintPiece!;
+              
+              // Add the old piece back to available pieces if it's not empty
+              if (oldPiece.isNotEmpty) {
+                _scrambledLetters.add(oldPiece);
+              }
+              
+              print('🔍 WordScrambleView: Replaced wrong piece at position $positionToFix: "$oldPiece" -> "$hintPiece"');
+            } else {
+              // Add a new piece at the end
+              _userAnswer.add(hintPiece!);
+              print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece"');
+            }
           }
           
           // Lock all positions from the start up to and including the hinted position
@@ -1723,22 +1826,40 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
           }
           
           print('🔍 WordScrambleView: Locked all positions from 0 to $positionToFix: ${_lockedPositions[_currentIndex]}');
+          
+          // Auto-check answer if all pieces are used
+          final nonEmptyPieces = _scrambledLetters.where((p) => p.isNotEmpty).length;
+          if (nonEmptyPieces == 0) {
+            // Small delay to allow UI to update before checking
+            Future.delayed(const Duration(milliseconds: 100), () {
+              if (mounted) {
+                _checkAnswer();
+              }
+            });
+          }
         }
       });
       
-      // Show a brief message about the hint
-      EnhancedSnackBar.showWarning(
-        context,
-        message: 'Hint: Piece "${hintPiece}" placed (${currentHintCount + 1} hints used)',
-        duration: const Duration(seconds: 2),
-      );
+      _hintStatusTimer?.cancel();
+      setState(() {
+        _hintStatusMessage = 'Hint used';
+      });
+      _hintStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _hintStatusMessage = null);
+        }
+      });
     } else {
       print('🔍 WordScrambleView: No hint piece found!');
-      EnhancedSnackBar.showError(
-        context,
-        message: 'No hint available - try a different approach',
-        duration: const Duration(seconds: 2),
-      );
+      _hintStatusTimer?.cancel();
+      setState(() {
+        _hintStatusMessage = 'No hint available';
+      });
+      _hintStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _hintStatusMessage = null);
+        }
+      });
     }
   }
 
@@ -1767,6 +1888,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   
   void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
     final xpService = XpService();
+    
+    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
     
     print('🔍 WordScrambleView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
@@ -1815,72 +1943,58 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          studiedWords: sessionStudiedWords,
-          title: 'Word Scramble Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            // Reset and restart test BEFORE closing the word progress screen
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _correctWord = '';
-              _scrambledLetters.clear();
-              _userAnswer.clear();
-              _originalLetters.clear();
-              _isCardFlipped = false;
-              _gameSession.reset();
-              
-              // Shuffle the cards for a different order
-              _currentCards.shuffle(Random());
-              
-              // Reset lives if using lives mode
-              if (_useLivesMode) {
-                _lives = _maxLives;
-              }
-              
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _correctWords.clear();
-              _scrambledLettersMap.clear();
-              _questionModes.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-              
-              // Reset hint tracking
-              _hintCount.clear();
-              _hintRevealed.clear();
-              
-              // Reset review tracking
-              _reviewCards.clear();
-            });
-            _generateQuestion();
-            
-            Navigator.of(context).pop(); // Close word progress screen
-            
-            // Session data has been reset, ready for new game
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close end screen
-            _shuffleAndRestart();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Scramble Complete',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _correctWord = '';
+            _scrambledLetters.clear();
+            _userAnswer.clear();
+            _originalLetters.clear();
+            _isCardFlipped = false;
+            _gameSession.reset();
+            _currentCards.shuffle(Random());
+            if (_useLivesMode) {
+              _lives = _maxLives;
+            }
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _correctWords.clear();
+            _scrambledLettersMap.clear();
+            _questionModes.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _studiedWords.clear();
+            _hintCount.clear();
+            _hintRevealed.clear();
+            _reviewCards.clear();
+          });
+          _generateQuestion();
+          Navigator.of(context).pop();
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          _shuffleAndRestart();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
     }

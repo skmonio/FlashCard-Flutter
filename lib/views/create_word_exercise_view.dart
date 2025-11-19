@@ -581,7 +581,10 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                     },
                   ),
                 ),
-                if (options.length > 2)
+                if ((_exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice || 
+                     _exerciseTypes[exerciseIndex] == ExerciseType.fillInBlank) 
+                    ? options.length > 6 
+                    : options.length > 2)
                   IconButton(
                     icon: const Icon(Icons.remove, color: Colors.red),
                     onPressed: () => _removeOption(exerciseIndex, optionIndex),
@@ -692,7 +695,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         type: ExerciseType.multipleChoice,
         prompt: '',
-        options: ['', '', '', ''],
+        options: ['', '', '', '', '', ''], // 6 options for multiple choice exercises
         correctAnswer: '',
         explanation: '',
         difficulty: ExerciseDifficulty.beginner,
@@ -751,11 +754,26 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   }
 
   void _removeOption(int exerciseIndex, int optionIndex) {
-    if (_optionControllers[exerciseIndex].length > 2) {
+    final exerciseType = _exerciseTypes[exerciseIndex];
+    final currentLength = _optionControllers[exerciseIndex].length;
+    
+    // For multiple choice exercises, enforce minimum of 6 options
+    // For other exercise types, allow minimum of 2 options
+    final minOptions = (exerciseType == ExerciseType.multipleChoice || 
+                       exerciseType == ExerciseType.fillInBlank) ? 6 : 2;
+    
+    if (currentLength > minOptions) {
       setState(() {
         _optionControllers[exerciseIndex][optionIndex].dispose();
         _optionControllers[exerciseIndex].removeAt(optionIndex);
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Multiple choice exercises must have at least $minOptions options.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
@@ -791,6 +809,24 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
 
     // Validate that all exercises have complete data
     for (int i = 0; i < _exercises.length; i++) {
+      final exerciseType = _exerciseTypes[i];
+      final optionsCount = _optionControllers[i].where((controller) => 
+        controller.text.trim().isNotEmpty
+      ).length;
+      
+      // Validate multiple choice and fill-in-blank exercises have at least 6 options
+      if ((exerciseType == ExerciseType.multipleChoice || 
+           exerciseType == ExerciseType.fillInBlank) && 
+          optionsCount < 6) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exercise ${i + 1} (${exerciseType == ExerciseType.multipleChoice ? "Multiple Choice" : "Fill in Blank"}) must have at least 6 options.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      
       if (_promptControllers[i].text.trim().isEmpty ||
           _correctAnswerControllers[i].text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(

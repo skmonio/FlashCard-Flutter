@@ -4,6 +4,7 @@ import '../services/friends_service.dart';
 import '../utils/enhanced_snackbar.dart';
 import '../utils/avatar_utils.dart';
 import 'friend_profile_view.dart';
+import '../components/cached_profile_avatar.dart';
 
 class FriendsView extends StatefulWidget {
   const FriendsView({super.key});
@@ -52,7 +53,19 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('Failed to load friends: $e');
+      
+      // Provide clearer error messages
+      String errorMessage;
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('null check') || errorString.contains('user not logged in')) {
+        errorMessage = 'Please log in to view your friends';
+      } else if (errorString.contains('network') || errorString.contains('connection')) {
+        errorMessage = 'Unable to load friends. Please check your internet connection';
+      } else {
+        errorMessage = 'Unable to load friends. Please try again later';
+      }
+      
+      _showErrorSnackBar(errorMessage);
     }
   }
 
@@ -244,6 +257,18 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                _tabController.animateTo(2);
+              },
+              icon: const Icon(Icons.search),
+              label: const Text('Find Friends'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                minimumSize: const Size(44, 44),
+              ),
+            ),
           ],
         ),
       );
@@ -363,156 +388,157 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
   }
 
   Widget _buildFriendCard(Friend friend) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: friend.profileImageData != null
-              ? ClipOval(
-                  child: Image.memory(
-                    base64Decode(friend.profileImageData!),
-                    fit: BoxFit.cover,
-                    width: 40,
-                    height: 40,
+    return Semantics(
+      label: '${friend.username}, level ${friend.level} with ${friend.xp} XP',
+      hint: 'Double tap to view profile options',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: CachedProfileAvatar(
+            size: 48,
+            base64Image: friend.profileImageData,
+            fallbackIcon: AvatarUtils.getAvatarIcon(friend.selectedAvatar),
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            iconColor: Theme.of(context).colorScheme.onPrimaryContainer,
+            semanticLabel: '${friend.username} profile picture',
+          ),
+          title: Text(
+            friend.username,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Level ${friend.level} • ${friend.xp} XP'),
+              if ((friend.currentStreak ?? 0) > 0)
+                Text(
+                  '${friend.currentStreak ?? 0} day streak',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
                   ),
-                )
-              : Icon(
-                  AvatarUtils.getAvatarIcon(friend.selectedAvatar),
-                  color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  size: 24,
                 ),
-        ),
-        title: Text(
-          friend.username,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Level ${friend.level} • ${friend.xp} XP'),
-            if ((friend.currentStreak ?? 0) > 0)
-              Text(
-                '${friend.currentStreak ?? 0} day streak',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.w500,
+            ],
+          ),
+          trailing: PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'view_profile') {
+                _viewFriendProfile(friend);
+              } else if (value == 'remove') {
+                _removeFriend(friend.friendId);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'view_profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person, color: Colors.blue),
+                    SizedBox(width: 8),
+                    Text('View Profile'),
+                  ],
                 ),
               ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'view_profile') {
-              _viewFriendProfile(friend);
-            } else if (value == 'remove') {
-              _removeFriend(friend.friendId);
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'view_profile',
-              child: Row(
-                children: [
-                  Icon(Icons.person, color: Colors.blue),
-                  SizedBox(width: 8),
-                  Text('View Profile'),
-                ],
+              const PopupMenuItem(
+                value: 'remove',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_remove, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Remove Friend'),
+                  ],
+                ),
               ),
-            ),
-            const PopupMenuItem(
-              value: 'remove',
-              child: Row(
-                children: [
-                  Icon(Icons.person_remove, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Remove Friend'),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildRequestCard(FriendRequest request) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Icon(
-                    AvatarUtils.getAvatarIcon(request.senderAvatar),
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    size: 24,
+    return Semantics(
+      label: 'Friend request from ${request.senderUsername}',
+      hint: 'Use the buttons to accept or decline the request',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CachedProfileAvatar(
+                    size: 48,
+                    base64Image: null,
+                    fallbackIcon: AvatarUtils.getAvatarIcon(request.senderAvatar),
+                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    iconColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                    semanticLabel: '${request.senderUsername} profile picture',
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        request.senderUsername,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          request.senderUsername,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                      Text(
-                        'wants to be your friend',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        Text(
+                          'wants to be your friend',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              
+              if (request.message != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  request.message!,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
                   ),
                 ),
               ],
-            ),
-            
-            if (request.message != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                request.message!,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                ),
+              
+              const SizedBox(height: 12),
+              
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _declineFriendRequest(request.id),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                      ),
+                      child: const Text('Decline'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _acceptFriendRequest(request.id),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                      ),
+                      child: const Text('Accept'),
+                    ),
+                  ),
+                ],
               ),
             ],
-            
-            const SizedBox(height: 12),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _declineFriendRequest(request.id),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                    ),
-                    child: const Text('Decline'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _acceptFriendRequest(request.id),
-                    child: const Text('Accept'),
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -522,41 +548,49 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
     final userId = user['id'];
     final hasRequestSent = _sentRequests.contains(userId);
     
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(
-            AvatarUtils.getAvatarIcon(user['selected_avatar'] ?? 'person'),
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
-            size: 24,
+    return Semantics(
+      label: '${user['username'] ?? 'User'}, level ${user['level'] ?? 1}, ${user['xp'] ?? 0} XP',
+      hint: hasRequestSent ? 'Request already sent' : 'Double tap to send a friend request',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          leading: CachedProfileAvatar(
+            size: 48,
+            base64Image: user['profile_image_data'] as String?,
+            fallbackIcon: AvatarUtils.getAvatarIcon(user['selected_avatar'] ?? 'person'),
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            iconColor: Theme.of(context).colorScheme.onPrimaryContainer,
+            semanticLabel: '${user['username'] ?? 'User'} profile picture',
           ),
-        ),
-        title: Text(
-          user['username'] ?? '',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text('Level ${user['level'] ?? 1} • ${user['xp'] ?? 0} XP'),
-        trailing: hasRequestSent
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'Requested',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
+          title: Text(
+            user['username'] ?? '',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text('Level ${user['level'] ?? 1} • ${user['xp'] ?? 0} XP'),
+          trailing: hasRequestSent
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(20),
                   ),
+                  constraints: const BoxConstraints(minHeight: 44),
+                  child: const Text(
+                    'Requested',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : ElevatedButton(
+                  onPressed: () => _sendFriendRequest(userId),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                  ),
+                  child: const Text('Add Friend'),
                 ),
-              )
-            : ElevatedButton(
-                onPressed: () => _sendFriendRequest(userId),
-                child: const Text('Add Friend'),
-              ),
+        ),
       ),
     );
   }

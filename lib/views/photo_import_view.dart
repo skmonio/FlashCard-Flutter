@@ -330,6 +330,40 @@ class _PhotoImportViewState extends State<PhotoImportView> {
             ),
           ],
         ),
+        // Show summary of existing words
+        Builder(
+          builder: (context) {
+            final duplicateCount = sortedWords.where((w) => existingWords.contains(w.word.toLowerCase())).length;
+            if (duplicateCount > 0) {
+              return Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$duplicateCount word${duplicateCount == 1 ? '' : 's'} already exist${duplicateCount == 1 ? 's' : ''} in your collection and ${duplicateCount == 1 ? 'has' : 'have'} been skipped.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         const SizedBox(height: 12),
         
         // Words list in alphabetical order

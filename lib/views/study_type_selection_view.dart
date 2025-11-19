@@ -63,6 +63,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   
   // Deck selection
   Set<String> _selectedDeckIds = {}; // Empty means "Any" (all decks)
+  bool _useAllCardsForAnswers = false;
 
   @override
   void initState() {
@@ -81,12 +82,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   }
 
   void _onProviderChanged() {
-    // Refresh the view when provider updates (e.g., after games are played)
-    if (mounted) {
-      setState(() {
-        // This will cause the build method to re-run with fresh data
-      });
-    }
+    // Only rebuild if actually needed - provider debouncing handles most updates
+    // This view doesn't need to rebuild on every provider change
   }
 
 
@@ -385,6 +382,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _buildStartFlippedToggle(),
               const SizedBox(height: 16),
             ],
+            
+            _buildAnswerPoolToggle(),
+            const SizedBox(height: 16),
             
             // Auto progress toggle (only for applicable modes)
             if (_shouldShowAutoProgress()) ...[
@@ -909,11 +909,14 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     } else {
       // Use selected decks
       for (final deckId in _selectedDeckIds) {
-        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
-        for (final card in deckCards) {
-          if (!seenCardIds.contains(card.id)) {
-            allSelectedCards.add(card);
-            seenCardIds.add(card.id);
+        final deck = provider.getDeck(deckId);
+        if (deck != null) {
+          final deckCards = provider.getCardsForDeckWithSubDecks(deck.id);
+          for (final card in deckCards) {
+            if (!seenCardIds.contains(card.id)) {
+              allSelectedCards.add(card);
+              seenCardIds.add(card.id);
+            }
           }
         }
       }
@@ -942,16 +945,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
     final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
     
-    // Show warning if some cards are excluded due to daily limits
-    if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-    
     // Use available cards for study
     filteredCards = availableCards;
     
@@ -965,8 +958,32 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     
     // Shuffle and take a subset of cards
     final shuffledCards = List<FlashCard>.from(filteredCards)..shuffle();
-    final cardCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
+    final desiredCount = _selectedCardCount >= 50 ? filteredCards.length : _selectedCardCount;
+    final clampedCount = desiredCount.clamp(1, filteredCards.length);
+    final cardCount = clampedCount is int ? clampedCount : clampedCount.toInt();
     final studyCards = shuffledCards.take(cardCount).toList();
+    
+    // Only show warning if defeated cards would have been in the study set
+    // OR if almost all cards are defeated (making it hard to create games)
+    final totalCardsInPool = filteredCards.length + limitedCards.length;
+    final defeatedRatio = totalCardsInPool > 0 ? limitedCards.length / totalCardsInPool : 0.0;
+    
+    // Check if any defeated cards would have been selected (if we had more cards available)
+    // This happens when the user requests more cards than are available due to defeated cards
+    final requestedCount = _selectedCardCount >= 50 ? availableCards.length : _selectedCardCount;
+    final wouldHaveIncludedDefeated = requestedCount > availableCards.length && limitedCards.isNotEmpty;
+    
+    // Show warning only if:
+    // 1. Defeated cards would have been in the study set, OR
+    // 2. More than 80% of cards are defeated (making it hard to create games)
+    if ((wouldHaveIncludedDefeated || defeatedRatio > 0.8) && limitedCards.isNotEmpty && availableCards.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
     
     // Create study config
     final studyConfig = StudyConfig(
@@ -983,8 +1000,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       useTimedMode: _useTimedMode,
       timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
       timePerQuestion: _getTimePerQuestion(),
+      useAllCardsForAnswers: _useAllCardsForAnswers,
     );
     
+    final answerPoolCards = _useAllCardsForAnswers ? provider.cards : allSelectedCards;
+
     // Navigate based on game mode
     switch (widget.gameMode) {
       case GameMode.study:
@@ -994,6 +1014,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               cards: studyCards,
               startFlipped: _getStartFlipped(),
               title: 'Study Session',
+              studyConfig: studyConfig,
             ),
           ),
         );
@@ -1007,6 +1028,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 title: 'Timed Test',
                 difficulty: _selectedTimedDifficulty,
                 startFlipped: _getStartFlipped(),
+                answerPoolCards: answerPoolCards,
               ),
             ),
           );
@@ -1021,6 +1043,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 customLives: _useLivesMode ? _selectedLives : null,
                 startFlipped: _getStartFlipped(),
                 studyConfig: studyConfig,
+                answerPoolCards: answerPoolCards,
               ),
             ),
           );
@@ -1034,6 +1057,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 cards: studyCards,
                 title: 'Timed True/False',
                 difficulty: _selectedTimedDifficulty,
+                answerPoolCards: answerPoolCards,
               ),
             ),
           );
@@ -1048,6 +1072,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 customLives: _useLivesMode ? _selectedLives : null,
                 startFlipped: _getStartFlipped(),
                 studyConfig: studyConfig,
+                answerPoolCards: answerPoolCards,
               ),
             ),
           );
@@ -1063,6 +1088,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               useLivesMode: _useLivesMode,
               customLives: _useLivesMode ? _selectedLives : null,
               startFlipped: _getStartFlipped(),
+              useTimedMode: _useTimedMode,
+              timePerQuestion: _getTimePerQuestion(),
             ),
           ),
         );
@@ -1968,6 +1995,47 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       ],
     );
   }
+
+  Widget _buildAnswerPoolToggle() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.library_books, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Answer Pool',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                _useAllCardsForAnswers
+                    ? 'Wrong answers can come from any deck'
+                    : 'Wrong answers pulled only from selected deck(s)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _useAllCardsForAnswers,
+          onChanged: (value) {
+            setState(() {
+              _useAllCardsForAnswers = value;
+            });
+          },
+        ),
+      ],
+    );
+  }
 }
 
 class _MultiDeckSelectionDialog extends StatefulWidget {
@@ -1982,6 +2050,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final bool useSRSFiltering;
+  final bool useAllCardsForAnswers;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -1995,6 +2064,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     this.useTimedMode = false,
     this.timedDifficulty,
     required this.useSRSFiltering,
+    this.useAllCardsForAnswers = false,
   });
 
   @override
@@ -2004,10 +2074,12 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
 class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
   final Set<String> _selectedDeckIds = {};
   int _totalSelectedCards = 0;
+  late bool _useAllCardsForAnswers;
 
   @override
   void initState() {
     super.initState();
+    _useAllCardsForAnswers = widget.useAllCardsForAnswers;
     _calculateTotalCards();
   }
 
@@ -2049,6 +2121,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       useTimedMode: widget.useTimedMode,
       timedDifficulty: widget.timedDifficulty,
       timePerQuestion: _getTimePerQuestion(),
+      useAllCardsForAnswers: _useAllCardsForAnswers,
     );
   }
 
@@ -2126,16 +2199,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       print('🔍 StudyTypeSelectionView: Card ${i + 1}: "${card.word}" - HP: ${card.currentHP}/${card.maxHP}, canBeStudied: ${card.canBeStudiedToday}');
     }
     
-    // Show warning if some cards are excluded due to daily limits
-    if (limitedCards.isNotEmpty && availableCards.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-    
     // Use available cards for study
     filteredCards = availableCards;
     
@@ -2170,9 +2233,33 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
 
     // Shuffle and limit cards if needed
     filteredCards.shuffle();
-    final cardCount = widget.selectedCardCount >= 50 ? filteredCards.length : widget.selectedCardCount;
+    final desiredCount = widget.selectedCardCount >= 50 ? filteredCards.length : widget.selectedCardCount;
+    final clampedCount = desiredCount.clamp(1, filteredCards.length);
+    final cardCount = clampedCount is int ? clampedCount : clampedCount.toInt();
     if (filteredCards.length > cardCount) {
       filteredCards = filteredCards.take(cardCount).toList();
+    }
+    
+    // Only show warning if defeated cards would have been in the study set
+    // OR if almost all cards are defeated (making it hard to create games)
+    final totalCardsInPool = filteredCards.length + limitedCards.length;
+    final defeatedRatio = totalCardsInPool > 0 ? limitedCards.length / totalCardsInPool : 0.0;
+    
+    // Check if any defeated cards would have been selected (if we had more cards available)
+    // This happens when the user requests more cards than are available due to defeated cards
+    final requestedCount = widget.selectedCardCount >= 50 ? availableCards.length : widget.selectedCardCount;
+    final wouldHaveIncludedDefeated = requestedCount > availableCards.length && limitedCards.isNotEmpty;
+    
+    // Show warning only if:
+    // 1. Defeated cards would have been in the study set, OR
+    // 2. More than 80% of cards are defeated (making it hard to create games)
+    if ((wouldHaveIncludedDefeated || defeatedRatio > 0.8) && limitedCards.isNotEmpty && availableCards.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${limitedCards.length} cards are defeated (0 HP). They need to rest until tomorrow to regain health.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
 
     Navigator.of(context).pop();
@@ -2191,6 +2278,24 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               cards: filteredCards,
               startFlipped: widget.startFlipped,
               title: title,
+              studyConfig: StudyConfig(
+                deckIds: _selectedDeckIds.toList(),
+                deckNames: _selectedDeckIds.isEmpty
+                    ? ['All Decks']
+                    : _selectedDeckIds
+                        .map((id) => widget.decks.firstWhere((d) => d.id == id).name)
+                        .toList(),
+                cardCount: filteredCards.length,
+                useSRSFiltering: widget.useSRSFiltering,
+                startFlipped: widget.startFlipped,
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.customLives,
+                useTimedMode: widget.useTimedMode,
+                timedDifficulty: widget.timedDifficulty,
+                timePerQuestion: _getTimePerQuestion(),
+                useAllCardsForAnswers: widget.useAllCardsForAnswers,
+              ),
             ),
           ),
         );
@@ -2204,6 +2309,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 title: title,
                 difficulty: widget.timedDifficulty!,
                 startFlipped: widget.startFlipped,
+                answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
               ),
             ),
           );
@@ -2229,6 +2335,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 useTimedMode: widget.useTimedMode,
                 timedDifficulty: widget.timedDifficulty,
                 timePerQuestion: _getTimePerQuestion(),
+                useAllCardsForAnswers: _useAllCardsForAnswers,
               ),
               ),
             ),
@@ -2243,6 +2350,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 cards: filteredCards,
                 title: title,
                 difficulty: widget.timedDifficulty!,
+                answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
               ),
             ),
           );
@@ -2268,6 +2376,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 useTimedMode: widget.useTimedMode,
                 timedDifficulty: widget.timedDifficulty,
                 timePerQuestion: _getTimePerQuestion(),
+                useAllCardsForAnswers: _useAllCardsForAnswers,
               ),
               ),
             ),

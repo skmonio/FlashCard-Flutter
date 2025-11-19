@@ -1269,6 +1269,73 @@ class _AllDecksViewState extends State<AllDecksView> {
       return;
     }
     
+    // Count how many cards already have exercises
+    int cardsWithExercises = 0;
+    int cardsWithoutExercises = 0;
+    for (final card in deckCards) {
+      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
+        cardsWithExercises++;
+      } else {
+        cardsWithoutExercises++;
+      }
+    }
+    
+    // Show confirmation dialog explaining what will happen
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Exercises to Deck'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            Text(
+              'This will create exercises for cards in "${deck.name}"${deck.isSubDeck ? '' : ' and its sub-decks'}.',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('📊 Summary:'),
+            const SizedBox(height: 8),
+            Text('• Total cards: ${deckCards.length}'),
+            Text('• Cards without exercises: $cardsWithoutExercises'),
+            if (cardsWithExercises > 0)
+              Text('• Cards with existing exercises: $cardsWithExercises (will be skipped)'),
+            const SizedBox(height: 16),
+            const Text(
+              'What will be created:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• Basic multiple choice exercises for cards with word and definition'),
+            const Text('• Additional grammar exercises for cards with articles, plurals, or example sentences'),
+            const SizedBox(height: 16),
+            const Text(
+              'This action cannot be undone. Do you want to proceed?',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+    
+    // If user cancelled, return early
+    if (shouldProceed != true) {
+      return;
+    }
+    
     // Show loading dialog
     showDialog(
       context: context,

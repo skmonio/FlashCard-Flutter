@@ -8,7 +8,7 @@ import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
@@ -64,6 +64,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Maintain our own copy of cards that can be updated
@@ -1008,12 +1009,17 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   }
 
   void _awardXp() {
-    // Populate RPG tracking variables for WordProgressDisplay
+    // Populate RPG tracking variables for the end screen
     final xpService = XpService();
     
     for (int i = 0; i < _currentCards.length; i++) {
       final card = _currentCards[i];
       final isCorrect = _correctAnswersMap[i] == true;
+      
+      // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+      if (!_initialHPPerWord.containsKey(card.id)) {
+        _initialHPPerWord[card.id] = card.currentHP;
+      }
       
       if (isCorrect) {
         // Add XP to the word's learning mastery
@@ -1059,47 +1065,41 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   }
 
   void _showWordProgress() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          studiedWords: _studiedWords,
-          title: 'Timed Test Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            // Reset and restart test BEFORE closing the word progress screen
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _userAnswer = [];
-              _gameSession.reset(); // Reset XP tracking
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _correctWords.clear();
-              _scrambledLettersMap.clear();
-              _questionModes.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            _generateQuestion();
-
-            Navigator.of(context).pop(); // Close word progress screen
-
-            // Session data has been reset, ready for new test
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Timed Test Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _userAnswer = [];
+            _gameSession.reset();
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _correctWords.clear();
+            _scrambledLettersMap.clear();
+            _questionModes.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _studiedWords.clear();
+          });
+          _generateQuestion();
+          Navigator.of(context).pop();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

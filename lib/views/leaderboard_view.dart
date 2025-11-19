@@ -45,7 +45,19 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('Failed to load leaderboard: $e');
+      
+      // Provide clearer error messages
+      String errorMessage;
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('null check') || errorString.contains('user not logged in')) {
+        errorMessage = 'Please log in to view the leaderboard';
+      } else if (errorString.contains('network') || errorString.contains('connection')) {
+        errorMessage = 'Unable to load leaderboard. Please check your internet connection';
+      } else {
+        errorMessage = 'Unable to load leaderboard. Please try again later';
+      }
+      
+      _showErrorSnackBar(errorMessage);
     }
   }
 
@@ -65,7 +77,19 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      _showErrorSnackBar('Failed to load leaderboard: $e');
+      
+      // Provide clearer error messages
+      String errorMessage;
+      final errorString = e.toString().toLowerCase();
+      if (errorString.contains('null check') || errorString.contains('user not logged in')) {
+        errorMessage = 'Please log in to view the leaderboard';
+      } else if (errorString.contains('network') || errorString.contains('connection')) {
+        errorMessage = 'Unable to load leaderboard. Please check your internet connection';
+      } else {
+        errorMessage = 'Unable to load leaderboard. Please try again later';
+      }
+      
+      _showErrorSnackBar(errorMessage);
     }
   }
 
@@ -228,6 +252,13 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
     }
 
     if (_leaderboard.isEmpty) {
+      final emptyTitle = _currentType == LeaderboardType.friends
+          ? 'No friends leaderboard yet'
+          : 'No leaderboard entries yet';
+      final emptyMessage = _currentType == LeaderboardType.friends
+          ? 'Invite or add friends to compare your XP together.'
+          : 'Start studying to appear on the leaderboard!';
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -239,17 +270,18 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
             ),
             const SizedBox(height: 16),
             Text(
-              'No data available',
+              emptyTitle,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Be the first to appear on the leaderboard!',
+              emptyMessage,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

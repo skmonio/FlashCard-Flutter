@@ -33,14 +33,26 @@ class UnifiedHeader extends StatelessWidget {
                   onPressed: onBack,
                   icon: const Icon(Icons.arrow_back_ios),
                   iconSize: 20,
+                  tooltip: 'Back',
+                  constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
                 )
               else if (onProfile != null)
                 IconButton(
                   onPressed: onProfile,
-                  icon: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.grey,
-                    child: Icon(Icons.person, color: Colors.grey[600], size: 20),
+                  tooltip: 'Profile',
+                  constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+                  icon: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      size: 20,
+                    ),
                   ),
                 )
               else

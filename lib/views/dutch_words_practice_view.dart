@@ -7,7 +7,7 @@ import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../utils/sentence_utils.dart';
 
@@ -31,6 +31,10 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   late List<WordExercise> _allExercises;
   late List<WordExercise> _shuffledExercises;
   late List<String> _exerciseToWordExerciseId; // Maps exercise index to DutchWordExercise ID
+  // Store current session order for "Study Again" functionality
+  // This preserves the order that was actually used in the current session
+  List<WordExercise> _currentSessionOrderExercises = [];
+  List<String> _currentSessionOrderExerciseIds = [];
   int _currentExerciseIndex = 0;
   String? _selectedAnswer;
   bool _showAnswer = false;
@@ -54,6 +58,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
 
   @override
@@ -62,7 +67,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     _initializePractice();
   }
 
-  void _initializePractice() {
+  void _initializePractice({bool shuffle = true}) {
     // Collect all exercises from all words in the deck with their word exercise IDs
     final List<MapEntry<WordExercise, String>> exerciseEntries = [];
     
@@ -72,10 +77,25 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       }
     }
     
-    // Shuffle the entries
-    exerciseEntries.shuffle();
+    if (shuffle) {
+      // Shuffle the entries
+      exerciseEntries.shuffle();
+    } else {
+      // Use current session order (preserve the order from the previous session)
+      if (_currentSessionOrderExercises.isNotEmpty) {
+        exerciseEntries.clear();
+        for (int i = 0; i < _currentSessionOrderExercises.length; i++) {
+          exerciseEntries.add(MapEntry(_currentSessionOrderExercises[i], _currentSessionOrderExerciseIds[i]));
+        }
+      }
+      // If no current session order exists, use the order as-is (first time, no shuffle)
+    }
     
-    // Extract the shuffled exercises and their corresponding word exercise IDs
+    // Store the current session order (the order we're actually using)
+    _currentSessionOrderExercises = exerciseEntries.map((entry) => entry.key).toList();
+    _currentSessionOrderExerciseIds = exerciseEntries.map((entry) => entry.value).toList();
+    
+    // Extract the exercises and their corresponding word exercise IDs
     _allExercises = exerciseEntries.map((entry) => entry.key).toList();
     _shuffledExercises = List<WordExercise>.from(_allExercises);
     _exerciseToWordExerciseId = exerciseEntries.map((entry) => entry.value).toList();
@@ -84,6 +104,32 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     if (_shuffledExercises.isNotEmpty) {
       _initializeShuffledOptions(0, _shuffledExercises[0]);
     }
+  }
+  
+  void _shuffleAndRestart() {
+    setState(() {
+      _currentExerciseIndex = 0;
+      _selectedAnswer = null;
+      _showAnswer = false;
+      _correctAnswers = 0;
+      _totalAnswered = 0;
+      _answerWords = [];
+      _availableWords = [];
+      _shuffledOptions.clear();
+      _answeredQuestions.clear();
+      _selectedAnswers.clear();
+      _sentenceAnswers.clear();
+      _sentenceAvailable.clear();
+      
+      // Reset RPG tracking for this session only
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _initialHPPerWord.clear();
+      _studiedWords.clear();
+      
+      // Shuffle and restart
+      _initializePractice(shuffle: true);
+    });
   }
 
   @override
@@ -578,6 +624,10 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     final currentExercise = _shuffledExercises[_currentExerciseIndex];
     final isSentenceBuilding = currentExercise.type == ExerciseType.sentenceBuilding;
     
+    // Determine button state based on answer status
+    final bool canCheckAnswer = _canCheckAnswer();
+    final bool canGoNext = _showAnswer; // Can go next only after answer is checked
+    
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -596,23 +646,19 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: isSentenceBuilding ? (_canCheckAnswer() ? () {
-                if (!_showAnswer) {
-                  _checkAnswer();
-                } else {
-                  _nextExercise();
-                }
-              } : null) : () {
+              onPressed: canGoNext ? () {
                 _nextExercise();
-              },
+              } : (canCheckAnswer ? () {
+                _checkAnswer();
+              } : null),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isSentenceBuilding ? (_canCheckAnswer() ? Colors.blue : Colors.grey) : Colors.blue,
+                backgroundColor: canGoNext ? Colors.blue : (canCheckAnswer ? Colors.blue : Colors.grey),
                 foregroundColor: Colors.white,
               ),
               child: Text(
-                isSentenceBuilding 
-                  ? (_showAnswer ? 'Next' : 'Check Answer')
-                  : (_currentExerciseIndex == _shuffledExercises.length - 1 ? 'Finish' : 'Next')
+                canGoNext 
+                  ? (_currentExerciseIndex == _shuffledExercises.length - 1 ? 'Finish' : 'Next')
+                  : 'Check Answer'
               ),
             ),
           ),
@@ -646,12 +692,46 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     await dutchProvider.updateLearningProgress(wordExerciseId, isCorrect);
     print('🔍 Learning progress updated successfully');
     
-    // Sync progress to main FlashCard
-    await _syncProgressToFlashCard(wordExerciseId, isCorrect);
+    // Get the card BEFORE syncing to capture initial HP before it's reduced
+    final wordExercise = dutchProvider.wordExercises.firstWhere(
+      (exercise) => exercise.id == wordExerciseId,
+      orElse: () => DutchWordExercise(
+        id: '',
+        targetWord: '',
+        wordTranslation: '',
+        deckId: '',
+        deckName: '',
+        category: WordCategory.common,
+        difficulty: ExerciseDifficulty.beginner,
+        exercises: [],
+        createdAt: DateTime.now(),
+        isUserCreated: true,
+      ),
+    );
     
-    // Award XP to word for RPG system
-    if (isCorrect) {
-      await _awardXPToWord(wordExerciseId, isCorrect);
+    FlashCard? cardBeforeSync;
+    if (wordExercise.id.isNotEmpty) {
+      cardBeforeSync = flashcardProvider.cards.firstWhere(
+        (card) => card.word.toLowerCase() == wordExercise.targetWord.toLowerCase(),
+        orElse: () => FlashCard(id: '', word: '', definition: '', example: ''),
+      );
+      
+      // Track initial HP BEFORE syncing (so we capture HP before it's reduced)
+      if (cardBeforeSync.id.isNotEmpty && !_studiedWords.any((word) => word.id == cardBeforeSync!.id)) {
+        _studiedWords.add(cardBeforeSync);
+        _initialHPPerWord[cardBeforeSync.id] = cardBeforeSync.currentHP;
+      }
+    }
+    
+    // Sync progress to main FlashCard and get updated card
+    final updatedCard = await _syncProgressToFlashCard(wordExerciseId, isCorrect);
+    
+    // Award XP to word for RPG system and track progress
+    if (isCorrect && updatedCard != null) {
+      await _awardXPToWord(updatedCard, wordExerciseId);
+    } else if (updatedCard != null) {
+      // Track incorrect answers too
+      _trackWordProgress(updatedCard, isCorrect);
     }
     
     // Force refresh of providers to ensure UI updates
@@ -686,7 +766,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     }
   }
 
-  Future<void> _syncProgressToFlashCard(String wordExerciseId, bool wasCorrect) async {
+  Future<FlashCard?> _syncProgressToFlashCard(String wordExerciseId, bool wasCorrect) async {
     try {
       final dutchProvider = context.read<DutchWordExerciseProvider>();
       final flashcardProvider = context.read<FlashcardProvider>();
@@ -710,7 +790,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       
       if (wordExercise.id.isEmpty) {
         print('🔍 Word exercise not found for ID: $wordExerciseId');
-        return;
+        return null;
       }
       
       // Find the corresponding FlashCard
@@ -726,7 +806,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       
       if (flashCard.id.isEmpty) {
         print('🔍 FlashCard not found for word: ${wordExercise.targetWord}');
-        return;
+        return null;
       }
       
       // Update the FlashCard's learning progress
@@ -735,10 +815,15 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       );
       
       // Update learning mastery based on difficulty (assuming medium for exercises)
+      final xpService = XpService();
       if (wasCorrect) {
         updatedCard.markCorrect(GameDifficulty.medium);
+        // Award XP using standard system
+        xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise', 1);
       } else {
         updatedCard.markIncorrect(GameDifficulty.medium);
+        // Record attempt for incorrect answers (reduces HP but no XP)
+        xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise');
       }
       
       await flashcardProvider.updateCard(updatedCard);
@@ -764,8 +849,11 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       if (dutchExercise.id.isNotEmpty) {
         print('🔍 DutchWordExercise learning percentage: ${dutchExercise.learningProgress.learningPercentage}%');
       }
+      
+      return updatedCard;
     } catch (e) {
       print('🔍 Error syncing progress to FlashCard: $e');
+      return null;
     }
   }
 
@@ -829,88 +917,51 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     );
   }
   
-  Future<void> _awardXPToWord(String wordExerciseId, bool isCorrect) async {
-    if (!isCorrect) return;
-    
+  Future<void> _awardXPToWord(FlashCard card, String wordExerciseId) async {
     try {
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      final flashcardProvider = context.read<FlashcardProvider>();
-      
-      // Find the word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.id == wordExerciseId,
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isEmpty) {
-        print('🔍 Word exercise not found for ID: $wordExerciseId');
-        return;
-      }
-      
-      // Find the corresponding FlashCard
-      final flashCard = flashcardProvider.cards.firstWhere(
-        (card) => card.word.toLowerCase() == wordExercise.targetWord.toLowerCase(),
-        orElse: () => FlashCard(
-          id: '',
-          word: '',
-          definition: '',
-          example: '',
-        ),
-      );
-      
-      if (flashCard.id.isEmpty) {
-        print('🔍 FlashCard not found for word: ${wordExercise.targetWord}');
-        return;
-      }
-      
       // Get the current exercise to determine the exercise type
       final currentExercise = _shuffledExercises[_currentExerciseIndex];
       final exerciseType = _getExerciseTypeString(currentExercise.type);
       
       print('🔍 DutchWordsPracticeView: Exercise type: $exerciseType');
-      print('🔍 DutchWordsPracticeView: Daily attempts before XP: ${flashCard.learningMastery.dailyGameAttempts}');
+      print('🔍 DutchWordsPracticeView: Daily attempts before XP: ${card.learningMastery.dailyGameAttempts}');
       
       final xpService = XpService();
       
       // Add XP to the word's learning mastery (this handles daily diminishing returns)
-      xpService.addXPToWord(flashCard.learningMastery, exerciseType, 1);
+      xpService.addXPToWord(card.learningMastery, exerciseType, 1);
       
-      print('🔍 DutchWordsPracticeView: Daily attempts after XP: ${flashCard.learningMastery.dailyGameAttempts}');
+      print('🔍 DutchWordsPracticeView: Daily attempts after XP: ${card.learningMastery.dailyGameAttempts}');
       
       // Get the actual XP gained (after diminishing returns)
-      final actualXPGained = flashCard.learningMastery.exerciseHistory.isNotEmpty 
-          ? flashCard.learningMastery.exerciseHistory.last['xpGained'] as int 
+      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
+          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
       // Track XP gained for this word in this session (replace for multiple appearances in same session)
-      _xpGainedPerWord[flashCard.id] = actualXPGained;
+      _xpGainedPerWord[card.id] = actualXPGained;
       
-      // Store the word mastery for display
-      _wordMastery[flashCard.id] = flashCard.learningMastery;
+      // Track word progress (mastery tracking)
+      _trackWordProgress(card, true);
       
-      // Track studied words
-      if (!_studiedWords.any((word) => word.id == flashCard.id)) {
-        _studiedWords.add(flashCard);
-      }
-      
-      print('🔍 DutchWordsPracticeView: Awarded $actualXPGained XP to word "${flashCard.word}" (Correct: $isCorrect)');
+      print('🔍 DutchWordsPracticeView: Awarded $actualXPGained XP to word "${card.word}"');
       
       // Update the card in the provider
-      await flashcardProvider.updateCard(flashCard);
+      final flashcardProvider = context.read<FlashcardProvider>();
+      await flashcardProvider.updateCard(card);
       
     } catch (e) {
       print('🔍 DutchWordsPracticeView: Error awarding XP: $e');
+    }
+  }
+  
+  void _trackWordProgress(FlashCard card, bool isCorrect) {
+    // Store the word mastery for display (use the card's current mastery which has latest HP)
+    _wordMastery[card.id] = card.learningMastery;
+    
+    // For incorrect answers, explicitly set 0 XP
+    if (!isCorrect) {
+      _xpGainedPerWord[card.id] = 0;
     }
   }
   
@@ -919,47 +970,50 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true, // Hide back button and swipe for practice sessions
-          onStudyAgain: () async {
-            Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart practice
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () async {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentExerciseIndex = 0;
+            _selectedAnswer = null;
+            _showAnswer = false;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _answerWords = [];
+            _availableWords = [];
+            _shuffledOptions.clear();
+            _answeredQuestions.clear();
+            _selectedAnswers.clear();
+            _sentenceAnswers.clear();
+            _sentenceAvailable.clear();
             
-            setState(() {
-              _currentExerciseIndex = 0;
-              _selectedAnswer = null;
-              _showAnswer = false;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _answerWords = [];
-              _availableWords = [];
-              _shuffledOptions.clear();
-              _answeredQuestions.clear();
-              _selectedAnswers.clear();
-              _sentenceAnswers.clear();
-              _sentenceAvailable.clear();
-              
-              // Reset RPG tracking for this session only
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-              
-              _initializePractice();
-            });
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
             
-            // Session data has been reset, ready for new game
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+            _initializePractice(shuffle: false);
+          });
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          _shuffleAndRestart();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'friends_service.dart';
@@ -79,23 +80,28 @@ enum LeaderboardType {
 }
 
 class LeaderboardService {
+  static const Duration _defaultTimeout = Duration(seconds: 15);
   static final LeaderboardService _instance = LeaderboardService._internal();
   factory LeaderboardService() => _instance;
   LeaderboardService._internal();
 
   SupabaseClient get _client => SupabaseService.instance.client;
 
+  Future<T> _runWithTimeout<T>(Future<T> future) => future.timeout(_defaultTimeout);
+
   // MARK: - Leaderboard Operations
 
   /// Get the global leaderboard
   Future<List<LeaderboardEntry>> getGlobalLeaderboard({int limit = 50}) async {
     try {
-      final response = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
-          .order('xp', ascending: false)
-          .order('level', ascending: false)
-          .limit(limit);
+      final response = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
+            .order('xp', ascending: false)
+            .order('level', ascending: false)
+            .limit(limit),
+      );
 
       final currentUserId = SupabaseService.instance.currentUser?.id;
       
@@ -120,14 +126,20 @@ class LeaderboardService {
   /// Get the user's current rank
   Future<UserRank> getUserRank() async {
     try {
-      final currentUserId = SupabaseService.instance.currentUser!.id;
+      final currentUser = SupabaseService.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not logged in');
+      }
+      final currentUserId = currentUser.id;
       
       // Get all users ordered by XP
-      final allUsers = await _client
-          .from('user_profiles')
-          .select('id, xp, level')
-          .order('xp', ascending: false)
-          .order('level', ascending: false);
+      final allUsers = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, xp, level')
+            .order('xp', ascending: false)
+            .order('level', ascending: false),
+      );
 
       // Find current user's rank
       int userRank = 0;
@@ -159,15 +171,21 @@ class LeaderboardService {
       }
 
       final friendIds = friends.map((f) => f.friendId).toList();
-      final currentUserId = SupabaseService.instance.currentUser!.id;
+      final currentUser = SupabaseService.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not logged in');
+      }
+      final currentUserId = currentUser.id;
       
       // Get friends' profiles with their stats
-      final response = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
-          .inFilter('id', [...friendIds, currentUserId])
-          .order('xp', ascending: false)
-          .order('level', ascending: false);
+      final response = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
+            .inFilter('id', [...friendIds, currentUserId])
+            .order('xp', ascending: false)
+            .order('level', ascending: false),
+      );
 
       // Create leaderboard entries with ranks
       final entries = <LeaderboardEntry>[];
@@ -230,14 +248,16 @@ class LeaderboardService {
     try {
       // Get users who have been active this month
       final monthAgo = DateTime.now().subtract(const Duration(days: 30));
-      
-      final response = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak, total_sessions, updated_at')
-          .gte('updated_at', monthAgo.toIso8601String())
-          .order('xp', ascending: false)
-          .order('level', ascending: false)
-          .limit(limit);
+       
+      final response = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, level, xp, current_streak, total_sessions, updated_at')
+            .gte('updated_at', monthAgo.toIso8601String())
+            .order('xp', ascending: false)
+            .order('level', ascending: false)
+            .limit(limit),
+      );
 
       final currentUserId = SupabaseService.instance.currentUser?.id;
       
@@ -297,11 +317,13 @@ class LeaderboardService {
           orderBy = 'xp';
       }
 
-      final response = await _client
-          .from('user_profiles')
-          .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
-          .order(orderBy, ascending: false)
-          .limit(limit);
+      final response = await _runWithTimeout(
+        _client
+            .from('user_profiles')
+            .select('id, username, selected_avatar, level, xp, current_streak, total_sessions')
+            .order(orderBy, ascending: false)
+            .limit(limit),
+      );
 
       final currentUserId = SupabaseService.instance.currentUser?.id;
       

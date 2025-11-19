@@ -10,7 +10,8 @@ import '../services/xp_service.dart';
 import '../utils/sentence_utils.dart';
 
 import 'create_word_exercise_view.dart';
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
+import '../components/cached_profile_avatar.dart';
 
 class DutchWordExerciseDetailView extends StatefulWidget {
   final DutchWordExercise wordExercise;
@@ -63,6 +64,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   // RPG tracking for comprehensive completion screen
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
 
   @override
@@ -179,17 +181,13 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: Colors.green,
-            child: Text(
-              _wordExercise.targetWord[0].toUpperCase(),
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
+          CachedProfileAvatar(
+            size: 60,
+            base64Image: null,
+            fallbackIcon: Icons.book,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            iconColor: Theme.of(context).colorScheme.primary,
+            semanticLabel: '${_wordExercise.targetWord} illustration',
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -712,6 +710,10 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     final currentExercise = _wordExercise.exercises[_currentExerciseIndex];
     final isSentenceBuilding = currentExercise.type == ExerciseType.sentenceBuilding;
     
+    // Determine button state based on answer status
+    final bool canCheckAnswer = _canCheckAnswer();
+    final bool canGoNext = _showAnswer; // Can go next only after answer is checked
+    
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -730,23 +732,19 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: isSentenceBuilding ? (_canCheckAnswer() ? () {
-                if (!_showAnswer) {
-                  _checkAnswer();
-                } else {
-                  _nextExercise();
-                }
-              } : null) : () {
+              onPressed: canGoNext ? () {
                 _nextExercise();
-              },
+              } : (canCheckAnswer ? () {
+                _checkAnswer();
+              } : null),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isSentenceBuilding ? (_canCheckAnswer() ? Colors.green : Colors.grey) : Colors.green,
+                backgroundColor: canGoNext ? Colors.green : (canCheckAnswer ? Colors.green : Colors.grey),
                 foregroundColor: Colors.white,
               ),
               child: Text(
-                isSentenceBuilding 
-                  ? (_showAnswer ? 'Next' : 'Check Answer')
-                  : (_currentExerciseIndex == _wordExercise.exercises.length - 1 ? 'Finish' : 'Next')
+                canGoNext 
+                  ? (_currentExerciseIndex == _wordExercise.exercises.length - 1 ? 'Finish' : 'Next')
+                  : 'Check Answer'
               ),
             ),
           ),
@@ -857,8 +855,8 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       } else {
         updatedCard.markIncorrect(GameDifficulty.medium);
         
-        // In shuffle mode (singleQuestionMode), reduce HP for incorrect answers
-        if (widget.singleQuestionMode) {
+        // Record attempt for incorrect answers (reduces HP but no XP)
+        if (!widget.singleQuestionMode) {
           xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail');
         }
       }
@@ -886,21 +884,33 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     );
     
     if (flashCard.id.isNotEmpty) {
-      // Track studied words
+      // Track studied words and initial HP
       if (!_studiedWords.any((word) => word.id == flashCard.id)) {
         _studiedWords.add(flashCard);
+        // Store initial HP when word is first encountered
+        _initialHPPerWord[flashCard.id] = flashCard.currentHP;
       }
       
-      // Track word mastery
-      _wordMastery[flashCard.id] = flashCard.learningMastery;
+      // Refresh the card from provider to get updated mastery after sync
+      final flashcardProvider = context.read<FlashcardProvider>();
+      final refreshedCard = flashcardProvider.cards.firstWhere(
+        (card) => card.id == flashCard.id,
+        orElse: () => flashCard,
+      );
+      
+      // Track word mastery (use refreshed card to get latest HP)
+      _wordMastery[flashCard.id] = refreshedCard.learningMastery;
       
       // Track XP gained (with daily decay applied)
       if (wasCorrect) {
         // Get the actual XP gained from the exercise history
-        final actualXPGained = flashCard.learningMastery.exerciseHistory.isNotEmpty 
-            ? flashCard.learningMastery.exerciseHistory.last['xpGained'] as int 
+        final actualXPGained = refreshedCard.learningMastery.exerciseHistory.isNotEmpty 
+            ? refreshedCard.learningMastery.exerciseHistory.last['xpGained'] as int 
             : 0;
         _xpGainedPerWord[flashCard.id] = actualXPGained;
+      } else {
+        // Explicitly set 0 XP for incorrect answers
+        _xpGainedPerWord[flashCard.id] = 0;
       }
     }
   }
@@ -943,42 +953,81 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true, // Hide back button and swipe for word exercises
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart exercise
-            setState(() {
-              _currentExerciseIndex = 0;
-              _selectedAnswer = null;
-              _showAnswer = false;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _answerWords = [];
-              _availableWords = [];
-              _shuffledOptions.clear();
-              _answeredQuestions.clear();
-              _selectedAnswers.clear();
-              _sentenceAnswers.clear();
-              _sentenceAvailable.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentExerciseIndex = 0;
+            _selectedAnswer = null;
+            _showAnswer = false;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _answerWords = [];
+            _availableWords = [];
+            _shuffledOptions.clear();
+            _answeredQuestions.clear();
+            _selectedAnswers.clear();
+            _sentenceAnswers.clear();
+            _sentenceAvailable.clear();
+            
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
+          });
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentExerciseIndex = 0;
+            _selectedAnswer = null;
+            _showAnswer = false;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _answerWords = [];
+            _availableWords = [];
+            _shuffledOptions.clear();
+            _answeredQuestions.clear();
+            _selectedAnswers.clear();
+            _sentenceAnswers.clear();
+            _sentenceAvailable.clear();
+            
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
+            
+            final exercises = List<WordExercise>.from(_wordExercise.exercises)..shuffle();
+            _wordExercise = DutchWordExercise(
+              id: _wordExercise.id,
+              targetWord: _wordExercise.targetWord,
+              wordTranslation: _wordExercise.wordTranslation,
+              deckId: _wordExercise.deckId,
+              deckName: _wordExercise.deckName,
+              category: _wordExercise.category,
+              difficulty: _wordExercise.difficulty,
+              exercises: exercises,
+              createdAt: _wordExercise.createdAt,
+              isUserCreated: _wordExercise.isUserCreated,
+              learningProgress: _wordExercise.learningProgress,
+            );
+          });
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -1242,17 +1291,25 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   }
 
   Widget _buildCustomHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onSurface = colorScheme.onSurface;
+    final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: onSurface,
+        ) ??
+        TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: onSurface,
+        );
+
     return Stack(
       children: [
         // Centered title - always in the center regardless of other elements
         Center(
           child: Text(
             'Exercise',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            style: titleStyle,
           ),
         ),
         
@@ -1263,7 +1320,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           bottom: 0,
           child: IconButton(
             onPressed: () => _showCloseConfirmation(),
-            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+            icon: Icon(Icons.arrow_back_ios, color: onSurface),
+            tooltip: 'Back',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
         
@@ -1274,8 +1333,9 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           bottom: 0,
           child: IconButton(
             onPressed: () => _showHomeConfirmation(),
-            icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+            icon: Icon(Icons.home, color: onSurface),
             tooltip: 'Go Home',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
       ],

@@ -13,7 +13,7 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../components/animated_xp_counter.dart';
 import '../models/timed_difficulty.dart';
 import '../utils/game_difficulty_helper.dart';
@@ -25,6 +25,7 @@ class TimedMultipleChoiceView extends StatefulWidget {
   final Function(bool)? onComplete;
   final TimedDifficulty difficulty;
   final bool startFlipped;
+  final List<FlashCard>? answerPoolCards;
 
   const TimedMultipleChoiceView({
     super.key,
@@ -33,6 +34,7 @@ class TimedMultipleChoiceView extends StatefulWidget {
     this.onComplete,
     required this.difficulty,
     this.startFlipped = false,
+    this.answerPoolCards,
   });
 
   @override
@@ -67,6 +69,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Maintain our own copy of cards that can be updated
@@ -242,15 +245,17 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   List<String> _generateOptions(FlashCard currentCard, String correctAnswer, math.Random random) {
+    // Test Your Cards mode should have 4 options, other modes have 6
+    final int desiredTotalOptions = widget.title.toLowerCase().contains('test') ? 4 : 6;
+    final int desiredWrongOptions = desiredTotalOptions - 1;
     List<String> options = [correctAnswer];
     
-    // Get wrong options from ALL available cards (not just selected deck) for better difficulty
-    final allCards = context.read<FlashcardProvider>().cards;
-    List<FlashCard> otherCards = allCards.where((card) => card.id != currentCard.id).toList();
+    final answerPool = _getAnswerPoolForCard(currentCard);
+    List<FlashCard> otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
     
     // Shuffle all other cards to get variety from any deck
     otherCards.shuffle();
-    for (int i = 0; i < math.min(3, otherCards.length); i++) {
+    for (int i = 0; i < otherCards.length && options.length - 1 < desiredWrongOptions; i++) {
       String wrongOption;
       if (_isQuestionMode) {
         wrongOption = otherCards[i].definition;
@@ -264,19 +269,46 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     }
     
     // If we don't have enough options, add some generic ones
-    while (options.length < 4) {
-      String genericOption;
-      if (_isQuestionMode) {
-        genericOption = "Option ${options.length}";
-      } else {
-        genericOption = "word${options.length}";
+    int fallbackIndex = 0;
+    final genericOptions = _isQuestionMode
+        ? [
+            'Not applicable',
+            'Different meaning',
+            'Other definition',
+            'Alternative translation',
+            'Similar phrase',
+          ]
+        : [
+            'Unknown word',
+            'Different word',
+            'Other term',
+            'Similar spelling',
+            'Random choice',
+          ];
+    while (options.length < desiredTotalOptions && fallbackIndex < genericOptions.length) {
+      final genericOption = genericOptions[fallbackIndex];
+      if (!options.contains(genericOption)) {
+        options.add(genericOption);
       }
-      options.add(genericOption);
+      fallbackIndex++;
     }
     
+    if (options.length > desiredTotalOptions) {
+      options = options.take(desiredTotalOptions).toList();
+    }
+
     // Shuffle options
     options.shuffle();
     return options;
+  }
+
+  List<FlashCard> _getAnswerPoolForCard(FlashCard currentCard) {
+    if (widget.answerPoolCards != null && widget.answerPoolCards!.isNotEmpty) {
+      return widget.answerPoolCards!;
+    }
+
+    final provider = context.read<FlashcardProvider>();
+    return provider.cards;
   }
 
   void _selectAnswer(int index) {
@@ -435,7 +467,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   void _awardXp() {
-    // Populate RPG tracking variables for WordProgressDisplay
+    // Populate RPG tracking variables for the end screen
     final xpService = XpService();
     
     print('🔍 TimedMultipleChoiceView: Awarding XP for ${_currentCards.length} cards');
@@ -475,9 +507,11 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
         print('🔍 TimedMultipleChoiceView: No XP awarded to ${card.word} (Incorrect)');
       }
       
-      // Track studied words (regardless of correctness)
+      // Track studied words and initial HP (regardless of correctness)
       if (!_studiedWords.any((word) => word.id == card.id)) {
         _studiedWords.add(card);
+        // Store initial HP when word is first encountered
+        _initialHPPerWord[card.id] = card.currentHP;
       }
     }
     
@@ -496,51 +530,46 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   void _showWordProgress() {
-    // Debug: Print the data being passed to WordProgressDisplay
+    // Debug: Print the data being passed to the end screen
     print('🔍 TimedMultipleChoiceView: Showing word progress with ${_xpGainedPerWord.length} XP entries, ${_wordMastery.length} mastery entries, ${_studiedWords.length} studied words');
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          studiedWords: _studiedWords,
-          title: 'Timed Test Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            // Reset and restart test BEFORE closing the word progress screen
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _selectedAnswer = null;
-              _gameSession.reset(); // Reset XP tracking
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _questionOptions.clear();
-              _correctAnswerIndices.clear();
-              _questionModes.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            _generateQuestion();
-            _resetTimer();
-
-            Navigator.of(context).pop(); // Close word progress screen
-
-            // Session data has been reset, ready for new test
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Timed Test Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _selectedAnswer = null;
+            _gameSession.reset();
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _questionOptions.clear();
+            _correctAnswerIndices.clear();
+            _questionModes.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _initialHPPerWord.clear();
+            _studiedWords.clear();
+          });
+          _generateQuestion();
+          _resetTimer();
+          Navigator.of(context).pop();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

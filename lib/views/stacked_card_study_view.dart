@@ -6,7 +6,7 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../services/sound_manager.dart';
@@ -44,6 +44,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   
   // Track card states for back navigation
@@ -159,9 +160,10 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
     _cardStates[topIndex] = isCorrect;
     print('🔍 StackedCardStudyView: Card state tracked for index $topIndex: $isCorrect');
     
-    // Track the studied word
+    // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
     if (!_studiedWords.contains(currentCard)) {
       _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
     }
     
     // Handle different swipe directions like Quick Study
@@ -305,32 +307,34 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
       sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
     }
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true,
-          onStudyAgain: () {
-            Navigator.of(context).pop();
-            setState(() {
-              topIndex = 0;
-              _studiedWords.clear();
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _consecutiveCorrect = 0;
-              _totalAnswers = 0;
-              _correctAnswers = 0;
-              _hasShownResults = false; // Reset guard for new session
-              _cardStates.clear(); // Reset card states for new session
-            });
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswers,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            topIndex = 0;
+            _studiedWords.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _consecutiveCorrect = 0;
+            _totalAnswers = 0;
+            _correctAnswers = 0;
+            _hasShownResults = false;
+            _cardStates.clear();
+          });
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }

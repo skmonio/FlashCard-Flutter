@@ -55,10 +55,17 @@ class _AllCardsViewState extends State<AllCardsView> {
   // Debounce search
   Timer? _searchDebounceTimer;
 
+  static const int _cardsPageSize = 50;
+  late ScrollController _scrollController;
+  int _visibleCardCount = _cardsPageSize;
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    _scrollController = ScrollController()
+      ..addListener(_onScroll);
     
     // Add listener to refresh when provider updates
     final provider = context.read<FlashcardProvider>();
@@ -69,6 +76,9 @@ class _AllCardsViewState extends State<AllCardsView> {
   void dispose() {
     _searchController.dispose();
     _searchDebounceTimer?.cancel();
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
     
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
@@ -78,12 +88,18 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
   void _onProviderChanged() {
-    // Refresh the UI when cards are updated
+    // Refresh the UI when cards are updated (debounced to prevent excessive rebuilds)
     if (mounted) {
-      setState(() {
-        // Clear cache to force refresh of filtered results
-        _cachedFilteredCards = null;
-      });
+      // Only clear cache if search query changed, otherwise just invalidate
+      final provider = context.read<FlashcardProvider>();
+      final currentCards = provider.cards;
+      
+      // Only rebuild if cards actually changed
+      if (currentCards.length != _cachedFilteredCards?.length) {
+        setState(() {
+          _cachedFilteredCards = null;
+        });
+      }
     }
   }
 
@@ -127,11 +143,19 @@ class _AllCardsViewState extends State<AllCardsView> {
                   return _buildEmptyState();
                 }
                 
+                final visibleCount = cards.length < _visibleCardCount ? cards.length : _visibleCardCount;
+                final hasMore = cards.length > visibleCount;
+                final itemCount = hasMore ? visibleCount + 1 : visibleCount;
+                
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: cards.length,
+                  controller: _scrollController,
+                  itemCount: itemCount,
                   // Performance optimization: Add key for better widget recycling
                   itemBuilder: (context, index) {
+                    if (hasMore && index >= visibleCount) {
+                      return _buildLoadMoreIndicator();
+                    }
                     final card = cards[index];
                     return _buildCardItem(card, provider, key: ValueKey(card.id));
                   },
@@ -353,6 +377,8 @@ class _AllCardsViewState extends State<AllCardsView> {
         _searchQuery = query;
         // Clear cache when search changes
         _cachedFilteredCards = null;
+        _visibleCardCount = _cardsPageSize;
+        _isLoadingMore = false;
       });
     });
   }
@@ -390,6 +416,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                minimumSize: const Size(44, 44),
               ),
             ),
           ] else ...[
@@ -402,6 +429,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                minimumSize: const Size(44, 44),
               ),
             ),
           ],
@@ -410,253 +438,316 @@ class _AllCardsViewState extends State<AllCardsView> {
     );
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients || _isLoadingMore) return;
+
+    final threshold = _scrollController.position.maxScrollExtent - 200;
+    if (_scrollController.position.pixels >= threshold) {
+      _loadMoreCards();
+    }
+  }
+
+  void _loadMoreCards() {
+    if (_isLoadingMore || !mounted) return;
+    final provider = context.read<FlashcardProvider>();
+    final totalCards = _getFilteredAndSortedCards(provider).length;
+
+    if (_visibleCardCount >= totalCards) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    Future.microtask(() {
+      if (!mounted) return;
+
+      final newCount = (_visibleCardCount + _cardsPageSize).clamp(0, totalCards);
+      setState(() {
+        _visibleCardCount = newCount;
+        _isLoadingMore = false;
+      });
+    });
+  }
+
+  Widget _buildLoadMoreIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: Semantics(
+          label: 'Loading more cards',
+          child: const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCardItem(FlashCard card, FlashcardProvider provider, {Key? key}) {
     final isSelected = _selectedCardIds.contains(card.id);
-    
-    return Card(
-      key: key,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: _isSelectionMode ? () => _toggleCardSelection(card.id) : () => _showCardDetails(card),
-        onLongPress: () {
-          setState(() {
-            _isSelectionMode = true;
-            _selectedCardIds.add(card.id);
-          });
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            border: isSelected ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
-            borderRadius: BorderRadius.circular(12),
-            // Add visual indicator for cards that have reached daily limit
-            color: card.hasReachedDailyLimit ? Colors.orange.withOpacity(0.1) : null,
-          ),
-          child: ListTile(
-            leading: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_isSelectionMode)
-                  Checkbox(
-                    value: isSelected,
-                    onChanged: (value) => _toggleCardSelection(card.id),
-                  ),
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${card.learningPercentage}%',
-                      style: TextStyle(
-                        color: Colors.blue[700],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+    final highContrast = MediaQuery.of(context).highContrast;
+    final accentColor = Theme.of(context).colorScheme.primary;
+    final levelColor = highContrast
+        ? accentColor.withValues(alpha: 0.2)
+        : Colors.blue.withOpacity(0.1);
+    final levelTextColor = highContrast
+        ? accentColor
+        : Colors.blue[700];
+     
+    return Semantics(
+      label: '${card.word}, ${card.definition}',
+      hint: _isSelectionMode
+          ? 'Double tap to select or deselect this card'
+          : 'Double tap to view details for ${card.word}' ,
+      selected: isSelected,
+      button: true,
+      child: Card(
+        key: key,
+        margin: const EdgeInsets.only(bottom: 8),
+        child: InkWell(
+          onTap: _isSelectionMode ? () => _toggleCardSelection(card.id) : () => _showCardDetails(card),
+          onLongPress: () {
+            setState(() {
+              _isSelectionMode = true;
+              _selectedCardIds.add(card.id);
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              border: isSelected ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2) : null,
+              borderRadius: BorderRadius.circular(12),
+              // Add visual indicator for cards that have reached daily limit
+              color: card.hasReachedDailyLimit ? Colors.orange.withOpacity(0.1) : null,
+            ),
+            child: ListTile(
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isSelectionMode)
+                    Checkbox(
+                      value: isSelected,
+                      onChanged: (value) => _toggleCardSelection(card.id),
+                    ),
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: levelColor,
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${card.learningPercentage}%',
+                        style: TextStyle(
+                          color: levelTextColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            title: Row(
-              children: [
-                if (card.article.isNotEmpty)
-                  Flexible(
-                    child: Text(
-                      '${card.article} ',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w500,
+                ],
+              ),
+              title: Row(
+                children: [
+                  if (card.article.isNotEmpty)
+                    Flexible(
+                      child: Text(
+                        '${card.article} ',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      card.word,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                Expanded(
-                  child: Text(
-                    card.word,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            subtitle: Consumer<DutchWordExerciseProvider>(
-              builder: (context, dutchProvider, child) {
-                final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-                final exerciseCount = existingExercise?.exercises.length ?? 0;
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(card.definition),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _getDeckNames(card, provider),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Added: ${_formatDate(card.dateCreated)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (exerciseCount > 0) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                        // Daily limit indicator
-                        if (card.hasReachedDailyLimit) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Daily limit reached',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.orange[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ] else if (card.timesStudiedToday > 0) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${card.currentHP}/${card.maxHP} HP',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: card.isDefeated 
-                                      ? Colors.grey[600]
-                                      : card.hpPercentage > 0.6 
-                                          ? Colors.green[600]
-                                          : card.hpPercentage > 0.3 
-                                              ? Colors.orange[600]
-                                              : Colors.red[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-            trailing: _isSelectionMode ? null : PopupMenuButton<String>(
-              onSelected: (value) => _handleCardAction(value, card, provider),
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
+                ],
+              ),
+              subtitle: Consumer<DutchWordExerciseProvider>(
+                builder: (context, dutchProvider, child) {
+                  final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+                  final exerciseCount = existingExercise?.exercises.length ?? 0;
+                  
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.edit, size: 16),
-                      SizedBox(width: 8),
-                      Text('Edit Card'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'edit_exercises',
-                  child: Consumer<DutchWordExerciseProvider>(
-                    builder: (context, dutchProvider, child) {
-                      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-                      final hasExercises = existingExercise?.exercises.isNotEmpty ?? false;
-                      
-                      return Row(
+                      Text(card.definition),
+                      const SizedBox(height: 4),
+                      Row(
                         children: [
-                          Icon(hasExercises ? Icons.quiz : Icons.add, size: 16),
-                          SizedBox(width: 8),
-                          Text(hasExercises ? 'Edit Exercises' : 'Add Exercises'),
+                          Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _getDeckNames(card, provider),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
-                      );
-                    },
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, size: 16, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete Card', style: TextStyle(color: Colors.red)),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Added: ${_formatDate(card.dateCreated)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (exerciseCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.green[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                          // Daily limit indicator
+                          if (card.hasReachedDailyLimit) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Daily limit reached',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orange[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ] else if (card.timesStudiedToday > 0) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${card.currentHP}/${card.maxHP} HP',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: card.isDefeated 
+                                        ? Colors.grey[600]
+                                        : card.hpPercentage > 0.6 
+                                            ? Colors.green[600]
+                                            : card.hpPercentage > 0.3 
+                                                ? Colors.orange[600]
+                                                : Colors.red[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
+                  );
+                },
+              ),
+              trailing: _isSelectionMode ? null : PopupMenuButton<String>(
+                onSelected: (value) => _handleCardAction(value, card, provider),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 16),
+                        SizedBox(width: 8),
+                        Text('Edit Card'),
+                      ],
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'reset',
-                  child: Row(
-                    children: [
-                      Icon(Icons.refresh, size: 16),
-                      SizedBox(width: 8),
-                      Text('Reset Progress'),
-                    ],
+                  PopupMenuItem(
+                    value: 'edit_exercises',
+                    child: Consumer<DutchWordExerciseProvider>(
+                      builder: (context, dutchProvider, child) {
+                        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+                        final hasExercises = existingExercise?.exercises.isNotEmpty ?? false;
+                        
+                        return Row(
+                          children: [
+                            Icon(hasExercises ? Icons.quiz : Icons.add, size: 16),
+                            SizedBox(width: 8),
+                            Text(hasExercises ? 'Edit Exercises' : 'Add Exercises'),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const PopupMenuItem(
-                  value: 'study',
-                  child: Row(
-                    children: [
-                      Icon(Icons.school, size: 16),
-                      SizedBox(width: 8),
-                      Text('Study Card'),
-                    ],
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, size: 16, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Delete Card', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const PopupMenuItem(
+                    value: 'reset',
+                    child: Row(
+                      children: [
+                        Icon(Icons.refresh, size: 16),
+                        SizedBox(width: 8),
+                        Text('Reset Progress'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'study',
+                    child: Row(
+                      children: [
+                        Icon(Icons.school, size: 16),
+                        SizedBox(width: 8),
+                        Text('Study Card'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

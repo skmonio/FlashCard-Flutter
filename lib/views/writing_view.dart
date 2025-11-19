@@ -10,9 +10,8 @@ import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
 
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
-import '../utils/enhanced_snackbar.dart';
 
 class WritingView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -60,8 +59,10 @@ class _WritingViewState extends State<WritingView> {
   bool _useLivesMode = false;
   String _userAnswer = '';
   final TextEditingController _textController = TextEditingController();
+  Map<String, int> _wrongAttemptsPerWord = {};
   Set<String> _guessedLetters = {};
   Set<String> _revealedLetters = {};
+  Set<String> _hpDeductedWordIds = {};
   
   // Timer system
   Timer? _timer;
@@ -87,6 +88,7 @@ class _WritingViewState extends State<WritingView> {
   // RPG word progress tracking
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
 
   // Custom keyboard letters
@@ -96,6 +98,10 @@ class _WritingViewState extends State<WritingView> {
   Map<int, int> _hintCount = {}; // question index -> number of hints used
   Map<int, String> _hintRevealed = {}; // question index -> revealed letters
   Set<String> _reviewCards = {}; // card IDs marked for review
+  String? _hintStatusMessage;
+  Timer? _hintStatusTimer;
+  String? _reviewStatusMessage;
+  Timer? _reviewStatusTimer;
 
   @override
   void initState() {
@@ -137,6 +143,8 @@ class _WritingViewState extends State<WritingView> {
     _textController.dispose();
     _timer?.cancel();
     _autoProgressTimer?.cancel();
+    _hintStatusTimer?.cancel();
+    _reviewStatusTimer?.cancel();
     
     // Remove listener when disposing
     final provider = context.read<FlashcardProvider>();
@@ -175,16 +183,19 @@ class _WritingViewState extends State<WritingView> {
   void _handleTimeUp() {
     if (_answered) return;
     
-    setState(() {
-      _answered = true;
-      _totalAnswered++;
-      _correctAnswersMap[_currentIndex] = false;
-      _answeredQuestions[_currentIndex] = _userAnswer;
-      _correctAnswersText[_currentIndex] = _correctAnswer;
-      _questionModes[_currentIndex] = _isQuestionMode;
-    });
+    final cardId = _currentCards[_currentIndex].id;
+    _wrongAttemptsPerWord[cardId] = (_wrongAttemptsPerWord[cardId] ?? 0) + 1;
     
-    // Handle lives system
+    if (widget.shuffleMode) {
+      _finalizeIncorrectAnswer(revealAnswer: false, allowAutoProgress: false);
+      if (mounted && widget.onComplete != null) {
+        widget.onComplete!(false);
+      }
+      return;
+    }
+    
+    _finalizeIncorrectAnswer();
+    
     if (_useLivesMode) {
       _lives--;
       print('🔍 WritingView: Lost a life due to time up! Lives remaining: $_lives');
@@ -192,20 +203,7 @@ class _WritingViewState extends State<WritingView> {
       if (_lives <= 0) {
         print('🔍 WritingView: Game over! No lives remaining');
         _showGameOverScreen();
-        return;
       }
-    }
-    
-    // Auto progress logic
-    if (widget.autoProgress) {
-      _autoProgressTimer?.cancel();
-      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-        if (mounted && _currentIndex < _currentCards.length - 1) {
-          _autoProgressedQuestions.add(_currentIndex);
-          _activeQuestionIndex = _currentIndex + 1;
-          _goToNextQuestion();
-        }
-      });
     }
   }
 
@@ -303,6 +301,10 @@ class _WritingViewState extends State<WritingView> {
     // Reset hint and review state for new question
     _hintCount[_currentIndex] = 0;
     _hintRevealed[_currentIndex] = '';
+  _hintStatusTimer?.cancel();
+  _hintStatusMessage = null;
+  _reviewStatusTimer?.cancel();
+  _reviewStatusMessage = null;
 
     // Check if this question has already been answered
     if (_answeredQuestions.containsKey(_currentIndex)) {
@@ -409,8 +411,68 @@ class _WritingViewState extends State<WritingView> {
     return vibrantColors[index];
   }
 
+  void _applyHpLoss(FlashCard card, bool wasCorrect) {
+    if (_hpDeductedWordIds.contains(card.id)) return;
+    _hpDeductedWordIds.add(card.id);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
+    _updateCardInProvider(card);
+  }
+
+  void _finalizeIncorrectAnswer({bool revealAnswer = true, bool allowAutoProgress = true}) {
+    if (_answered) return;
+    final card = _currentCards[_currentIndex];
+
+    setState(() {
+      _answered = true;
+      _totalAnswered++;
+      _correctAnswersMap[_currentIndex] = false;
+      _answeredQuestions[_currentIndex] = revealAnswer ? _correctAnswer : _displayWord;
+      _correctAnswersText[_currentIndex] = _correctAnswer;
+      _questionModes[_currentIndex] = _isQuestionMode;
+
+      if (revealAnswer) {
+        _displayWord = _correctAnswer;
+        // Reveal every alphabetical character
+        for (int i = 0; i < _correctAnswer.length; i++) {
+          final char = _correctAnswer[i];
+          if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
+            _revealedLetters.add(char.toUpperCase());
+          }
+        }
+      }
+    });
+
+    if (!widget.shuffleMode) {
+      _awardXPToWord(card, false);
+    }
+    _applyHpLoss(card, false);
+
+    if (_useTimedMode) {
+      _timer?.cancel();
+    }
+
+    if (allowAutoProgress && widget.autoProgress && !widget.shuffleMode) {
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
+        if (mounted && _currentIndex < _currentCards.length - 1) {
+          _autoProgressedQuestions.add(_currentIndex);
+          _activeQuestionIndex = _currentIndex + 1;
+          _goToNextQuestion();
+        }
+      });
+    }
+  }
+
   void _guessLetter(String letter) {
     if (_answered) return;
+    
+    final cardId = _currentCards[_currentIndex].id;
+    final wrongAttempts = _wrongAttemptsPerWord[cardId] ?? 0;
+    if (wrongAttempts >= 5) return;
     
     final upperLetter = letter.toUpperCase();
     final lowerLetter = letter.toLowerCase();
@@ -446,13 +508,11 @@ class _WritingViewState extends State<WritingView> {
           // In shuffle mode, reduce HP immediately for every answer attempt
           // (XP tracking is handled by shuffle view at completion)
           if (widget.shuffleMode) {
-            _currentCards[_currentIndex].markCorrect(GameDifficulty.medium);
-            // markCorrect already adds to exerciseHistory, reducing HP
-            _updateCardInProvider(_currentCards[_currentIndex]);
+            _applyHpLoss(_currentCards[_currentIndex], true);
           } else {
             // In standalone mode, handle full tracking
             _awardXPToWord(_currentCards[_currentIndex], true);
-            _updateCardInProvider(_currentCards[_currentIndex]);
+            _applyHpLoss(_currentCards[_currentIndex], true);
           }
           
           // Stop timer if using timed mode
@@ -484,44 +544,26 @@ class _WritingViewState extends State<WritingView> {
         SoundManager().playWrongSound();
         HapticService().errorFeedback();
         
-        // In shuffle mode, one wrong letter immediately ends the game
+        final updatedAttempts = (_wrongAttemptsPerWord[cardId] ?? 0) + 1;
+        _wrongAttemptsPerWord[cardId] = updatedAttempts;
+        
+        // In shuffle mode, any wrong letter ends the challenge immediately
         if (widget.shuffleMode) {
-          _answered = true;
-          _totalAnswered++;
-          // Don't show the answer - it goes to end screen immediately anyway
-          _correctAnswersMap[_currentIndex] = false;
-          _answeredQuestions[_currentIndex] = _displayWord; // Store current incomplete state
-          _correctAnswersText[_currentIndex] = _correctAnswer;
-          _questionModes[_currentIndex] = _isQuestionMode;
-          
-          // Reduce HP and mark as incorrect
-          final xpService = XpService();
-          xpService.recordAttemptToWord(_currentCards[_currentIndex].learningMastery, "writing");
-          _currentCards[_currentIndex].markIncorrect(GameDifficulty.medium);
-          _updateCardInProvider(_currentCards[_currentIndex]);
-          
-          // Immediately end the game (no delay, no shuffle)
+          _finalizeIncorrectAnswer(revealAnswer: false, allowAutoProgress: false);
           if (mounted && widget.onComplete != null) {
-            widget.onComplete!(false); // Word failed (wrong letter guessed)
+            widget.onComplete!(false);
           }
+          return;
+        }
+        
+        if (updatedAttempts >= 5) {
+          _finalizeIncorrectAnswer();
           return;
         }
         
         // Check if game over (only if using lives mode in standalone)
         if (_useLivesMode && _lives <= 0) {
-          _answered = true;
-          _totalAnswered++;
-          // Show the complete correct answer
-          _displayWord = _correctAnswer;
-          _correctAnswersMap[_currentIndex] = false;
-          _answeredQuestions[_currentIndex] = _displayWord;
-          _correctAnswersText[_currentIndex] = _correctAnswer;
-          _questionModes[_currentIndex] = _isQuestionMode;
-          
-          // In standalone mode, handle full tracking
-          _awardXPToWord(_currentCards[_currentIndex], false);
-          _updateCardInProvider(_currentCards[_currentIndex]);
-          
+          _finalizeIncorrectAnswer(allowAutoProgress: false);
           print('🔍 WritingView: Game over! No lives remaining');
           _showGameOverScreen();
           return;
@@ -1109,7 +1151,10 @@ class _WritingViewState extends State<WritingView> {
                           // Reset RPG tracking
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
+                          _initialHPPerWord.clear();
                           _studiedWords.clear();
+                          _wrongAttemptsPerWord.clear();
+                          _hpDeductedWordIds.clear();
                           
                           // Reset hint and review tracking
                           _hintCount.clear();
@@ -1222,6 +1267,13 @@ class _WritingViewState extends State<WritingView> {
   void _awardXPToWord(FlashCard card, bool isCorrect) {
     final xpService = XpService();
     
+    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
+    if (!_studiedWords.any((word) => word.id == card.id)) {
+      _studiedWords.add(card);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
+    
     print('🔍 WritingView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
     
     if (isCorrect) {
@@ -1245,13 +1297,10 @@ class _WritingViewState extends State<WritingView> {
       
       print('🔍 WritingView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      // Record attempt for incorrect answers (reduces HP but no XP)
-      xpService.recordAttemptToWord(card.learningMastery, "writing");
-      
-      // Explicitly set 0 XP for incorrect answers
+      final wrongAttempts = _wrongAttemptsPerWord[card.id] ?? 0;
       _xpGainedPerWord[card.id] = 0;
-      
-      print('🔍 WritingView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      _wordMastery[card.id] = card.learningMastery;
+      return;
     }
     
     // Store the word mastery for display (for both correct and incorrect)
@@ -1336,6 +1385,12 @@ class _WritingViewState extends State<WritingView> {
       _xpGainedPerWord.clear();
       _wordMastery.clear();
       _studiedWords.clear();
+      _initialHPPerWord.clear();
+      _wrongAttemptsPerWord.clear();
+      _hpDeductedWordIds.clear();
+      _initialHPPerWord.clear();
+      _wrongAttemptsPerWord.clear();
+      _hpDeductedWordIds.clear();
     });
     
     _generateQuestion();
@@ -1346,57 +1401,53 @@ class _WritingViewState extends State<WritingView> {
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          studiedWords: sessionStudiedWords,
-          title: 'Writing Complete',
-          showSwipeToReview: false, // Disable review functionality
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            // Reset and restart test
-            setState(() {
-              _currentIndex = 0;
-              _correctAnswers = 0;
-              _totalAnswered = 0;
-              _showingResults = false;
-              _answered = false;
-              _lives = 5;
-              _userAnswer = '';
-              _textController.clear();
-              _guessedLetters.clear();
-              _revealedLetters.clear();
-              
-              // Shuffle the cards for a different order
-              _currentCards.shuffle(Random());
-              
-              // Reset all navigation state
-              _answeredQuestions.clear();
-              _correctAnswersMap.clear();
-              _correctAnswersText.clear();
-              _questionModes.clear();
-              
-              // Reset RPG tracking
-              _xpGainedPerWord.clear();
-              _wordMastery.clear();
-              _studiedWords.clear();
-            });
-            _generateQuestion();
-            
-            // Session data has been reset, ready for new game
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close end screen
-            _shuffleAndRestart();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Writing Complete',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAnswered,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          setState(() {
+            _currentIndex = 0;
+            _correctAnswers = 0;
+            _totalAnswered = 0;
+            _showingResults = false;
+            _answered = false;
+            _lives = 5;
+            _userAnswer = '';
+            _textController.clear();
+            _guessedLetters.clear();
+            _revealedLetters.clear();
+            _currentCards.shuffle(Random());
+            _answeredQuestions.clear();
+            _correctAnswersMap.clear();
+            _correctAnswersText.clear();
+            _questionModes.clear();
+            _xpGainedPerWord.clear();
+            _wordMastery.clear();
+            _studiedWords.clear();
+            _initialHPPerWord.clear();
+            _wrongAttemptsPerWord.clear();
+            _hpDeductedWordIds.clear();
+          });
+          _generateQuestion();
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          _shuffleAndRestart();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -1508,49 +1559,95 @@ class _WritingViewState extends State<WritingView> {
 
   Widget _buildReviewFlag(FlashCard card) {
     final isInReview = _reviewCards.contains(card.id);
-    return GestureDetector(
-      onTap: () => _toggleReviewCard(card),
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.orange,
-            width: 2,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () => _toggleReviewCard(card),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.orange,
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              Icons.flag,
+              size: 16,
+              color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+            ),
           ),
         ),
-        child: Icon(
-          Icons.flag,
-          size: 16,
-          color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
-        ),
-      ),
+        if (_reviewStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              _reviewStatusMessage!,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
   Widget _buildHintIcon() {
     final canUseHint = _canUseHint();
-    return GestureDetector(
-      onTap: canUseHint ? _useHint : null,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: canUseHint ? Colors.orange : Colors.grey,
-            width: 2,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_hintStatusMessage != null)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              _hintStatusMessage!,
+              style: const TextStyle(
+                color: Colors.orange,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        GestureDetector(
+          onTap: canUseHint ? _useHint : null,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: canUseHint ? Colors.orange : Colors.grey,
+                width: 2,
+              ),
+            ),
+            child: Icon(
+              Icons.lightbulb,
+              size: 16,
+              color: canUseHint ? Colors.orange : Colors.grey,
+            ),
           ),
         ),
-        child: Icon(
-          Icons.lightbulb,
-          size: 16,
-          color: canUseHint ? Colors.orange : Colors.grey,
-        ),
-      ),
+      ],
     );
   }
 
@@ -1591,25 +1688,33 @@ class _WritingViewState extends State<WritingView> {
       final provider = context.read<FlashcardProvider>();
       if (_reviewCards.contains(card.id)) {
         await provider.addCardToReview(card);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added "${card.word}" to review deck'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.yellow.shade700,
-          ),
-        );
+        _reviewStatusTimer?.cancel();
+        setState(() {
+          _reviewStatusMessage = 'Added to review';
+        });
       } else {
         await provider.removeCardFromReview(card);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Removed "${card.word}" from review deck'),
-            duration: const Duration(seconds: 1),
-            backgroundColor: Colors.grey.shade600,
-          ),
-        );
+        _reviewStatusTimer?.cancel();
+        setState(() {
+          _reviewStatusMessage = 'Removed from review';
+        });
       }
+      _reviewStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _reviewStatusMessage = null);
+        }
+      });
     } catch (e) {
       print('🔍 WritingView: Error toggling review card: $e');
+      _reviewStatusTimer?.cancel();
+      setState(() {
+        _reviewStatusMessage = 'Action failed';
+      });
+      _reviewStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _reviewStatusMessage = null);
+        }
+      });
     }
   }
 
@@ -1670,12 +1775,16 @@ class _WritingViewState extends State<WritingView> {
         }
       });
       
-      // Show feedback
-      EnhancedSnackBar.showWarning(
-        context,
-        message: 'Hint: Letter "$nextLetter" revealed',
-        duration: const Duration(seconds: 2),
-      );
+      // Show feedback near hint button
+      _hintStatusTimer?.cancel();
+      setState(() {
+        _hintStatusMessage = 'Hint used';
+      });
+      _hintStatusTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _hintStatusMessage = null);
+        }
+      });
     }
   }
 

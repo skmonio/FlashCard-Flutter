@@ -219,52 +219,57 @@ class _AddCardViewState extends State<AddCardView> {
                     ),
                     const SizedBox(height: 16),
                     
+                    // Article Selection (moved before translation)
+                    _buildArticleSelector(),
+                    const SizedBox(height: 16),
+                    
                     // Definition with Translate Button
                     Consumer<TranslationLanguageProvider>(
                       builder: (context, langProvider, child) {
                         final translationLanguageName = langProvider.translationLanguage.name;
-                        return Row(
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _definitionController,
-                                maxLength: 200,
-                                decoration: InputDecoration(
-                                  labelText: '$translationLanguageName Definition *',
-                                  hintText: 'e.g., translation',
-                                  border: const OutlineInputBorder(),
-                                  prefixIcon: const Icon(Icons.translate),
-                                  counterText: '',
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _definitionController,
+                                    maxLength: 200,
+                                    decoration: InputDecoration(
+                                      labelText: '$translationLanguageName Definition *',
+                                      hintText: 'e.g., translation',
+                                      border: const OutlineInputBorder(),
+                                      prefixIcon: const Icon(Icons.translate),
+                                      counterText: '',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Please enter a definition';
+                                      }
+                                      if (value.length > 200) {
+                                        return 'Definition must be 200 characters or less';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Please enter a definition';
-                                  }
-                                  if (value.length > 200) {
-                                    return 'Definition must be 200 characters or less';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: _definitionController.text.trim().isEmpty ? null : _translateDefinition,
-                              icon: _isTranslatingDefinition ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ) : const Icon(Icons.translate),
-                              tooltip: 'Translate',
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  onPressed: _definitionController.text.trim().isEmpty ? null : _translateDefinition,
+                                  icon: _isTranslatingDefinition ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ) : const Icon(Icons.translate),
+                                  tooltip: 'Translate',
+                                ),
+                              ],
                             ),
                           ],
                         );
                       },
                     ),
-                    const SizedBox(height: 16),
-                    
-                    // Article Selection
-                    _buildArticleSelector(),
                     const SizedBox(height: 16),
                     
                     // Example Sentence
@@ -873,22 +878,40 @@ class _AddCardViewState extends State<AddCardView> {
       final wordLanguageCode = langProvider.wordLanguageCode;
       final targetLanguageCode = langProvider.translationLanguageCode;
       
+      // If article is selected, include it in the translation for better accuracy
+      // e.g., translate "de lol" instead of just "lol"
+      final wordToTranslate = _selectedArticle.isNotEmpty 
+          ? '${_selectedArticle} $word'
+          : word;
+      
       final translation = await _translationService.translate(
-        word,
+        wordToTranslate,
         sourceLanguageCode: wordLanguageCode,
         targetLanguageCode: targetLanguageCode,
       );
       
       if (mounted) {
+        // Clean the translation result - remove any article that might have been translated
+        String cleanedTranslation = translation ?? '';
+        if (cleanedTranslation.isNotEmpty && _selectedArticle.isNotEmpty) {
+          // Remove common article translations from the result
+          // This handles cases where "de lol" might translate to "the fun" or "the joke"
+          final lowerTranslation = cleanedTranslation.toLowerCase().trim();
+          if (lowerTranslation.startsWith('the ')) {
+            cleanedTranslation = cleanedTranslation.substring(4).trim();
+          }
+        }
+        
         setState(() {
-          _definitionController.text = translation ?? '';
+          _definitionController.text = cleanedTranslation;
           _isLoading = false;
         });
         
-        if (translation != null && translation.isNotEmpty) {
+        if (cleanedTranslation.isNotEmpty) {
+          final displayWord = _selectedArticle.isNotEmpty ? '$wordToTranslate' : word;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Translated: "$word" → "$translation"'),
+              content: Text('Translated: "$displayWord" → "$cleanedTranslation"'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 2),
             ),

@@ -5,7 +5,7 @@ import '../models/phrase.dart';
 import '../providers/phrase_provider.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
-import '../components/word_progress_display.dart';
+import '../utils/game_end_screen.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../utils/sentence_utils.dart';
@@ -40,6 +40,7 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
   // RPG tracking variables
   final Map<String, int> _xpGainedPerWord = {};
   final Map<String, LearningMastery> _wordMastery = {};
+  final Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   final List<FlashCard> _studiedWords = [];
 
   @override
@@ -97,23 +98,26 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
     final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
     final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
     final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
     
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => WordProgressDisplay(
-          studiedWords: sessionStudiedWords,
-          xpGainedPerWord: sessionXpGainedPerWord,
-          wordMastery: sessionWordMastery,
-          hideNavigation: true, // Hide back button and swipe for phrase exercises
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            _restartExercise();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close word progress screen
-            Navigator.of(context).pop(); // Go back to study type screen
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Word Progress',
+        studiedWords: sessionStudiedWords,
+        xpGainedPerWord: sessionXpGainedPerWord,
+        wordMastery: sessionWordMastery,
+        initialHPPerWord: sessionInitialHPPerWord,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalQuestions,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          _restartExercise();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -204,9 +208,10 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
       example: widget.phrase.phrase,
     );
     
-    // Track studied phrases
+    // Track studied phrases and initial HP BEFORE processing (so we capture HP before it's reduced)
     if (!_studiedWords.any((word) => word.id == flashCard.id)) {
       _studiedWords.add(flashCard);
+      _initialHPPerWord[flashCard.id] = flashCard.currentHP;
     }
     
     // Track word mastery (simplified for phrases)

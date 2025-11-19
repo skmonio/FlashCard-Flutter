@@ -7,7 +7,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
-import '../components/unified_end_screen.dart';
+import '../utils/game_end_screen.dart';
 
 class GridPainter extends CustomPainter {
   final List<String> letters;
@@ -159,6 +159,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   List<FlashCard> _studiedWords = [];
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
+  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   Map<String, int> _hintsUsedPerWord = {}; // Track hints used per word for XP penalty
   Map<String, List<int>> _answeredWords = {}; // Track selected letters for answered words
   Map<String, int> _answeredHintLevels = {}; // Track hint levels for answered words
@@ -169,6 +170,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   Map<String, int> _savedGridSizes = {}; // Track grid sizes for each word
   Map<String, int> _wrongAttemptsPerWord = {}; // Track wrong attempts per word (max 5 before showing solution)
   Map<String, bool> _solutionRevealedPerWord = {}; // Track if solution has been revealed for each word
+  Set<String> _completedWordIds = {};
+  Set<String> _markedCorrectWordIds = {};
   int _currentUnansweredIndex = 0; // Track the current unanswered question index
   bool _hasNavigatedBack = false; // Track if user has pressed Back button
   
@@ -306,9 +309,30 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
   
   void _handleTimeUp() {
-    // Time is up - mark as incorrect and move to next word
-    _availableCards[_currentCardIndex].markIncorrect(GameDifficulty.medium);
-    _nextWord();
+    final currentCard = _availableCards[_currentCardIndex];
+    final currentWordId = currentCard.id;
+    
+    if (!_studiedWords.contains(currentCard)) {
+      _studiedWords.add(currentCard);
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
+    
+    _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
+    _solutionRevealedPerWord[currentWordId] = true;
+    
+    setState(() {
+      _selectedIndexes = List.from(_correctPath);
+      _wrongIndexes.clear();
+      _hintIndexes.clear();
+      _showFeedback = true;
+      _feedbackMessage = 'Time\'s up! The answer is ${currentCard.word.toUpperCase()}';
+    });
+    
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _completeWord();
+      }
+    });
   }
   
   Widget _buildTimerIndicator() {
@@ -384,6 +408,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     // Get new cards from the same deck configuration as the original widget.cards
     // This ensures we get fresh cards that can be studied today
     final provider = context.read<FlashcardProvider>();
+    
+    // Store the original number of cards to maintain the same selection size
+    final originalCardCount = widget.cards.length;
     
     // Get all cards from the same decks as the original cards
     Set<String> originalDeckIds = {};
@@ -469,6 +496,13 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           pastParticiple: '',
         ),
       ];
+    }
+    
+    // Limit the number of cards to match the original selection size
+    if (_availableCards.length > originalCardCount) {
+      // Shuffle and take only the first N cards to match original count
+      _availableCards.shuffle(_random);
+      _availableCards = _availableCards.take(originalCardCount).toList();
     }
   }
 
@@ -652,6 +686,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     // Don't allow interaction with answered words
     String currentWordId = _availableCards[_currentCardIndex].id;
     if (_answeredWords.containsKey(currentWordId)) return;
+    if (_solutionRevealedPerWord[currentWordId] ?? false) return;
     
     print('🔍 Pointer down at: ${details.localPosition}');
     
@@ -679,6 +714,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
 
   void _onPointerMove(PointerMoveEvent details, BoxConstraints constraints) {
     if (_isDragging && !_gameCompleted) {
+      final currentWordId = _availableCards[_currentCardIndex].id;
+      if (_solutionRevealedPerWord[currentWordId] ?? false) {
+        return;
+      }
       setState(() {
         _dragPosition = details.localPosition; // Update drag position
       });
@@ -706,6 +745,11 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     if (_selectedIndexes.isNotEmpty) {
       final word = _availableCards[_currentCardIndex].word.toUpperCase();
       String formedWord = _selectedIndexes.map((i) => _letters[i]).join('');
+      String currentWordId = _availableCards[_currentCardIndex].id;
+      
+      if (_solutionRevealedPerWord[currentWordId] ?? false) {
+        return;
+      }
       
       print('🔍 Checking word: "$formedWord" vs "$word"');
       
@@ -718,14 +762,16 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         // Incorrect word, show error
         print('❌ Word is incorrect');
         
-        String currentWordId = _availableCards[_currentCardIndex].id;
-        
         // Increment wrong attempts counter
         _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
         int wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
         
-        // Mark the card as incorrect to properly record the attempt and reduce HP
-        _availableCards[_currentCardIndex].markIncorrect(GameDifficulty.medium);
+        // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+        final currentCard = _availableCards[_currentCardIndex];
+        if (!_studiedWords.contains(currentCard)) {
+          _studiedWords.add(currentCard);
+          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+        }
         
         setState(() {
           _wrongIndexes = List.from(_selectedIndexes);
@@ -789,6 +835,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
 
   void _onPointerCancel(PointerCancelEvent details) {
+    final currentWordId = _availableCards[_currentCardIndex].id;
+    if (_solutionRevealedPerWord[currentWordId] ?? false) {
+      return;
+    }
     print('🔍 Pointer cancel - selected indexes: $_selectedIndexes');
     setState(() {
       _isDragging = false;
@@ -806,6 +856,11 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
 
   void _handleTouch(Offset position, BoxConstraints constraints) {
+    final currentWordId = _availableCards[_currentCardIndex].id;
+    if (_solutionRevealedPerWord[currentWordId] ?? false) {
+      return;
+    }
+    
     // Debug logging for mobile touch issues
     print('🔍 Touch at position: ${position.dx}, ${position.dy}');
     print('🔍 Constraints: ${constraints.maxWidth} x ${constraints.maxHeight}');
@@ -909,27 +964,37 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     final word = _availableCards[_currentCardIndex].word.toUpperCase();
     String currentWordId = _availableCards[_currentCardIndex].id;
     
+    if (_completedWordIds.contains(currentWordId)) {
+      return;
+    }
+    _completedWordIds.add(currentWordId);
+    
     setState(() {
       _hintLevel = 0;
     });
     
-    // Track the studied word
-    _studiedWords.add(_availableCards[_currentCardIndex]);
+    // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
+    final currentCard = _availableCards[_currentCardIndex];
+    if (!_studiedWords.contains(currentCard)) {
+      _studiedWords.add(currentCard);
+      // Store initial HP when word is first encountered (BEFORE HP is reduced)
+      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+    }
     
-    // Mark the card as correct to properly record the attempt and reduce HP
-    _availableCards[_currentCardIndex].markCorrect(GameDifficulty.medium);
+    if (!_markedCorrectWordIds.contains(currentWordId)) {
+      currentCard.markCorrect(GameDifficulty.medium);
+      _markedCorrectWordIds.add(currentWordId);
+    }
     
     // Advance the current unanswered index if this was the current question
     if (_currentCardIndex == _currentUnansweredIndex) {
       _currentUnansweredIndex++;
     }
     
-    // Calculate XP with hint penalty (-1 XP per hint used)
-    // If solution was revealed (5 wrong attempts), reduce XP to 0
     int baseXP = 10;
-    int hintPenalty = _hintsUsedPerWord[currentWordId] ?? 0;
+    int wrongAttempts = _wrongAttemptsPerWord[currentWordId] ?? 0;
     bool solutionRevealed = _solutionRevealedPerWord[currentWordId] ?? false;
-    int finalXP = solutionRevealed ? 0 : (baseXP - hintPenalty).clamp(0, baseXP); // 0 XP if solution was shown
+    int finalXP = solutionRevealed ? 0 : (baseXP - wrongAttempts).clamp(0, baseXP);
     _xpGainedPerWord[currentWordId] = finalXP;
     _wordMastery[currentWordId] = _availableCards[_currentCardIndex].learningMastery;
     
@@ -1040,11 +1105,14 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   void _showHint() {
     if (_hintLevel >= _availableCards[_currentCardIndex].word.length) return;
     
+    String currentWordId = _availableCards[_currentCardIndex].id;
+    final wordLength = _availableCards[_currentCardIndex].word.length;
+    final willCompleteWithThisHint = _hintLevel + 1 >= wordLength;
+    
     setState(() {
       _hintLevel++;
       
       // Track hints used for this word
-      String currentWordId = _availableCards[_currentCardIndex].id;
       _hintsUsedPerWord[currentWordId] = (_hintsUsedPerWord[currentWordId] ?? 0) + 1;
       
       // Add the hinted letter to hint indexes (permanently highlight it)
@@ -1059,41 +1127,91 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         }
       }
       
-      // Check if word is now complete after adding hint
-      _checkWordCompletion();
-      
-      // If all hints are used, force completion
-      if (_hintLevel >= _availableCards[_currentCardIndex].word.length) {
-        _completeWord();
+      // If all hints are used, mark as solution revealed and complete immediately in same setState
+      if (willCompleteWithThisHint) {
+        _solutionRevealedPerWord[currentWordId] = true;
+        _hintLevel = 0; // Reset hint level
+        
+        // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
+        final currentCard = _availableCards[_currentCardIndex];
+        if (!_studiedWords.contains(currentCard)) {
+          _studiedWords.add(currentCard);
+          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+        }
+        
+        if (!_completedWordIds.contains(currentWordId)) {
+          _completedWordIds.add(currentWordId);
+          if (!_markedCorrectWordIds.contains(currentWordId)) {
+            currentCard.markCorrect(GameDifficulty.medium);
+            _markedCorrectWordIds.add(currentWordId);
+          }
+        }
+        
+        // Advance the current unanswered index if this was the current question
+        if (_currentCardIndex == _currentUnansweredIndex) {
+          _currentUnansweredIndex++;
+        }
+        
+        // Calculate XP with hint penalty (-1 XP per hint used)
+        // Since solution was revealed, reduce XP to 0
+        _xpGainedPerWord[currentWordId] = 0;
+        _wordMastery[currentWordId] = _availableCards[_currentCardIndex].learningMastery;
+        
+        // Show feedback message immediately
+        _showFeedback = true;
+        _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+        
+        // Save the answer state for this word
+        _answeredWords[currentWordId] = List.from(_selectedIndexes);
+        _answeredHintLevels[currentWordId] = 0;
+        _answeredHintIndexes[currentWordId] = List.from(_hintIndexes);
+        _answeredShowFeedback[currentWordId] = true;
+      } else {
+        // Check if word is now complete after adding hint
+        _checkWordCompletion();
       }
     });
+    
+    // Play sound and animation after setState if completing
+    if (willCompleteWithThisHint) {
+      SoundManager().playCorrectSound();
+      _successController.forward(from: 0);
+      
+      // Auto-progress if enabled, otherwise wait for user to click Next
+      if (widget.autoProgress) {
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          _nextWord();
+        });
+      }
+    }
     
     HapticService().buttonTapFeedback();
   }
 
 
   void _showGameCompleteDialog() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => UnifiedEndScreen(
-          studiedWords: _studiedWords,
-          xpGainedPerWord: _xpGainedPerWord,
-          wordMastery: _wordMastery,
-          title: 'Connect Cards Complete',
-          showSwipeToReview: false,
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close end screen
-            _restartGame();
-          },
-          onShuffle: () {
-            Navigator.of(context).pop(); // Close end screen
-            _restartGameWithShuffle();
-          },
-          onDone: () {
-            Navigator.of(context).pop(); // Close end screen
-            Navigator.of(context).pop(); // Exit game
-          },
-        ),
+    GameEndScreen.show(
+      context,
+      GameEndResult(
+        title: 'Connect Cards Complete',
+        studiedWords: _studiedWords,
+        xpGainedPerWord: _xpGainedPerWord,
+        wordMastery: _wordMastery,
+        initialHPPerWord: _initialHPPerWord,
+        correctAnswers: _answeredWords.length,
+        totalQuestions: widget.cards.length,
+        onStudyAgain: () {
+          Navigator.of(context).pop();
+          _restartGame();
+        },
+        onShuffle: () {
+          Navigator.of(context).pop();
+          _restartGameWithShuffle();
+        },
+        onDone: () {
+          Navigator.of(context).pop();
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -1108,6 +1226,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _studiedWords.clear();
       _xpGainedPerWord.clear();
       _wordMastery.clear();
+      _initialHPPerWord.clear();
       _hintsUsedPerWord.clear();
       _answeredWords.clear();
       _answeredHintLevels.clear();
@@ -1118,6 +1237,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _savedGridSizes.clear();
       _wrongAttemptsPerWord.clear();
       _solutionRevealedPerWord.clear();
+      _completedWordIds.clear();
+      _markedCorrectWordIds.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
       
@@ -1144,6 +1265,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _studiedWords.clear();
       _xpGainedPerWord.clear();
       _wordMastery.clear();
+      _initialHPPerWord.clear();
       _hintsUsedPerWord.clear();
       _answeredWords.clear();
       _answeredHintLevels.clear();
@@ -1154,6 +1276,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _savedGridSizes.clear();
       _wrongAttemptsPerWord.clear();
       _solutionRevealedPerWord.clear();
+      _completedWordIds.clear();
+      _markedCorrectWordIds.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
       
