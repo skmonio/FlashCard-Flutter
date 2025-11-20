@@ -7,7 +7,6 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 
 import '../utils/game_end_screen.dart';
-import '../services/xp_service.dart';
 
 enum StudyMode {
   multipleChoice,
@@ -54,6 +53,7 @@ class _StudyViewState extends State<StudyView> {
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
   int _consecutiveCorrect = 0;
+  Set<String> _hpPenaltyAppliedWordIds = {};
 
   @override
   void initState() {
@@ -103,6 +103,37 @@ class _StudyViewState extends State<StudyView> {
     });
     
     print('🔍 StudyView: Refreshed cards from provider');
+  }
+
+  void _ensureCardTracked(FlashCard card) {
+    if (_studiedWords.any((word) => word.id == card.id)) return;
+    _studiedWords.add(card);
+    _initialHPPerWord[card.id] = card.currentHP;
+  }
+
+  GameDifficulty _getDifficultyForCurrentMode() {
+    switch (widget.studyMode) {
+      case StudyMode.multipleChoice:
+      case StudyMode.trueFalse:
+        return GameDifficulty.easy;
+      case StudyMode.wordScramble:
+      case StudyMode.lookCoverCheck:
+        return GameDifficulty.medium;
+      case StudyMode.writing:
+        return GameDifficulty.hard;
+    }
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    _ensureCardTracked(card);
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    final difficulty = _getDifficultyForCurrentMode();
+    if (wasCorrect) {
+      card.markCorrect(difficulty);
+    } else {
+      card.markIncorrect(difficulty);
+    }
   }
 
   @override
@@ -754,45 +785,13 @@ class _StudyViewState extends State<StudyView> {
       _consecutiveCorrect = 0;
     }
 
-    // Update the card's SRS data and award XP
     final currentCard = _currentCards[_currentCardIndex];
-    final xpService = XpService();
     
-    // Determine exercise type based on study mode
-    String exerciseType;
-    switch (widget.studyMode) {
-      case StudyMode.multipleChoice:
-        exerciseType = 'multiple_choice';
-        break;
-      case StudyMode.wordScramble:
-        exerciseType = 'word_scramble';
-        break;
-      case StudyMode.writing:
-        exerciseType = 'writing';
-        break;
-      case StudyMode.trueFalse:
-        exerciseType = 'true_false';
-        break;
-      case StudyMode.lookCoverCheck:
-        exerciseType = 'multiple_choice'; // Default for look-cover-check
-        break;
-    }
-    
-    // Track initial HP BEFORE processing (so we capture HP before it's reduced)
-    if (!_studiedWords.contains(currentCard)) {
-      _studiedWords.add(currentCard);
-      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
-    }
+    _applyHpPenalty(currentCard, wasCorrect: isCorrect);
     
     if (isCorrect) {
-      currentCard.markCorrect(GameDifficulty.medium);
-      
-      // Award XP to the word
       _awardXPToWord(currentCard);
     } else {
-      currentCard.markIncorrect(GameDifficulty.medium);
-      
-      // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[currentCard.id] = 0;
       
       // Store the mastery for display (even for incorrect answers)
@@ -825,43 +824,19 @@ class _StudyViewState extends State<StudyView> {
   }
 
   void _awardXPToWord(FlashCard card) {
-    final xpService = XpService();
+    _ensureCardTracked(card);
     
-    // Determine exercise type based on study mode
-    String exerciseType;
-    switch (widget.studyMode) {
-      case StudyMode.multipleChoice:
-        exerciseType = 'multiple_choice';
-        break;
-      case StudyMode.wordScramble:
-        exerciseType = 'word_scramble';
-        break;
-      case StudyMode.writing:
-        exerciseType = 'writing';
-        break;
-      case StudyMode.trueFalse:
-        exerciseType = 'true_false';
-        break;
-      case StudyMode.lookCoverCheck:
-        exerciseType = 'multiple_choice'; // Default for look-cover-check
-        break;
-    }
-    
-    // Award XP to the word's learning mastery (this handles daily diminishing returns)
-    xpService.addXPToWord(card.learningMastery, exerciseType, _consecutiveCorrect);
-    
-    // Get the actual XP gained (after diminishing returns)
-    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+    final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+        ? card.learningMastery.exerciseHistory.last
+        : null;
+    final actualXPGained = latestEntry != null
+        ? (latestEntry['xpGained'] as int? ?? 0)
         : 0;
     
-          // Track XP gained for this word in this session (add for multiple appearances in same session)
-      _xpGainedPerWord[card.id] = actualXPGained;
-    
-    // Store the mastery for display
+    _xpGainedPerWord[card.id] = actualXPGained;
     _wordMastery[card.id] = card.learningMastery;
     
-    print('🔍 StudyView: Awarded $actualXPGained XP to word "${card.word}" (${card.learningMastery.currentXP} total XP)');
+    print('🔍 StudyView: Logged $actualXPGained XP for word "${card.word}" (${card.learningMastery.currentXP} total XP)');
   }
 
 
@@ -924,6 +899,8 @@ class _StudyViewState extends State<StudyView> {
             _xpGainedPerWord.clear();
             _wordMastery.clear();
             _studiedWords.clear();
+            _initialHPPerWord.clear();
+            _hpPenaltyAppliedWordIds.clear();
           });
           
           _generateMultipleChoiceOptions();

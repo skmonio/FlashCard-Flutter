@@ -939,7 +939,18 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                   
-                if (_maxMistakeRevealQuestions.contains(_currentIndex)) ...[
+                if (_answered && (_correctAnswersMap[_currentIndex] ?? false)) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'The answer is: ${_correctAnswer.toUpperCase()}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ] else if (_maxMistakeRevealQuestions.contains(_currentIndex)) ...[
                   const SizedBox(height: 12),
                   Text(
                     'The answer is: ${_correctAnswer.toUpperCase()}',
