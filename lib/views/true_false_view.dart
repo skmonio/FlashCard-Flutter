@@ -132,6 +132,12 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     super.dispose();
   }
 
+  void _ensureCardTracked(FlashCard card) {
+    if (_studiedWords.any((word) => word.id == card.id)) return;
+    _studiedWords.add(card);
+    _initialHPPerWord[card.id] = card.currentHP;
+  }
+
   void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
     if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
     _hpPenaltyAppliedWordIds.add(card.id);
@@ -542,6 +548,9 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
+    
+    // Track this card the first time it appears so the end screen has HP baselines
+    _ensureCardTracked(currentCard);
     
     // Apply HP penalty exactly once per card per session
     _applyHpPenalty(currentCard, wasCorrect: isCorrect);
@@ -1456,11 +1465,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
     // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-      // Store initial HP when word is first encountered (BEFORE HP is reduced)
-      _initialHPPerWord[card.id] = card.currentHP;
-    }
+    _ensureCardTracked(card);
     
     print('🔍 TrueFalseView: Logging result for "${card.word}" - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
     
