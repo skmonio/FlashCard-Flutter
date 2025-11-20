@@ -51,6 +51,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
+  Set<String> _hpPenaltyAppliedWordIds = {};
   List<FlashCard> _studiedWords = [];
   int _consecutiveCorrect = 0;
   int _totalAnswers = 0;
@@ -724,6 +725,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
     if (widget.useTimedMode) {
       _timer?.cancel();
     }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
+  }
     
     final FlashCard currentCard = widget.cards[currentCardIndex];
     final String correctAnswer = currentCard.word;
@@ -760,7 +771,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     }
     
     if (isCorrect) {
-      currentCard.markCorrect(GameDifficulty.medium);
+      _applyHpPenalty(currentCard, wasCorrect: true);
       _correctAnswers++;
       _consecutiveCorrect++;
       _wrongAttempts[currentCardIndex] = 0;
@@ -805,7 +816,6 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       _showResultDialog(true, userAnswer, correctAnswer);
     } else {
-      currentCard.markIncorrect(GameDifficulty.medium);
       _consecutiveCorrect = 0;
       _xpGainedPerWord[currentCard.id] = 0;
       
@@ -814,6 +824,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
       
       if (currentAttempts >= 5) {
         _showAnswer = true;
+        _applyHpPenalty(currentCard, wasCorrect: false);
       } else {
         _showAnswer = false;
       }
@@ -979,6 +990,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _studiedWords.clear();
       _xpGainedPerWord.clear();
       _wordMastery.clear();
+      _hpPenaltyAppliedWordIds.clear();
       _consecutiveCorrect = 0;
       _totalAnswers = 0;
       _correctAnswers = 0;
@@ -1037,6 +1049,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
               _studiedWords.clear();
               _xpGainedPerWord.clear();
               _wordMastery.clear();
+              _hpPenaltyAppliedWordIds.clear();
               _consecutiveCorrect = 0;
               _totalAnswers = 0;
               _correctAnswers = 0;

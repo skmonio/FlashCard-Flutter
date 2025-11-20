@@ -90,6 +90,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+  Set<String> _hpPenaltyAppliedWordIds = {};
 
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
@@ -129,6 +130,16 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     _autoProgressTimer?.cancel();
     
     super.dispose();
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
   }
 
   void _onProviderChanged() {
@@ -532,17 +543,12 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // In shuffle mode, reduce HP immediately for every answer attempt
-    // (XP tracking is handled by shuffle view at completion)
+    // Apply HP penalty exactly once per card per session
+    _applyHpPenalty(currentCard, wasCorrect: isCorrect);
+    
     if (widget.shuffleMode) {
-      if (isCorrect) {
-        currentCard.markCorrect(GameDifficulty.medium);
-        // markCorrect already adds to exerciseHistory, reducing HP
-      } else {
-        currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect now adds to exerciseHistory automatically
-      }
-      // Update the card immediately to save HP changes
+      // Shuffle mode handles XP externally but we still persist mastery updates
+      _wordMastery[currentCard.id] = currentCard.learningMastery;
       _updateCardInProvider(currentCard);
     } else {
       // In standalone mode, handle full tracking
@@ -1313,6 +1319,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+                          _hpPenaltyAppliedWordIds.clear();
                           _reviewCards.clear();
  
                           // Reset wrong attempts tracking
@@ -1448,8 +1455,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect) {
-    final xpService = XpService();
-    
     // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
     if (!_studiedWords.any((word) => word.id == card.id)) {
       _studiedWords.add(card);
@@ -1457,29 +1462,19 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _initialHPPerWord[card.id] = card.currentHP;
     }
     
-    print('🔍 TrueFalseView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    print('🔍 TrueFalseView: Logging result for "${card.word}" - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
+    
+    final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+        ? card.learningMastery.exerciseHistory.last
+        : null;
+    final actualXPGained = latestEntry != null
+        ? (latestEntry['xpGained'] as int? ?? 0)
+        : 0;
     
     if (isCorrect) {
-      // Award XP for correct answers (this also records the attempt)
-      xpService.addXPToWord(card.learningMastery, "true_false", 1);
-      
-      // Get the actual XP gained (after diminishing returns)
-      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
-          : 0;
-      
-      // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = actualXPGained;
-      
-      print('🔍 TrueFalseView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      // Record attempt for incorrect answers (reduces HP but no XP)
-      xpService.recordAttemptToWord(card.learningMastery, "true_false");
-      
-      // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
-      
-      print('🔍 TrueFalseView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     }
     
     // Store the word mastery for display (for both correct and incorrect)
@@ -1570,6 +1565,8 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _xpGainedPerWord.clear();
       _wordMastery.clear();
       _studiedWords.clear();
+      _hpPenaltyAppliedWordIds.clear();
+      _hpPenaltyAppliedWordIds.clear();
     });
     
     _generateQuestion();
@@ -1615,6 +1612,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             _wordMastery.clear();
             _initialHPPerWord.clear();
             _studiedWords.clear();
+            _hpPenaltyAppliedWordIds.clear();
           });
           _generateQuestion();
         },
