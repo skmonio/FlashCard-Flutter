@@ -75,7 +75,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.pickYourCards: true,
     ShuffleMode.dutchExercise: true,
   };
-  bool _useAllCardsForAnswers = true; // true = answers pulled from all cards, false = selected decks only
 
   @override
   void initState() {
@@ -104,11 +103,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
         ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
       };
-      _useAllCardsForAnswers = prefs.getBool('shuffle_use_all_cards_for_answers') ?? true;
     });
   }
  
-   void _saveEnabledModes() async {
+  void _saveEnabledModes() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('shuffle_mode_multiple_choice', _enabledModes[ShuffleMode.multipleChoice] ?? true);
     await prefs.setBool('shuffle_mode_true_false', _enabledModes[ShuffleMode.trueFalse] ?? true);
@@ -118,36 +116,11 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
     await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
     await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
-    await prefs.setBool('shuffle_use_all_cards_for_answers', _useAllCardsForAnswers);
   }
 
   List<FlashCard> _getAnswerPoolCards(FlashCard primaryCard) {
     final provider = context.read<FlashcardProvider>();
-    if (_useAllCardsForAnswers) {
-      return provider.cards;
-    }
-
-    if (primaryCard.deckIds.isEmpty) {
-      return provider.cards;
-    }
-
-    final Set<String> seenIds = {primaryCard.id};
-    final List<FlashCard> deckCards = [primaryCard];
-
-    for (final deckId in primaryCard.deckIds) {
-      final cards = provider.getCardsForDeckWithSubDecks(deckId);
-      for (final card in cards) {
-        if (seenIds.add(card.id)) {
-          deckCards.add(card);
-        }
-      }
-    }
-
-    if (deckCards.length <= 1) {
-      return provider.cards;
-    }
-
-    return deckCards;
+    return provider.cards;
   }
 
   void _saveHighScore() async {
@@ -188,15 +161,25 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     _nextChallenge();
   }
 
+  FlashCard _resolveCardForTracking(FlashCard card) {
+    if (card.id.isEmpty) {
+      return card;
+    }
+    final provider = context.read<FlashcardProvider>();
+    return provider.getCard(card.id) ?? card;
+  }
+
   void _trackCardStudy(FlashCard card, bool wasCorrect) {
+    final trackedCard = _resolveCardForTracking(card);
+    
     // Track the studied word
-    if (!_studiedWords.any((w) => w.id == card.id)) {
-      _studiedWords.add(card);
+    if (!_studiedWords.any((w) => w.id == trackedCard.id)) {
+      _studiedWords.add(trackedCard);
     }
     
-    if (!_initialHPPerWord.containsKey(card.id)) {
-      final assumedInitialHp = min(card.maxHP, card.currentHP + 1);
-      _initialHPPerWord[card.id] = assumedInitialHp;
+    if (!_initialHPPerWord.containsKey(trackedCard.id)) {
+      final assumedInitialHp = min(trackedCard.maxHP, trackedCard.currentHP + 1);
+      _initialHPPerWord[trackedCard.id] = assumedInitialHp;
     }
     
     // In shuffle mode, HP was already reduced by child views when answer was given
@@ -204,62 +187,34 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     if (wasCorrect) {
       // HP was already reduced by child view calling markCorrect
       // Get the XP that was already awarded
-      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+      final actualXPGained = trackedCard.learningMastery.exerciseHistory.isNotEmpty 
+          ? trackedCard.learningMastery.exerciseHistory.last['xpGained'] as int 
           : 0;
       
-      _xpGainedPerWord[card.id] = actualXPGained;
+      _xpGainedPerWord[trackedCard.id] = actualXPGained;
     } else {
       // HP was already reduced by child view calling markIncorrect + recordAttemptToWord
-      _xpGainedPerWord[card.id] = 0;
+      _xpGainedPerWord[trackedCard.id] = 0;
     }
     
     // Track XP for session stats
     XpService.recordAnswer(_gameSession, wasCorrect);
     
     // Update mastery tracking
-    _wordMastery[card.id] = card.learningMastery;
+    _wordMastery[trackedCard.id] = trackedCard.learningMastery;
   }
 
   void _trackAllCardsFromChallenge(List<FlashCard> cards, bool wasCorrect) {
-    // Only the primary (first) card should be counted as studied and have HP/XP adjusted.
     if (cards.isEmpty) return;
     final FlashCard primary = cards.first;
-
-    if (!_studiedWords.any((w) => w.id == primary.id)) {
-      _studiedWords.add(primary);
-      // Store initial HP when word is first encountered (BEFORE HP is reduced)
-      // Note: In shuffle mode, HP is reduced by child views, so we need to track it before
-      // the child view processes the answer. However, since child views handle the answer,
-      // we'll track it here when we first see the card in the challenge.
-      // The actual HP reduction happens in the child view, so we capture it here.
-      _initialHPPerWord[primary.id] = primary.currentHP;
-    }
-
-    // In shuffle mode, HP was already reduced by child views when answer was given
-    // We just need to track XP for the summary (don't reduce HP again)
-    if (wasCorrect) {
-      // HP was already reduced by child view calling markCorrect
-      // Get the XP that was already awarded
-      final actualXPGained = primary.learningMastery.exerciseHistory.isNotEmpty
-          ? primary.learningMastery.exerciseHistory.last['xpGained'] as int
-          : 0;
-      _xpGainedPerWord[primary.id] = actualXPGained;
-    } else {
-      // HP was already reduced by child view calling markIncorrect + recordAttemptToWord
-      _xpGainedPerWord[primary.id] = 0;
-    }
-
-    // Update mastery tracking map for primary only
-    _wordMastery[primary.id] = primary.learningMastery;
+    _trackCardStudy(primary, wasCorrect);
 
     // Ensure distractor cards are not mistakenly counted as studied
     for (final distractor in cards.skip(1)) {
-      _xpGainedPerWord[distractor.id] = 0; // explicitly zero XP for display purposes
+      if (!_xpGainedPerWord.containsKey(distractor.id)) {
+        _xpGainedPerWord[distractor.id] = 0;
+      }
     }
-
-    // Track overall XP toward streaks/session
-    XpService.recordAnswer(_gameSession, wasCorrect);
   }
 
   Future<void> _nextChallenge() async {
@@ -1326,17 +1281,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       context: context,
       builder: (context) => ShuffleCustomizationDialog(
         enabledModes: Map.from(_enabledModes),
-        useAllCardsForAnswers: _useAllCardsForAnswers,
         availableModes: availableModes,
         onSettingsChanged: (newEnabledModes) {
           setState(() {
             _enabledModes = newEnabledModes;
-          });
-          _saveEnabledModes();
-        },
-        onAnswerPoolChanged: (value) {
-          setState(() {
-            _useAllCardsForAnswers = value;
           });
           _saveEnabledModes();
         },
@@ -1440,16 +1388,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
 class ShuffleCustomizationDialog extends StatefulWidget {
   final Map<ShuffleMode, bool> enabledModes;
   final Function(Map<ShuffleMode, bool>) onSettingsChanged;
-  final bool useAllCardsForAnswers;
-  final ValueChanged<bool> onAnswerPoolChanged;
   final Set<ShuffleMode> availableModes;
 
   const ShuffleCustomizationDialog({
     super.key,
     required this.enabledModes,
     required this.onSettingsChanged,
-    required this.useAllCardsForAnswers,
-    required this.onAnswerPoolChanged,
     required this.availableModes,
   });
 
@@ -1459,13 +1403,11 @@ class ShuffleCustomizationDialog extends StatefulWidget {
 
 class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog> {
   late Map<ShuffleMode, bool> _localEnabledModes;
-  late bool _useAllCardsForAnswers;
 
   @override
   void initState() {
     super.initState();
     _localEnabledModes = Map.from(widget.enabledModes);
-    _useAllCardsForAnswers = widget.useAllCardsForAnswers;
   }
 
   void _updateMode(ShuffleMode mode, bool value) {
@@ -1475,12 +1417,6 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
     widget.onSettingsChanged(_localEnabledModes);
   }
 
-  void _updateAnswerPool(bool value) {
-    setState(() {
-      _useAllCardsForAnswers = value;
-    });
-    widget.onAnswerPoolChanged(value);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1560,8 +1496,6 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
                 style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
               const SizedBox(height: 16),
-              _buildAnswerPoolSection(),
-              const SizedBox(height: 16),
               if (visibleModeTiles.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1608,48 +1542,4 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
     );
   }
 
-  Widget _buildAnswerPoolSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.library_books, color: Colors.blue[600]),
-            const SizedBox(width: 8),
-            Text(
-              'Answer Pool',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.blue[600],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        RadioListTile<bool>(
-          value: true,
-          groupValue: _useAllCardsForAnswers,
-          onChanged: (value) {
-            if (value != null) {
-              _updateAnswerPool(value);
-            }
-          },
-          title: const Text('Use cards from all decks'),
-          subtitle: const Text('Wrong answers can come from any card in your collection.'),
-        ),
-        RadioListTile<bool>(
-          value: false,
-          groupValue: _useAllCardsForAnswers,
-          onChanged: (value) {
-            if (value != null) {
-              _updateAnswerPool(value);
-            }
-          },
-          title: const Text('Use cards from selected decks'),
-          subtitle: const Text('Wrong answers are taken only from the decks included in this shuffle.'),
-        ),
-      ],
-    );
-  }
 }
