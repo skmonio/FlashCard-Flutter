@@ -7,7 +7,6 @@ import '../models/learning_mastery.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../utils/game_end_screen.dart';
-import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import 'package:provider/provider.dart';
@@ -423,31 +422,29 @@ class _PopYourCardViewState extends State<PopYourCardView>
     
     print('🔍 PopYourCardView: About to award XP to word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}, wrongAttempts: $wrongAttempts');
     
-    // Award XP using standard system
-    final xpService = XpService();
-    xpService.addXPToWord(card.learningMastery, "popYourCard", 1);
-    
-    // Get the actual XP gained (after diminishing returns)
-    final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-        ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+    final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+        ? card.learningMastery.exerciseHistory.last
+        : null;
+    final actualXPGained = latestEntry != null
+        ? (latestEntry['xpGained'] as int? ?? 0)
         : 0;
     
-    // Apply penalty for wrong attempts: -1 XP per wrong attempt, minimum 0 XP
-    final finalXPGained = wrongAttempts > 0 
+    final finalXPGained = wrongAttempts > 0
         ? (actualXPGained - wrongAttempts).clamp(0, actualXPGained)
         : actualXPGained;
     
-    // Track XP gained for this word in this session
+    if (latestEntry != null) {
+      card.learningMastery.currentXP += finalXPGained - actualXPGained;
+      latestEntry['xpGained'] = finalXPGained;
+    }
+    
     _xpGainedPerWord[card.id] = finalXPGained;
     _sessionXP += finalXPGained;
     
-    // Award XP to user profile (async but we don't await it)
     userProfileProvider.addXp(finalXPGained);
-    
-    // Update the card in the provider
     provider.updateCard(card);
     
-    String wrongText = wrongAttempts > 0 ? ", $wrongAttempts wrong attempt${wrongAttempts > 1 ? 's' : ''}" : "";
+    final wrongText = wrongAttempts > 0 ? ", $wrongAttempts wrong attempt${wrongAttempts > 1 ? 's' : ''}" : "";
     print('🔍 PopYourCardView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained$wrongText) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
   }
 
