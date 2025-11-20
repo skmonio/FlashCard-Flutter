@@ -88,6 +88,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+  Set<String> _hpPenaltyAppliedWordIds = {};
 
   // Hint and review tracking
   Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, 2, or 3)
@@ -171,6 +172,23 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     });
     
     print('🔍 MultipleChoiceView: Refreshed cards from provider (preserving blocked options and question state)');
+  }
+
+  void _ensureCardTracked(FlashCard card) {
+    if (_studiedWords.any((word) => word.id == card.id)) return;
+    _studiedWords.add(card);
+    _initialHPPerWord[card.id] = card.currentHP;
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    _ensureCardTracked(card);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
   }
 
   void _generateQuestion() {
@@ -379,15 +397,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       SoundManager().playCorrectSound();
       
       // Award XP with penalty for wrong attempts
-      if (widget.shuffleMode) {
-        // In shuffle mode, HP reduction is handled by shuffle view
-        currentCard.markCorrect(GameDifficulty.medium);
-        _updateCardInProvider(currentCard);
-      } else {
-        // In standalone mode, award XP with penalty
-        _awardXPToWord(currentCard, true, wrongAttempts);
-        _updateCardInProvider(currentCard);
-      }
+      _applyHpPenalty(currentCard, wasCorrect: true);
+      _awardXPToWord(currentCard, true, wrongAttempts);
+      _updateCardInProvider(currentCard);
       
       // Auto progress logic (only if not game over and not in shuffle mode)
       if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
@@ -458,6 +470,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         // Check if game over
         if (_lives <= 0) {
           print('🔍 MultipleChoiceView: Game over! No lives remaining');
+          _applyHpPenalty(currentCard, wasCorrect: false);
+          _awardXPToWord(currentCard, false, newWrongAttempts);
+          _updateCardInProvider(currentCard);
           _showGameOverScreen();
           return;
         }
@@ -466,10 +481,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       // If 5 wrong attempts, show the answer automatically
       if (newWrongAttempts >= 5) {
         // Award 0 XP since they failed after 5 attempts
-        if (!widget.shuffleMode) {
-          _awardXPToWord(currentCard, false, newWrongAttempts);
-          _updateCardInProvider(currentCard);
-        }
+        _applyHpPenalty(currentCard, wasCorrect: false);
+        _awardXPToWord(currentCard, false, newWrongAttempts);
+        _updateCardInProvider(currentCard);
         
         setState(() {
           _answered = true;
@@ -1297,6 +1311,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+                          _initialHPPerWord.clear();
+                          _hpPenaltyAppliedWordIds.clear();
                           
                           // Reset hint and review tracking
                           _hintCount.clear();
@@ -1435,51 +1451,45 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
-    final xpService = XpService();
+    _ensureCardTracked(card);
     
-    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-      // Store initial HP when word is first encountered (BEFORE HP is reduced)
-      _initialHPPerWord[card.id] = card.currentHP;
-    }
-    
-    print('🔍 MultipleChoiceView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}, wrongAttempts: $wrongAttempts');
+    print('🔍 MultipleChoiceView: Logging word "${card.word}" (isCorrect: $isCorrect, wrongAttempts: $wrongAttempts) - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
     
     if (isCorrect) {
-      // Award XP for correct answers (this also records the attempt)
-      xpService.addXPToWord(card.learningMastery, "test", 1);
-      
-      // Get the actual XP gained (after diminishing returns)
-      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+          ? card.learningMastery.exerciseHistory.last
+          : null;
+      final actualXPGained = latestEntry != null
+          ? (latestEntry['xpGained'] as int? ?? 0)
           : 0;
       
       // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints, 0% for 3 hints)
       final hintCount = _hintCount[_currentIndex] ?? 0;
-      var finalXPGained = hintCount == 1 
-          ? (actualXPGained * 0.5).round() 
-          : hintCount == 2 
+      var finalXPGained = hintCount == 1
+          ? (actualXPGained * 0.5).round()
+          : hintCount == 2
               ? (actualXPGained * 0.25).round()
               : hintCount == 3
                   ? 0
                   : actualXPGained;
       
-      // Apply penalty for wrong attempts: -1 XP per wrong attempt, minimum 0 XP
-      // If wrongAttempts >= 5, finalXPGained is already 0 (handled separately)
+      // Apply penalty for wrong attempts before success: -1 XP per wrong attempt, min 0
       if (wrongAttempts > 0 && wrongAttempts < 5) {
         finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
       }
       
-      // Track XP gained for this word in this session (add for multiple appearances in same session)
+      if (latestEntry != null) {
+        card.learningMastery.currentXP += finalXPGained - actualXPGained;
+        latestEntry['xpGained'] = finalXPGained;
+      }
+      
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      print('🔍 MultipleChoiceView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect, wrongAttempts: $wrongAttempts, base XP: $actualXPGained) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MultipleChoiceView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained, hints: $hintCount, wrongAttempts: $wrongAttempts)');
     } else {
-      // For 5 wrong attempts, explicitly set 0 XP
       _xpGainedPerWord[card.id] = 0;
       
-      print('🔍 MultipleChoiceView: 0 XP awarded to word "${card.word}" (Incorrect after 5 attempts) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 MultipleChoiceView: 0 XP awarded to word "${card.word}" (Incorrect after $wrongAttempts attempts)');
     }
     
     // Store the word mastery for display (for both correct and incorrect)
@@ -1570,6 +1580,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _wordMastery.clear();
       _initialHPPerWord.clear();
       _studiedWords.clear();
+      _hpPenaltyAppliedWordIds.clear();
       
       // Reset wrong attempts tracking
       _wrongAttempts.clear();
@@ -1619,6 +1630,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             _wordMastery.clear();
             _initialHPPerWord.clear();
             _studiedWords.clear();
+            _hpPenaltyAppliedWordIds.clear();
             _wrongAttempts.clear();
             _disabledOptions.clear();
           });

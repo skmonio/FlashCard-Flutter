@@ -84,6 +84,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+  Set<String> _hpPenaltyAppliedWordIds = {};
   
   // Hint system
   Map<int, int> _hintCount = {}; // Track how many hints used per question
@@ -159,6 +160,23 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     // Refresh cards from the provider when cards are updated
     if (mounted) {
       _refreshCardsFromProvider();
+    }
+  }
+
+  void _ensureCardTracked(FlashCard card) {
+    if (_studiedWords.any((word) => word.id == card.id)) return;
+    _studiedWords.add(card);
+    _initialHPPerWord[card.id] = card.currentHP;
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    _hpPenaltyAppliedWordIds.add(card.id);
+    _ensureCardTracked(card);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
     }
   }
   
@@ -339,6 +357,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       XpService.recordAnswer(_gameSession, isCorrect);
       
       // Award XP to word for RPG system (with wrong attempts penalty)
+      _applyHpPenalty(currentCard, wasCorrect: true);
       _awardXPToWord(currentCard, true, wrongAttempts);
       
       // Update the card in the provider to save the XP changes
@@ -377,17 +396,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       // Track XP for wrong attempt
       XpService.recordAnswer(_gameSession, false);
       
-      // Apply -1 XP penalty (record attempt)
-      final xpService = XpService();
-      if (widget.shuffleMode) {
-        currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect now adds to exerciseHistory automatically
-      } else {
-        // For standalone mode, record attempt without marking incorrect (handled elsewhere)
-        xpService.recordAttemptToWord(currentCard.learningMastery, "word_scramble");
-      }
-      _updateCardInProvider(currentCard);
-      
       // Handle lives system
       if (_useLivesMode) {
         setState(() {
@@ -397,6 +405,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         
         if (_lives <= 0) {
           print('🔍 WordScrambleView: Game over! No lives remaining');
+          _applyHpPenalty(currentCard, wasCorrect: false);
+          _awardXPToWord(currentCard, false, newWrongAttempts);
+          _updateCardInProvider(currentCard);
           _showGameOverScreen();
           return;
         }
@@ -408,10 +419,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         print('🔍 WordScrambleView: 5 wrong attempts reached! Auto-completing answer.');
         
         // Award 0 XP since they failed after 5 attempts
-        if (!widget.shuffleMode) {
-          _awardXPToWord(currentCard, false, newWrongAttempts);
-          _updateCardInProvider(currentCard);
-        }
+        _applyHpPenalty(currentCard, wasCorrect: false);
+        _awardXPToWord(currentCard, false, newWrongAttempts);
+        _updateCardInProvider(currentCard);
         
         // Get the correct piece order and set it as the user answer
         final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
@@ -1386,6 +1396,12 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
+    _initialHPPerWord.clear();
+    _hpPenaltyAppliedWordIds.clear();
+    _initialHPPerWord.clear();
+    _hpPenaltyAppliedWordIds.clear();
+                          _initialHPPerWord.clear();
+                          _hpPenaltyAppliedWordIds.clear();
                         });
                         _generateQuestion();
                       },
@@ -1887,55 +1903,44 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   }
   
   void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
-    final xpService = XpService();
+    _ensureCardTracked(card);
     
-    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-      // Store initial HP when word is first encountered (BEFORE HP is reduced)
-      _initialHPPerWord[card.id] = card.currentHP;
-    }
-    
-    print('🔍 WordScrambleView: About to process word "${card.word}" - daily attempts before: ${card.learningMastery.dailyAttemptsDebug}');
+    print('🔍 WordScrambleView: Logging word "${card.word}" (isCorrect: $isCorrect, wrongAttempts: $wrongAttempts) - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
     
     if (isCorrect) {
-      // Award XP for correct answers (this also records the attempt)
-      xpService.addXPToWord(card.learningMastery, "word_scramble", 1);
-      
-      // Get the actual XP gained (after diminishing returns)
-      final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
-          ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
+      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+          ? card.learningMastery.exerciseHistory.last
+          : null;
+      final actualXPGained = latestEntry != null
+          ? (latestEntry['xpGained'] as int? ?? 0)
           : 0;
       
-      // Apply hint penalty based on number of hints used (reduce XP by 25% per hint)
       final hintsUsed = _hintCount[_currentIndex] ?? 0;
       final hintPenalty = hintsUsed > 0 ? (0.25 * hintsUsed).clamp(0.0, 0.9) : 0.0;
-      final finalXPGained = hintsUsed > 0 
+      var finalXPGained = hintsUsed > 0
           ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
           : actualXPGained;
       
-      // Track XP gained for this word in this session (add for multiple appearances in same session)
+      // Wrong attempts reduce XP by 1 each (up to 5 where it's already 0)
+      if (wrongAttempts > 0 && wrongAttempts < 5) {
+        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
+      }
+      
+      if (latestEntry != null) {
+        card.learningMastery.currentXP += finalXPGained - actualXPGained;
+        latestEntry['xpGained'] = finalXPGained;
+      }
+      
       _xpGainedPerWord[card.id] = finalXPGained;
       
       final hintText = hintsUsed > 0 ? " (with ${hintsUsed} hint(s), penalty applied)" : "";
-      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}" (Correct: $isCorrect)$hintText - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}"$hintText');
     } else {
-      // Record attempt for incorrect answers (reduces HP but no XP)
-      xpService.recordAttemptToWord(card.learningMastery, "word_scramble");
-      
-      // Explicitly set 0 XP for incorrect answers
       _xpGainedPerWord[card.id] = 0;
-      
-      print('🔍 WordScrambleView: No XP awarded to word "${card.word}" (Incorrect: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      print('🔍 WordScrambleView: 0 XP awarded to word "${card.word}" (Incorrect after $wrongAttempts attempts)');
     }
     
-    // Store the word mastery for display (for both correct and incorrect)
     _wordMastery[card.id] = card.learningMastery;
-    
-    // Track studied words (regardless of correctness)
-    if (!_studiedWords.any((word) => word.id == card.id)) {
-      _studiedWords.add(card);
-    }
   }
   
   void _showWordProgress() {
@@ -1980,6 +1985,8 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
             _xpGainedPerWord.clear();
             _wordMastery.clear();
             _studiedWords.clear();
+            _initialHPPerWord.clear();
+            _hpPenaltyAppliedWordIds.clear();
             _hintCount.clear();
             _hintRevealed.clear();
             _reviewCards.clear();
