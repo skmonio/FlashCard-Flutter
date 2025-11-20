@@ -217,16 +217,18 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     _initializeTimedMode();
   }
 
+  bool _isValidWord(FlashCard card) {
+    final word = card.word.trim();
+    if (word.length < 3 || word.length > 10) return false;
+    if (word.contains(' ')) return false;
+    if (card.definition.isEmpty) return false;
+    return word.length == word.replaceAll(RegExp(r'[^a-zA-Z]'), '').length;
+  }
+
   void _initializeGame() {
     // Filter cards: only words with 3-10 characters, no spaces, and have definitions
-    _availableCards = widget.cards.where((card) {
-      final word = card.word.trim();
-      return word.length >= 3 && 
-             word.length <= 10 && 
-             !word.contains(' ') && 
-             card.definition.isNotEmpty &&
-             word.length == word.replaceAll(RegExp(r'[^a-zA-Z]'), '').length; // Only letters
-    }).toList();
+    _availableCards = widget.cards.where(_isValidWord).toList();
+    _ensureRequestedCardCount();
     
     if (_availableCards.isEmpty) {
       _availableCards = [
@@ -261,6 +263,51 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     
     _shuffleCards();
     _setupGrid();
+  }
+
+  void _ensureRequestedCardCount() {
+    final desiredCount = widget.cards.length;
+    if (_availableCards.length >= desiredCount) return;
+    
+    final provider = context.read<FlashcardProvider>();
+    final Set<String> existingIds = _availableCards.map((card) => card.id).toSet();
+    final Set<String> deckIds = {};
+    for (final card in widget.cards) {
+      deckIds.addAll(card.deckIds);
+    }
+    
+    List<FlashCard> pool;
+    if (deckIds.isEmpty) {
+      pool = List<FlashCard>.from(provider.cards);
+    } else {
+      final seen = <String>{};
+      pool = [];
+      for (final deckId in deckIds) {
+        final cards = provider.getCardsForDeckWithSubDecks(deckId);
+        for (final card in cards) {
+          if (seen.add(card.id)) {
+            pool.add(card);
+          }
+        }
+      }
+    }
+    
+    pool = pool.where((card) => _isValidWord(card) && !existingIds.contains(card.id)).toList();
+    
+    // Prefer cards that can be studied today
+    final healthy = pool.where((card) => card.canBeStudiedToday).toList()..shuffle(_random);
+    final depleted = pool.where((card) => !card.canBeStudiedToday).toList()..shuffle(_random);
+    
+    void addCards(List<FlashCard> source) {
+      for (final card in source) {
+        if (_availableCards.length >= desiredCount) break;
+        existingIds.add(card.id);
+        _availableCards.add(card);
+      }
+    }
+    
+    addCards(healthy);
+    addCards(depleted);
   }
 
   void _setupAnimations() {

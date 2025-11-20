@@ -1288,14 +1288,31 @@ class _WritingViewState extends State<WritingView> {
       // Reduce XP based on number of hints used (50% per hint, minimum 10% of original)
       final hintCount = _hintCount[_currentIndex] ?? 0;
       final hintPenalty = hintCount > 0 ? (0.5 * hintCount).clamp(0.0, 0.9) : 0.0;
-      final finalXPGained = hintCount > 0 
+      int finalXPGained = hintCount > 0 
           ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
           : actualXPGained;
+      
+      // Apply -1 XP for each incorrect letter attempt (up to the available XP)
+      final wrongAttempts = _wrongAttemptsPerWord[card.id] ?? 0;
+      if (wrongAttempts > 0) {
+        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, finalXPGained);
+      }
+      
+      if (card.learningMastery.exerciseHistory.isNotEmpty) {
+        final entry = card.learningMastery.exerciseHistory.last;
+        final recordedXp = entry['xpGained'] as int? ?? 0;
+        if (recordedXp != finalXPGained) {
+          card.learningMastery.currentXP += finalXPGained - recordedXp;
+          entry['xpGained'] = finalXPGained;
+        }
+      }
       
       // Track XP gained for this word in this session (add for multiple appearances in same session)
       _xpGainedPerWord[card.id] = finalXPGained;
       
-      print('🔍 WritingView: Awarded $actualXPGained XP to word "${card.word}" (Correct: $isCorrect) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
+      final hintText = hintCount > 0 ? " (with ${hintCount} hint(s), penalty applied)" : "";
+      final wrongText = wrongAttempts > 0 ? ", $wrongAttempts wrong letter${wrongAttempts == 1 ? '' : 's'}" : "";
+      print('🔍 WritingView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained$hintText$wrongText) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
       final wrongAttempts = _wrongAttemptsPerWord[card.id] ?? 0;
       _xpGainedPerWord[card.id] = 0;
