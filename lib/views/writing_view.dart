@@ -63,6 +63,7 @@ class _WritingViewState extends State<WritingView> {
   Set<String> _guessedLetters = {};
   Set<String> _revealedLetters = {};
   Set<String> _hpDeductedWordIds = {};
+  Set<int> _maxMistakeRevealQuestions = {};
   
   // Timer system
   Timer? _timer;
@@ -557,6 +558,7 @@ class _WritingViewState extends State<WritingView> {
         }
         
         if (updatedAttempts >= 5) {
+          _maxMistakeRevealQuestions.add(_currentIndex);
           _finalizeIncorrectAnswer();
           return;
         }
@@ -937,6 +939,19 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                   
+                if (_maxMistakeRevealQuestions.contains(_currentIndex)) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'The answer is: ${_correctAnswer.toUpperCase()}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                
                   const SizedBox(height: 20),
                   
                   // Add some bottom padding to ensure content doesn't get hidden behind keyboard
@@ -1155,6 +1170,7 @@ class _WritingViewState extends State<WritingView> {
                           _studiedWords.clear();
                           _wrongAttemptsPerWord.clear();
                           _hpDeductedWordIds.clear();
+                          _maxMistakeRevealQuestions.clear();
                           
                           // Reset hint and review tracking
                           _hintCount.clear();
@@ -1405,6 +1421,8 @@ class _WritingViewState extends State<WritingView> {
       _initialHPPerWord.clear();
       _wrongAttemptsPerWord.clear();
       _hpDeductedWordIds.clear();
+      _maxMistakeRevealQuestions.clear();
+      _maxMistakeRevealQuestions.clear();
       _initialHPPerWord.clear();
       _wrongAttemptsPerWord.clear();
       _hpDeductedWordIds.clear();

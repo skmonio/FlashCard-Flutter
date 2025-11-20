@@ -1551,40 +1551,47 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                   ),
                 ),
                 // Progress bar
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Builder(
+                  builder: (context) {
+                    final totalWords = _availableCards.length;
+                    final completedCount = _completedWordIds.length.clamp(0, totalWords);
+                    final progressValue = totalWords == 0 ? 0.0 : completedCount / totalWords;
+                    final percentText = totalWords == 0 ? '0%' : '${(progressValue * 100).round()}%';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Column(
                         children: [
-                          Text(
-                            '${_currentCardIndex + 1}/${_availableCards.length}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.normal,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Card ${_currentCardIndex + 1}/$totalWords',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                              if (_isLivesMode) _buildLivesIndicator(),
+                              if (_isTimedMode && !_isLivesMode) _buildTimerIndicator(),
+                              Text(
+                                percentText,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                            ],
                           ),
-                          // Show lives or timer in the middle if active
-                          if (_isLivesMode) _buildLivesIndicator(),
-                          if (_isTimedMode && !_isLivesMode) _buildTimerIndicator(),
-                          Text(
-                            '${((_currentCardIndex + 1) / _availableCards.length * 100).round()}%',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.normal,
-                            ),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: progressValue,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: (_currentCardIndex + 1) / _availableCards.length,
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
