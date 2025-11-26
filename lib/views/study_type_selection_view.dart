@@ -1013,7 +1013,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             builder: (context) => AdvancedStudyView(
               cards: studyCards,
               startFlipped: _getStartFlipped(),
-              title: 'Study Session',
+              title: 'Study',
               studyConfig: studyConfig,
             ),
           ),
@@ -1274,23 +1274,23 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   String _getGameModeTitle() {
     switch (widget.gameMode) {
       case GameMode.study:
-        return 'Study Your Cards';
+        return 'Study';
       case GameMode.test:
-        return 'Test Your Cards';
+        return 'Test';
       case GameMode.trueFalse:
-        return 'True or False';
+        return 'True/False';
       case GameMode.write:
-        return 'Write Your Cards';
+        return 'Write';
       case GameMode.game:
-        return 'Remember Your Cards';
+        return 'Remember';
       case GameMode.bubbleWord:
-        return 'Jumble Your Cards';
+        return 'Jumble';
       case GameMode.pickYourCard:
-        return 'Pick Your Card';
+        return 'Pick';
       case GameMode.popYourCard:
-        return 'Pop Your Card';
+        return 'Pop';
       case GameMode.connectCards:
-        return 'Connect Your Cards';
+        return 'Connect';
     }
   }
   
@@ -1323,7 +1323,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.bubbleWord ||
-           widget.gameMode == GameMode.game ||
+           // widget.gameMode == GameMode.game || // Removed timed mode for memory game
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
@@ -1779,29 +1779,12 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   }
 
   void _startTimedStudy(List<FlashCard> allCards, String difficulty) {
-    // Calculate time based on difficulty and card count
-    int secondsPerPair;
-    switch (difficulty) {
-      case 'easy':
-        secondsPerPair = 5; // 5 seconds per pair - more challenging
-        break;
-      case 'medium':
-        secondsPerPair = 3; // 3 seconds per pair - challenging
-        break;
-      case 'hard':
-        secondsPerPair = 2; // 2 seconds per pair - very challenging
-        break;
-      default:
-        secondsPerPair = 3;
-    }
-    
     // Shuffle and take a subset of cards
     final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
     final studyCards = shuffledCards.take(_selectedCardCount).toList();
     
-    // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
-    final totalPairs = (studyCards.length / 2).ceil();
-    final totalTimeSeconds = totalPairs * secondsPerPair;
+    // Use timePerQuestion (seconds per card) like other games
+    final timePerQuestion = _getTimePerQuestion();
     
     // Navigate to memory game with timed mode
     Navigator.of(context).push(
@@ -1810,7 +1793,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           cards: studyCards,
           startFlipped: _startFlipped,
           timedMode: true,
-          timeLimitSeconds: totalTimeSeconds,
+          timePerQuestion: timePerQuestion,
           difficulty: difficulty,
         ),
       ),
@@ -2371,46 +2354,15 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         );
         break;
       case GameMode.game:
-        if (widget.useTimedMode && widget.timedDifficulty != null) {
-          // Calculate time based on difficulty and card count
-          int secondsPerPair;
-          switch (widget.timedDifficulty!) {
-            case TimedDifficulty.easy:
-              secondsPerPair = 5; // 5 seconds per pair - more challenging
-              break;
-            case TimedDifficulty.medium:
-              secondsPerPair = 3; // 3 seconds per pair - challenging
-              break;
-            case TimedDifficulty.hard:
-              secondsPerPair = 2; // 2 seconds per pair - very challenging
-              break;
-          }
-          
-          // Calculate total time (5 pairs = 10 cards, so 5 pairs * secondsPerPair)
-          final totalPairs = (filteredCards.length / 2).ceil();
-          final totalTimeSeconds = totalPairs * secondsPerPair;
-          
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => MemoryGameView(
-                cards: filteredCards,
-                startFlipped: widget.startFlipped,
-                timedMode: true,
-                timeLimitSeconds: totalTimeSeconds,
-                difficulty: widget.timedDifficulty!.name,
-              ),
+        // Timed mode removed for memory game
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MemoryGameView(
+              cards: filteredCards,
+              startFlipped: widget.startFlipped,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => MemoryGameView(
-                cards: filteredCards,
-                startFlipped: widget.startFlipped,
-              ),
-            ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.bubbleWord:
         if (widget.useTimedMode && widget.timedDifficulty != null) {

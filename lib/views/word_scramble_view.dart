@@ -760,7 +760,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Jumble',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1914,7 +1914,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Word Scramble Complete',
+        title: 'Jumble',
         studiedWords: sessionStudiedWords,
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,

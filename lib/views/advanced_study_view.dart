@@ -244,7 +244,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Study',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),

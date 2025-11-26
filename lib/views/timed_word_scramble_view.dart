@@ -526,7 +526,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Jumble',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1157,7 +1157,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Timed Test Complete',
+        title: 'Jumble',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,

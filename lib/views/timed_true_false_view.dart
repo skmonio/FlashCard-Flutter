@@ -356,7 +356,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'True/False',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1019,7 +1019,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Timed Test Complete',
+        title: 'True/False',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,

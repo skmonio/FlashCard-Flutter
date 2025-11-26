@@ -1035,7 +1035,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Pick Your Card Complete',
+        title: 'Pick',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,
@@ -1139,7 +1139,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
           children: [
             // Fixed Header - matching standard header
             MainHeader(
-              title: 'Pick Your Card',
+              title: 'Pick',
               leftAction: IconButton(
                 icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                 onPressed: () => _showCloseConfirmation(),

@@ -23,7 +23,8 @@ class MemoryGameView extends StatefulWidget {
   final Function(bool)? onComplete;
   final bool shuffleMode;
   final bool timedMode;
-  final int? timeLimitSeconds;
+  final int? timeLimitSeconds; // Deprecated: use timePerQuestion instead
+  final int? timePerQuestion; // Seconds per card
   final String? difficulty;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
 
@@ -35,6 +36,7 @@ class MemoryGameView extends StatefulWidget {
     this.shuffleMode = false,
     this.timedMode = false,
     this.timeLimitSeconds,
+    this.timePerQuestion,
     this.difficulty,
     this.shuffleQuestionOffset,
   });
@@ -82,10 +84,22 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _initializeGame();
     
     // Initialize timed mode if enabled
-    if (widget.timedMode && widget.timeLimitSeconds != null) {
+    if (widget.timedMode) {
       _isTimedMode = true;
-      _remainingTimeSeconds = widget.timeLimitSeconds!;
+      // Calculate total time: timePerQuestion * number of cards
+      // If timePerQuestion is provided, use it; otherwise fall back to timeLimitSeconds for backward compatibility
+      if (widget.timePerQuestion != null) {
+        _remainingTimeSeconds = widget.timePerQuestion! * widget.cards.length;
+      } else if (widget.timeLimitSeconds != null) {
+        _remainingTimeSeconds = widget.timeLimitSeconds!;
+      } else {
+        // Default: 5 seconds per card
+        _remainingTimeSeconds = 5 * widget.cards.length;
+      }
+      print('🔍 MemoryGameView: Timed mode enabled - ${_remainingTimeSeconds} seconds total');
       _startTimer();
+    } else {
+      print('🔍 MemoryGameView: Timed mode disabled - widget.timedMode = ${widget.timedMode}');
     }
     
     // Listen for card updates from the provider
@@ -153,13 +167,20 @@ class _MemoryGameViewState extends State<MemoryGameView>
 
   // Timer methods for timed mode
   void _startTimer() {
+    if (!_isTimedMode) {
+      print('🔍 MemoryGameView: _startTimer called but _isTimedMode is false');
+      return;
+    }
+    print('🔍 MemoryGameView: Starting timer with ${_remainingTimeSeconds} seconds');
+    _timer?.cancel(); // Cancel any existing timer
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() {
-          _remainingTimeSeconds--;
-        });
-        
-        if (_remainingTimeSeconds <= 0) {
+        if (_remainingTimeSeconds > 0) {
+          setState(() {
+            _remainingTimeSeconds--;
+          });
+        } else {
+          // Time is up - cancel timer and handle time up outside of setState
           _timer?.cancel();
           _handleTimeUp();
         }
@@ -168,6 +189,11 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
 
   void _handleTimeUp() {
+    if (_gameComplete) return; // Already handled
+    
+    // Cancel timer
+    _timer?.cancel();
+    
     // Play sound and provide haptic feedback
     SoundManager().playWrongSound();
     HapticService().errorFeedback();
@@ -356,7 +382,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
       // Show the end screen directly instead of a loading screen
       return GameEndScreen.view(
         GameEndResult(
-          title: 'Memory Game Complete',
+          title: 'Remember',
           studiedWords: _studiedWords,
           xpGainedPerWord: _xpGainedPerWord,
           wordMastery: _wordMastery,
@@ -385,7 +411,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
       body: Column(
         children: [
           MainHeader(
-            title: widget.startFlipped ? 'Study Cards' : 'Memory Game',
+            title: 'Remember',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -395,33 +421,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
               onPressed: () => _showHomeConfirmation(),
             ),
           ),
-          // Timer display (if in timed mode)
-          if (_isTimedMode)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _remainingTimeSeconds <= 10 ? Colors.red : Colors.orange,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.timer, color: Colors.white, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatTime(_remainingTimeSeconds),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           _buildProgressBar(),
           
           // Game board
@@ -444,6 +443,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Cards processed: $_totalCardsProcessed of $totalCards'),
+              // Show timer in the middle if in timed mode
+              if (_isTimedMode) _buildTimerIndicator() else const SizedBox.shrink(),
               Text('${(progress * 100).toInt()}%'),
             ],
           ),
@@ -457,6 +458,42 @@ class _MemoryGameViewState extends State<MemoryGameView>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimerIndicator() {
+    if (!_isTimedMode) return const SizedBox.shrink();
+    
+    final totalTime = widget.timePerQuestion != null 
+        ? widget.timePerQuestion! * widget.cards.length
+        : (widget.timeLimitSeconds ?? (5 * widget.cards.length));
+    final progress = totalTime > 0 ? _remainingTimeSeconds / totalTime : 0.0;
+    
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          _formatTime(_remainingTimeSeconds),
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

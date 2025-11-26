@@ -630,7 +630,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Timed Test Complete',
+        title: 'Test',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,
@@ -986,7 +986,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Test',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),

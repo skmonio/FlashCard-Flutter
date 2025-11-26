@@ -752,7 +752,7 @@ class _WritingViewState extends State<WritingView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Write',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1468,7 +1468,7 @@ class _WritingViewState extends State<WritingView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Writing Complete',
+        title: 'Write',
         studiedWords: sessionStudiedWords,
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,

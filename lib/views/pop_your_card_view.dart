@@ -639,7 +639,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Word Progress',
+        title: 'Pop',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,
@@ -785,7 +785,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
         body: Column(
           children: [
             MainHeader(
-              title: widget.title,
+              title: 'Pop',
               leftAction: IconButton(
                 icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                 onPressed: () async {

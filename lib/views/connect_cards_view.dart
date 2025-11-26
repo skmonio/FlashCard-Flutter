@@ -1235,7 +1235,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Connect Cards Complete',
+        title: 'Connect',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,
@@ -1516,7 +1516,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Connect',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showExitConfirmation(),

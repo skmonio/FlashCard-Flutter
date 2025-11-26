@@ -841,7 +841,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'Test',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1697,7 +1697,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Multiple Choice Complete',
+        title: 'Test',
         studiedWords: sessionStudiedWords,
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,

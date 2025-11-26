@@ -733,7 +733,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       body: Column(
         children: [
           MainHeader(
-            title: widget.title,
+            title: 'True/False',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
               onPressed: () => _showCloseConfirmation(),
@@ -1547,7 +1547,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'True/False Complete',
+        title: 'True/False',
         studiedWords: sessionStudiedWords,
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,
