@@ -60,6 +60,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+  final Set<String> _hpPenaltyAppliedWordIds = {};
+  bool _lastSyncAppliedHpPenalty = false;
+  String? _lastSyncedCardId;
 
   @override
   void initState() {
@@ -126,6 +129,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       _wordMastery.clear();
       _initialHPPerWord.clear();
       _studiedWords.clear();
+      _hpPenaltyAppliedWordIds.clear();
+      _lastSyncedCardId = null;
+      _lastSyncAppliedHpPenalty = false;
       
       // Shuffle and restart
       _initializePractice(shuffle: true);
@@ -390,7 +396,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _buildAnswerWords(_answerWords),
+            children: _buildAnswerWords(_answerWords, _currentExerciseIndex),
           ),
         ),
         
@@ -432,23 +438,81 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     );
   }
 
-  List<Widget> _buildAnswerWords(List<String> words) {
-    return words.map((word) {
+  List<Widget> _buildAnswerWords(List<String> words, int exerciseIndex) {
+    // Get correct order for this exercise
+    final currentExercise = _shuffledExercises[exerciseIndex];
+    List<String> correctOrder = [];
+    if (currentExercise.type == ExerciseType.sentenceBuilding) {
+      // For sentence building, the correct order comes from splitting the correctAnswer string
+      // This ensures we use the actual correct sentence order, not the shuffled options
+      correctOrder = currentExercise.correctAnswer.split(' ').map((w) => w.trim()).where((w) => w.isNotEmpty).toList();
+    } else {
+      // For other types, split the correct answer
+      correctOrder = currentExercise.correctAnswer.split(' ');
+    }
+    
+    // Check per-word positions if answer is shown
+    List<bool>? positionCorrect;
+    if (_showAnswer) {
+      positionCorrect = SentenceUtils.checkWordPositions(words, correctOrder);
+    }
+    
+    return words.asMap().entries.map((entry) {
+      final wordIndex = entry.key;
+      final word = entry.value;
+      final isPositionCorrect = positionCorrect != null && wordIndex < positionCorrect.length 
+          ? positionCorrect[wordIndex] 
+          : null;
+      
+      // Determine colors based on position correctness
+      Color backgroundColor;
+      Color borderColor;
+      Color textColor;
+      
+      if (_showAnswer && isPositionCorrect != null) {
+        if (isPositionCorrect) {
+          backgroundColor = Colors.green.withOpacity(0.2);
+          borderColor = Colors.green;
+          textColor = Colors.green[700]!;
+        } else {
+          backgroundColor = Colors.red.withOpacity(0.2);
+          borderColor = Colors.red;
+          textColor = Colors.red[700]!;
+        }
+      } else {
+        backgroundColor = Colors.green.withOpacity(0.2);
+        borderColor = Colors.green.withOpacity(0.5);
+        textColor = Colors.green[700]!;
+      }
+      
       return GestureDetector(
-        onTap: () => _moveWordToAvailable(word),
+        onTap: _showAnswer ? null : () => _moveWordToAvailable(word),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.2),
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.green.withOpacity(0.5)),
+            border: Border.all(color: borderColor),
           ),
-          child: Text(
-            word,
-            style: TextStyle(
-              color: Colors.green[700],
-              fontWeight: FontWeight.w500,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                word,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (_showAnswer && isPositionCorrect != null) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  isPositionCorrect ? Icons.check_circle : Icons.cancel,
+                  color: isPositionCorrect ? Colors.green : Colors.red,
+                  size: 16,
+                ),
+              ],
+            ],
           ),
         ),
       );
@@ -573,32 +637,24 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           ),
           if (!_isCorrect && exercise.type == ExerciseType.sentenceBuilding) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check, color: Colors.green, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SelectableText(
-                      'Correct answer: ${exercise.correctAnswer}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.left,
-                      enableInteractiveSelection: true,
-                      showCursor: false,
+            Row(
+              children: [
+                Icon(Icons.check, color: Colors.green, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    'The correct answer is: ${exercise.correctAnswer}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w500,
                     ),
+                    textAlign: TextAlign.left,
+                    enableInteractiveSelection: true,
+                    showCursor: false,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
           if (exercise.hint != null) ...[
@@ -790,6 +846,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       
       if (wordExercise.id.isEmpty) {
         print('🔍 Word exercise not found for ID: $wordExerciseId');
+        _lastSyncedCardId = null;
+        _lastSyncAppliedHpPenalty = false;
         return null;
       }
       
@@ -806,6 +864,8 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       
       if (flashCard.id.isEmpty) {
         print('🔍 FlashCard not found for word: ${wordExercise.targetWord}');
+        _lastSyncedCardId = null;
+        _lastSyncAppliedHpPenalty = false;
         return null;
       }
       
@@ -814,16 +874,34 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         learningMastery: flashCard.learningMastery.copyWith(),
       );
       
-      // Update learning mastery based on difficulty (assuming medium for exercises)
       final xpService = XpService();
+      bool shouldApplyHpPenalty = false;
+      if (flashCard.id.isNotEmpty && !_hpPenaltyAppliedWordIds.contains(flashCard.id)) {
+        _hpPenaltyAppliedWordIds.add(flashCard.id);
+        shouldApplyHpPenalty = true;
+      }
+      
+      _lastSyncedCardId = flashCard.id;
+      _lastSyncAppliedHpPenalty = shouldApplyHpPenalty;
+      
       if (wasCorrect) {
-        updatedCard.markCorrect(GameDifficulty.medium);
-        // Award XP using standard system
-        xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise', 1);
+        if (shouldApplyHpPenalty) {
+          updatedCard.markCorrect(GameDifficulty.medium);
+        }
+        // When HP already applied earlier, still grant XP without extra attempts
+        if (!shouldApplyHpPenalty) {
+          xpService.addXPToWordWithoutRecordingAttempt(
+            updatedCard.learningMastery,
+            'dutch_word_exercise',
+            1,
+          );
+        }
       } else {
-        updatedCard.markIncorrect(GameDifficulty.medium);
-        // Record attempt for incorrect answers (reduces HP but no XP)
-        xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise');
+        if (shouldApplyHpPenalty) {
+          updatedCard.markIncorrect(GameDifficulty.medium);
+        } else {
+          // Skip additional attempt records to avoid duplicate HP loss
+        }
       }
       
       await flashcardProvider.updateCard(updatedCard);
@@ -919,19 +997,12 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   
   Future<void> _awardXPToWord(FlashCard card, String wordExerciseId) async {
     try {
-      // Get the current exercise to determine the exercise type
+      // Get the current exercise to determine the exercise type (for logging only)
       final currentExercise = _shuffledExercises[_currentExerciseIndex];
       final exerciseType = _getExerciseTypeString(currentExercise.type);
       
       print('🔍 DutchWordsPracticeView: Exercise type: $exerciseType');
-      print('🔍 DutchWordsPracticeView: Daily attempts before XP: ${card.learningMastery.dailyGameAttempts}');
-      
-      final xpService = XpService();
-      
-      // Add XP to the word's learning mastery (this handles daily diminishing returns)
-      xpService.addXPToWord(card.learningMastery, exerciseType, 1);
-      
-      print('🔍 DutchWordsPracticeView: Daily attempts after XP: ${card.learningMastery.dailyGameAttempts}');
+      print('🔍 DutchWordsPracticeView: Daily attempts (post-sync): ${card.learningMastery.dailyGameAttempts}');
       
       // Get the actual XP gained (after diminishing returns)
       final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
@@ -944,9 +1015,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
       // Track word progress (mastery tracking)
       _trackWordProgress(card, true);
       
-      print('🔍 DutchWordsPracticeView: Awarded $actualXPGained XP to word "${card.word}"');
+      print('🔍 DutchWordsPracticeView: Recorded $actualXPGained XP for word "${card.word}"');
       
-      // Update the card in the provider
+      // Update the card in the provider to persist XP changes
       final flashcardProvider = context.read<FlashcardProvider>();
       await flashcardProvider.updateCard(card);
       
@@ -1002,6 +1073,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
             _wordMastery.clear();
             _initialHPPerWord.clear();
             _studiedWords.clear();
+            _hpPenaltyAppliedWordIds.clear();
+            _lastSyncedCardId = null;
+            _lastSyncAppliedHpPenalty = false;
             
             _initializePractice(shuffle: false);
           });
@@ -1035,17 +1109,25 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
   }
 
   Widget _buildCustomHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onSurface = colorScheme.onSurface;
+    final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: onSurface,
+        ) ??
+        TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: onSurface,
+        );
+
     return Stack(
       children: [
         // Centered title - always in the center regardless of other elements
         Center(
           child: Text(
             'Exercise',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+            style: titleStyle,
           ),
         ),
         
@@ -1056,7 +1138,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => _showCloseConfirmation(),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+            icon: Icon(Icons.arrow_back_ios, color: onSurface),
+            tooltip: 'Back',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
         
@@ -1067,8 +1151,9 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
           bottom: 0,
           child: IconButton(
             onPressed: () => _showHomeConfirmation(),
-            icon: const Icon(Icons.home, color: Colors.black),
+            icon: Icon(Icons.home, color: onSurface),
             tooltip: 'Go Home',
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           ),
         ),
       ],

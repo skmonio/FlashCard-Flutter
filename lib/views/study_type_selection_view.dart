@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 
+import '../components/main_header.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 import '../models/study_config.dart';
@@ -93,20 +94,19 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Fixed Header - matching Taal Trek header height
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
+          MainHeader(
+            title: _getGameModeTitle(),
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            rightAction: IconButton(
+              icon: const Icon(
+                Icons.play_arrow,
+                color: Colors.green,
+                size: 28,
               ),
-              child: _buildCustomHeader(context),
+              onPressed: _startStudy,
             ),
           ),
           
@@ -1104,18 +1104,30 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           );
         break;
       case GameMode.bubbleWord:
+        if (_useTimedMode) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedWordScrambleView(
+                cards: studyCards,
+                title: 'Timed Word Scramble',
+                difficulty: _selectedTimedDifficulty,
+              ),
+            ),
+          );
+        } else {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => WordScrambleView(
                 cards: studyCards,
-              title: 'Word Scramble',
+                title: 'Word Scramble',
                 autoProgress: _autoProgress,
                 useLivesMode: _useLivesMode,
-              customLives: _useLivesMode ? _selectedLives : null,
-              startFlipped: _getStartFlipped(),
+                customLives: _useLivesMode ? _selectedLives : null,
+                startFlipped: _getStartFlipped(),
               ),
             ),
           );
+        }
         break;
       case GameMode.pickYourCard:
           Navigator.of(context).push(
@@ -1133,6 +1145,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               builder: (context) => PopYourCardView(
                 cards: studyCards,
                 title: 'Pop Your Card',
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+                useTimedMode: _useTimedMode,
+                timePerQuestion: _useTimedMode ? _getTimePerQuestion() : null,
               ),
             ),
           );
@@ -1951,51 +1967,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  Widget _buildCustomHeader(BuildContext context) {
-    return Stack(
-      children: [
-        // Centered title - always in the center regardless of other elements
-        Center(
-          child: Text(
-            _getGameModeTitle(),
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ),
-        
-        // Left side - Back button with proper padding
-        Positioned(
-          left: 16, // Add proper padding from left edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
-          ),
-        ),
-        
-        // Right side - Play icon
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: _startStudy,
-            icon: const Icon(
-              Icons.play_arrow,
-              color: Colors.green,
-              size: 28,
-            ),
-          ),
-        ),
-        
-      ],
-    );
-  }
-
   Widget _buildAnswerPoolToggle() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2488,6 +2459,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               title: title,
               useLivesMode: widget.useLivesMode,
               customLives: widget.useLivesMode ? widget.customLives : null,
+              useTimedMode: widget.useTimedMode,
+              timePerQuestion: widget.useTimedMode ? _getTimePerQuestion() : null,
             ),
           ),
         );

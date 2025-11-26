@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import 'dart:async';
+import '../components/main_header.dart';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
@@ -242,41 +243,19 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      const Text(
-                        'Study Your Cards',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Main card area with background color based on swipe direction
           Expanded(

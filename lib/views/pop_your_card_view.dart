@@ -9,6 +9,7 @@ import '../providers/user_profile_provider.dart';
 import '../utils/game_end_screen.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
+import '../components/main_header.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
@@ -137,21 +138,21 @@ class _PopYourCardViewState extends State<PopYourCardView>
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
-        setState(() {
-          if (_timeRemaining > 0) {
+        if (_timeRemaining > 0) {
+          setState(() {
             _timeRemaining--;
-          } else {
-            _timeUp = true;
-            _timer?.cancel();
-            _handleTimeUp();
-          }
-        });
+          });
+        } else {
+          // Time is up - cancel timer and handle time up outside of setState
+          _timer?.cancel();
+          _handleTimeUp();
+        }
       }
     });
   }
   
   void _handleTimeUp() {
-    if (_currentIndex >= widget.cards.length) return;
+    if (_currentIndex >= widget.cards.length || _timeUp) return;
     
     final currentCard = widget.cards[_currentIndex];
     
@@ -161,16 +162,33 @@ class _PopYourCardViewState extends State<PopYourCardView>
       _initialHPPerWord[currentCard.id] = currentCard.currentHP;
     }
     
-    _ticker.stop();
-    _showAnswerForCurrentCard = true;
-    _wrongAttempts[_currentIndex] = 5;
-    _xpGainedPerWord[currentCard.id] = 0;
+    setState(() {
+      _timeUp = true;
+      _ticker.stop();
+      _showAnswerForCurrentCard = true;
+      _wrongAttempts[_currentIndex] = 5;
+      _xpGainedPerWord[currentCard.id] = 0;
+    });
     
     _applyHpPenalty(currentCard, wasCorrect: false);
     _wordMastery[currentCard.id] = currentCard.learningMastery;
     context.read<FlashcardProvider>().updateCard(currentCard);
     
-    _showCardXPFeedback(currentCard, false, currentCard.word);
+    // Stop timer
+    _timer?.cancel();
+    
+    // Close any open dialogs first, then show end screen
+    if (_dialogOpen) {
+      _dialogOpen = false;
+      Navigator.of(context).popUntil((route) => route.isFirst || !route.navigator!.canPop());
+    }
+    
+    // Use a small delay to ensure dialog is closed, then show end screen
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        _showGameOverScreen();
+      }
+    });
   }
 
   void _showGameOverScreen() {
@@ -190,7 +208,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
 
     // Reset timer and time up flag for new card
-    _timeUp = false;
+    setState(() {
+      _timeUp = false;
+      _showAnswerForCurrentCard = false;
+    });
     if (_useTimedMode) {
       _timeRemaining = _totalTime;
       _startTimer();
@@ -312,15 +333,15 @@ class _PopYourCardViewState extends State<PopYourCardView>
       print('❌ PopYourCardView: Invalid card index: $_currentIndex');
       return;
     }
+    
+    // Don't allow tapping if time is up or game is over (lives depleted)
+    if (_timeUp || (_useLivesMode && _lives <= 0)) {
+      return;
+    }
 
     final currentCard = widget.cards[_currentIndex];
     final correct = currentCard.word;
     bool isCorrect = tappedBubble.text == correct;
-
-    // Stop timer if using timed mode
-    if (_useTimedMode) {
-      _timer?.cancel();
-    }
 
     // Play pop sound when bubble is tapped
     SoundManager().playPopSound();
@@ -337,6 +358,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
     if (isCorrect) {
+      // Stop timer only when answer is correct
+      if (_useTimedMode) {
+        _timer?.cancel();
+      }
       _correctAnswers++;
       // Award XP with penalty for wrong attempts
       _awardXP(currentCard, wrongAttempts);
@@ -363,12 +388,30 @@ class _PopYourCardViewState extends State<PopYourCardView>
       
       // Handle lives mode
       if (_useLivesMode) {
-        _lives--;
+        setState(() {
+          _lives--;
+        });
         print('🔍 PopYourCardView: Lost a life! Lives remaining: $_lives');
         
         // Check if game over
         if (_lives <= 0) {
           print('🔍 PopYourCardView: Game over! No lives remaining');
+          // Stop the game immediately
+          _ticker.stop();
+          _timer?.cancel();
+          
+          // Track the current card as incorrect
+          final currentCard = widget.cards[_currentIndex];
+          if (!_studiedWords.contains(currentCard)) {
+            _studiedWords.add(currentCard);
+            _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+          }
+          _applyHpPenalty(currentCard, wasCorrect: false);
+          _wordMastery[currentCard.id] = currentCard.learningMastery;
+          _xpGainedPerWord[currentCard.id] = 0;
+          context.read<FlashcardProvider>().updateCard(currentCard);
+          
+          // Show end screen immediately
           _showGameOverScreen();
           return;
         }
@@ -739,28 +782,27 @@ class _PopYourCardViewState extends State<PopYourCardView>
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        appBar: AppBar(
-          title: Text(widget.title),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              final shouldExit = await _showCloseConfirmation();
-              if (shouldExit) {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.home),
-              onPressed: () => _showHomeConfirmation(),
+        body: Column(
+          children: [
+            MainHeader(
+              title: widget.title,
+              leftAction: IconButton(
+                icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: () async {
+                  final shouldExit = await _showCloseConfirmation();
+                  if (shouldExit) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              ),
+              rightAction: IconButton(
+                icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: () => _showHomeConfirmation(),
+              ),
             ),
-          ],
-        ),
-        body: LayoutBuilder(
-          builder: (context, constraints) {
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
             _screenWidth = constraints.maxWidth;
             _screenHeight = constraints.maxHeight;
             
@@ -792,9 +834,18 @@ class _PopYourCardViewState extends State<PopYourCardView>
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
-                          // Show lives or timer in the middle if active
-                          if (_useLivesMode) _buildLivesIndicator(),
-                          if (_useTimedMode) _buildTimerIndicator(),
+                          // Show lives and/or timer in the middle if active
+                          if (_useLivesMode && _useTimedMode) ...[
+                            _buildLivesIndicator(),
+                            const SizedBox(width: 8),
+                            _buildTimerIndicator(),
+                          ] else if (_useLivesMode) ...[
+                            _buildLivesIndicator(),
+                          ] else if (_useTimedMode) ...[
+                            _buildTimerIndicator(),
+                          ] else ...[
+                            const SizedBox.shrink(),
+                          ],
                           Text(
                             "${(progress * 100).round()}%",
                             style: TextStyle(
@@ -855,6 +906,9 @@ class _PopYourCardViewState extends State<PopYourCardView>
               ],
             );
           },
+        ),
+            ),
+          ],
         ),
       ),
     );
@@ -950,26 +1004,24 @@ class _PopYourCardViewState extends State<PopYourCardView>
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.favorite,
-          color: Colors.red,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_lives/$_maxLives',
-          style: const TextStyle(
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
             color: Colors.red,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            size: 18,
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
   
   Widget _buildTimerIndicator() {
+    if (_totalTime <= 0) {
+      return const SizedBox.shrink();
+    }
+    
     final progress = _timeRemaining / _totalTime;
     Color timerColor = Colors.green;
     if (progress < 0.3) {

@@ -126,8 +126,13 @@ class _StudyViewState extends State<StudyView> {
 
   void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
     _ensureCardTracked(card);
-    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
+    // Only apply HP penalty once per game session per word
+    // This ensures -1hp is deducted per game, not per exercise
+    if (_hpPenaltyAppliedWordIds.contains(card.id)) {
+      return; // Already applied HP penalty for this word in this game session
+    }
     _hpPenaltyAppliedWordIds.add(card.id);
+    
     final difficulty = _getDifficultyForCurrentMode();
     if (wasCorrect) {
       card.markCorrect(difficulty);

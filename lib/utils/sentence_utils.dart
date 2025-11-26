@@ -58,4 +58,27 @@ class SentenceUtils {
 
     return true;
   }
+
+  /// Checks which words in the answer are in the correct position.
+  /// Returns a list of booleans where true means the word at that index is in the correct position.
+  /// Each word must be in the exact position (1st, 2nd, 3rd, etc.) to be marked as correct.
+  static List<bool> checkWordPositions(List<String> answerWords, List<String> correctWords) {
+    if (answerWords.length != correctWords.length) {
+      return List.filled(answerWords.length, false);
+    }
+
+    // Normalize to lowercase
+    final List<String> a = answerWords.map((w) => w.toLowerCase().trim()).toList();
+    final List<String> c = correctWords.map((w) => w.toLowerCase().trim()).toList();
+
+    // For each position, check if the word matches exactly at that position
+    final List<bool> positionCorrect = [];
+    
+    for (int i = 0; i < a.length; i++) {
+      // Word is correct only if it matches exactly at the same position
+      positionCorrect.add(a[i] == c[i]);
+    }
+    
+    return positionCorrect;
+  }
 }

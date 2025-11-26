@@ -3,6 +3,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
+import 'main_header.dart';
 
 class UnifiedEndScreen extends StatefulWidget {
   final List<FlashCard> studiedWords;
@@ -95,42 +96,22 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
       body: Column(
         children: [
             // Header with back button and title
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    // Back button (top left) - always show
-                    IconButton(
-                      onPressed: () {
-                        // Use the onDone callback if available, otherwise just pop
-                        if (widget.onDone != null) {
-                          widget.onDone!();
-                        } else {
-                          Navigator.of(context).pop();
-                        }
-                      },
-                      icon: const Icon(Icons.arrow_back_ios),
-                      iconSize: 20,
-                    ),
-                    const Spacer(),
-                    // Title in the middle
-                    Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Home button (top right)
-                    IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      icon: const Icon(Icons.home),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
+            MainHeader(
+              title: widget.title,
+              leftAction: IconButton(
+                onPressed: () {
+                  // Use the onDone callback if available, otherwise just pop
+                  if (widget.onDone != null) {
+                    widget.onDone!();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                icon: const Icon(Icons.arrow_back_ios),
+              ),
+              rightAction: IconButton(
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                icon: const Icon(Icons.home),
               ),
             ),
             

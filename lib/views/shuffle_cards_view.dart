@@ -18,6 +18,7 @@ import '../utils/game_end_screen.dart';
 import '../models/learning_mastery.dart';
 import '../models/game_session.dart';
 import '../services/xp_service.dart';
+import '../components/main_header.dart';
 
 enum ShuffleMode {
   multipleChoice,
@@ -503,12 +504,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Add the current card first
         multipleChoiceCards.add(_currentCard!);
         
-        // Add 4 more random cards (avoiding duplicates and daily limits)
+        // Add 3 more random cards for 4 total options (1 correct + 3 wrong)
         final otherCards = answerPool.where((card) => 
           card.id != _currentCard!.id && card.canBeStudiedToday).toList();
         final random = Random();
         
-        for (int i = 0; i < 4 && i < otherCards.length; i++) {
+        for (int i = 0; i < 3 && i < otherCards.length; i++) {
           final randomCard = otherCards[random.nextInt(otherCards.length)];
           if (!multipleChoiceCards.any((card) => card.id == randomCard.id)) {
             multipleChoiceCards.add(randomCard);
@@ -1092,35 +1093,34 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         return true;
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Shuffle'),
-          backgroundColor: Colors.transparent,
-          foregroundColor: Theme.of(context).colorScheme.onSurface,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios),
-            onPressed: () {
-              // Reset game state when user goes back
-              if (_isGameActive) {
-                setState(() {
-                  _isGameActive = false;
-                  _currentScore = 0;
-                  _currentMode = null;
-                  _currentCard = null;
-                  _currentExercise = null;
-                });
-              }
-              Navigator.of(context).pop();
-            },
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: _showCustomizationDialog,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: Column(
+          children: [
+            MainHeader(
+              title: 'Shuffle',
+              leftAction: IconButton(
+                icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: () {
+                  // Reset game state when user goes back
+                  if (_isGameActive) {
+                    setState(() {
+                      _isGameActive = false;
+                      _currentScore = 0;
+                      _currentMode = null;
+                      _currentCard = null;
+                      _currentExercise = null;
+                    });
+                  }
+                  Navigator.of(context).pop();
+                },
+              ),
+              rightAction: IconButton(
+                icon: Icon(Icons.settings, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: _showCustomizationDialog,
+              ),
             ),
-          ],
-        ),
-      body: _isShowingEndScreen ? const SizedBox.shrink() : Container(
+            Expanded(
+              child: _isShowingEndScreen ? const SizedBox.shrink() : Container(
         color: Theme.of(context).colorScheme.surface,
         child: SingleChildScrollView(
           child: Padding(
@@ -1270,7 +1270,10 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             ),
           ),
         ),
-      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

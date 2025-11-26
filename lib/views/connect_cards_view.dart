@@ -8,6 +8,7 @@ import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../utils/game_end_screen.dart';
+import '../components/main_header.dart';
 
 class GridPainter extends CustomPainter {
   final List<String> letters;
@@ -419,22 +420,16 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.favorite,
-          color: Colors.red,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_livesRemaining/$_maxLives',
-          style: const TextStyle(
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _livesRemaining ? Icons.favorite : Icons.favorite_border,
             color: Colors.red,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            size: 18,
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
 
@@ -1520,38 +1515,19 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showExitConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      const Text(
-                        'Connect',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                        onPressed: () => _showExitConfirmation(),
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                Builder(
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showExitConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showExitConfirmation(),
+            ),
+          ),
+          // Progress bar
+          Builder(
                   builder: (context) {
                     final totalWords = _availableCards.length;
                     final completedCount = _completedWordIds.length.clamp(0, totalWords);
@@ -1593,10 +1569,6 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                     );
                   },
                 ),
-              ],
-            ),
-          ),
-          
           // Main content area with swipe navigation
           Expanded(
             child: GestureDetector(

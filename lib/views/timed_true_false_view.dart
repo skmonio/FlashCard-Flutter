@@ -16,6 +16,7 @@ import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
 import '../models/timed_difficulty.dart';
+import '../components/main_header.dart';
 
 class TimedTrueFalseView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -40,6 +41,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   int _correctAnswers = 0;
   int _totalAnswered = 0;
   bool _showingResults = false;
+  bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
   bool? _selectedAnswer;
   bool? _correctAnswer;
@@ -321,11 +323,14 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
   Widget build(BuildContext context) {
     if (_showingResults) {
       // Use a post-frame callback to avoid calling navigation during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showWordProgress();
-        }
-      });
+      if (!_hasShownResults) {
+        _hasShownResults = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showWordProgress();
+          }
+        });
+      }
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -350,41 +355,19 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar and timer
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Question area
           Expanded(
@@ -790,18 +773,12 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
     
     return Container(
       margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: textColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: textColor.withValues(alpha: 0.3)),
-      ),
       child: Text(
         message,
         style: TextStyle(
-          color: textColor,
+          fontSize: 16,
           fontWeight: FontWeight.w500,
-          fontSize: 14,
+          color: textColor,
         ),
         textAlign: TextAlign.center,
       ),
@@ -909,6 +886,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
                               _correctAnswers = 0;
                               _totalAnswered = 0;
                               _showingResults = false;
+                              _hasShownResults = false;
                               _answered = false;
                               _selectedAnswer = null;
                               _gameSession.reset(); // Reset XP tracking
@@ -1054,6 +1032,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
             _correctAnswers = 0;
             _totalAnswered = 0;
             _showingResults = false;
+            _hasShownResults = false;
             _answered = false;
             _selectedAnswer = null;
             _gameSession.reset();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import 'dart:async';
+import '../components/main_header.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
@@ -359,20 +360,15 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Header
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: _buildCustomHeader(context),
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
             ),
           ),
           
@@ -443,35 +439,6 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
           
           // Navigation buttons
           _buildNavigationButtons(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_ios),
-            iconSize: 20,
-          ),
-          const Spacer(),
-          const Text(
-            'Study Your Cards',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-            icon: const Icon(Icons.home),
-            iconSize: 20,
-          ),
         ],
       ),
     );

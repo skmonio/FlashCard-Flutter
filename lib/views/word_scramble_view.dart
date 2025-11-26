@@ -6,6 +6,7 @@ import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
+import '../components/main_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../services/sound_manager.dart';
@@ -50,6 +51,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   int _correctAnswers = 0;
   int _totalAnswered = 0;
   bool _showingResults = false;
+  bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
   String _correctWord = '';
   List<String> _scrambledLetters = [];
@@ -737,9 +739,12 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
 
     if (_showingResults) {
       // Go directly to word progress instead of showing completion screen
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showWordProgress();
-      });
+      if (!_hasShownResults) {
+        _hasShownResults = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showWordProgress();
+        });
+      }
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -754,41 +759,19 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Question area
           Expanded(
@@ -1010,29 +993,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
+          color: Colors.red.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withOpacity(0.2)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.favorite,
-              color: Colors.red,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Lives: $_lives/$_maxLives',
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+        child: _buildLivesIndicator(),
       ),
     );
   }
@@ -1040,22 +1005,16 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.favorite,
-          color: Colors.red,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_lives/$_maxLives',
-          style: const TextStyle(
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
             color: Colors.red,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            size: 18,
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
   
@@ -1165,8 +1124,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     print('🔍 WordScrambleView: Building feedback - _isShowingWrongAnswer: $_isShowingWrongAnswer, _answered: $_answered, userAnswer: $_userAnswer');
     
     if (_isShowingWrongAnswer && !_answered) {
+      final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
       return Text(
-        'Incorrect, try again',
+        'Incorrect, try again ($wrongAttempts/5 attempts)',
         style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
@@ -1382,6 +1342,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                           _correctAnswers = 0;
                           _totalAnswered = 0;
                           _showingResults = false;
+                          _hasShownResults = false;
                           _answered = false;
                           _userAnswer = [];
                           _gameSession.reset(); // Reset XP tracking
@@ -1966,6 +1927,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
             _correctAnswers = 0;
             _totalAnswered = 0;
             _showingResults = false;
+            _hasShownResults = false;
             _answered = false;
             _correctWord = '';
             _scrambledLetters.clear();
@@ -2062,6 +2024,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       _correctAnswers = 0;
       _totalAnswered = 0;
       _showingResults = false;
+      _hasShownResults = false;
       _answered = false;
       _correctWord = '';
       _scrambledLetters.clear();

@@ -12,6 +12,7 @@ import '../models/dutch_word_exercise.dart';
 
 import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
+import '../components/main_header.dart';
 
 class WritingView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -50,6 +51,7 @@ class _WritingViewState extends State<WritingView> {
   int _correctAnswers = 0;
   int _totalAnswered = 0;
   bool _showingResults = false;
+  bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
   String _correctAnswer = '';
   String _displayWord = '';
@@ -730,9 +732,12 @@ class _WritingViewState extends State<WritingView> {
 
     if (_showingResults) {
       // Go directly to word progress instead of showing completion screen
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showWordProgress();
-      });
+      if (!_hasShownResults) {
+        _hasShownResults = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showWordProgress();
+        });
+      }
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -746,41 +751,19 @@ class _WritingViewState extends State<WritingView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Scrollable play area
           Expanded(
@@ -961,6 +944,31 @@ class _WritingViewState extends State<WritingView> {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                ] else if (!_answered) ...[
+                  // Show attempts remaining when incorrect (before 5 attempts)
+                  Builder(
+                    builder: (context) {
+                      final cardId = _currentCards[_currentIndex].id;
+                      final wrongAttempts = _wrongAttemptsPerWord[cardId] ?? 0;
+                      if (wrongAttempts > 0 && wrongAttempts < 5) {
+                        return Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Text(
+                              'Incorrect, try again ($wrongAttempts/5 attempts)',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ],
                 
                   const SizedBox(height: 20),
@@ -1000,9 +1008,15 @@ class _WritingViewState extends State<WritingView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(questionCountText),
-              // Show lives or timer in the middle if active
-              if (_useLivesMode) _buildLivesIndicator(),
-              if (_useTimedMode) _buildTimerIndicator(),
+              if (_useLivesMode && _useTimedMode) ...[
+                _buildLivesIndicator(),
+                const SizedBox(width: 8),
+                _buildTimerIndicator(),
+              ] else if (_useLivesMode) ...[
+                _buildLivesIndicator(),
+              ] else if (_useTimedMode) ...[
+                _buildTimerIndicator(),
+              ],
               Text('$accuracy%'),
             ],
           ),
@@ -1161,6 +1175,7 @@ class _WritingViewState extends State<WritingView> {
                           _correctAnswers = 0;
                           _totalAnswered = 0;
                           _showingResults = false;
+                          _hasShownResults = false;
                           _answered = false;
                           _displayWord = '';
                           _lives = 5;
@@ -1412,6 +1427,7 @@ class _WritingViewState extends State<WritingView> {
       _correctAnswers = 0;
       _totalAnswered = 0;
       _showingResults = false;
+      _hasShownResults = false;
       _answered = false;
       _lives = 5;
       _userAnswer = '';
@@ -1466,6 +1482,7 @@ class _WritingViewState extends State<WritingView> {
             _correctAnswers = 0;
             _totalAnswered = 0;
             _showingResults = false;
+            _hasShownResults = false;
             _answered = false;
             _lives = 5;
             _userAnswer = '';
@@ -1837,22 +1854,16 @@ class _WritingViewState extends State<WritingView> {
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.favorite,
-          color: Colors.red,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_lives/$_maxLives',
-          style: const TextStyle(
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
             color: Colors.red,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            size: 18,
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
   

@@ -9,6 +9,7 @@ import '../models/learning_mastery.dart';
 import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
+import '../components/main_header.dart';
 
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -1137,19 +1138,15 @@ class _PickYourCardViewState extends State<PickYourCardView>
         body: Column(
           children: [
             // Fixed Header - matching standard header
-            SafeArea(
-              child: Container(
-                height: kToolbarHeight,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: _buildCustomHeader(context),
+            MainHeader(
+              title: 'Pick Your Card',
+              leftAction: IconButton(
+                icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: () => _showCloseConfirmation(),
+              ),
+              rightAction: IconButton(
+                icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
               ),
             ),
             
@@ -1217,9 +1214,15 @@ class _PickYourCardViewState extends State<PickYourCardView>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(questionCountText),
-              // Show lives or timer in the middle if active
-              if (_useLivesMode) _buildLivesIndicator(),
-              if (widget.useTimedMode) _buildTimerIndicator(),
+              if (_useLivesMode && widget.useTimedMode) ...[
+                _buildLivesIndicator(),
+                const SizedBox(width: 8),
+                _buildTimerIndicator(),
+              ] else if (_useLivesMode) ...[
+                _buildLivesIndicator(),
+              ] else if (widget.useTimedMode) ...[
+                _buildTimerIndicator(),
+              ],
               Text('$accuracy%'),
             ],
           ),
@@ -1287,25 +1290,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.favorite,
-              color: Colors.red,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Lives: $_lives/$_maxLives',
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+        child: _buildLivesIndicator(),
       ),
     );
   }
@@ -1313,22 +1298,16 @@ class _PickYourCardViewState extends State<PickYourCardView>
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.favorite,
-          color: Colors.red,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_lives/$_maxLives',
-          style: const TextStyle(
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
             color: Colors.red,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
+            size: 18,
           ),
-        ),
-      ],
+        );
+      }),
     );
   }
   

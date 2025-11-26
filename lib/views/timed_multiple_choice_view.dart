@@ -17,6 +17,7 @@ import '../utils/game_end_screen.dart';
 import '../components/animated_xp_counter.dart';
 import '../models/timed_difficulty.dart';
 import '../utils/game_difficulty_helper.dart';
+import '../components/main_header.dart';
 import 'add_card_view.dart';
 
 class TimedMultipleChoiceView extends StatefulWidget {
@@ -46,6 +47,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   int _correctAnswers = 0;
   int _totalAnswered = 0;
   bool _showingResults = false;
+  bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
   int? _selectedAnswer;
   int? _correctAnswerIndex;
@@ -65,6 +67,11 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   Map<int, List<String>> _questionOptions = {}; // question index -> options
   Map<int, int> _correctAnswerIndices = {}; // question index -> correct answer index
   Map<int, bool> _questionModes = {}; // question index -> is question mode
+  
+  // Wrong attempts tracking for multiple attempts
+  Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts (0-5)
+  Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
+  Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
   
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
@@ -209,6 +216,10 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       _correctAnswerIndex = _correctAnswerIndices[_currentIndex]!;
       _selectedAnswer = _answeredQuestions[_currentIndex]!;
       _answered = true;
+      // Preserve blocked and disabled options
+      _blockedOptions[_currentIndex] ??= <int>{};
+      _disabledOptions[_currentIndex] ??= <int>{};
+      _wrongAttempts[_currentIndex] ??= 0;
       return;
     }
 
@@ -236,6 +247,13 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
     _questionOptions[_currentIndex] = List<String>.from(_options);
     _correctAnswerIndices[_currentIndex] = _correctAnswerIndex!;
     _questionModes[_currentIndex] = _isQuestionMode;
+    
+    // Reset wrong attempts tracking for new question (only if not already attempted)
+    if (!_answeredQuestions.containsKey(_currentIndex)) {
+      _wrongAttempts[_currentIndex] = 0;
+      _blockedOptions[_currentIndex] = <int>{};
+      _disabledOptions[_currentIndex] = <int>{};
+    }
     
     setState(() {
       _answered = false;
@@ -312,56 +330,132 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
   }
 
   void _selectAnswer(int index) {
+    // Don't allow selecting if already answered (correct answer selected or 5 wrong attempts)
     if (_answered || _timeUp) return;
+    
+    // Don't allow selecting blocked options (wrong answers that were already clicked)
+    _blockedOptions[_currentIndex] ??= <int>{};
+    if (_blockedOptions[_currentIndex]!.contains(index)) {
+      return;
+    }
     
     final isCorrect = index == _correctAnswerIndex;
     final currentCard = _currentCards[_currentIndex];
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
-    // Stop the timer
-    _timer?.cancel();
+    // Provide haptic feedback based on answer correctness
+    if (isCorrect) {
+      HapticService().successFeedback();
+    } else {
+      HapticService().errorFeedback();
+    }
     
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
-    // Update learning progress in the provider
-    _updateCardLearningProgress(currentCard, isCorrect);
-    
-    setState(() {
-      _selectedAnswer = index;
-      _answered = true;
-      _totalAnswered++;
+    if (isCorrect) {
+      // Correct answer - show answer immediately and award XP
+      // Stop the timer
+      _timer?.cancel();
       
-      // Store the answer
-      _answeredQuestions[_currentIndex] = index;
-      _correctAnswersMap[_currentIndex] = isCorrect;
+      // Update learning progress in the provider
+      _updateCardLearningProgress(currentCard, true);
       
-      if (isCorrect) {
+      setState(() {
+        _selectedAnswer = index;
+        _answered = true;
+        _totalAnswered++;
         _correctAnswers++;
-        // Play correct sound
-        SoundManager().playCorrectSound();
-      } else {
-        // Play wrong sound
-        SoundManager().playWrongSound();
-      }
-    });
-    
-    // Auto progress after a short delay
-    Timer(const Duration(milliseconds: 800), () {
-      if (mounted && !_isDisposed) {
-        if (_currentIndex < _currentCards.length - 1) {
-          _goToNextQuestion();
-        } else {
-          // Last question - go to results
-          _awardXp();
-          setState(() {
-            _showingResults = true;
-          });
-          if (!_isDisposed) {
-            SoundManager().playCompleteSound();
+        
+        // Store the answer
+        _answeredQuestions[_currentIndex] = index;
+        _correctAnswersMap[_currentIndex] = true;
+      });
+      
+      // Play correct sound
+      SoundManager().playCorrectSound();
+      
+      // Auto progress after a short delay
+      Timer(const Duration(milliseconds: 800), () {
+        if (mounted && !_isDisposed) {
+          if (_currentIndex < _currentCards.length - 1) {
+            _goToNextQuestion();
+          } else {
+            // Last question - go to results
+            _awardXp();
+            setState(() {
+              _showingResults = true;
+            });
+            if (!_isDisposed) {
+              SoundManager().playCompleteSound();
+            }
           }
         }
+      });
+    } else {
+      // Wrong answer - disable this option, increment wrong attempts
+      final newWrongAttempts = wrongAttempts + 1;
+      
+      // Disable this wrong option so it can't be clicked again
+      setState(() {
+        // Initialize sets if needed
+        _disabledOptions[_currentIndex] ??= <int>{};
+        _blockedOptions[_currentIndex] ??= <int>{};
+        
+        // Add to blocked set INSIDE setState
+        if (!_blockedOptions[_currentIndex]!.contains(index)) {
+          _blockedOptions[_currentIndex]!.add(index);
+        }
+        if (!_disabledOptions[_currentIndex]!.contains(index)) {
+          _disabledOptions[_currentIndex]!.add(index);
+        }
+        
+        _wrongAttempts[_currentIndex] = newWrongAttempts;
+        // Keep track of the wrong answer to show visual feedback
+        _selectedAnswer = index; // Show which option was selected (wrong)
+      });
+      
+      // Play wrong sound
+      SoundManager().playWrongSound();
+      
+      // If 5 wrong attempts, show the answer automatically and move to next
+      if (newWrongAttempts >= 5) {
+        // Stop the timer
+        _timer?.cancel();
+        
+        // Update learning progress in the provider (wrong answer)
+        _updateCardLearningProgress(currentCard, false);
+        
+        setState(() {
+          _answered = true;
+          _totalAnswered++;
+          
+          // Store the answer (wrong)
+          _answeredQuestions[_currentIndex] = index;
+          _correctAnswersMap[_currentIndex] = false;
+          // Show the correct answer
+          _selectedAnswer = _correctAnswerIndex;
+        });
+        
+        // Auto progress after a short delay
+        Timer(const Duration(milliseconds: 800), () {
+          if (mounted && !_isDisposed) {
+            if (_currentIndex < _currentCards.length - 1) {
+              _goToNextQuestion();
+            } else {
+              // Last question - go to results
+              _awardXp();
+              setState(() {
+                _showingResults = true;
+              });
+              if (!_isDisposed) {
+                SoundManager().playCompleteSound();
+              }
+            }
+          }
+        });
       }
-    });
+    }
   }
 
   Future<void> _updateCardLearningProgress(FlashCard card, bool wasCorrect) async {
@@ -549,6 +643,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
             _correctAnswers = 0;
             _totalAnswered = 0;
             _showingResults = false;
+            _hasShownResults = false;
             _answered = false;
             _selectedAnswer = null;
             _gameSession.reset();
@@ -557,6 +652,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
             _questionOptions.clear();
             _correctAnswerIndices.clear();
             _questionModes.clear();
+            _wrongAttempts.clear();
+            _disabledOptions.clear();
+            _blockedOptions.clear();
             _xpGainedPerWord.clear();
             _wordMastery.clear();
             _initialHPPerWord.clear();
@@ -814,6 +912,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                               _correctAnswers = 0;
                               _totalAnswered = 0;
                               _showingResults = false;
+                              _hasShownResults = false;
                               _answered = false;
                               _selectedAnswer = null;
                               _gameSession.reset(); // Reset XP tracking
@@ -823,6 +922,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                               _questionOptions.clear();
                               _correctAnswerIndices.clear();
                               _questionModes.clear();
+                              _wrongAttempts.clear();
+                              _disabledOptions.clear();
+                              _blockedOptions.clear();
                             });
                             _generateQuestion();
                             _resetTimer();
@@ -861,11 +963,14 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
 
     if (_showingResults) {
       // Use a post-frame callback to avoid calling navigation during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showWordProgress();
-        }
-      });
+      if (!_hasShownResults) {
+        _hasShownResults = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showWordProgress();
+          }
+        });
+      }
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -880,41 +985,19 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar and timer
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Question area
           Expanded(
@@ -985,19 +1068,32 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                         final index = entry.key;
                         final option = entry.value;
                         
+                        // Check if option is blocked/disabled
+                        _blockedOptions[_currentIndex] ??= <int>{};
+                        _disabledOptions[_currentIndex] ??= <int>{};
+                        final isBlocked = _blockedOptions[_currentIndex]!.contains(index);
+                        final isDisabled = _disabledOptions[_currentIndex]!.contains(index);
+                        final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
+                        
+                        // Block interactions: if answered, wrong answers are not selectable
+                        final isNotSelectable = isBlocked || isDisabled || (_answered && index != _correctAnswerIndex);
+                        
+                        // Visual appearance: only show as blocked if there were wrong attempts or if it's actually blocked/disabled
+                        final shouldShowAsBlocked = (isBlocked || isDisabled) || (_answered && index != _correctAnswerIndex && wrongAttempts > 0);
+                        
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: GestureDetector(
-                            onTap: _answered ? null : () => _selectAnswer(index),
+                            onTap: isNotSelectable ? null : () => _selectAnswer(index),
                             child: Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: _getOptionColor(index),
+                                color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: _getOptionBorderColor(index),
-                                  width: 2,
+                                  color: shouldShowAsBlocked ? Colors.grey : _getOptionBorderColor(index),
+                                  width: shouldShowAsBlocked ? 3 : 2,
                                 ),
                               ),
                               child: Row(
@@ -1007,17 +1103,19 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                                     height: 24,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: _getOptionBorderColor(index),
+                                      color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.3) : _getOptionBorderColor(index),
                                     ),
                                     child: Center(
-                                      child: Text(
-                                        String.fromCharCode(65 + index), // A, B, C, D
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
+                                      child: shouldShowAsBlocked
+                                          ? const Icon(Icons.block, color: Colors.grey, size: 18)
+                                          : Text(
+                                              String.fromCharCode(65 + index), // A, B, C, D
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                     ),
                                   ),
                                   const SizedBox(width: 16),
@@ -1027,7 +1125,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
-                                        color: _getOptionTextColor(index),
+                                        color: shouldShowAsBlocked ? Colors.grey : _getOptionTextColor(index),
                                       ),
                                     ),
                                   ),
@@ -1035,6 +1133,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                                     const Icon(Icons.check_circle, color: Colors.green, size: 24),
                                   if (_answered && index == _selectedAnswer && index != _correctAnswerIndex)
                                     const Icon(Icons.cancel, color: Colors.red, size: 24),
+                                  // Show X icon for disabled/wrong answers (only if there were wrong attempts)
+                                  if ((isBlocked || isDisabled) && !_answered)
+                                    const Icon(Icons.close, color: Colors.red, size: 20),
                                 ],
                               ),
                             ),
@@ -1045,11 +1146,54 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                   ),
                   
                   // No navigation buttons - auto progress only
+                  // Note: No text feedback needed - visual indicators (tick/cross) are shown next to options
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAnswerFeedback() {
+    final currentCard = _currentCards[_currentIndex];
+    final isCorrectAnswer = _selectedAnswer != null && _selectedAnswer == _correctAnswerIndex;
+    
+    // Determine color and message based on correctness
+    Color textColor;
+    String message;
+    
+    // Get the correct answer based on orientation
+    String correctAnswer;
+    if (_isQuestionMode) {
+      // Show word, ask for definition
+      correctAnswer = currentCard.definition;
+    } else {
+      // Show definition, ask for word
+      correctAnswer = currentCard.word;
+    }
+    
+    if (isCorrectAnswer) {
+      // User answered correctly - show green positive feedback
+      textColor = Colors.green;
+      message = 'Correct!';
+    } else {
+      // User answered incorrectly - show red feedback with correct answer
+      textColor = Colors.red;
+      message = 'The correct answer is: $correctAnswer';
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: textColor,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }

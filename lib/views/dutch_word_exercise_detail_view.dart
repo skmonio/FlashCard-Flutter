@@ -66,6 +66,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
+  final Set<String> _hpPenaltyAppliedWordIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -475,7 +476,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _buildAnswerWords(_answerWords),
+            children: _buildAnswerWords(_answerWords, _currentExerciseIndex),
           ),
         ),
         
@@ -517,23 +518,81 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     );
   }
   
-  List<Widget> _buildAnswerWords(List<String> words) {
-    return words.map((word) {
+  List<Widget> _buildAnswerWords(List<String> words, int exerciseIndex) {
+    // Get correct order for this exercise
+    final currentExercise = _wordExercise.exercises[exerciseIndex];
+    List<String> correctOrder = [];
+    if (currentExercise.type == ExerciseType.sentenceBuilding) {
+      // For sentence building, the correct order comes from splitting the correctAnswer string
+      // This ensures we use the actual correct sentence order, not the shuffled options
+      correctOrder = currentExercise.correctAnswer.split(' ').map((w) => w.trim()).where((w) => w.isNotEmpty).toList();
+    } else {
+      // For other types, split the correct answer
+      correctOrder = currentExercise.correctAnswer.split(' ');
+    }
+    
+    // Check per-word positions if answer is shown
+    List<bool>? positionCorrect;
+    if (_showAnswer) {
+      positionCorrect = SentenceUtils.checkWordPositions(words, correctOrder);
+    }
+    
+    return words.asMap().entries.map((entry) {
+      final wordIndex = entry.key;
+      final word = entry.value;
+      final isPositionCorrect = positionCorrect != null && wordIndex < positionCorrect.length 
+          ? positionCorrect[wordIndex] 
+          : null;
+      
+      // Determine colors based on position correctness
+      Color backgroundColor;
+      Color borderColor;
+      Color textColor;
+      
+      if (_showAnswer && isPositionCorrect != null) {
+        if (isPositionCorrect) {
+          backgroundColor = Colors.green.withOpacity(0.2);
+          borderColor = Colors.green;
+          textColor = Colors.green[700]!;
+        } else {
+          backgroundColor = Colors.red.withOpacity(0.2);
+          borderColor = Colors.red;
+          textColor = Colors.red[700]!;
+        }
+      } else {
+        backgroundColor = Colors.green.withOpacity(0.2);
+        borderColor = Colors.green.withOpacity(0.5);
+        textColor = Colors.green[700]!;
+      }
+      
       return GestureDetector(
-        onTap: () => _moveWordToAvailable(word),
+        onTap: _showAnswer ? null : () => _moveWordToAvailable(word),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.2),
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.green.withOpacity(0.5)),
+            border: Border.all(color: borderColor),
           ),
-          child: Text(
-            word,
-            style: TextStyle(
-              color: Colors.green[700],
-              fontWeight: FontWeight.w500,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                word,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (_showAnswer && isPositionCorrect != null) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  isPositionCorrect ? Icons.check_circle : Icons.cancel,
+                  color: isPositionCorrect ? Colors.green : Colors.red,
+                  size: 16,
+                ),
+              ],
+            ],
           ),
         ),
       );
@@ -659,32 +718,24 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
           ),
           if (!_isCorrect && exercise.type == ExerciseType.sentenceBuilding) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check, color: Colors.green, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SelectableText(
-                      'Correct answer: ${exercise.correctAnswer}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.green[700],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.left,
-                      enableInteractiveSelection: true,
-                      showCursor: false,
+            Row(
+              children: [
+                Icon(Icons.check, color: Colors.green, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    'The correct answer is: ${exercise.correctAnswer}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w500,
                     ),
+                    textAlign: TextAlign.left,
+                    enableInteractiveSelection: true,
+                    showCursor: false,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
           if (exercise.hint != null) ...[
@@ -845,18 +896,32 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       // Update learning mastery based on difficulty (assuming medium for exercises)
       final xpService = XpService();
       
+      bool shouldApplyHpPenalty = false;
+      if (flashCard.id.isNotEmpty && !_hpPenaltyAppliedWordIds.contains(flashCard.id)) {
+        _hpPenaltyAppliedWordIds.add(flashCard.id);
+        shouldApplyHpPenalty = true;
+      }
+      
       if (wasCorrect) {
-        updatedCard.markCorrect(GameDifficulty.medium);
+        if (shouldApplyHpPenalty) {
+          updatedCard.markCorrect(GameDifficulty.medium);
+        }
         
-        // Award XP using standard system (only if not in shuffle mode - shuffle mode handles XP separately)
-        if (!widget.singleQuestionMode) {
-          xpService.addXPToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail', 1);
+        // Award XP without recording extra attempts to prevent duplicate HP loss
+        if (!widget.singleQuestionMode && !shouldApplyHpPenalty) {
+          xpService.addXPToWordWithoutRecordingAttempt(
+            updatedCard.learningMastery,
+            'dutch_word_exercise_detail',
+            1,
+          );
         }
       } else {
-        updatedCard.markIncorrect(GameDifficulty.medium);
+        if (shouldApplyHpPenalty) {
+          updatedCard.markIncorrect(GameDifficulty.medium);
+        }
         
-        // Record attempt for incorrect answers (reduces HP but no XP)
-        if (!widget.singleQuestionMode) {
+        // Skip additional attempt records when HP was already deducted earlier
+        if (!widget.singleQuestionMode && !shouldApplyHpPenalty) {
           xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail');
         }
       }

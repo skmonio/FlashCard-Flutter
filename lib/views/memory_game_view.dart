@@ -15,6 +15,7 @@ import '../services/haptic_service.dart';
 
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
+import '../components/main_header.dart';
 
 class MemoryGameView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -383,63 +384,45 @@ class _MemoryGameViewState extends State<MemoryGameView>
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Column(
-                        children: [
-                          Text(
-                            widget.startFlipped ? 'Study Cards' : 'Memory Game',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          if (_isTimedMode) ...[
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _remainingTimeSeconds <= 10 ? Colors.red : Colors.orange,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                _formatTime(_remainingTimeSeconds),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.startFlipped ? 'Study Cards' : 'Memory Game',
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Timer display (if in timed mode)
+          if (_isTimedMode)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _remainingTimeSeconds <= 10 ? Colors.red : Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatTime(_remainingTimeSeconds),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          _buildProgressBar(),
           
           // Game board
           Expanded(

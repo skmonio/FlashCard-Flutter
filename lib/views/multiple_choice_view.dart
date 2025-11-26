@@ -17,6 +17,8 @@ import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
 import '../utils/game_difficulty_helper.dart';
+import '../models/timed_difficulty.dart';
+import '../components/main_header.dart';
 import 'add_card_view.dart';
 
 class MultipleChoiceView extends StatefulWidget {
@@ -27,6 +29,8 @@ class MultipleChoiceView extends StatefulWidget {
   final bool autoProgress;
   final bool useLivesMode;
   final int? customLives;
+  final bool useTimedMode;
+  final TimedDifficulty? timedDifficulty;
   final bool startFlipped;
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
@@ -41,6 +45,8 @@ class MultipleChoiceView extends StatefulWidget {
     this.autoProgress = false,
     this.useLivesMode = false,
     this.customLives,
+    this.useTimedMode = false,
+    this.timedDifficulty,
     this.startFlipped = false,
     this.studyConfig,
     this.shuffleQuestionOffset,
@@ -67,6 +73,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   int _lives = 0;
   int _maxLives = 0;
   bool _useLivesMode = false;
+  
+  // Timer variables for timed mode
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  bool _useTimedMode = false;
   
   // Track answered questions and their answers
   Map<int, int> _answeredQuestions = {}; // question index -> selected answer index
@@ -113,7 +126,29 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _lives = _maxLives;
     }
     
+    // Initialize timed mode
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode && widget.timedDifficulty != null) {
+      switch (widget.timedDifficulty!) {
+        case TimedDifficulty.easy:
+          _timeRemaining = 7;
+          break;
+        case TimedDifficulty.medium:
+          _timeRemaining = 5;
+          break;
+        case TimedDifficulty.hard:
+          _timeRemaining = 3;
+          break;
+      }
+      _totalTime = _timeRemaining;
+    }
+    
     _generateQuestion();
+    
+    // Start timer if in timed mode
+    if (_useTimedMode) {
+      _startTimer();
+    }
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -137,6 +172,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     // Cancel auto progress timer
     _autoProgressTimer?.cancel();
+    
+    // Cancel timer
+    _timer?.cancel();
     
     super.dispose();
   }
@@ -189,6 +227,62 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     } else {
       card.markIncorrect(GameDifficulty.medium);
     }
+  }
+
+  void _startTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _handleTimeUp();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered || _timeUp) return; // Already answered or time already up
+    
+    final currentCard = _currentCards[_currentIndex];
+    
+    // Mark as incorrect (timeout = incorrect)
+    setState(() {
+      _answered = true;
+      _timeUp = true;
+      _totalAnswered++;
+      _correctAnswersMap[_currentIndex] = false; // Time out = incorrect answer
+      _selectedAnswer = null; // No answer selected
+    });
+    
+    // Apply HP penalty and record answer
+    _applyHpPenalty(currentCard, wasCorrect: false);
+    _awardXPToWord(currentCard, false, 0);
+    _updateCardInProvider(currentCard);
+    XpService.recordAnswer(_gameSession, false);
+    
+    // Auto progress after showing the answer
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _goToNextQuestion();
+      }
+    });
+  }
+
+  void _resetTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timeRemaining = _totalTime;
+    _timeUp = false;
+    _startTimer();
   }
 
   void _generateQuestion() {
@@ -250,8 +344,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     // Get wrong options from configured answer pool
     final answerPool = _getAnswerPoolForCard(currentCard);
     final otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
-    // Test Your Cards mode should have 4 options, other modes have 6
-    final int desiredTotalOptions = widget.title.toLowerCase().contains('test') ? 4 : 6;
+    // Test Your Cards mode and shuffle mode should have 4 options, other modes have 6
+    final int desiredTotalOptions = (widget.title.toLowerCase().contains('test') || widget.shuffleMode) ? 4 : 6;
     final int desiredWrongOptions = desiredTotalOptions - 1;
     final wrongOptions = <String>[];
     
@@ -318,7 +412,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     setState(() {
       _answered = false;
       _selectedAnswer = null;
+      _timeUp = false;
     });
+    
+    // Reset timer for new question
+    if (_useTimedMode) {
+      _resetTimer();
+    }
   }
 
   List<FlashCard> _getAnswerPoolForCard(FlashCard currentCard) {
@@ -379,6 +479,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     
     // Track XP for the answer
     XpService.recordAnswer(_gameSession, isCorrect);
+    
+    // Stop timer if in timed mode
+    if (_useTimedMode) {
+      _timer?.cancel();
+    }
     
     if (isCorrect) {
       // Correct answer - show answer immediately and award XP
@@ -735,41 +840,19 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Question area
           Expanded(
@@ -952,8 +1035,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(questionCountText),
-              // Show lives in the middle if active
-              if (_useLivesMode) _buildLivesIndicator(),
+              // Show lives and/or timer in the middle if active
+              if (_useLivesMode && _useTimedMode) ...[
+                _buildLivesIndicator(),
+                const SizedBox(width: 8),
+                _buildTimerIndicator(),
+              ] else if (_useLivesMode) ...[
+                _buildLivesIndicator(),
+              ] else if (_useTimedMode) ...[
+                _buildTimerIndicator(),
+              ],
               Text('$accuracy%'),
             ],
           ),
@@ -978,29 +1069,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.1),
+          color: Colors.red.withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          border: Border.all(color: Colors.red.withOpacity(0.2)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.favorite,
-              color: Colors.red,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Lives: $_lives/$_maxLives',
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
+        child: _buildLivesIndicator(),
       ),
     );
   }
@@ -1008,17 +1081,41 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Widget _buildLivesIndicator() {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
+            color: Colors.red,
+            size: 18,
+          ),
+        );
+      }),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
-          Icons.favorite,
-          color: Colors.red,
+          Icons.timer,
+          color: timerColor,
           size: 16,
         ),
         const SizedBox(width: 4),
         Text(
-          '$_lives/$_maxLives',
-          style: const TextStyle(
-            color: Colors.red,
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),

@@ -364,7 +364,9 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _answerWords.map((word) => _buildWordChip(word, true)).toList(),
+                  children: _answerWords.asMap().entries.map((entry) => 
+                    _buildWordChip(entry.value, true, entry.key)
+                  ).toList(),
                 ),
               ],
             ),
@@ -433,23 +435,26 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
     );
   }
 
-  Widget _buildWordChip(String word, bool isSelected) {
+  Widget _buildWordChip(String word, bool isSelected, [int? wordIndex]) {
     // print('🔍 Building word chip: $word, isSelected: $isSelected, _showAnswer: $_showAnswer');
     
     // Determine colors based on state
     Color backgroundColor;
     Color borderColor;
     Color textColor;
+    bool? isPositionCorrect;
     
-    if (_showAnswer && isSelected) {
-      // Show correct/incorrect feedback for selected words when answer is shown
+    if (_showAnswer && isSelected && wordIndex != null) {
+      // Show per-word position feedback for selected words when answer is shown
       final exercises = _generateExercises();
       final currentExercise = exercises[_currentExerciseIndex];
       final correctOrder = currentExercise['correctOrder'] as List<String>;
-      // Use flexible comparison for sentence building to handle capitalization and duplicate word positioning
-      final isCorrect = SentenceUtils.equalsWithFlexibleDuplicates(_answerWords, correctOrder);
       
-      if (isCorrect) {
+      // Check per-word positions
+      final positionCorrect = SentenceUtils.checkWordPositions(_answerWords, correctOrder);
+      isPositionCorrect = wordIndex < positionCorrect.length ? positionCorrect[wordIndex] : false;
+      
+      if (isPositionCorrect == true) {
         backgroundColor = Colors.green.withOpacity(0.2);
         borderColor = Colors.green;
         textColor = Colors.green[700]!;
@@ -494,11 +499,11 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            if (_showAnswer && isSelected) ...[
+            if (_showAnswer && isSelected && isPositionCorrect != null) ...[
               const SizedBox(width: 4),
               Icon(
-                _isCorrect ? Icons.check_circle : Icons.cancel,
-                color: _isCorrect ? Colors.green : Colors.red,
+                isPositionCorrect ? Icons.check_circle : Icons.cancel,
+                color: isPositionCorrect ? Colors.green : Colors.red,
                 size: 16,
               ),
             ],

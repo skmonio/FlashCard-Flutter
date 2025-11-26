@@ -6,6 +6,7 @@ import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
 import '../components/unified_header.dart';
+import '../components/main_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
@@ -39,6 +40,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   int _correctAnswers = 0;
   int _totalAnswered = 0;
   bool _showingResults = false;
+  bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
   String _correctWord = '';
   List<String> _scrambledLetters = [];
@@ -60,6 +62,10 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   Map<int, String> _correctWords = {};
   Map<int, List<String>> _scrambledLettersMap = {};
   Map<int, bool> _questionModes = {};
+  
+  // Wrong attempts tracking for multiple attempts
+  Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts (0-5)
+  bool _isShowingWrongAnswer = false; // Track if we're showing wrong answer state
   
   // RPG tracking
   Map<String, int> _xpGainedPerWord = {};
@@ -167,11 +173,24 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   void _handleTimeUp() {
     if (_answered) return; // Already answered
     
+    // Mark as incorrect (timeout = incorrect)
+    // Reconstruct the correct answer from the original scrambled pieces
+    // We need to show the correct word in the answer box
+    final correctPieces = _reconstructCorrectAnswer();
+    
     setState(() {
       _answered = true;
       _timeUp = true;
-      _correctAnswersMap[_currentIndex] = null; // Time out = no answer
+      _totalAnswered++;
+      _correctAnswersMap[_currentIndex] = false; // Time out = incorrect answer
+      // Set user answer to the correct pieces so it's displayed
+      _userAnswer = correctPieces;
+      _scrambledLetters.clear();
+      _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
     });
+    
+    // Record incorrect answer for XP tracking
+    _gameSession.recordAnswer(false);
     
     // Auto progress after showing the answer
     Timer(const Duration(milliseconds: 1500), () {
@@ -179,6 +198,13 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
         _goToNextQuestion();
       }
     });
+  }
+
+  List<String> _reconstructCorrectAnswer() {
+    // Split the correct word into individual characters (removing spaces)
+    // This will display the correct answer in the answer box
+    final correctWordNoSpaces = _correctWord.replaceAll(' ', '');
+    return correctWordNoSpaces.split('');
   }
 
   void _resetTimer() {
@@ -213,9 +239,18 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
     _scrambledLetters = _createPiecesFromWords(_correctWord, random);
     _scrambledLettersMap[_currentIndex] = List<String>.from(_scrambledLetters);
     
+    // Reset wrong attempts only if this is a new question (not already attempted)
+    if (!_answeredQuestions.containsKey(_currentIndex)) {
+      _wrongAttempts[_currentIndex] = 0;
+    } else {
+      // Preserve wrong attempts for already attempted questions
+      _wrongAttempts[_currentIndex] ??= 0;
+    }
+    
     setState(() {
       _userAnswer = [];
       _answered = false;
+      _isShowingWrongAnswer = false;
     });
     
     _resetTimer();
@@ -309,7 +344,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   }
 
   void _addLetter(String letter) {
-    if (_answered) return;
+    if (_answered || _isShowingWrongAnswer) return;
     
     setState(() {
       _userAnswer.add(letter);
@@ -320,7 +355,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
     if (_userAnswer.length == _scrambledLettersMap[_currentIndex]!.length) {
       // All pieces have been added, auto-check answer
       Timer(const Duration(milliseconds: 500), () {
-        if (mounted && !_answered) {
+        if (mounted && !_answered && !_isShowingWrongAnswer) {
           _checkAnswer();
         }
       });
@@ -328,7 +363,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   }
 
   void _removeLetter(String letter) {
-    if (_answered) return;
+    if (_answered || _isShowingWrongAnswer) return;
     
     setState(() {
       _userAnswer.remove(letter);
@@ -337,47 +372,94 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   }
 
   void _checkAnswer() {
-    if (_answered) return;
-    
-    _timer?.cancel(); // Stop the timer
+    if (_answered || _userAnswer.isEmpty || _isShowingWrongAnswer) return;
     
     final userAnswerString = _userAnswer.join('');
     final isCorrect = userAnswerString.toLowerCase() == _correctWord.toLowerCase();
+    final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
-    setState(() {
-      _answered = true;
-      _totalAnswered++;
-      
-      if (isCorrect) {
-        _correctAnswers++;
-      }
-      
-      _correctAnswersMap[_currentIndex] = isCorrect;
-      _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
-    });
-    
-    // Provide feedback
     if (isCorrect) {
+      // Correct answer - proceed normally
+      _timer?.cancel(); // Stop the timer
+      
+      setState(() {
+        _answered = true;
+        _totalAnswered++;
+        _correctAnswers++;
+        _correctAnswersMap[_currentIndex] = true;
+        _wrongAttempts[_currentIndex] = 0; // Reset wrong attempts on correct
+        _isShowingWrongAnswer = false;
+      });
+      
+      _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
+      
+      // Provide feedback
       HapticService().lightImpact();
       SoundManager().playCorrectSound();
+      
+      // Award XP
+      _gameSession.recordAnswer(true);
+      
+      // Auto progress after showing the answer
+      Timer(const Duration(milliseconds: 800), () {
+        if (mounted) {
+          _goToNextQuestion();
+        }
+      });
     } else {
+      // Wrong answer - increment attempts and allow retry
+      final newWrongAttempts = wrongAttempts + 1;
+      _wrongAttempts[_currentIndex] = newWrongAttempts;
+      
+      // Provide feedback
       HapticService().mediumImpact();
       SoundManager().playWrongSound();
-    }
-    
-    // Award XP
-    if (isCorrect) {
-      _gameSession.recordAnswer(true);
-    } else {
+      
+      // Award XP (wrong)
       _gameSession.recordAnswer(false);
-    }
-    
-    // Auto progress after showing the answer
-    Timer(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        _goToNextQuestion();
+      
+      // If 5 wrong attempts, auto-complete with correct answer
+      if (newWrongAttempts >= 5) {
+        _timer?.cancel(); // Stop the timer
+        
+        setState(() {
+          _answered = true;
+          _totalAnswered++;
+          _correctAnswersMap[_currentIndex] = false; // Mark as incorrect (failed after 5 attempts)
+          _isShowingWrongAnswer = false;
+          // Set user answer to the correct word
+          _userAnswer = _correctWord.split('');
+          _scrambledLetters.clear();
+        });
+        
+        _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
+        
+        // Auto progress after showing the answer
+        Timer(const Duration(milliseconds: 800), () {
+          if (mounted) {
+            _goToNextQuestion();
+          }
+        });
+      } else {
+        // Show wrong answer state and allow retry
+        setState(() {
+          _isShowingWrongAnswer = true;
+        });
+        
+        // Reset after a delay to allow retry
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted && !_answered) {
+            setState(() {
+              _isShowingWrongAnswer = false;
+              // Return all pieces from user answer back to scrambled letters pool
+              final piecesToReturn = List<String>.from(_userAnswer);
+              _scrambledLetters.addAll(piecesToReturn);
+              _userAnswer.clear();
+            });
+          }
+        });
       }
-    });
+    }
   }
 
   void _goToNextQuestion() {
@@ -411,11 +493,14 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
   Widget build(BuildContext context) {
     if (_showingResults) {
       // Use a post-frame callback to avoid calling navigation during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _showWordProgress();
-        }
-      });
+      if (!_hasShownResults) {
+        _hasShownResults = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showWordProgress();
+          }
+        });
+      }
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -440,41 +525,19 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Small header with progress bar and timer
-          SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => _showCloseConfirmation(),
-                        icon: const Icon(Icons.arrow_back_ios),
-                        iconSize: 20,
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => _showHomeConfirmation(),
-                        icon: const Icon(Icons.home),
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-                // Progress bar
-                _buildProgressBar(),
-              ],
+          MainHeader(
+            title: widget.title,
+            leftAction: IconButton(
+              icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showCloseConfirmation(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              onPressed: () => _showHomeConfirmation(),
             ),
           ),
+          // Progress bar
+          _buildProgressBar(),
           
           // Question area
           Expanded(
@@ -569,10 +632,10 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                                 )
                               : _buildUserAnswerDisplay(),
                         ),
-                        // Show feedback when answered
-                        if (_answered) ...[
+                        // Show feedback when answered or showing wrong answer
+                        if (_answered || _isShowingWrongAnswer) ...[
                           const SizedBox(height: 8),
-                          if (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase()) ...[
+                          if (_answered && _userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase()) ...[
                             // Show "Correct!" for correct answers
                             Text(
                               'Correct!',
@@ -583,10 +646,33 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                               ),
                               textAlign: TextAlign.center,
                             ),
-                          ] else ...[
-                            // Show correct answer for incorrect answers
+                          ] else if (_answered) ...[
+                            // Show correct answer for incorrect answers (after 5 attempts or timeout)
+                            if (_timeUp) ...[
+                              Text(
+                                'Time\'s up! The correct answer is: $_correctWord',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.red,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ] else ...[
+                              Text(
+                                'The correct answer is: $_correctWord',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.red,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ] else if (_isShowingWrongAnswer) ...[
+                            // Show attempts remaining when incorrect (before 5 attempts)
                             Text(
-                              'The correct answer is: $_correctWord',
+                              'Incorrect, try again (${_wrongAttempts[_currentIndex] ?? 0}/5 attempts)',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -603,7 +689,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                   const SizedBox(height: 32),
                   
                   // Scrambled letters (only show if question is not answered)
-                  if (!_answered)
+                  if (!_answered && !_isShowingWrongAnswer)
                     _buildScrambledLetters(),
                   
                   const Spacer(),
@@ -936,6 +1022,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                               _correctAnswers = 0;
                               _totalAnswered = 0;
                               _showingResults = false;
+                              _hasShownResults = false;
                               _answered = false;
                               _userAnswer = [];
                               _gameSession.reset(); // Reset XP tracking
@@ -945,6 +1032,8 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
                               _correctWords.clear();
                               _scrambledLettersMap.clear();
                               _questionModes.clear();
+                              _wrongAttempts.clear();
+                              _isShowingWrongAnswer = false;
                             });
                             _generateQuestion();
                             _resetTimer();
@@ -1081,6 +1170,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
             _correctAnswers = 0;
             _totalAnswered = 0;
             _showingResults = false;
+            _hasShownResults = false;
             _answered = false;
             _userAnswer = [];
             _gameSession.reset();
@@ -1089,6 +1179,8 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
             _correctWords.clear();
             _scrambledLettersMap.clear();
             _questionModes.clear();
+            _wrongAttempts.clear();
+            _isShowingWrongAnswer = false;
             _xpGainedPerWord.clear();
             _wordMastery.clear();
             _studiedWords.clear();
