@@ -15,6 +15,7 @@ class StudyConfig {
   final TimedDifficulty? timedDifficulty;
   final int? timePerQuestion;
   final bool useAllCardsForAnswers;
+  final bool oneAnswerMode;
 
   const StudyConfig({
     required this.deckIds,
@@ -29,6 +30,7 @@ class StudyConfig {
     this.timedDifficulty,
     this.timePerQuestion,
     required this.useAllCardsForAnswers,
+    this.oneAnswerMode = false,
   });
 
   StudyConfig copyWith({
@@ -44,6 +46,7 @@ class StudyConfig {
     TimedDifficulty? timedDifficulty,
     int? timePerQuestion,
     bool? useAllCardsForAnswers,
+    bool? oneAnswerMode,
   }) {
     return StudyConfig(
       deckIds: deckIds ?? this.deckIds,
@@ -58,6 +61,7 @@ class StudyConfig {
       timedDifficulty: timedDifficulty ?? this.timedDifficulty,
       timePerQuestion: timePerQuestion ?? this.timePerQuestion,
       useAllCardsForAnswers: useAllCardsForAnswers ?? this.useAllCardsForAnswers,
+      oneAnswerMode: oneAnswerMode ?? this.oneAnswerMode,
     );
   }
 }

@@ -520,6 +520,58 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         });
       }
     } else {
+      // Check if "1 answer mode" is enabled
+      bool oneAnswerMode = widget.studyConfig?.oneAnswerMode ?? false;
+      
+      if (oneAnswerMode) {
+        // Wrong answer in 1 answer mode - mark as answered immediately
+        _applyHpPenalty(currentCard, wasCorrect: false);
+        _awardXPToWord(currentCard, false, 1); // 1 wrong attempt
+        _updateCardInProvider(currentCard);
+        
+        setState(() {
+          _answered = true;
+          _totalAnswered++;
+          _answeredQuestions[_currentIndex] = index;
+          _correctAnswersMap[_currentIndex] = false;
+          _selectedAnswer = index; // This will show the wrong choice as red and original correct as green
+        });
+        
+        // Play wrong sound
+        SoundManager().playWrongSound();
+
+        // Handle lives system in 1 answer mode
+        if (_useLivesMode) {
+          setState(() {
+            _lives--;
+          });
+          print('🔍 MultipleChoiceView: Lost a life in 1 answer mode! Lives remaining: $_lives');
+
+          if (_lives <= 0) {
+            print('🔍 MultipleChoiceView: Game over in 1 answer mode!');
+            _applyHpPenalty(currentCard, wasCorrect: false);
+            _awardXPToWord(currentCard, false, 1);
+            _updateCardInProvider(currentCard);
+            _showGameOverScreen();
+            return;
+          }
+        }
+        
+        // Auto progress logic for wrong answer in 1 answer mode
+        if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
+          _autoProgressTimer?.cancel();
+          _autoProgressTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (mounted && _currentIndex < _currentCards.length - 1) {
+              _autoProgressedQuestions.add(_currentIndex);
+              _activeQuestionIndex = _currentIndex + 1;
+              _goToNextQuestion();
+            }
+          });
+        }
+        
+        return;
+      }
+
       // Wrong answer - disable this option, increment wrong attempts, and apply XP penalty
       final newWrongAttempts = wrongAttempts + 1;
       

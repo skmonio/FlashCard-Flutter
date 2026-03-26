@@ -245,6 +245,10 @@ class _AddCardViewState extends State<AddCardView> {
                                     ),
                                     validator: (value) {
                                       if (value == null || value.trim().isEmpty) {
+                                        // Allow empty definition if it's a duplicate card (user might just want to add to decks)
+                                        if (_findDuplicateCard() != null) {
+                                          return null;
+                                        }
                                         return 'Please enter a definition';
                                       }
                                       if (value.length > 200) {
@@ -1053,8 +1057,16 @@ class _AddCardViewState extends State<AddCardView> {
   }
 
   bool _canSave() {
-    return _wordController.text.trim().isNotEmpty && 
-           _definitionController.text.trim().isNotEmpty;
+    final word = _wordController.text.trim();
+    final definition = _definitionController.text.trim();
+    
+    // Can save if word is not empty AND (definition is not empty OR it's a duplicate card)
+    if (word.isEmpty) return false;
+    
+    if (definition.isNotEmpty) return true;
+    
+    // If definition is empty, only allow save if the word already exists
+    return _findDuplicateCard() != null;
   }
 
   bool _hasUnsavedChanges() {
@@ -1143,10 +1155,44 @@ class _AddCardViewState extends State<AddCardView> {
     
     final duplicateCard = _findDuplicateCard();
     if (duplicateCard != null) {
-      return 'This word already exists';
+      return 'Note: This word already exists';
     }
     
     return null;
+  }
+
+  Future<String?> _showDuplicateDialog(FlashCard duplicateCard) async {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Word Already Exists'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('The word "${duplicateCard.word}" already exists in your library.'),
+            const SizedBox(height: 12),
+            Text('Existing definition: ${duplicateCard.definition}'),
+            const SizedBox(height: 16),
+            const Text('What would you like to do?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop('add_to_decks'),
+            child: const Text('Keep Existing & Add to Decks'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop('overwrite'),
+            child: const Text('Overwrite with New Info'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _submitCard() async {
@@ -1158,16 +1204,53 @@ class _AddCardViewState extends State<AddCardView> {
     // The FlashcardService.createCard method will handle empty deckIds by creating/using Uncategorized deck
     
     // Check for duplicate card
+    FlashCard? cardToEdit = widget.cardToEdit;
     final duplicateCard = _findDuplicateCard();
-    if (duplicateCard != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This word already exists'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
+    
+    if (duplicateCard != null && cardToEdit == null) {
+      // Found a duplicate and we're NOT in edit mode for a specific card
+      final action = await _showDuplicateDialog(duplicateCard);
+      
+      if (action == null) {
+        return; // User cancelled
+      }
+      
+      if (action == 'add_to_decks') {
+        setState(() {
+          _isLoading = true;
+        });
+        
+        try {
+          final provider = context.read<FlashcardProvider>();
+          // Combine existing decks with currently selected ones
+          final updatedDeckIds = {...duplicateCard.deckIds, ..._selectedDeckIds};
+          
+          final updatedCard = duplicateCard.copyWith(
+            deckIds: updatedDeckIds,
+            lastModified: DateTime.now(),
+          );
+          
+          await provider.updateCard(updatedCard);
+          
+          if (mounted) {
+            EnhancedSnackBar.showSuccess(
+              context,
+              message: 'Added "${duplicateCard.word}" to selected decks!',
+            );
+            Navigator.of(context).pop(true);
+          }
+          return;
+        } catch (e) {
+          if (mounted) {
+            EnhancedSnackBar.showError(context, message: 'Failed to update decks: $e');
+            setState(() { _isLoading = false; });
+          }
+          return;
+        }
+      } else if (action == 'overwrite') {
+        // Set cardToEdit to the duplicate card so the logic below treats it as an update
+        cardToEdit = duplicateCard;
+      }
     }
     
     setState(() {
@@ -1177,20 +1260,15 @@ class _AddCardViewState extends State<AddCardView> {
     try {
       final provider = context.read<FlashcardProvider>();
       
-      if (widget.cardToEdit != null) {
-        // Update existing card
-        final updatedCard = FlashCard(
-          id: widget.cardToEdit!.id,
+      if (cardToEdit != null) {
+        // Update existing card using copyWith to preserve fields not in the form
+        final updatedCard = cardToEdit.copyWith(
           word: _wordController.text.trim(),
           definition: _definitionController.text.trim().isEmpty ? null : _definitionController.text.trim(),
           example: _exampleController.text.trim().isEmpty ? null : _exampleController.text.trim(),
           exampleTranslation: _exampleTranslationController.text.trim().isEmpty ? null : _exampleTranslationController.text.trim(),
           deckIds: _selectedDeckIds.toSet(),
-          successCount: widget.cardToEdit!.successCount,
-          dateCreated: widget.cardToEdit!.dateCreated,
           lastModified: DateTime.now(),
-          cloudKitRecordName: widget.cardToEdit!.cloudKitRecordName,
-          learningMastery: widget.cardToEdit!.learningMastery,
           article: _selectedArticle,
           plural: _pluralController.text.trim().isEmpty ? '' : _pluralController.text.trim(),
           pastTense: _pastTenseController.text.trim().isEmpty ? '' : _pastTenseController.text.trim(),
@@ -1202,7 +1280,7 @@ class _AddCardViewState extends State<AddCardView> {
         
         if (mounted) {
           // Check if any exercises need to be removed due to data deletion
-          final exercisesToRemove = _getExercisesToRemove(widget.cardToEdit!);
+          final exercisesToRemove = _getExercisesToRemove(cardToEdit);
           
           if (exercisesToRemove.isNotEmpty) {
             // Ask user if they want to remove the affected exercises
@@ -1234,7 +1312,7 @@ class _AddCardViewState extends State<AddCardView> {
           
           // Check if exercises exist for the original word (before editing)
           final dutchProvider = context.read<DutchWordExerciseProvider>();
-          final originalWord = widget.cardToEdit!.word;
+          final originalWord = cardToEdit.word;
           final existingExercise = dutchProvider.getWordExerciseByWord(originalWord);
           
           // Check if the word was changed
@@ -1275,7 +1353,7 @@ class _AddCardViewState extends State<AddCardView> {
               }
             } else {
               // Word wasn't changed - check if new grammar information was added
-              final newExerciseTypes = _getNewExerciseTypes(widget.cardToEdit!, updatedCard);
+              final newExerciseTypes = _getNewExerciseTypes(cardToEdit, updatedCard);
               
               if (newExerciseTypes.isNotEmpty && mounted) {
                 // Ask user if they want to create exercises for the newly added grammar information
@@ -1393,7 +1471,7 @@ class _AddCardViewState extends State<AddCardView> {
       if (mounted) {
         EnhancedSnackBar.showError(
           context,
-          message: 'Error ${widget.cardToEdit != null ? 'updating' : 'adding'} card: $e',
+          message: 'Error ${cardToEdit != null ? 'updating' : 'adding'} card: $e',
         );
       }
     } finally {

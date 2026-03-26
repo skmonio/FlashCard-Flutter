@@ -91,6 +91,11 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
   Widget build(BuildContext context) {
     final xpService = XpService();
     
+    final knownCount = widget.correctAnswers ?? 
+        widget.studiedWords.where((w) => (widget.xpGainedPerWord[w.id] ?? 0) > 0).length;
+    final totalCount = widget.totalQuestions ?? widget.studiedWords.length;
+    final notKnownCount = (totalCount - knownCount).clamp(0, totalCount);
+    
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
@@ -148,8 +153,43 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                                 '${widget.studiedWords.length} words studied',
                                 style: Theme.of(context).textTheme.bodyLarge,
                               ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '$knownCount known',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Colors.green[700],
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '$notKnownCount not known',
+                                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Colors.red[700],
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                               if (widget.correctAnswers != null && widget.totalQuestions != null) ...[
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 8),
                                 Text(
                                   'Score: ${widget.correctAnswers}/${widget.totalQuestions} '
                                   '(${(widget.totalQuestions! > 0 ? (widget.correctAnswers! / widget.totalQuestions! * 100).toInt() : 0)}%)',

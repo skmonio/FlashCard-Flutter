@@ -110,11 +110,10 @@ class _AddDeckViewState extends State<AddDeckView> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Deck Name *',
                 hintText: 'Enter deck name',
-                border: const OutlineInputBorder(),
-                errorText: _getDuplicateWarning(),
+                border: OutlineInputBorder(),
               ),
               onChanged: (value) {
                 setState(() {
@@ -269,32 +268,6 @@ class _AddDeckViewState extends State<AddDeckView> {
     );
   }
 
-  Deck? _findDuplicateDeck() {
-    final deckName = _nameController.text.trim().toLowerCase();
-    if (deckName.isEmpty) return null;
-    
-    final provider = context.read<FlashcardProvider>();
-    final allDecks = provider.decks;
-    
-    try {
-      final duplicateDeck = allDecks.firstWhere(
-        (deck) => deck.name.toLowerCase() == deckName,
-      );
-      
-      return duplicateDeck;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  String? _getDuplicateWarning() {
-    final duplicateDeck = _findDuplicateDeck();
-    if (duplicateDeck != null) {
-      return 'This deck already exists';
-    }
-    
-    return null;
-  }
 
   bool _canSave() {
     return _nameController.text.trim().isNotEmpty;
@@ -309,18 +282,6 @@ class _AddDeckViewState extends State<AddDeckView> {
     final deckName = _nameController.text.trim();
     final parentId = _isSubDeck ? _selectedParentDeckId : null;
 
-    // Check for duplicate deck
-    final duplicateDeck = _findDuplicateDeck();
-    if (duplicateDeck != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This deck already exists'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
 
     provider.createDeck(
       deckName, 

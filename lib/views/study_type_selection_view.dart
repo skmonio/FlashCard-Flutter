@@ -65,6 +65,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   // Deck selection
   Set<String> _selectedDeckIds = {}; // Empty means "Any" (all decks)
   bool _useAllCardsForAnswers = false;
+  bool _oneAnswerMode = false;
 
   @override
   void initState() {
@@ -409,10 +410,54 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 const SizedBox(height: 12),
                 _buildTimedDifficultySelector(),
               ],
+              const SizedBox(height: 16),
+            ],
+            
+            // 1 Answer Mode toggle (only for Test mode)
+            if (widget.gameMode == GameMode.test) ...[
+              _buildOneAnswerModeToggle(),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOneAnswerModeToggle() {
+    return Row(
+      children: [
+        const Icon(Icons.touch_app, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '1 Click Answer',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                'Only one attempt per question',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: _oneAnswerMode,
+          onChanged: (value) {
+            setState(() {
+              _oneAnswerMode = value;
+            });
+          },
+        ),
+      ],
     );
   }
 
@@ -1001,6 +1046,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
       timePerQuestion: _getTimePerQuestion(),
       useAllCardsForAnswers: _useAllCardsForAnswers,
+      oneAnswerMode: _oneAnswerMode,
     );
     
     final answerPoolCards = _useAllCardsForAnswers ? provider.cards : allSelectedCards;
@@ -2005,6 +2051,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
   final TimedDifficulty? timedDifficulty;
   final bool useSRSFiltering;
   final bool useAllCardsForAnswers;
+  final bool oneAnswerMode;
 
   const _MultiDeckSelectionDialog({
     required this.decks,
@@ -2019,6 +2066,7 @@ class _MultiDeckSelectionDialog extends StatefulWidget {
     this.timedDifficulty,
     required this.useSRSFiltering,
     this.useAllCardsForAnswers = false,
+    this.oneAnswerMode = false,
   });
 
   @override
@@ -2076,6 +2124,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
       timedDifficulty: widget.timedDifficulty,
       timePerQuestion: _getTimePerQuestion(),
       useAllCardsForAnswers: _useAllCardsForAnswers,
+      oneAnswerMode: widget.oneAnswerMode,
     );
   }
 
@@ -2249,6 +2298,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 timedDifficulty: widget.timedDifficulty,
                 timePerQuestion: _getTimePerQuestion(),
                 useAllCardsForAnswers: widget.useAllCardsForAnswers,
+                oneAnswerMode: false,
               ),
             ),
           ),
@@ -2290,6 +2340,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 timedDifficulty: widget.timedDifficulty,
                 timePerQuestion: _getTimePerQuestion(),
                 useAllCardsForAnswers: _useAllCardsForAnswers,
+                oneAnswerMode: widget.oneAnswerMode,
               ),
               ),
             ),
@@ -2331,6 +2382,7 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 timedDifficulty: widget.timedDifficulty,
                 timePerQuestion: _getTimePerQuestion(),
                 useAllCardsForAnswers: _useAllCardsForAnswers,
+                oneAnswerMode: false,
               ),
               ),
             ),
