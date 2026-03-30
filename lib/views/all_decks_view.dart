@@ -593,16 +593,6 @@ class _AllDecksViewState extends State<AllDecksView> {
                         ),
                       ),
                       const PopupMenuItem(
-                        value: 'add_exercises',
-                        child: Row(
-                          children: [
-                            Icon(Icons.auto_stories, color: Colors.blue),
-                            SizedBox(width: 8),
-                            Text('Scan for Exercises', style: TextStyle(color: Colors.blue)),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
                         value: 'delete',
                         child: Row(
                           children: [
@@ -1178,16 +1168,13 @@ class _AllDecksViewState extends State<AllDecksView> {
       case 'study':
         _studyDeck(context, deck);
         break;
-      case 'add_exercises':
-        _addExercisesToDeck(context, deck);
-        break;
       case 'delete':
         _showDeleteDeckDialog(context, deck);
         break;
     }
   }
 
-  void _studyDeck(BuildContext context, Deck deck) {
+  Future<void> _studyDeck(BuildContext context, Deck deck) async {
     // Get all cards in this deck including sub-decks for parent decks with deduplication
     final provider = context.read<FlashcardProvider>();
     final dutchProvider = context.read<DutchWordExerciseProvider>();
@@ -1212,31 +1199,32 @@ class _AllDecksViewState extends State<AllDecksView> {
       return;
     }
     
-    // Only use existing exercises - don't auto-generate new ones
+    // Auto-generate missing exercises first
+    for (final card in deckCards) {
+      final deckName = provider.getDeck(card.deckIds.isNotEmpty ? card.deckIds.first : deck.id)?.name ?? deck.name;
+      await dutchProvider.syncExercisesForCard(card, deckName: deckName);
+    }
+    
     final exercises = <DutchWordExercise>[];
     int wordsWithoutExercises = 0;
     
     for (final card in deckCards) {
-      // Check if there's already an existing exercise for this card
+      // Check if there's now an exercise for this card
       final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
       
       if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
-        // Use existing exercise if found
-        print('🔍 AllDecksView: Found existing exercise for "${card.word}" with ${existingExercise.exercises.length} exercises');
         exercises.add(existingExercise);
       } else {
-        // Count words without exercises
         wordsWithoutExercises++;
-        print('🔍 AllDecksView: No exercises found for "${card.word}"');
       }
     }
     
-    // Show message if some words don't have exercises
-    if (wordsWithoutExercises > 0) {
+    // Show informative message if some words don't have exercises (missing articles/plurals/examples)
+    if (wordsWithoutExercises > 0 && exercises.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have exercises. You can add exercises by editing individual cards.'),
-          backgroundColor: Colors.orange,
+          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have grammar data (Articles, Plurals, or Example Sentences) for exercises.'),
+          backgroundColor: Colors.blueAccent,
           duration: const Duration(seconds: 4),
         ),
       );
@@ -1246,165 +1234,27 @@ class _AllDecksViewState extends State<AllDecksView> {
     if (exercises.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No exercises available in this deck. Please add exercises to cards first.'),
-          backgroundColor: Colors.red,
+          content: Text('No cards in this deck have enough grammar data (Articles, Plurals, or Examples) to build exercises.'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
     }
     
     // Navigate to the Dutch words practice view
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DutchWordsPracticeView(
-          deckId: deck.id,
-          deckName: deck.name,
-          exercises: exercises,
+    if (context.mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => DutchWordsPracticeView(
+            deckId: deck.id,
+            deckName: deck.name,
+            exercises: exercises,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
-  void _addExercisesToDeck(BuildContext context, Deck deck) async {
-    final provider = context.read<FlashcardProvider>();
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    
-    // Get all cards in this deck including sub-decks
-    final allDeckCards = deck.isSubDeck 
-        ? provider.getCardsForDeck(deck.id)
-        : provider.getCardsForDeckWithSubDecks(deck.id);
-    
-    // Deduplicate cards by ID
-    final deckCards = <FlashCard>[];
-    final seenCardIds = <String>{};
-    for (final card in allDeckCards) {
-      if (!seenCardIds.contains(card.id)) {
-        deckCards.add(card);
-        seenCardIds.add(card.id);
-      }
-    }
-    
-    if (deckCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No cards in "${deck.name}"${deck.isSubDeck ? '' : ' or its sub-decks'} to scan!')),
-      );
-      return;
-    }
-    
-    // Process all cards without asking for confirmation for consistency with card-level scan
-    
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('Adding exercises to cards...'),
-          ],
-        ),
-      ),
-    );
-    
-    int addedCount = 0;
-    int skippedCount = 0;
-    
-    try {
-      // Process each card
-      for (final card in deckCards) {
-        // Check if exercises already exist for this word
-        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-        
-        if (existingExercise == null || existingExercise.exercises.isEmpty) {
-          // Generate exercises for this card
-          final List<WordExercise> exercises = [];
-          
-          // Always create basic multiple choice exercise if word and definition exist
-          if (card.word.isNotEmpty && card.definition.isNotEmpty) {
-            exercises.add(_generateBasicMultipleChoiceExercise(card, provider));
-          }
-          
-          
-          if (exercises.isNotEmpty) {
-            // Create new word exercise
-            final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
-            final deckName = provider.getDeck(deckId)?.name ?? 'Default';
-            
-            final newWordExercise = DutchWordExercise(
-              id: card.id,
-              targetWord: card.word,
-              wordTranslation: card.definition,
-              deckId: deckId,
-              deckName: deckName,
-              category: WordCategory.common,
-              difficulty: ExerciseDifficulty.beginner,
-              exercises: exercises,
-              createdAt: DateTime.now(),
-              isUserCreated: true,
-              learningProgress: LearningProgress(),
-            );
-            
-            await dutchProvider.addWordExercise(newWordExercise);
-            addedCount++;
-          } else {
-            // No exercises could be generated (missing word or definition)
-            skippedCount++;
-          }
-        } else {
-          // Exercises already exist, skip
-          skippedCount++;
-        }
-      }
-      
-      // Close loading dialog
-      if (mounted) {
-        Navigator.of(context).pop();
-        
-        // Show results
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Add Exercises Complete'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('✅ Added exercises to $addedCount cards'),
-                if (skippedCount > 0)
-                  Text('⏭️ Skipped $skippedCount cards (already have exercises)'),
-                const SizedBox(height: 16),
-                const Text(
-                  'Basic multiple choice exercises have been created for all cards with word and definition. Additional grammar exercises were created for cards with articles, plurals, or example sentences.',
-                  style: TextStyle(fontSize: 14),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      // Close loading dialog
-      if (mounted) {
-        Navigator.of(context).pop();
-        
-        // Show error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error adding exercises: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
     // Start with the correct answer at position 0 (option 1)
@@ -1604,42 +1454,4 @@ class _AllDecksViewState extends State<AllDecksView> {
     }
   }
 
-  /// Generate a basic multiple choice exercise for a card
-  WordExercise _generateBasicMultipleChoiceExercise(FlashCard card, FlashcardProvider provider) {
-    // Get other cards for wrong options (from all cards, not just the deck)
-    final allCards = provider.cards;
-    final otherCards = allCards.where((c) => c.id != card.id && c.definition.isNotEmpty).toList();
-    
-    // Shuffle and take up to 3 wrong options
-    otherCards.shuffle();
-    final wrongOptions = <String>[];
-    for (int i = 0; i < 3 && i < otherCards.length; i++) {
-      if (!wrongOptions.contains(otherCards[i].definition)) {
-        wrongOptions.add(otherCards[i].definition);
-      }
-    }
-    
-    // If we don't have enough wrong options, add some generic ones
-    while (wrongOptions.length < 3) {
-      final genericOptions = ['Not applicable', 'Different meaning', 'Other definition'];
-      for (final option in genericOptions) {
-        if (!wrongOptions.contains(option) && wrongOptions.length < 3) {
-          wrongOptions.add(option);
-        }
-      }
-    }
-    
-    // Create options list with correct answer first
-    final options = [card.definition, ...wrongOptions];
-    
-    return WordExercise(
-      id: '${card.id}_basic_exercise_${DateTime.now().millisecondsSinceEpoch}',
-      type: ExerciseType.multipleChoice,
-      prompt: 'Translate "${card.word}" to English',
-      correctAnswer: '0', // Index 0 (option 1) is always the correct answer
-      options: options,
-      explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
-      difficulty: ExerciseDifficulty.beginner,
-    );
-  }
 } 

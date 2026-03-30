@@ -9,7 +9,6 @@ import '../services/xp_service.dart';
 
 import '../utils/sentence_utils.dart';
 
-import 'create_word_exercise_view.dart';
 import '../utils/game_end_screen.dart';
 import '../components/cached_profile_avatar.dart';
 import '../components/main_header.dart';
@@ -1143,9 +1142,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
 
   void _handleMenuAction(String action) {
     switch (action) {
-      case 'edit':
-        _editWordExercise(context);
-        break;
       case 'delete':
         _showDeleteWordDialog(context);
         break;
@@ -1170,19 +1166,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
     Navigator.of(context).pop();
   }
 
-  void _editWordExercise(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CreateWordExerciseView(
-          editingExercise: _wordExercise,
-        ),
-      ),
-    ).then((_) {
-      // Refresh the view when returning from edit
-      setState(() {});
-    });
-  }
 
   void _showWordInfo(BuildContext context) {
     showDialog(

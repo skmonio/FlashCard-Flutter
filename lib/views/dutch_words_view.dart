@@ -4,7 +4,6 @@ import '../providers/dutch_word_exercise_provider.dart';
 import '../models/dutch_word_exercise.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'dutch_words_practice_view.dart';
-import 'create_word_exercise_view.dart';
 import '../components/universal_add_button.dart';
 
 class DutchWordsView extends StatefulWidget {
@@ -412,16 +411,6 @@ class _DutchWordsViewState extends State<DutchWordsView> {
                   onSelected: (value) => _handleExerciseAction(value, exercise),
                   itemBuilder: (context) => [
                     const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 16),
-                          SizedBox(width: 8),
-                          Text('Edit Exercise'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
                       value: 'delete',
                       child: Row(
                         children: [
@@ -623,7 +612,7 @@ class _DutchWordsViewState extends State<DutchWordsView> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create your first word exercise to get started',
+            'Add flashcards with articles, plurals, \nor example sentences to see exercises here',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.withOpacity(0.5),
@@ -776,22 +765,9 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     );
   }
 
-  void _editExercise(DutchWordExercise exercise) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CreateWordExerciseView(
-          editingExercise: exercise,
-        ),
-      ),
-    );
-  }
 
   void _handleExerciseAction(String action, DutchWordExercise exercise) {
     switch (action) {
-      case 'edit':
-        _editExercise(exercise);
-        break;
       case 'delete':
         _showDeleteExerciseDialog(context, exercise);
         break;
@@ -864,15 +840,6 @@ class _DutchWordsViewState extends State<DutchWordsView> {
     );
   }
 
-
-
-  void _navigateToCreateExercise() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const CreateWordExerciseView(),
-      ),
-    );
-  }
 
   void _showInfo() {
     showDialog(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../views/add_deck_view.dart';
 import '../views/add_card_view.dart';
-import '../views/create_word_exercise_view.dart';
 import '../views/add_phrase_view.dart';
 import '../views/photo_import_view.dart';
 
@@ -120,11 +119,4 @@ class UniversalAddButton extends StatelessWidget {
     );
   }
 
-  void _navigateToCreateExercise(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const CreateWordExerciseView(),
-      ),
-    );
-  }
 }

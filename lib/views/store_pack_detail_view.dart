@@ -1057,12 +1057,18 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
             ).firstOrNull;
 
             if (existingCard == null) {
-              await flashcardProvider.createCard(
+              final newCard = await flashcardProvider.createCard(
                 word: word,
                 definition: definition,
                 deckIds: {selectedDeckId},
               );
-              importedCount++;
+              
+              if (newCard != null) {
+                importedCount++;
+                // Automatically sync exercises for this new card
+                final deckName = flashcardProvider.getDeck(selectedDeckId)?.name ?? 'Default';
+                await exerciseProvider.syncExercisesForCard(newCard, deckName: deckName);
+              }
             } else {
               skippedCount++;
             }

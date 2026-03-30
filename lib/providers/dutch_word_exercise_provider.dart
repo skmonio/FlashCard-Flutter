@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/dutch_word_exercise.dart';
+import '../models/flash_card.dart';
+import '../utils/exercise_generator.dart';
 
 class DutchWordExerciseProvider extends ChangeNotifier {
   static const String _storageKey = 'dutch_word_exercises';
@@ -26,9 +28,9 @@ class DutchWordExerciseProvider extends ChangeNotifier {
       
       print('🔍 Provider: initialize - After loading, have ${_wordExercises.length} exercises');
       
-      // Note: Automatic example exercise generation has been disabled
-      // Exercises are now only created when explicitly requested by the user
-      print('🔍 Provider: initialize - No automatic example exercises added');
+      // Note: Exercises are now automatically synchronized with flashcards
+      // Article, Plural, and Sentence Building exercises are generated based on card data
+      print('🔍 Provider: initialize - Automated exercise synchronization active');
     } catch (e) {
       print('🔍 Provider: initialize - Error: $e');
       _error = 'Failed to initialize: $e';
@@ -102,11 +104,85 @@ class DutchWordExerciseProvider extends ChangeNotifier {
     }
   }
 
+  // Get a word exercise by its word
+  DutchWordExercise? getWordExerciseByWord(String word) {
+    print('🔍 Provider: getWordExerciseByWord called with word: "$word"');
+    
+    final matchingExercises = _wordExercises.where((e) => 
+      e.targetWord.toLowerCase() == word.toLowerCase()
+    ).toList();
+    
+    print('🔍 Provider: Found ${matchingExercises.length} exercises for word "$word"');
+    
+    if (matchingExercises.isNotEmpty) {
+      final exercise = matchingExercises.first;
+      print('🔍 Provider: Returning exercise for word "${exercise.targetWord}" with ID "${exercise.id}"');
+      return exercise;
+    }
+    
+    print('🔍 Provider: No exercise found for word "$word"');
+    return null;
+  }
+
   // Delete a word exercise
   Future<void> deleteWordExercise(String id) async {
     _wordExercises.removeWhere((e) => e.id == id);
     await _saveToStorage();
     notifyListeners();
+  }
+
+  /// Synchronize exercises for a card automatically using ExerciseGenerator
+  /// This will create, update, or remove automated exercises (Article, Plural, Sentence)
+  /// based on the current state of the FlashCard.
+  Future<void> syncExercisesForCard(FlashCard card, {String? deckName, String? originalWord}) async {
+    try {
+      // 1. Generate new set of automated exercises
+      final automatedExercises = ExerciseGenerator.generateExercises(card);
+      
+      // 2. Find existing record
+      final searchWord = originalWord ?? card.word;
+      final existingExercise = getWordExerciseByWord(searchWord);
+      
+      if (existingExercise != null) {
+        // Update existing record
+        final updatedExercise = DutchWordExercise(
+          id: existingExercise.id,
+          targetWord: card.word,
+          wordTranslation: card.definition,
+          deckId: card.deckIds.isNotEmpty ? card.deckIds.first : existingExercise.deckId,
+          deckName: deckName ?? existingExercise.deckName,
+          category: existingExercise.category,
+          difficulty: existingExercise.difficulty,
+          exercises: automatedExercises, // Replace with new set
+          createdAt: existingExercise.createdAt,
+          isUserCreated: existingExercise.isUserCreated,
+          learningProgress: existingExercise.learningProgress,
+        );
+        
+        await updateWordExercise(updatedExercise);
+        print('🔍 Provider: Automatically synced exercises for "${card.word}"');
+      } else if (automatedExercises.isNotEmpty) {
+        // Create new record
+        final newWordExercise = DutchWordExercise(
+          id: card.id,
+          targetWord: card.word,
+          wordTranslation: card.definition,
+          deckId: card.deckIds.isNotEmpty ? card.deckIds.first : 'default',
+          deckName: deckName ?? 'Default',
+          category: WordCategory.common,
+          difficulty: ExerciseDifficulty.beginner,
+          exercises: automatedExercises,
+          createdAt: DateTime.now(),
+          isUserCreated: true,
+          learningProgress: LearningProgress(),
+        );
+        
+        await addWordExercise(newWordExercise);
+        print('🔍 Provider: Automatically created exercises for "${card.word}"');
+      }
+    } catch (e) {
+      print('🔍 Provider: Error syncing exercises: $e');
+    }
   }
 
   // Delete all exercises for a specific word
@@ -177,25 +253,6 @@ class DutchWordExerciseProvider extends ChangeNotifier {
     return exercise.id.isNotEmpty ? exercise : null;
   }
 
-  // Get a specific word exercise by word name (backup method for ID collisions)
-  DutchWordExercise? getWordExerciseByWord(String word) {
-    print('🔍 Provider: getWordExerciseByWord called with word: "$word"');
-    
-    final matchingExercises = _wordExercises.where((e) => 
-      e.targetWord.toLowerCase() == word.toLowerCase()
-    ).toList();
-    
-    print('🔍 Provider: Found ${matchingExercises.length} exercises for word "$word"');
-    
-    if (matchingExercises.isNotEmpty) {
-      final exercise = matchingExercises.first;
-      print('🔍 Provider: Returning exercise for word "${exercise.targetWord}" with ID "${exercise.id}"');
-      return exercise;
-    }
-    
-    print('🔍 Provider: No exercise found for word "$word"');
-    return null;
-  }
 
   // Get all decks
   List<String> getDecks() {

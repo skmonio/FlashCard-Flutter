@@ -112,7 +112,7 @@ class HelpCenterView extends StatelessWidget {
             points: [
               'Tap any card to edit details, add example sentences, or attach notes.',
               'Assign cards to multiple decks and categories for tailored study sets.',
-              'Use the “Scan for Exercises” option to auto-generate practice for each word.',
+              'Grammar exercises (Articles, Plurals, Sentences) are automatically generated as you add or edit cards.',
             ],
           ),
         ],
