@@ -75,8 +75,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
   Set<String> _incorrectlyMatchedCards = {};
   // Track wrong attempts per card (for XP penalty: -1 XP per wrong attempt, min 0 XP)
   Map<String, int> _wrongAttemptsPerCard = {};
-  // Old replacement queue system removed
-  // Old processing replacements flag removed
+  
+  // New batch replacement variables
+  final List<int> _pendingReplacementIndices = [];
+  bool _isProcessingBatch = false;
 
   @override
   void initState() {
@@ -218,8 +220,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _totalCardsProcessed = 0;
     _matches = 0;
     _moves = 0;
-    // Old replacement queue cleared
-    // Old processing flag cleared
+    _pendingReplacementIndices.clear();
+    _isProcessingBatch = false;
     
     // If we have 5 or fewer cards, use all of them and the game ends when all are matched
     if (widget.cards.length <= 5) {
@@ -445,7 +447,10 @@ class _MemoryGameViewState extends State<MemoryGameView>
               Text('Cards processed: $_totalCardsProcessed of $totalCards'),
               // Show timer in the middle if in timed mode
               if (_isTimedMode) _buildTimerIndicator() else const SizedBox.shrink(),
-              Text('${(progress * 100).toInt()}%'),
+              Text(
+                'Acc: ${_moves > 0 ? (_matches / _moves * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -932,66 +937,112 @@ class _MemoryGameViewState extends State<MemoryGameView>
   }
 
   void _replaceMatchedCards(MemoryCard firstCard, MemoryCard secondCard) {
-    if (_remainingCards.isEmpty) {
-      print('🔍 MemoryGameView: No more cards to replace with - marking matched cards as removed');
-      setState(() {
-        // Mark matched cards as removed instead of removing them from the list
-        for (final card in _memoryCards) {
-          if (card.id == firstCard.id || card.id == secondCard.id) {
-            card.state = CardState.removed;
-          }
-        }
-      });
-      _checkGameCompletion();
-      return;
+    // Find indices of matched cards
+    final firstIndex = _memoryCards.indexWhere((card) => card.id == firstCard.id);
+    final secondIndex = _memoryCards.indexWhere((card) => card.id == secondCard.id);
+    
+    if (firstIndex == -1 || secondIndex == -1) return;
+
+    setState(() {
+      // Mark cards as removed (invisible) and add to pending list
+      _memoryCards[firstIndex].state = CardState.removed;
+      _memoryCards[secondIndex].state = CardState.removed;
+      
+      _pendingReplacementIndices.add(firstIndex);
+      _pendingReplacementIndices.add(secondIndex);
+      
+      print('🔍 MemoryGameView: Pending replacement indices: $_pendingReplacementIndices');
+    });
+
+    // Strategy: Replace immediately if deck is empty or nearly empty, otherwise wait for 2 sets (4 spots)
+    bool shouldProcessNow = _remainingCards.isEmpty || 
+                            _remainingCards.length < 2 || 
+                            _pendingReplacementIndices.length >= 4;
+
+    if (shouldProcessNow && !_isProcessingBatch) {
+      _processBatchReplacement();
     }
     
-    final newCard = _remainingCards.removeAt(0);
-    print('🔍 MemoryGameView: Replacing matched cards with "${newCard.word}" - "${newCard.definition}"');
+    _checkGameCompletion();
+  }
+
+  void _processBatchReplacement() {
+    if (_pendingReplacementIndices.isEmpty || _isProcessingBatch) return;
     
-    setState(() {
-      // Find and replace the matched cards
-      final firstIndex = _memoryCards.indexWhere((card) => card.id == firstCard.id);
-      final secondIndex = _memoryCards.indexWhere((card) => card.id == secondCard.id);
-      
-      if (firstIndex != -1) {
-        _memoryCards[firstIndex] = MemoryCard(
-          id: '${newCard.id}_word',
-          content: newCard.word,
-          type: MemoryCardType.word,
-          originalCard: newCard,
-          state: CardState.fadingIn,
-          isFlipped: false,
-        );
-        _updateFloatingAnimation(firstIndex);
-      }
-      
-      if (secondIndex != -1) {
-        _memoryCards[secondIndex] = MemoryCard(
-          id: '${newCard.id}_def',
-          content: newCard.definition,
-          type: MemoryCardType.definition,
-          originalCard: newCard,
-          state: CardState.fadingIn,
-          isFlipped: false,
-        );
-        _updateFloatingAnimation(secondIndex);
-      }
-    });
+    _isProcessingBatch = true;
     
-    // Don't shuffle - keep cards in their original positions
-    
-    // After fade in completes, set cards to normal state
+    // Brief delay before new cards pop in for better UX
     Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) {
+      if (!mounted) return;
+
+      final List<MemoryCard> newMemoryCards = [];
+      
+      // Pull as many pairs as we can from the remaining deck, up to the number of empty spots
+      int pairsNeeded = _pendingReplacementIndices.length ~/ 2;
+      for (int i = 0; i < pairsNeeded; i++) {
+        if (_remainingCards.isNotEmpty) {
+          final newCard = _remainingCards.removeAt(0);
+          
+          // Create word card
+          newMemoryCards.add(MemoryCard(
+            id: '${newCard.id}_word',
+            content: newCard.word,
+            type: MemoryCardType.word,
+            originalCard: newCard,
+            state: CardState.fadingIn,
+            isFlipped: false,
+          ));
+          
+          // Create definition card
+          newMemoryCards.add(MemoryCard(
+            id: '${newCard.id}_def',
+            content: newCard.definition,
+            type: MemoryCardType.definition,
+            originalCard: newCard,
+            state: CardState.fadingIn,
+            isFlipped: false,
+          ));
+        }
+      }
+
+      if (newMemoryCards.isNotEmpty) {
         setState(() {
-          for (final card in _memoryCards) {
-            if (card.state == CardState.fadingIn) {
-              card.state = CardState.normal;
+          // Shuffle the new cards so their word/definition locations are randomized 
+          // within the available empty spots
+          newMemoryCards.shuffle();
+          
+          // Assign shuffled new memory cards to the pending indices
+          for (int i = 0; i < newMemoryCards.length; i++) {
+            if (i < _pendingReplacementIndices.length) {
+              int targetIndex = _pendingReplacementIndices[i];
+              _memoryCards[targetIndex] = newMemoryCards[i];
+              _updateFloatingAnimation(targetIndex);
             }
           }
+          
+          _pendingReplacementIndices.clear();
+          _isProcessingBatch = false;
         });
-        _checkGameCompletion();
+
+        // After fade in completes, set cards to normal state
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted) {
+            setState(() {
+              for (final card in _memoryCards) {
+                if (card.state == CardState.fadingIn) {
+                  card.state = CardState.normal;
+                }
+              }
+            });
+            _checkGameCompletion();
+          }
+        });
+      } else {
+        // Nothing to add, just clear the batch flag
+        setState(() {
+          _isProcessingBatch = false;
+          _pendingReplacementIndices.clear(); // Clear indices as they stay 'removed'
+        });
       }
     });
   }
@@ -1151,6 +1202,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _wordMastery.clear();
     _studiedWords.clear();
     _incorrectlyMatchedCards.clear();
+    _pendingReplacementIndices.clear();
+    _isProcessingBatch = false;
     
     // Shuffle the cards for a different order
     final shuffledCards = List<FlashCard>.from(widget.cards);
@@ -1230,6 +1283,8 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _wordMastery.clear();
     _studiedWords.clear();
     _incorrectlyMatchedCards.clear();
+    _pendingReplacementIndices.clear();
+    _isProcessingBatch = false;
     
     // Update the widget's cards with new cards
     // Note: We can't directly modify widget.cards, so we'll need to recreate the widget

@@ -543,10 +543,13 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${_currentIndex + 1}/${_currentCards.length}'),
+              Text('Card ${_currentIndex + 1}/${_currentCards.length}'),
               // Show timer in the middle
               _buildTimerIndicator(),
-              Text('${(progress * 100).toInt()}%'),
+              Text(
+                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),

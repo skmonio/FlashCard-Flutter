@@ -65,6 +65,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
   int _lives = 0;
   int _maxLives = 0;
   int _timeRemaining = 0;
+  int _totalAttempts = 0;
   int _totalTime = 0;
   Timer? _timer;
   bool _timeUp = false;
@@ -426,10 +427,15 @@ class _PopYourCardViewState extends State<PopYourCardView>
         final provider = context.read<FlashcardProvider>();
         provider.updateCard(currentCard);
         _wordMastery[currentCard.id] = currentCard.learningMastery;
-        setState(() {});
+        setState(() {
+          _totalAttempts++;
+        });
         _showCardXPFeedback(currentCard, false, correct);
       } else {
         // Show "Incorrect try again" message and allow retry
+        setState(() {
+          _totalAttempts++;
+        });
         _showCardXPFeedback(currentCard, false, correct, showTryAgain: true);
       }
     }
@@ -832,8 +838,8 @@ class _PopYourCardViewState extends State<PopYourCardView>
                         children: [
                           Text(
                             widget.shuffleMode && widget.shuffleQuestionOffset != null
-                                ? "${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}/${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}"
-                                : "${_currentIndex + 1}/${widget.cards.length}",
+                                ? "Card ${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}/${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}"
+                                : "Card ${_currentIndex + 1}/${widget.cards.length}",
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -853,10 +859,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
                             const SizedBox.shrink(),
                           ],
                           Text(
-                            "${(progress * 100).round()}%",
+                            "Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%",
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),

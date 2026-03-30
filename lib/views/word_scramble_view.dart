@@ -11,12 +11,15 @@ import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
+import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/dutch_word_exercise.dart';
+import '../services/haptic_service.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../utils/game_end_screen.dart';
+import 'add_card_view.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -50,7 +53,7 @@ class WordScrambleView extends StatefulWidget {
   State<WordScrambleView> createState() => _WordScrambleViewState();
 }
 
-class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerProviderStateMixin {
+class _WordScrambleViewState extends State<WordScrambleView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
@@ -98,6 +101,12 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   Map<int, List<String>> _correctPieceOrder = {}; // Track correct piece order for each question
   Map<int, Set<int>> _lockedPositions = {}; // Track which positions in user answer are locked (hinted)
   String? _hintStatusMessage;
+  
+  // Animation controllers for feedback
+  late AnimationController _shakeController;
+  late AnimationController _successController;
+  late AnimationController _dealController;
+  int _consecutiveCorrect = 0; // Streak tracking
   Timer? _hintStatusTimer;
   
   // Review system
@@ -108,9 +117,8 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
   // Wrong attempts tracking
   Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts
   
-  // Shake animation for wrong answers
-  late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
+  late Animation<double> _pulseAnimation;
   bool _isShowingWrongAnswer = false; // Track if we're showing wrong answer state
 
   @override
@@ -127,21 +135,51 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       _lives = _maxLives;
     }
     
-    // Initialize shake animation
+    // Initialize animations
     _shakeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
     );
     _shakeAnimation = Tween<double>(begin: 0, end: 10)
         .chain(CurveTween(curve: Curves.elasticOut))
         .animate(_shakeController);
+
+    _successController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.05).chain(CurveTween(curve: Curves.easeOut)), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.05, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 50),
+    ]).animate(_successController);
+
+    _dealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     
     _generateQuestion();
+    _dealController.forward();
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<FlashcardProvider>();
       provider.addListener(_onProviderChanged);
+    });
+  }
+
+  void _editCurrentCard() {
+    final currentCard = _currentCards[_currentIndex];
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddCardView(
+          cardToEdit: currentCard,
+        ),
+      ),
+    ).then((_) {
+      // Refresh only WordScrambleView after editing card
+      setState(() {});
     });
   }
 
@@ -158,6 +196,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
     
     // Dispose animation controller
     _shakeController.dispose();
+    _successController.dispose();
     
     super.dispose();
   }
@@ -374,8 +413,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         _totalAnswered++;
         _correctAnswers++;
         _correctAnswersMap[_currentIndex] = true;
+        _consecutiveCorrect++;
+        _successController.forward(from: 0);
       });
       
+      HapticService().successFeedback();
       SoundManager().playCorrectSound();
       
       // Store the answer for navigation
@@ -439,9 +481,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
           _answered = true;
           _totalAnswered++;
           _correctAnswersMap[_currentIndex] = false;
+          _consecutiveCorrect = 0; // Reset streak
+          _shakeController.forward(from: 0);
           
           _answeredQuestions[_currentIndex] = List<String>.from(correctPieces);
         });
+        
+        HapticService().errorFeedback();
         
         return;
       }
@@ -854,67 +900,47 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                   
                   const SizedBox(height: 16), // Reduced spacing
                   
-                  // Navigation buttons (always show, greyed out when not available)
-                  Row(
-                    children: [
-                      // Back button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back_ios, size: 16),
-                          label: const Text('Back'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Next/Finish button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _canUseNextButton() ? _goToNextQuestion : null,
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _canUseNextButton() ? Colors.green : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
                   const SizedBox(height: 20), // Reduced spacing
                   
                   // Answer box
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: SizedBox(
-                      height: 80,
-                      child: _userAnswer.isEmpty
-                          ? Center(
-                              child: Text(
-                                'Tap pieces to build the word',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            )
-                          : _buildUserAnswerDisplay(),
-                    ),
+                  DragTarget<String>(
+                    onWillAcceptWithDetails: (details) => !_answered,
+                    onAcceptWithDetails: (details) {
+                      _addPiece(details.data);
+                    },
+                    builder: (context, candidateData, rejectedData) {
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: candidateData.isNotEmpty 
+                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                              : Theme.of(context).colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: candidateData.isNotEmpty
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                            width: candidateData.isNotEmpty ? 2 : 1,
+                          ),
+                        ),
+                        child: SizedBox(
+                          height: 80,
+                          child: _userAnswer.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'Drag or tap pieces to build the word',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                              : _buildUserAnswerDisplay(),
+                        ),
+                      );
+                    },
                   ),
                   
                   // Feedback should appear below the answer box
@@ -936,33 +962,63 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
           ),
         ],
       ),
+      bottomNavigationBar: _buildUnifiedFooter(),
     );
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final progress = widget.cards.isEmpty ? 0.0 : _currentIndex / widget.cards.length;
     
-    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
-    final String questionCountText;
-    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
-      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
-      questionCountText = '$currentQuestionNum/$currentQuestionNum';
-    } else {
-      questionCountText = '${_currentIndex + 1}/${widget.cards.length}';
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(questionCountText),
-              // Show lives in the middle if active
-              if (_useLivesMode) _buildLivesIndicator(),
-              Text('$accuracy%'),
+              Text(
+                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              // Show lives and/or streak in the middle
+              if (_useLivesMode || _consecutiveCorrect >= 3) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_useLivesMode) ...[
+                      _buildLivesIndicator(),
+                      if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                    ],
+                    if (_consecutiveCorrect >= 3)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$_consecutiveCorrect',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              Text(
+                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -974,6 +1030,83 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnifiedFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: _currentIndex > 0 ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _canUseNextButton() ? _goToNextQuestion : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _canUseNextButton() ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: _canUseNextButton() ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1014,7 +1147,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
 
   Widget _buildUserAnswerDisplay() {
     return AnimatedBuilder(
-      animation: _shakeAnimation,
+      animation: Listenable.merge([_shakeController, _successController]),
       builder: (context, child) {
         // Create a more visible shake effect when wrong answer is shown
         double shakeOffset = 0;
@@ -1023,23 +1156,31 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
           shakeOffset = _shakeAnimation.value * (2 * (1 - _shakeAnimation.value / 10)) * 
                        ((_shakeAnimation.value * 10).round() % 2 == 0 ? 1 : -1);
         }
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Note: "Incorrect, try again" text is now shown in the main feedback area below
-            Transform.translate(
-              offset: Offset(shakeOffset, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (_userAnswer.isEmpty && !_isShowingWrongAnswer)
-                    Text(
-                      'Tap pieces to build your answer',
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontStyle: FontStyle.italic,
-                      ),
-                    )
+        
+        double scale = 1.0;
+        if (_answered && (_userAnswer.join('').toLowerCase() == _correctWord.replaceAll(' ', '').toLowerCase())) {
+          scale = _pulseAnimation.value;
+        }
+        
+        return Transform.scale(
+          scale: scale,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Note: "Incorrect, try again" text is now shown in the main feedback area below
+              Transform.translate(
+                offset: Offset(shakeOffset, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_userAnswer.isEmpty && !_isShowingWrongAnswer)
+                      Text(
+                        'Drag or tap pieces to build your answer',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontStyle: FontStyle.italic,
+                        ),
+                      )
                   else if (_userAnswer.isNotEmpty)
                 ..._userAnswer.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -1053,9 +1194,62 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                     print('🔍 WordScrambleView: Piece "$piece" at position $index is UNLOCKED (blue border)');
                   }
                   
-                  return GestureDetector(
-                    onTap: _answered || isLocked || _isShowingWrongAnswer ? null : () => _removeLetterAt(index),
-                    child: Container(
+                  return Draggable<int>(
+                    data: index,
+                    maxSimultaneousDrags: _answered || isLocked || _isShowingWrongAnswer ? 0 : 1,
+                    feedback: Material(
+                      color: Colors.transparent,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: piece.length > 2 ? 50 : 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                          border: Border.all(color: Theme.of(context).colorScheme.primary, width: 2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Center(
+                          child: Text(
+                            piece,
+                            style: TextStyle(
+                              fontSize: piece.length > 2 ? 14 : 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    childWhenDragging: Opacity(
+                      opacity: 0.3,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        width: piece.length > 2 ? 50 : 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceVariant,
+                          border: Border.all(color: Colors.grey, width: 1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    child: DragTarget<int>(
+                      onWillAcceptWithDetails: (details) => !_answered && !isLocked && !_isShowingWrongAnswer,
+                      onAcceptWithDetails: (details) {
+                        final fromIndex = details.data;
+                        if (fromIndex != index) {
+                          setState(() {
+                            final temp = _userAnswer[index];
+                            _userAnswer[index] = _userAnswer[fromIndex];
+                            _userAnswer[fromIndex] = temp;
+                          });
+                          HapticService().selectionFeedback();
+                        }
+                      },
+                      builder: (context, candidateData, rejectedData) {
+                        return GestureDetector(
+                          onTap: _answered || isLocked || _isShowingWrongAnswer ? null : () => _removeLetterAt(index),
+                          child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       width: piece.length > 2 ? 50 : 40, // Wider for longer pieces
                       height: 40,
@@ -1101,14 +1295,18 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                           ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
-                ],
+                      ),
+                    );
+                  },
+                ),
+              );
+            }).toList(),
+            ],
               ),
             ),
           ],
-        );
+        ),
+      );
       },
     );
   }
@@ -1168,35 +1366,49 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         final piece = entry.value;
         final isUsed = _isPieceUsed(piece, index);
         
-        return GestureDetector(
-          onTap: _answered || isUsed || piece.isEmpty ? null : () => _addPiece(piece),
-          child: Container(
-            width: piece.length > 2 ? 70 : 60, // Wider for longer pieces
-            height: 50,
-            decoration: BoxDecoration(
+        Widget pieceWidget = Container(
+          width: piece.length > 2 ? 70 : 60, // Wider for longer pieces
+          height: 50,
+          decoration: BoxDecoration(
+            color: isUsed || piece.isEmpty
+                ? Colors.grey.withValues(alpha: 0.3)
+                : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+            border: Border.all(
               color: isUsed || piece.isEmpty
-                  ? Colors.grey.withValues(alpha: 0.3)
-                  : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-              border: Border.all(
+                  ? Colors.grey.withValues(alpha: 0.5)
+                  : Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              piece.isEmpty ? '•' : piece, // Show dot for empty pieces
+              style: TextStyle(
+                fontSize: piece.length > 2 ? 16 : 18, // Smaller font for longer pieces
+                fontWeight: FontWeight.bold,
                 color: isUsed || piece.isEmpty
                     ? Colors.grey.withValues(alpha: 0.5)
                     : Theme.of(context).colorScheme.primary,
-                width: 2,
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                piece.isEmpty ? '•' : piece, // Show dot for empty pieces
-                style: TextStyle(
-                  fontSize: piece.length > 2 ? 16 : 18, // Smaller font for longer pieces
-                  fontWeight: FontWeight.bold,
-                  color: isUsed || piece.isEmpty
-                      ? Colors.grey.withValues(alpha: 0.5)
-                      : Theme.of(context).colorScheme.primary,
-                ),
               ),
             ),
+          ),
+        );
+
+        return Draggable<String>(
+          data: piece,
+          maxSimultaneousDrags: _answered || isUsed || piece.isEmpty ? 0 : 1,
+          feedback: Material(
+            color: Colors.transparent,
+            child: Opacity(
+              opacity: 0.8,
+              child: pieceWidget,
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.3, child: pieceWidget),
+          child: GestureDetector(
+            onTap: _answered || isUsed || piece.isEmpty ? null : () => _addPiece(piece),
+            child: pieceWidget,
           ),
         );
       }).toList(),
@@ -1534,9 +1746,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
 
   Widget _buildHintIcon() {
     final hintsUsed = _hintCount[_currentIndex] ?? 0;
-    final remainingPieces = _scrambledLetters.length;
-    // Allow hints even when only 1 piece remains - it will confirm/place pieces in order
-    final canUseHint = remainingPieces > 0 && !_answered;
+    final remainingPieces = _scrambledLetters.where((p) => p.isNotEmpty).length;
+    // Block hints when only 1 piece remains - it would trivially solve the puzzle
+    final canUseHint = remainingPieces > 1 && !_answered;
     
     return Row(
       mainAxisSize: MainAxisSize.min,

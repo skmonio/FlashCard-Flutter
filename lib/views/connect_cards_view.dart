@@ -27,9 +27,12 @@ class GridPainter extends CustomPainter {
     required this.wrongIndexes,
     required this.hintIndexes,
     required this.answeredWords,
-    this.pressedIndex, // Add pressed state
-    this.dragPosition, // Add drag trail position
-  });
+    this.pressedIndex,
+    this.dragPosition,
+    bool? isDragging,
+  }) : _isDragging = isDragging ?? false;
+
+  final bool _isDragging;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -72,13 +75,11 @@ class GridPainter extends CustomPainter {
           backgroundColor = Colors.blue;
           textColor = Colors.white;
         } else if (isPressed) {
-          // Show pressed state with darker background
           backgroundColor = Colors.grey[400]!;
           textColor = Colors.black;
         }
       }
 
-      // Draw cell background
       paint.color = backgroundColor;
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -88,9 +89,7 @@ class GridPainter extends CustomPainter {
         paint,
       );
 
-      // Draw letter with larger font size for better mobile visibility
-      double fontSize = cellSize * 0.4; // Scale font size with cell size
-      fontSize = fontSize.clamp(20.0, 32.0); // Keep within reasonable bounds
+      double fontSize = (cellSize * 0.4).clamp(20.0, 32.0);
       
       textPainter.text = TextSpan(
         text: letters[i],
@@ -109,19 +108,69 @@ class GridPainter extends CustomPainter {
       textPainter.paint(canvas, textOffset);
     }
     
-    // Draw drag trail if dragging
+    // Visual Trail (Glow + Inner Line)
+    if (selectedIndexes.length > 1) {
+      final Color trailColor = (wrongIndexes.isNotEmpty ? Colors.red : Colors.blue);
+      
+      final glowPaint = Paint()
+        ..color = trailColor.withOpacity(0.15)
+        ..strokeWidth = cellSize * 0.4
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+      final trailPaint = Paint()
+        ..color = trailColor.withOpacity(0.5)
+        ..strokeWidth = cellSize * 0.15
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+
+      final path = Path();
+      for (int i = 0; i < selectedIndexes.length; i++) {
+        int idx = selectedIndexes[i];
+        int row = idx ~/ gridSize;
+        int col = idx % gridSize;
+        double x = col * cellSize + cellSize / 2;
+        double y = row * cellSize + cellSize / 2;
+
+        if (i == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, glowPaint);
+      canvas.drawPath(path, trailPaint);
+    }
+    
+    // Drag Trail logic from current selected to pointer
+    if (_isDragging && dragPosition != null && selectedIndexes.isNotEmpty) {
+      final lastIdx = selectedIndexes.last;
+      int lastRow = lastIdx ~/ gridSize;
+      int lastCol = lastIdx % gridSize;
+      double lastX = lastCol * cellSize + cellSize / 2;
+      double lastY = lastRow * cellSize + cellSize / 2;
+
+      final dragTrailPaint = Paint()
+        ..color = (wrongIndexes.isNotEmpty ? Colors.red : Colors.blue).withOpacity(0.3)
+        ..strokeWidth = 8
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(Offset(lastX, lastY), dragPosition!, dragTrailPaint);
+    }
+    
+    // Touch feedback dot
     if (dragPosition != null) {
       paint.color = Colors.orange.withOpacity(0.8);
       canvas.drawCircle(dragPosition!, 8, paint);
-      
-      // Draw a smaller inner circle
       paint.color = Colors.white;
       canvas.drawCircle(dragPosition!, 4, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+  bool shouldRepaint(covariant GridPainter oldDelegate) {
     return true;
   }
 }
@@ -204,6 +253,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   
   // Lives mode variables
   int _livesRemaining = 0;
+  int _totalAttempts = 0;
   int _maxLives = 0;
   bool _isLivesMode = false;
   
@@ -845,6 +895,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         
         setState(() {
           _wrongIndexes = List.from(_selectedIndexes);
+          _totalAttempts++;
           
           // Handle lives mode
           if (_isLivesMode) {
@@ -880,6 +931,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         }
         
         SoundManager().playWrongSound();
+        HapticService().errorFeedback();
         _shakeController.forward(from: 0);
         
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -1076,6 +1128,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     // Show feedback message (different if solution was revealed)
     setState(() {
       _showFeedback = true;
+      _totalAttempts++;
       if (solutionRevealed) {
         _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
       } else {
@@ -1579,10 +1632,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                               if (_isLivesMode) _buildLivesIndicator(),
                               if (_isTimedMode && !_isLivesMode) _buildTimerIndicator(),
                               Text(
-                                percentText,
+                                'Acc: ${_totalAttempts > 0 ? (_completedWordIds.length / _totalAttempts * 100).toInt() : 100}%',
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
@@ -1598,137 +1651,149 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                     );
                   },
                 ),
-          // Main content area with swipe navigation
+          // Main content area
           Expanded(
-            child: GestureDetector(
-              onHorizontalDragEnd: (details) {
-                // Swipe left to go to next word - only when not interacting with grid
-                if (details.primaryVelocity! > 0 && _hasNextUnansweredQuestion()) {
-                  _goToNextWord();
-                }
-                // Swipe right disabled - only allow swipe left for next word
-              },
-              child: Column(
-                children: [
-          // Word to translate
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Text(
-              "Translate: ${currentCard.definition}",
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          // Game grid with fixed height - increased for larger cells
-          SizedBox(
-            height: 420, // Increased height for larger, more touch-friendly cells
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Listener(
-                  onPointerDown: (details) {
-                    print('🔍 Pointer down at: ${details.localPosition}');
-                    _onPointerDown(details, constraints);
-                  },
-                  onPointerMove: (details) {
-                    if (_isDragging) {
-                      print('🔍 Pointer move at: ${details.localPosition}');
-                      _onPointerMove(details, constraints);
-                    }
-                  },
-                  onPointerUp: (details) {
-                    print('🔍 Pointer up');
-                    _onPointerUp(details);
-                  },
-                  onPointerCancel: (details) {
-                    print('🔍 Pointer cancel');
-                    _onPointerCancel(details);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: CustomPaint(
-                      painter: GridPainter(
-                        letters: _letters,
-                        gridSize: _gridSize,
-                        selectedIndexes: _selectedIndexes,
-                        wrongIndexes: _wrongIndexes,
-                        hintIndexes: _hintIndexes,
-                        answeredWords: _answeredWords.containsKey(_availableCards[_currentCardIndex].id),
-                        pressedIndex: _pressedIndex,
-                        dragPosition: _dragPosition,
-                      ),
-                      child: Container(
-                        width: constraints.maxWidth - 32,
-                        height: constraints.maxWidth - 32,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          
-          // Back, Hint, and Next buttons - directly under grid
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                ElevatedButton.icon(
-                  onPressed: _currentCardIndex > 0 ? _goToPreviousWord : null,
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black,
+                // Word to translate
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                  child: Text(
+                    "Translate: ${currentCard.definition}",
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-                if (widget.enableHints)
-                  IconButton(
-                    icon: const Icon(Icons.lightbulb),
-                    iconSize: 24,
-                    onPressed: _answeredWords.containsKey(currentCard.id) || _hintLevel >= currentCard.word.length - 1 ? null : _showHint,
-                    tooltip: _answeredWords.containsKey(currentCard.id) 
-                        ? "Word already answered" 
-                        : _hintLevel >= currentCard.word.length - 1 
-                            ? "Must find final piece manually"
-                            : "Show hint (${_hintLevel}/${currentCard.word.length - 1})",
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.orange[100],
-                      foregroundColor: Colors.orange[800],
-                      padding: const EdgeInsets.all(12),
+
+                // Grid Centering
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: AspectRatio(
+                        aspectRatio: 1.0,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Listener(
+                              onPointerDown: (details) => _onPointerDown(details, constraints),
+                              onPointerMove: (details) => _onPointerMove(details, constraints),
+                              onPointerUp: (details) => _onPointerUp(details),
+                              onPointerCancel: (details) => _onPointerCancel(details),
+                              child: CustomPaint(
+                                painter: GridPainter(
+                                  letters: _letters,
+                                  gridSize: _gridSize,
+                                  selectedIndexes: _selectedIndexes,
+                                  wrongIndexes: _wrongIndexes,
+                                  hintIndexes: _hintIndexes,
+                                  answeredWords: _answeredWords.containsKey(currentCard.id),
+                                  pressedIndex: _pressedIndex,
+                                  dragPosition: _dragPosition,
+                                  isDragging: _isDragging,
+                                ),
+                                size: Size(constraints.maxWidth, constraints.maxWidth),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ElevatedButton.icon(
-                  onPressed: _getNextButtonAction(),
-                  icon: const Icon(Icons.arrow_forward),
-                  label: const Text('Next'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black,
+                ),
+
+                // Spacing for Feedback
+                SizedBox(
+                  height: 60,
+                  child: Center(
+                    child: _showFeedback
+                        ? Text(
+                            _feedbackMessage,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _feedbackMessage.contains('Correct') ? Colors.green : Colors.orange,
+                            ),
+                            textAlign: TextAlign.center,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
               ],
             ),
           ),
-          
-          // Feedback message - moved below navigation buttons
-          if (_showFeedback)
-            Container(
-              margin: const EdgeInsets.only(top: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                _feedbackMessage,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green,
-                ),
-                textAlign: TextAlign.center,
+
+          // Footer with buttons
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    offset: const Offset(0, -4),
+                    blurRadius: 12,
+                  ),
+                ],
               ),
-            ),
-              ],
-            ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Back button
+                  ElevatedButton.icon(
+                    onPressed: _currentCardIndex > 0 ? _goToPreviousWord : null,
+                    icon: const Icon(Icons.arrow_back_ios, size: 18),
+                    label: const Text('Back'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey.withValues(alpha: 0.1),
+                      foregroundColor: Colors.black87,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                    ),
+                  ),
+
+                  // Hint button in center
+                  if (widget.enableHints)
+                    IconButton(
+                      icon: const Icon(Icons.lightbulb_outline),
+                      iconSize: 28,
+                      onPressed: _answeredWords.containsKey(currentCard.id)
+                          || _hintLevel >= currentCard.word.length - 1
+                          || (_hintsUsedPerWord[currentCard.id] ?? 0) >= 3
+                          ? null : _showHint,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                        foregroundColor: Colors.orange[800],
+                        padding: const EdgeInsets.all(12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.orange.withValues(alpha: 0.3), width: 1),
+                        ),
+                      ),
+                    ),
+
+                  // Next button
+                  ElevatedButton.icon(
+                    onPressed: _getNextButtonAction(),
+                    icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                    label: const Text('Next'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

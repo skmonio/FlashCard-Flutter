@@ -61,7 +61,7 @@ class MultipleChoiceView extends StatefulWidget {
   State<MultipleChoiceView> createState() => _MultipleChoiceViewState();
 }
 
-class _MultipleChoiceViewState extends State<MultipleChoiceView> {
+class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
@@ -116,9 +116,24 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts (0-5)
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
 
+  // Animation controllers for feedback
+  late AnimationController _shakeController;
+  late AnimationController _successController;
+  int _consecutiveCorrect = 0; // Streak tracking
+
   @override
   void initState() {
     super.initState();
+    
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    
+    _successController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
     
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -472,11 +487,15 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     final currentCard = _currentCards[_currentIndex];
     final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     
-    // Provide haptic feedback based on answer correctness
+    // Provide haptic feedback and animations based on answer correctness
     if (isCorrect) {
       HapticService().successFeedback();
+      _successController.forward(from: 0);
+      _consecutiveCorrect++;
     } else {
       HapticService().errorFeedback();
+      _shakeController.forward(from: 0);
+      _consecutiveCorrect = 0; // Reset streak
     }
     
     // Track XP for the answer
@@ -926,58 +945,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                   
                   const SizedBox(height: 16), // Reduced spacing
                   
-                  // Navigation and Edit buttons row
-                  Row(
-                    children: [
-                      // Back button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back_ios, size: 16),
-                          label: const Text('Back'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Edit button in center
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _editCurrentCard(),
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Next/Finish button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _canUseNextButton() ? _goToNextQuestion : null,
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _canUseNextButton() ? Colors.green : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
                   const SizedBox(height: 20), // Reduced spacing
                   
                   // Options
@@ -986,57 +953,80 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                       children: _options.asMap().entries.map((entry) {
                         final index = entry.key;
                         final option = entry.value;
-                        
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 8), // Reduced spacing between options
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           child: _buildOptionButton(index, option),
                         );
                       }).toList(),
                     ),
                   ),
-                  
-
                 ],
               ),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: _buildUnifiedFooter(),
     );
   }
 
   Widget _buildProgressBar() {
     final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
-    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
-    final String questionCountText;
-    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
-      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
-      questionCountText = '$currentQuestionNum/$currentQuestionNum';
-    } else {
-      questionCountText = '${_currentIndex + 1}/${_currentCards.length}';
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(questionCountText),
+              Text(
+                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${_currentCards.length}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
               // Show lives and/or timer in the middle if active
-              if (_useLivesMode && _useTimedMode) ...[
-                _buildLivesIndicator(),
-                const SizedBox(width: 8),
-                _buildTimerIndicator(),
-              ] else if (_useLivesMode) ...[
-                _buildLivesIndicator(),
-              ] else if (_useTimedMode) ...[
-                _buildTimerIndicator(),
+              if (_useLivesMode || _useTimedMode || _consecutiveCorrect >= 3) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_useLivesMode) ...[
+                      _buildLivesIndicator(),
+                      if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                    ],
+                    if (_useTimedMode) ...[
+                      _buildTimerIndicator(),
+                      if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                    ],
+                    if (_consecutiveCorrect >= 3)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$_consecutiveCorrect',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ],
-              Text('$accuracy%'),
+              Text(
+                'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1052,6 +1042,83 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     );
   }
   
+  Widget _buildUnifiedFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: _currentIndex > 0 ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _canUseNextButton() ? _goToNextQuestion : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _canUseNextButton() ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: _canUseNextButton() ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLivesDisplay() {
     if (!_useLivesMode) return const SizedBox.shrink();
     
@@ -1151,91 +1218,118 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     print('🔍 MultipleChoiceView: Building button for option $index (Q$_currentIndex) - isBlocked: $isBlocked, isDisabled: $isDisabled, wrongAttempts: $wrongAttempts, isNotSelectable: $isNotSelectable, shouldShowAsBlocked: $shouldShowAsBlocked');
     
     // Build the button content
-    Widget buttonContent = Container(
-      width: double.infinity,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isNotSelectable ? () {
-            // Explicitly do nothing and log
-            print('🔍 MultipleChoiceView: Tapped blocked option $index - ignoring');
-          } : () => _selectAnswer(index),
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.all(12), // Reduced padding
-            decoration: BoxDecoration(
-              color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: shouldShowAsBlocked ? Colors.grey : _getOptionBorderColor(index),
-                width: shouldShowAsBlocked ? 3 : 2, // Thicker border when blocked
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 28, // Smaller circle
-                  height: 28, // Smaller circle
-                  decoration: BoxDecoration(
-                    color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.3) : _getOptionBorderColor(index).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: shouldShowAsBlocked 
-                      ? const Icon(Icons.block, color: Colors.grey, size: 18)
-                      : Text(
-                          String.fromCharCode(65 + index), // A, B, C, D
-                          style: TextStyle(
-                            fontSize: 14, // Smaller font
-                            fontWeight: FontWeight.bold,
-                            color: _getOptionBorderColor(index),
+    // Wrap in AnimatedBuilder for feedback animations
+    return AnimatedBuilder(
+      animation: Listenable.merge([_shakeController, _successController]),
+      builder: (context, child) {
+        // Shake offset calculation
+        double shakeOffset = 0;
+        if (_shakeController.isAnimating && _selectedAnswer == index && index != _correctAnswerIndex) {
+          shakeOffset = sin(_shakeController.value * pi * 4) * 8;
+        }
+        
+        // Success scale calculation
+        double successScale = 1.0;
+        if (_successController.isAnimating && index == _correctAnswerIndex && _answered) {
+          successScale = 1.0 + sin(_successController.value * pi) * 0.1;
+        }
+
+        final isCorrectOption = (index == _correctAnswerIndex);
+        final isSelectedWrong = (_selectedAnswer == index && !isCorrectOption);
+        
+        // Updated colors for the premium reveal flow
+        Color statusColor = _getOptionColor(index);
+        Color borderStatusColor = _getOptionBorderColor(index);
+        
+        if (_answered) {
+          if (isCorrectOption) {
+            statusColor = Colors.green.withValues(alpha: 0.1);
+            borderStatusColor = Colors.green;
+          } else if (isSelectedWrong) {
+            statusColor = Colors.red.withValues(alpha: 0.1);
+            borderStatusColor = Colors.red;
+          } else {
+            statusColor = Colors.grey.withValues(alpha: 0.05);
+            borderStatusColor = Colors.grey.withValues(alpha: 0.3);
+          }
+        }
+
+        return Transform.translate(
+          offset: Offset(shakeOffset, 0),
+          child: Transform.scale(
+            scale: successScale,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              width: double.infinity,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: isNotSelectable ? null : () => _selectAnswer(index),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: borderStatusColor,
+                        width: isCorrectOption && _answered ? 3 : 2,
+                      ),
+                      boxShadow: isCorrectOption && _answered ? [
+                        BoxShadow(
+                          color: Colors.green.withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        )
+                      ] : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: borderStatusColor.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: _answered && isCorrectOption
+                              ? const Icon(Icons.check, color: Colors.green, size: 18)
+                              : _answered && isSelectedWrong
+                                ? const Icon(Icons.close, color: Colors.red, size: 18)
+                                : Text(
+                                    String.fromCharCode(65 + index),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: borderStatusColor,
+                                    ),
+                                  ),
                           ),
                         ),
-                  ),
-                ),
-                const SizedBox(width: 12), // Reduced spacing
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      option,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                        fontSize: 14, // Smaller font
-                        fontWeight: FontWeight.w500,
-                        color: shouldShowAsBlocked ? Colors.grey : null,
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            option,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: _answered && !isCorrectOption && !isSelectedWrong ? Colors.grey : null,
+                            ),
+                          ),
+                        ),
+                        if (_answered && isCorrectOption)
+                          const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                      ],
                     ),
                   ),
                 ),
-                if (_answered && index == _correctAnswerIndex)
-                  const Icon(Icons.check_circle, color: Colors.green, size: 20), // Smaller icon
-                // Show X icon for disabled/wrong answers (only if there were wrong attempts)
-                // Don't show X if answered correctly on first try
-                if ((isBlocked || isDisabled) && !_answered)
-                  const Icon(Icons.close, color: Colors.red, size: 20), // Show red X for wrong guessed answers
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
-    
-    // Wrap in IgnorePointer if not selectable to prevent any interaction
-    // But only apply opacity if it should show as blocked (not for correct first try)
-    if (isNotSelectable) {
-      return IgnorePointer(
-        ignoring: true,
-        child: Opacity(
-          opacity: shouldShowAsBlocked ? 0.6 : 1.0, // Only make it look disabled if it should show as blocked
-          child: buttonContent,
-        ),
-      );
-    }
-    
-    return buttonContent;
   }
 
   Widget _buildResultsView() {

@@ -56,7 +56,7 @@ class TrueFalseView extends StatefulWidget {
   State<TrueFalseView> createState() => _TrueFalseViewState();
 }
 
-class _TrueFalseViewState extends State<TrueFalseView> {
+class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
@@ -98,6 +98,13 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   List<FlashCard> _studiedWords = [];
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
+  // Animation controllers for feedback
+  late AnimationController _shakeController;
+  late AnimationController _successController;
+  late Animation<double> _shakeAnimation;
+  late Animation<double> _pulseAnimation;
+  int _consecutiveCorrect = 0; // Streak tracking
+  
   // Review tracking
   Set<String> _reviewCards = {}; // card IDs marked for review
 
@@ -114,6 +121,24 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _maxLives = widget.customLives ?? _getDefaultLives();
       _lives = _maxLives;
     }
+
+    // Initialize animation controllers
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _shakeAnimation = Tween<double>(begin: 0, end: 10)
+        .chain(CurveTween(curve: Curves.elasticOut))
+        .animate(_shakeController);
+
+    _successController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.05).chain(CurveTween(curve: Curves.easeOut)), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.05, end: 1.0).chain(CurveTween(curve: Curves.easeIn)), weight: 50),
+    ]).animate(_successController);
     
     _generateQuestion();
     
@@ -132,6 +157,10 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     
     // Cancel auto progress timer
     _autoProgressTimer?.cancel();
+    
+    // Dispose animation controllers
+    _shakeController.dispose();
+    _successController.dispose();
     
     super.dispose();
   }
@@ -538,16 +567,17 @@ class _TrueFalseViewState extends State<TrueFalseView> {
     final isCorrect = (answer == _correctAnswer);
     final currentCard = _currentCards[_currentIndex];
     
-    // Provide haptic feedback based on answer correctness
+    // Provide haptic feedback and animations based on answer correctness
     if (isCorrect) {
       HapticService().successFeedback();
+      _successController.forward(from: 0);
+      _consecutiveCorrect++;
     } else {
       HapticService().errorFeedback();
+      _shakeController.forward(from: 0);
+      _consecutiveCorrect = 0; // Reset streak
     }
-    
-    print('🔍 TrueFalse: Answer selected - User chose: ${answer ? "TRUE" : "FALSE"}, Correct answer: ${_correctAnswer! ? "TRUE" : "FALSE"}, Is correct: $isCorrect');
-    print('🔍 TrueFalse: Question was: $_question');
-    
+
     // Track XP for this answer
     XpService.recordAnswer(_gameSession, isCorrect);
     
@@ -566,7 +596,7 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _awardXPToWord(currentCard, isCorrect);
       _updateCardInProvider(currentCard);
     }
-    
+
     setState(() {
       _selectedAnswer = answer;
       _answered = true;
@@ -823,58 +853,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                   
                   const SizedBox(height: 16),
                   
-                  // Navigation and Edit buttons row
-                  Row(
-                    children: [
-                      // Back button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back_ios, size: 16),
-                          label: const Text('Back'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _currentIndex > 0 ? Colors.blue : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Edit button in center
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _editCurrentCard(),
-                          icon: const Icon(Icons.edit, size: 16),
-                          label: const Text('Edit'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 12),
-                      
-                      // Next/Finish button (always show, greyed out when not available)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _canUseNextButton() ? _goToNextQuestion : null,
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _canUseNextButton() ? Colors.green : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
                   const SizedBox(height: 20),
                   
                   // "Translates to" text
@@ -941,33 +919,61 @@ class _TrueFalseViewState extends State<TrueFalseView> {
           ),
         ],
       ),
+      bottomNavigationBar: _buildUnifiedFooter(),
     );
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / widget.cards.length;
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final progress = widget.cards.isEmpty ? 0.0 : _currentIndex / widget.cards.length;
     
-    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
-    final String questionCountText;
-    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
-      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1;
-      questionCountText = '$currentQuestionNum/$currentQuestionNum';
-    } else {
-      questionCountText = '${_currentIndex + 1}/${widget.cards.length}';
-    }
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(questionCountText),
+              Text(
+                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
               // Show lives in the middle if active
-              if (_useLivesMode) _buildLivesIndicator(),
-              Text('$accuracy%'),
+              if (widget.useLivesMode || _consecutiveCorrect >= 3) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.useLivesMode) _buildLivesIndicator(),
+                    if (widget.useLivesMode && _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                    if (_consecutiveCorrect >= 3)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$_consecutiveCorrect',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              Text(
+                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -979,6 +985,83 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUnifiedFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _currentIndex > 0 ? _goToPreviousQuestion : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: _currentIndex > 0 ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _canUseNextButton() ? _goToNextQuestion : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(_currentIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _canUseNextButton() ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: _canUseNextButton() ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1018,65 +1101,121 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   
 
   Widget _buildAnswerButton(bool isTrue) {
-    return Container(
-      width: double.infinity,
-      height: 60, // Reduced height
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _selectAnswer(isTrue),
-          borderRadius: BorderRadius.circular(12), // Smaller radius
-          child: Container(
-            padding: const EdgeInsets.all(12), // Reduced padding
-            decoration: BoxDecoration(
-              color: _getButtonColor(isTrue),
-              borderRadius: BorderRadius.circular(12), // Smaller radius
-              border: Border.all(
-                color: _getButtonBorderColor(isTrue),
-                width: 2, // Thinner border
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 36, // Smaller circle
-                  height: 36, // Smaller circle
-                  decoration: BoxDecoration(
-                    color: _getButtonBorderColor(isTrue).withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      isTrue ? 'T' : 'F',
-                      style: TextStyle(
-                        fontSize: 18, // Smaller font
-                        fontWeight: FontWeight.bold,
-                        color: _getButtonBorderColor(isTrue),
+    return AnimatedBuilder(
+      animation: Listenable.merge([_shakeController, _successController]),
+      builder: (context, child) {
+        // Shake offset calculation
+        double shakeOffset = 0;
+        if (_shakeController.isAnimating && _selectedAnswer == isTrue && isTrue != _correctAnswer) {
+          shakeOffset = sin(_shakeController.value * pi * 4) * 8;
+        }
+        
+        // Success scale calculation
+        double successScale = 1.0;
+        if (_successController.isAnimating && isTrue == _correctAnswer && _answered) {
+          successScale = 1.0 + sin(_successController.value * pi) * 0.1;
+        }
+
+        final isCorrectOption = (isTrue == _correctAnswer);
+        final isSelectedWrong = (_selectedAnswer == isTrue && !isCorrectOption);
+        
+        Color buttonColor = Colors.white;
+        Color borderColor = Colors.grey.withValues(alpha: 0.3);
+        Color textColor = Colors.black87;
+        
+        if (_answered) {
+          if (isCorrectOption) {
+            buttonColor = Colors.green.withValues(alpha: 0.1);
+            borderColor = Colors.green;
+            textColor = Colors.green;
+          } else if (isSelectedWrong) {
+            buttonColor = Colors.red.withValues(alpha: 0.1);
+            borderColor = Colors.red;
+            textColor = Colors.red;
+          } else {
+            buttonColor = Colors.grey.withValues(alpha: 0.05);
+            borderColor = Colors.grey.withValues(alpha: 0.2);
+            textColor = Colors.grey;
+          }
+        }
+
+        return Transform.translate(
+          offset: Offset(shakeOffset, 0),
+          child: Transform.scale(
+            scale: successScale,
+            child: Container(
+              width: double.infinity,
+              height: 60,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _answered ? null : () => _selectAnswer(isTrue),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: buttonColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: borderColor,
+                        width: isCorrectOption && _answered ? 3 : 2,
                       ),
+                      boxShadow: isCorrectOption && _answered ? [
+                        BoxShadow(
+                          color: Colors.green.withValues(alpha: 0.2),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        )
+                      ] : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: borderColor.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: _answered && isCorrectOption
+                              ? const Icon(Icons.check, color: Colors.green, size: 18)
+                              : _answered && isSelectedWrong
+                                ? const Icon(Icons.close, color: Colors.red, size: 18)
+                                : Text(
+                                    isTrue ? 'T' : 'F',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: borderColor,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          isTrue ? 'TRUE' : 'FALSE',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        if (_answered && isCorrectOption)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: const Icon(Icons.check_circle, color: Colors.green, size: 24),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 12), // Reduced spacing
-                Text(
-                  isTrue ? 'TRUE' : 'FALSE',
-                  style: TextStyle(
-                    fontSize: 16, // Smaller font
-                    fontWeight: FontWeight.bold,
-                    color: _getButtonBorderColor(isTrue),
-                  ),
-                ),
-                const SizedBox(width: 12), // Reduced spacing
-                // Only show check/cross when answered and this button is the correct answer or wrong selected answer
-                if (_answered && isTrue == _correctAnswer)
-                  const Icon(Icons.check_circle, color: Colors.green, size: 24),
-                if (_answered && isTrue == _selectedAnswer && isTrue != _correctAnswer)
-                  const Icon(Icons.cancel, color: Colors.red, size: 24),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1737,6 +1876,5 @@ class _TrueFalseViewState extends State<TrueFalseView> {
 
     return deckCards.isEmpty ? provider.cards : deckCards;
   }
-
 
 } 

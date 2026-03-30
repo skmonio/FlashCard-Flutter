@@ -268,36 +268,94 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           
           // Main card area with background color based on swipe direction
           Expanded(
-            child: Container(
-              child: Column(
-                children: [
-                  // Card area with directional labels behind
-                  Expanded(
-                    child: _buildCardAreaWithLabels(),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Navigation buttons under the card
-                  _buildNavigationButtons(),
-                  
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
+            child: _buildCardAreaWithLabels(),
           ),
+          
+          // Footer with buttons
+          _buildPremiumFooter(),
         ],
       ),
     );
   }
 
+  Widget _buildPremiumFooter() {
+    final bool hasHistory = _topIndex > 0;
+    
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              offset: const Offset(0, -4),
+              blurRadius: 12,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Undo/Back button
+            ElevatedButton.icon(
+              onPressed: () {
+                if (hasHistory) {
+                  _goToPreviousCard();
+                } else {
+                  _showCloseConfirmation();
+                }
+              },
+              icon: Icon(hasHistory ? Icons.undo : Icons.arrow_back_ios, size: 18),
+              label: Text(hasHistory ? 'Undo' : 'Back'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: hasHistory ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.1),
+                foregroundColor: hasHistory ? Colors.orange[800] : Colors.black87,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: (hasHistory ? Colors.orange[300] : Colors.grey[300])!,
+                    width: 1,
+                  ),
+                ),
+              ),
+            ),
+            
+            // Edit button
+            ElevatedButton.icon(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit, size: 18),
+              label: const Text('Edit'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProgressBar() {
-    final currentCardIndex = _useStackedMode ? _topIndex : _currentIndex;
+    final currentCardIndex = _topIndex;
     final progress = _currentCards.isEmpty ? 0.0 : currentCardIndex / _currentCards.length;
     
-    // Calculate current accuracy
-    final answeredCards = _knownCards.length + _unknownCards.length + _skippedCards.length;
-    final accuracy = answeredCards > 0 ? (_knownCards.length / answeredCards) * 100 : 100.0;
+    // Calculate current accuracy - start at 100%
+    final totalSwiped = _knownCards.length + _unknownCards.length;
+    final accuracy = totalSwiped > 0 ? (_knownCards.length / totalSwiped * 100).toInt() : 100;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -306,8 +364,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${currentCardIndex + 1}/${_currentCards.length}'),
-              Text('${accuracy.toInt()}%'),
+              Text(
+                'Card ${currentCardIndex + 1}/${_currentCards.length}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              Text(
+                'Acc: $accuracy%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -452,82 +516,110 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   Widget _buildDirectionalLabelForDirection(SwipeDirection direction) {
+    final double opacity = (_swipeIntensity * 2).clamp(0.0, 1.0);
+    
     switch (direction) {
       case SwipeDirection.left:
-        return Transform.rotate(
-          angle: -0.3,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              "Don't\nKnow",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+        return Opacity(
+          opacity: opacity,
+          child: Transform.rotate(
+            angle: -0.2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.red, width: 4),
+                borderRadius: BorderRadius.circular(12),
               ),
-              textAlign: TextAlign.center,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.close, color: Colors.red, size: 32),
+                  SizedBox(width: 8),
+                  Text(
+                    "FORGOT",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
         
       case SwipeDirection.right:
-        return Transform.rotate(
-          angle: 0.3,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text(
-              "Known",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+        return Opacity(
+          opacity: opacity,
+          child: Transform.rotate(
+            angle: 0.2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.green, width: 4),
+                borderRadius: BorderRadius.circular(12),
               ),
-              textAlign: TextAlign.center,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, color: Colors.green, size: 32),
+                  SizedBox(width: 8),
+                  Text(
+                    "KNOW",
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
         
       case SwipeDirection.up:
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.yellow.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text(
-            "Review",
-            style: TextStyle(
-              color: Colors.black,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+        return Opacity(
+          opacity: opacity,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.orange, width: 4),
+              borderRadius: BorderRadius.circular(12),
             ),
-            textAlign: TextAlign.center,
+            child: const Text(
+              "REVIEW",
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
           ),
         );
         
       case SwipeDirection.down:
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text(
-            "Skip",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+        return Opacity(
+          opacity: opacity,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.blue, width: 4),
+              borderRadius: BorderRadius.circular(12),
             ),
-            textAlign: TextAlign.center,
+            child: const Text(
+              "SKIP",
+              style: TextStyle(
+                color: Colors.blue,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
+            ),
           ),
         );
         
@@ -767,16 +859,16 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       final previousIndex = _topIndex - 1;
       print('🔍 AdvancedStudyView: Going back to index: $previousIndex');
       
-      // Remove the current card from tracking sets since we're going back
-      final currentCard = _currentCards[_topIndex];
-      _knownCards.remove(currentCard.id);
-      _unknownCards.remove(currentCard.id);
-      _skippedCards.remove(currentCard.id);
+      // Remove the previously swiped card from tracking sets
+      final swipedCard = _currentCards[previousIndex];
+      _knownCards.remove(swipedCard.id);
+      _unknownCards.remove(swipedCard.id);
+      _skippedCards.remove(swipedCard.id);
       
       // Remove from history tracking
-      _knownHistory.remove(_topIndex);
-      _unknownHistory.remove(_topIndex);
-      _skippedHistory.remove(_topIndex);
+      _knownHistory.remove(previousIndex);
+      _unknownHistory.remove(previousIndex);
+      _skippedHistory.remove(previousIndex);
       
       setState(() {
         _topIndex = previousIndex;
@@ -1609,7 +1701,7 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    double tiltAngle = (position.dx / screenWidth) * 0.5;
+    double tiltAngle = (position.dx / screenWidth) * 0.8;
 
     // Gesture handling with smooth movement
     return GestureDetector(

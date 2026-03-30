@@ -10,6 +10,7 @@ import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../components/main_header.dart';
+import 'add_card_view.dart';
 
 class PickYourCardView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -61,6 +62,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
   int _consecutiveCorrect = 0;
   int _totalAnswers = 0;
   int _correctAnswers = 0;
+  int _totalAttempts = 0;
   
   // Timer variables
   Timer? _timer;
@@ -754,6 +756,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
     print('🔍 PickYourCardView: Answer check - User: "$userAnswer", Correct: "$correctAnswer", Parts: "$selectedPart1" + "$selectedPart2"${hasThirdWheel ? ' + "$selectedPart3"' : ''}');
     
     final bool isCorrect = userAnswer.toLowerCase() == correctAnswer.toLowerCase();
+    
+    setState(() {
+      _totalAttempts++;
+    });
+    
     final provider = context.read<FlashcardProvider>();
     final userProfileProvider = context.read<UserProfileProvider>();
     
@@ -1092,6 +1099,17 @@ class _PickYourCardViewState extends State<PickYourCardView>
     );
   }
 
+  void _editCurrentCard() {
+    final currentCard = widget.cards[currentCardIndex];
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddCardView(
+          cardToEdit: currentCard,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.cards.isEmpty) {
@@ -1168,6 +1186,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
             ),
           ],
         ),
+        bottomNavigationBar: _buildUnifiedFooter(),
       ),
     );
   }
@@ -1201,27 +1220,113 @@ class _PickYourCardViewState extends State<PickYourCardView>
     );
   }
 
-  Widget _buildProgressBar() {
-    final progress = currentCardIndex / widget.cards.length;
-    final accuracy = _totalAnswers > 0 ? (_correctAnswers / _totalAnswers * 100).toInt() : 0;
-    
-    // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
-    final String questionCountText;
-    if (widget.shuffleMode && widget.shuffleQuestionOffset != null) {
-      final currentQuestionNum = (widget.shuffleQuestionOffset ?? 0) + currentCardIndex + 1;
-      questionCountText = '$currentQuestionNum/$currentQuestionNum';
-    } else {
-      questionCountText = '${currentCardIndex + 1}/${widget.cards.length}';
-    }
-    
+  Widget _buildUnifiedFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: currentCardIndex > 0 ? () {
+                  if (mounted) {
+                    setState(() {
+                      currentCardIndex--;
+                      // If this card was already answered, show the result
+                      if (_cardResults.containsKey(currentCardIndex)) {
+                        _showResult = true;
+                        _isLastAnswerCorrect = _cardResults[currentCardIndex]!;
+                        _lastUserAnswer = _userAnswers[currentCardIndex]!;
+                        _lastCorrectAnswer = widget.cards[currentCardIndex].word;
+                      } else {
+                        _showResult = false;
+                      }
+                    });
+                    _loadCurrentCard();
+                  }
+                } : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: currentCardIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: currentCardIndex > 0 ? Colors.black87 : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: currentCardIndex > 0 ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? _nextCard : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(currentCardIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar() {
+    final progress = widget.cards.isEmpty ? 0.0 : currentCardIndex / widget.cards.length;
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(questionCountText),
+              Text(
+                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + currentCardIndex + 1) : (currentCardIndex + 1)}/${widget.cards.length}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
               if (_useLivesMode && widget.useTimedMode) ...[
                 _buildLivesIndicator(),
                 const SizedBox(width: 8),
@@ -1231,7 +1336,10 @@ class _PickYourCardViewState extends State<PickYourCardView>
               ] else if (widget.useTimedMode) ...[
                 _buildTimerIndicator(),
               ],
-              Text('$accuracy%'),
+              Text(
+                'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1384,55 +1492,6 @@ class _PickYourCardViewState extends State<PickYourCardView>
           ),
           
           const SizedBox(height: 40),
-          
-          // Navigation buttons (always visible, greyed out when not available)
-          Row(
-            children: [
-              // Back button
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: currentCardIndex > 0 ? () {
-                    if (mounted) {
-                      setState(() {
-                        currentCardIndex--;
-                        // If this card was already answered, show the result
-                        if (_cardResults.containsKey(currentCardIndex)) {
-                          _showResult = true;
-                          _isLastAnswerCorrect = _cardResults[currentCardIndex]!;
-                          _lastUserAnswer = _userAnswers[currentCardIndex]!;
-                          _lastCorrectAnswer = widget.cards[currentCardIndex].word;
-                        } else {
-                          _showResult = false;
-                        }
-                      });
-                      _loadCurrentCard();
-                    }
-                  } : null,
-                  icon: const Icon(Icons.arrow_back_ios, size: 16),
-                  label: const Text('Back'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: currentCardIndex > 0 ? Colors.blue : Colors.grey,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Next/Finish button
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? _nextCard : null,
-                  icon: const Icon(Icons.arrow_forward, size: 16),
-                  label: Text(currentCardIndex == widget.cards.length - 1 ? 'Finish' : 'Next'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: (_showResult && (_isLastAnswerCorrect || _showAnswer)) ? Colors.green : Colors.grey,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-            ],
-          ),
           
           const SizedBox(height: 20),
           
