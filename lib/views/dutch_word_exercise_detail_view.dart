@@ -66,7 +66,6 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
-  final Set<String> _hpPenaltyAppliedWordIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -706,6 +705,23 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
                   color: _isCorrect ? Colors.green : Colors.red,
                 ),
               ),
+              if (_isCorrect && _xpGainedPerWord.containsKey(_wordExercise.id)) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '+${context.read<FlashcardProvider>().cards.firstWhere((c) => c.word.toLowerCase() == _wordExercise.targetWord.toLowerCase()).learningMastery.exerciseHistory.last['xpGained']} XP',
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -893,43 +909,15 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         learningMastery: flashCard.learningMastery.copyWith(),
       );
       
-      // Update learning mastery based on difficulty (assuming medium for exercises)
-      final xpService = XpService();
-      
-      bool shouldApplyHpPenalty = false;
-      if (flashCard.id.isNotEmpty && !_hpPenaltyAppliedWordIds.contains(flashCard.id)) {
-        _hpPenaltyAppliedWordIds.add(flashCard.id);
-        shouldApplyHpPenalty = true;
-      }
-      
       if (wasCorrect) {
-        if (shouldApplyHpPenalty) {
-          updatedCard.markCorrect(GameDifficulty.medium);
-        }
-        
-        // Award XP without recording extra attempts to prevent duplicate HP loss
-        if (!widget.singleQuestionMode && !shouldApplyHpPenalty) {
-          xpService.addXPToWordWithoutRecordingAttempt(
-            updatedCard.learningMastery,
-            'dutch_word_exercise_detail',
-            1,
-          );
-        }
+        updatedCard.markCorrect(GameDifficulty.medium);
       } else {
-        if (shouldApplyHpPenalty) {
-          updatedCard.markIncorrect(GameDifficulty.medium);
-        }
-        
-        // Skip additional attempt records when HP was already deducted earlier
-        if (!widget.singleQuestionMode && !shouldApplyHpPenalty) {
-          xpService.recordAttemptToWord(updatedCard.learningMastery, 'dutch_word_exercise_detail');
-        }
+        updatedCard.markIncorrect(GameDifficulty.medium);
       }
       
       await flashcardProvider.updateCard(updatedCard);
       print('🔍 Progress synced to FlashCard: ${flashCard.word} - timesShown: ${updatedCard.timesShown}, timesCorrect: ${updatedCard.timesCorrect}');
-      print('🔍 FlashCard learning percentage: ${updatedCard.learningPercentage}%');
-      print('🔍 DutchWordExercise learning percentage: ${widget.wordExercise.learningProgress.learningPercentage}%');
+      print('🔍 FlashCard HP: ${updatedCard.currentHP}/${updatedCard.maxHP}');
     } catch (e) {
       print('🔍 Error syncing progress to FlashCard: $e');
     }
@@ -972,10 +960,12 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         final actualXPGained = refreshedCard.learningMastery.exerciseHistory.isNotEmpty 
             ? refreshedCard.learningMastery.exerciseHistory.last['xpGained'] as int 
             : 0;
-        _xpGainedPerWord[flashCard.id] = actualXPGained;
+        
+        // Accumulate XP for this word across multiple exercises in the same session
+        _xpGainedPerWord[flashCard.id] = (_xpGainedPerWord[flashCard.id] ?? 0) + actualXPGained;
       } else {
-        // Explicitly set 0 XP for incorrect answers
-        _xpGainedPerWord[flashCard.id] = 0;
+        // Initialize if not present
+        _xpGainedPerWord[flashCard.id] ??= 0;
       }
     }
   }
@@ -1372,9 +1362,40 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
       children: [
         // Centered title - always in the center regardless of other elements
         Center(
-          child: Text(
-            'Exercise',
-            style: titleStyle,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Exercise',
+                style: titleStyle,
+              ),
+              Consumer<FlashcardProvider>(
+                builder: (context, provider, child) {
+                  final card = provider.cards.firstWhere(
+                    (c) => c.word.toLowerCase() == _wordExercise.targetWord.toLowerCase(),
+                    orElse: () => FlashCard(word: '', definition: '', example: ''),
+                  );
+                  
+                  if (card.id.isEmpty) return const SizedBox.shrink();
+                  
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.favorite, size: 12, color: Colors.red.shade400),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${card.currentHP}/${card.maxHP} HP',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
           ),
         ),
         

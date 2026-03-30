@@ -13,12 +13,14 @@ import '../utils/enhanced_snackbar.dart';
 
 class AddCardView extends StatefulWidget {
   final Deck? selectedDeck;
+  final String? initialDeckId; // Added to support pre-selected deck via ID
   final FlashCard? cardToEdit; // For editing existing cards
   final String? preFilledWord; // For pre-filling the word field
   
   const AddCardView({
     super.key,
     this.selectedDeck,
+    this.initialDeckId,
     this.cardToEdit,
     this.preFilledWord,
   });
@@ -94,6 +96,10 @@ class _AddCardViewState extends State<AddCardView> {
       // If adding a new card with a pre-selected deck
       _selectedDeckIds = [widget.selectedDeck!.id];
       _originalDeckIds = [widget.selectedDeck!.id];
+    } else if (widget.initialDeckId != null) {
+      // If adding a new card with a pre-selected deck via ID
+      _selectedDeckIds = [widget.initialDeckId!];
+      _originalDeckIds = [widget.initialDeckId!];
     }
     // Note: Default deck selection will be handled in build method
     
@@ -115,6 +121,12 @@ class _AddCardViewState extends State<AddCardView> {
         // This will trigger a rebuild to update the translate button state
       });
     });
+
+    _exampleTranslationController.addListener(() => setState(() {}));
+    _pluralController.addListener(() => setState(() {}));
+    _pastTenseController.addListener(() => setState(() {}));
+    _futureTenseController.addListener(() => setState(() {}));
+    _pastParticipleController.addListener(() => setState(() {}));
   }
 
   @override
@@ -187,6 +199,13 @@ class _AddCardViewState extends State<AddCardView> {
                                       hintText: 'e.g., ${wordLanguageName == 'Dutch' ? 'huis' : 'word'}',
                                       border: const OutlineInputBorder(),
                                       prefixIcon: const Icon(Icons.text_fields),
+                                      suffixIcon: _wordController.text.isNotEmpty ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _wordController.clear();
+                                          setState(() {});
+                                        },
+                                      ) : null,
                                       counterText: '',
                                       errorText: _getDuplicateWarning(),
                                     ),
@@ -241,6 +260,13 @@ class _AddCardViewState extends State<AddCardView> {
                                       hintText: 'e.g., translation',
                                       border: const OutlineInputBorder(),
                                       prefixIcon: const Icon(Icons.translate),
+                                      suffixIcon: _definitionController.text.isNotEmpty ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          _definitionController.clear();
+                                          setState(() {});
+                                        },
+                                      ) : null,
                                       counterText: '',
                                     ),
                                     validator: (value) {
@@ -281,11 +307,18 @@ class _AddCardViewState extends State<AddCardView> {
                       controller: _exampleController,
                       maxLines: 2,
                       maxLength: 300,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Example Sentence',
                         hintText: 'e.g., Ik woon in een groot huis.',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.format_quote),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.format_quote),
+                        suffixIcon: _exampleController.text.isNotEmpty ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _exampleController.clear();
+                            setState(() {});
+                          },
+                        ) : null,
                         counterText: '',
                       ),
                       validator: (value) {
@@ -323,11 +356,18 @@ class _AddCardViewState extends State<AddCardView> {
                       controller: _exampleTranslationController,
                       maxLines: 2,
                       maxLength: 300,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Example Translation',
                         hintText: 'e.g., I live in a big house.',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.translate),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.translate),
+                        suffixIcon: _exampleTranslationController.text.isNotEmpty ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _exampleTranslationController.clear();
+                            setState(() {});
+                          },
+                        ) : null,
                         counterText: '',
                       ),
                       validator: (value) {
@@ -347,11 +387,18 @@ class _AddCardViewState extends State<AddCardView> {
                     TextFormField(
                       controller: _pluralController,
                       maxLength: 100,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Plural Form',
                         hintText: 'e.g., huizen',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.list),
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.list),
+                        suffixIcon: _pluralController.text.isNotEmpty ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _pluralController.clear();
+                            setState(() {});
+                          },
+                        ) : null,
                         counterText: '',
                       ),
                       validator: (value) {
@@ -482,10 +529,17 @@ class _AddCardViewState extends State<AddCardView> {
               child: TextFormField(
                 controller: _pastTenseController,
                 maxLength: 100,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Past Tense',
                   hintText: 'e.g., woonde',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _pastTenseController.text.isNotEmpty ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _pastTenseController.clear();
+                      setState(() {});
+                    },
+                  ) : null,
                   counterText: '',
                 ),
                 validator: (value) {
@@ -501,10 +555,17 @@ class _AddCardViewState extends State<AddCardView> {
               child: TextFormField(
                 controller: _futureTenseController,
                 maxLength: 100,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Future Tense',
                   hintText: 'e.g., zal wonen',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _futureTenseController.text.isNotEmpty ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _futureTenseController.clear();
+                      setState(() {});
+                    },
+                  ) : null,
                   counterText: '',
                 ),
                 validator: (value) {
@@ -521,10 +582,17 @@ class _AddCardViewState extends State<AddCardView> {
         TextFormField(
           controller: _pastParticipleController,
           maxLength: 100,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Past Participle',
             hintText: 'e.g., gewoond',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
+            suffixIcon: _pastParticipleController.text.isNotEmpty ? IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _pastParticipleController.clear();
+                setState(() {});
+              },
+            ) : null,
             counterText: '',
           ),
           validator: (value) {

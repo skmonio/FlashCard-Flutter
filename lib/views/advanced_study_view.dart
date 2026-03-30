@@ -111,6 +111,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _sessionCards = List<FlashCard>.from(widget.cards);
     _currentCards = List<FlashCard>.from(_sessionCards);
     
+    // Track initial HP for all cards at the start of the session
+    for (final card in _currentCards) {
+      _initialHPPerWord[card.id] = card.currentHP;
+    }
+    
     // Add listener to refresh cards when provider updates
     final provider = context.read<FlashcardProvider>();
     provider.addListener(_onProviderChanged);
@@ -247,10 +252,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             title: 'Study',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showCloseConfirmation(),
             ),
             rightAction: IconButton(
               icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showHomeConfirmation(),
             ),
           ),
@@ -284,7 +293,12 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
   Widget _buildProgressBar() {
     final currentCardIndex = _useStackedMode ? _topIndex : _currentIndex;
-    final progress = currentCardIndex / _currentCards.length;
+    final progress = _currentCards.isEmpty ? 0.0 : currentCardIndex / _currentCards.length;
+    
+    // Calculate current accuracy
+    final answeredCards = _knownCards.length + _unknownCards.length + _skippedCards.length;
+    final accuracy = answeredCards > 0 ? (_knownCards.length / answeredCards) * 100 : 100.0;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -293,7 +307,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('${currentCardIndex + 1}/${_currentCards.length}'),
-              Text('${(progress * 100).toInt()}%'),
+              Text('${accuracy.toInt()}%'),
             ],
           ),
           const SizedBox(height: 8),
@@ -910,7 +924,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     // Save to history
     _cardHistory.add(_currentIndex);
     
-    // Track initial HP BEFORE processing (so we capture HP before it's reduced)
+    // Track initial HP BEFORE processing
     if (!_studiedWords.any((word) => word.id == currentCard.id)) {
       _studiedWords.add(currentCard);
       _initialHPPerWord[currentCard.id] = currentCard.currentHP;
@@ -925,9 +939,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         XpService.recordAnswer(_gameSession, false);
         // Explicitly set 0 XP for unknown cards
         _xpGainedPerWord[currentCard.id] = 0;
-        // Mark card as incorrect (this records the attempt via recordGameAttempt)
+        
+        // Mark card as incorrect (decrements HP and increments attempts)
         currentCard.markIncorrect(GameDifficulty.medium);
-        // markIncorrect now adds to exerciseHistory automatically
+        
         // Update learning progress - marked as incorrect
         _updateCardLearningProgress(currentCard, false);
         break;
@@ -936,8 +951,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _knownHistory[_currentIndex] = true;
         _combo++;
         if (_combo > _maxCombo) _maxCombo = _combo;
-        // Track XP for correct answer (5 XP)
+        
+        // Multi-level tracking
         XpService.recordAnswer(_gameSession, true);
+        
+        // Mark card as correct (decrements HP, awards diminishing XP, and increments consecutiveCorrect)
+        currentCard.markCorrect(GameDifficulty.medium);
+        
         // Update learning progress - marked as correct
         _updateCardLearningProgress(currentCard, true);
         break;
@@ -995,19 +1015,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
   }
 
   void _awardXPToWord(FlashCard card) {
-    final xpService = XpService();
-    
-    // For advanced study, we'll use a generic "study" exercise type
-    // Award XP to the word's learning mastery (this handles daily diminishing returns)
-    xpService.addXPToWord(card.learningMastery, 'study', _combo);
-    
-    // Get the actual XP gained (after diminishing returns)
+    // Get the actual XP gained (after diminishing returns) from the last entry
     final actualXPGained = card.learningMastery.exerciseHistory.isNotEmpty 
         ? card.learningMastery.exerciseHistory.last['xpGained'] as int 
         : 0;
     
-    // Track XP gained for this word in this session (add for multiple appearances in same session)
-          _xpGainedPerWord[card.id] = actualXPGained;
+    // Track XP gained for this word in this session (accumulate for multiple appearances)
+    _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + actualXPGained;
     
     // Store the mastery for display
     _wordMastery[card.id] = card.learningMastery;
@@ -1197,7 +1211,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         studiedWords: sessionStudiedWords,
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,
-        initialHPPerWord: _initialHPPerWord,
+        initialHPPerWord: Map<String, int>.from(_initialHPPerWord),
         correctAnswers: _knownCards.length,
         totalQuestions: sessionStudiedWords.isNotEmpty ? sessionStudiedWords.length : _currentCards.length,
         onStudyAgain: () {
@@ -1234,6 +1248,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       _xpGainedPerWord.clear();
       _wordMastery.clear();
       _initialHPPerWord.clear();
+      // Track initial HP for all cards at the start of the new session
+      for (final card in _currentCards) {
+        _initialHPPerWord[card.id] = card.currentHP;
+      }
       _combo = 0;
       _maxCombo = 0;
       
@@ -1379,10 +1397,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     _unknownCards.remove(currentCard.id);
     _skippedCards.remove(currentCard.id);
     
-    // Track the studied word and capture initial HP before we modify it
+    // Track the studied word before we modify it
     if (!_studiedWords.any((word) => word.id == currentCard.id)) {
       _studiedWords.add(currentCard);
-      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
     }
     
     switch (direction) {
@@ -1415,7 +1432,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // But still track them for end screen display
         if (!_studiedWords.any((word) => word.id == currentCard.id)) {
           _studiedWords.add(currentCard);
-          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
         }
         break;
       case SwipeDirection.down: // Skip
@@ -1767,13 +1783,18 @@ class TaalTrekFlashCard extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(responsivePadding),
         child: Center(
-          child: Text(
-            card.word,
-            style: TextStyle(
-              fontSize: responsiveFontSize,
-              fontWeight: FontWeight.bold,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              card.word,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: responsiveFontSize,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
         ),
       ),
@@ -1837,13 +1858,18 @@ class TaalTrekFlashCard extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(responsivePadding),
         child: Center(
-          child: Text(
-            card.definition,
-            style: TextStyle(
-              fontSize: responsiveFontSize,
-              fontWeight: FontWeight.w600,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              card.definition,
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: responsiveFontSize,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
         ),
       ),

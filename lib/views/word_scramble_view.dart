@@ -28,6 +28,8 @@ class WordScrambleView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const WordScrambleView({
     super.key,
@@ -40,6 +42,8 @@ class WordScrambleView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.shuffleQuestionOffset,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -392,7 +396,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       }
     } else {
       // Wrong answer - shake, turn red, reset, and apply XP penalty
-      final newWrongAttempts = wrongAttempts + 1;
+      final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       _wrongAttempts[_currentIndex] = newWrongAttempts;
       
       // Track XP for wrong attempt
@@ -849,7 +853,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
                         ),
                         
                         // Hint button (bottom right)
-                        if (!_answered)
+                        if (!_answered && widget.enableHints)
                           Positioned(
                             bottom: 8,
                             right: 8,

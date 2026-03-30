@@ -46,6 +46,7 @@ class UserProfileProvider extends ChangeNotifier {
   double get accuracy => _profile.accuracy;
   int get totalCardsStudied => _profile.totalCardsStudied;
   int get perfectSessions => _profile.perfectSessions;
+  DateTime? get lastStudyDate => _profile.lastStudyDate;
   double get progressToNextLevel => _profile.progressToNextLevel;
 
   // Initialize the provider

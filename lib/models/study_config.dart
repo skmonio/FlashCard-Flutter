@@ -16,6 +16,7 @@ class StudyConfig {
   final int? timePerQuestion;
   final bool useAllCardsForAnswers;
   final bool oneAnswerMode;
+  final bool enableHints;
 
   const StudyConfig({
     required this.deckIds,
@@ -30,7 +31,8 @@ class StudyConfig {
     this.timedDifficulty,
     this.timePerQuestion,
     required this.useAllCardsForAnswers,
-    this.oneAnswerMode = false,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   StudyConfig copyWith({
@@ -47,6 +49,7 @@ class StudyConfig {
     int? timePerQuestion,
     bool? useAllCardsForAnswers,
     bool? oneAnswerMode,
+    bool? enableHints,
   }) {
     return StudyConfig(
       deckIds: deckIds ?? this.deckIds,
@@ -62,6 +65,7 @@ class StudyConfig {
       timePerQuestion: timePerQuestion ?? this.timePerQuestion,
       useAllCardsForAnswers: useAllCardsForAnswers ?? this.useAllCardsForAnswers,
       oneAnswerMode: oneAnswerMode ?? this.oneAnswerMode,
+      enableHints: enableHints ?? this.enableHints,
     );
   }
 }

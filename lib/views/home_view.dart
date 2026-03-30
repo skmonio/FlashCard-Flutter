@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/deck.dart';
 import 'study_type_selection_view.dart';
-import 'memory_game_view.dart';
-import 'bubble_word_view.dart';
+import 'main_navigation_view.dart';
 import 'connect_cards_view.dart';
 
 import 'advanced_study_view.dart';
@@ -93,13 +92,12 @@ class _HomeViewState extends State<HomeView> {
           () => _navigateToMemoryGame(context),
           'Play a memory matching game. Find pairs of Dutch words and their English translations by remembering their positions.',
         ),
-        const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
           'Jumble your cards',
-          Icons.text_fields,
-          const Color(0xFFFF6B4D),
-          () => _navigateToWordScramble(context),
-          'Unscramble the letters to form Dutch words. Drag and drop letters to spell the correct word.',
+          Icons.abc,
+          Colors.green,
+          () => _navigateToJumble(context),
+          'Unscramble the Dutch word from a jumble of letters. You must choose the correct translation and then arrange the letters in the correct order.',
         ),
         const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
@@ -320,11 +318,12 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  void _navigateToWordScramble(BuildContext context) {
+
+  void _navigateToJumble(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => StudyTypeSelectionView(
-          gameMode: GameMode.bubbleWord,
+          gameMode: GameMode.wordScramble,
         ),
       ),
     );

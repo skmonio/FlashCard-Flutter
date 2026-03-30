@@ -65,14 +65,6 @@ class FlashcardApp extends StatelessWidget {
             return provider;
           },
         ),
-        ChangeNotifierProvider(create: (context) => BubbleWordProvider()),
-        ChangeNotifierProvider(
-          create: (context) {
-            final provider = DutchWordExerciseProvider();
-            provider.initialize(); // Initialize the provider
-            return provider;
-          },
-        ),
         ChangeNotifierProvider(
           create: (context) {
             final provider = UserProfileProvider();
@@ -80,14 +72,7 @@ class FlashcardApp extends StatelessWidget {
             return provider;
           },
         ),
-
-        ChangeNotifierProvider(
-          create: (context) {
-            final provider = PhraseProvider();
-            provider.loadPhrases(); // Initialize the provider
-            return provider;
-          },
-        ),
+        ChangeNotifierProvider(create: (context) => DutchWordExerciseProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

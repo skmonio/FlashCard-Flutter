@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/phrase_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import 'all_cards_view.dart';
 import 'all_decks_view.dart';
 import 'photo_import_view.dart';
-import 'phrases_list_view.dart';
 import 'dutch_words_view.dart';
-import 'bubble_word_map_selection_view.dart';
 
 
 class CardsView extends StatefulWidget {
@@ -59,10 +56,6 @@ class _CardsViewState extends State<CardsView> {
           
           // View Section
           _buildViewSection(context, provider),
-          const SizedBox(height: 20),
-          
-          // Resources Section
-          _buildResourcesSection(),
         ],
       ),
     );
@@ -370,109 +363,6 @@ class _CardsViewState extends State<CardsView> {
             );
           },
         ),
-        
-        // View All Phrases
-        Consumer<PhraseProvider>(
-          builder: (context, phraseProvider, child) {
-            final allPhrases = phraseProvider.phrases;
-            return Container(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _viewAllPhrases(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  elevation: 2,
-                  shadowColor: Colors.teal.withOpacity(0.2),
-                  padding: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.translate,
-                      color: Colors.teal,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Phrases',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '(${allPhrases.length})',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-
-
-  Widget _buildResourcesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Resources',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
-          ),
-        ),
-        const SizedBox(height: 12),
-        
-        
-        // Bubble Word
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ElevatedButton(
-            onPressed: () => _navigateToBubbleWord(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-              elevation: 2,
-              shadowColor: Colors.purple.withOpacity(0.2),
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.bubble_chart,
-                  color: Colors.purple,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Bubble Word',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
-        
-
       ],
     );
   }
@@ -505,23 +395,6 @@ class _CardsViewState extends State<CardsView> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const DutchWordsView(),
-      ),
-    );
-  }
-
-  void _viewAllPhrases(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const PhrasesListView(),
-      ),
-    );
-  }
-
-
-  void _navigateToBubbleWord(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const BubbleWordMapSelectionView(),
       ),
     );
   }

@@ -27,6 +27,8 @@ class TimedMultipleChoiceView extends StatefulWidget {
   final TimedDifficulty difficulty;
   final bool startFlipped;
   final List<FlashCard>? answerPoolCards;
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const TimedMultipleChoiceView({
     super.key,
@@ -36,6 +38,8 @@ class TimedMultipleChoiceView extends StatefulWidget {
     required this.difficulty,
     this.startFlipped = false,
     this.answerPoolCards,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -394,7 +398,7 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       });
     } else {
       // Wrong answer - disable this option, increment wrong attempts
-      final newWrongAttempts = wrongAttempts + 1;
+      final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       
       // Disable this wrong option so it can't be clicked again
       setState(() {

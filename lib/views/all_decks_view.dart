@@ -95,13 +95,17 @@ class _AllDecksViewState extends State<AllDecksView> {
       children: [
         // Centered title - always in the center regardless of other elements
         Center(
-          child: Text(
-            'Decks',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          child: Consumer<FlashcardProvider>(
+            builder: (context, provider, child) {
+              return Text(
+                'Decks',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              );
+            },
           ),
         ),
         
@@ -317,13 +321,31 @@ class _AllDecksViewState extends State<AllDecksView> {
       return _buildEmptyState(context);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: sortedDecks.length,
-      itemBuilder: (context, index) {
-        final deck = sortedDecks[index];
-        return _buildDeckCard(context, provider, deck);
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Text(
+            '${provider.decks.length} Decks',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: sortedDecks.length,
+            itemBuilder: (context, index) {
+              final deck = sortedDecks[index];
+              return _buildDeckCard(context, provider, deck);
+            },
+          ),
+        ),
+      ],
     );
   }
 

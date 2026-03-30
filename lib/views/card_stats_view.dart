@@ -28,31 +28,91 @@ class _CardStatsViewState extends State<CardStatsView> {
     final wordLevel = freshCard.learningMastery.rpgWordLevel;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Text(
-              freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w500,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: Column(
+        children: [
+          // Standardized Header
+          SafeArea(
+            child: Container(
+              height: kToolbarHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  // Centered title - always in the center
+                  Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          freshCard.word,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Left side - Back button
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.arrow_back_ios,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        size: 20,
+                      ),
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                  
+                  // Right side - Home button
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.home,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        size: 20,
+                      ),
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
+                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                    ),
+                  ),
+                ],
               ),
             ),
-            Expanded(child: Text(freshCard.word)),
-          ],
-        ),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios,
-            color: Theme.of(context).colorScheme.onSurface,
           ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+          
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -177,7 +237,6 @@ class _CardStatsViewState extends State<CardStatsView> {
                 _buildStatRow('Created', DateFormat('MMM dd, yyyy HH:mm').format(freshCard.dateCreated)),
                 _buildStatRow('Last Modified', DateFormat('MMM dd, yyyy HH:mm').format(freshCard.lastModified)),
                 _buildStatRow('Last Studied', _getLastStudiedText(freshCard)),
-                _buildStatRow('Card ID', freshCard.id),
               ],
             ),
             
@@ -194,6 +253,9 @@ class _CardStatsViewState extends State<CardStatsView> {
           ],
         ),
       ),
+    ),
+  ],
+),
     );
   }
 
@@ -285,6 +347,7 @@ class _CardStatsViewState extends State<CardStatsView> {
       'timed_multiple_choice': 'Timed Test Your Cards',
       'timed_true_false': 'Timed True or False',
       'timed_word_scramble': 'Timed Jumble Your Cards',
+      'dutch_word_exercise_detail': 'Exercise',
     };
     
     // Get unique game names in order of preference
@@ -304,12 +367,7 @@ class _CardStatsViewState extends State<CardStatsView> {
       final totalCorrect = exerciseTypes.fold<int>(0, (sum, type) => sum + (gameCorrect[type] ?? 0));
       
       if (totalAttempts > 0) {
-        // Don't show counter for "Test Your Cards" - other games don't have counters
-        if (gameName == 'Test Your Cards' || gameName == 'Timed Test Your Cards') {
-          gameUsageWidgets.add(_buildStatRow(gameName, '${totalCorrect} correct'));
-        } else {
-          gameUsageWidgets.add(_buildStatRow(gameName, '$totalAttempts times (${totalCorrect} correct)'));
-        }
+        gameUsageWidgets.add(_buildStatRow(gameName, '$totalAttempts times ($totalCorrect correct)'));
       }
     }
     

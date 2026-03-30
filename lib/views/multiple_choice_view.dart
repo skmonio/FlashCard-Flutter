@@ -35,6 +35,8 @@ class MultipleChoiceView extends StatefulWidget {
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
   final List<FlashCard>? answerPoolCards;
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const MultipleChoiceView({
     super.key,
@@ -51,6 +53,8 @@ class MultipleChoiceView extends StatefulWidget {
     this.studyConfig,
     this.shuffleQuestionOffset,
     this.answerPoolCards,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -61,6 +65,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAnswered = 0;
+  int _totalAttempts = 0;
   bool _showingResults = false;
   bool _answered = false;
   int? _selectedAnswer;
@@ -101,8 +106,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
-  Set<String> _hpPenaltyAppliedWordIds = {};
-
+  
   // Hint and review tracking
   Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, 2, or 3)
   Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
@@ -219,8 +223,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
-    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
-    _hpPenaltyAppliedWordIds.add(card.id);
     _ensureCardTracked(card);
     if (wasCorrect) {
       card.markCorrect(GameDifficulty.medium);
@@ -485,10 +487,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _timer?.cancel();
     }
     
-    if (isCorrect) {
-      // Correct answer - show answer immediately and award XP
-      setState(() {
-        _selectedAnswer = index;
+    setState(() {
+      _selectedAnswer = index;
+      _totalAttempts++;
+      
+      if (isCorrect) {
         _answered = true;
         _totalAnswered++;
         _correctAnswers++;
@@ -496,175 +499,107 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         // Store the answer
         _answeredQuestions[_currentIndex] = index;
         _correctAnswersMap[_currentIndex] = true;
-      });
-      
-      // Play correct sound
-      SoundManager().playCorrectSound();
-      
-      // Award XP with penalty for wrong attempts
-      _applyHpPenalty(currentCard, wasCorrect: true);
-      _awardXPToWord(currentCard, true, wrongAttempts);
-      _updateCardInProvider(currentCard);
-      
-      // Auto progress logic (only if not game over and not in shuffle mode)
-      if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
-        _autoProgressTimer?.cancel();
-        _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
-          if (mounted && _currentIndex < _currentCards.length - 1) {
-            // Mark this question as auto-progressed before moving to next
-            _autoProgressedQuestions.add(_currentIndex);
-            // Update the active question index to the next question
-            _activeQuestionIndex = _currentIndex + 1;
-            _goToNextQuestion();
-          }
-        });
-      }
-    } else {
-      // Check if "1 answer mode" is enabled
-      bool oneAnswerMode = widget.studyConfig?.oneAnswerMode ?? false;
-      
-      if (oneAnswerMode) {
-        // Wrong answer in 1 answer mode - mark as answered immediately
-        _applyHpPenalty(currentCard, wasCorrect: false);
-        _awardXPToWord(currentCard, false, 1); // 1 wrong attempt
+        
+        // Award XP with penalty for wrong attempts
+        _applyHpPenalty(currentCard, wasCorrect: true);
+        _awardXPToWord(currentCard, true, wrongAttempts);
         _updateCardInProvider(currentCard);
         
-        setState(() {
-          _answered = true;
-          _totalAnswered++;
-          _answeredQuestions[_currentIndex] = index;
-          _correctAnswersMap[_currentIndex] = false;
-          _selectedAnswer = index; // This will show the wrong choice as red and original correct as green
-        });
-        
-        // Play wrong sound
-        SoundManager().playWrongSound();
-
-        // Handle lives system in 1 answer mode
-        if (_useLivesMode) {
-          setState(() {
-            _lives--;
-          });
-          print('🔍 MultipleChoiceView: Lost a life in 1 answer mode! Lives remaining: $_lives');
-
-          if (_lives <= 0) {
-            print('🔍 MultipleChoiceView: Game over in 1 answer mode!');
-            _applyHpPenalty(currentCard, wasCorrect: false);
-            _awardXPToWord(currentCard, false, 1);
-            _updateCardInProvider(currentCard);
-            _showGameOverScreen();
-            return;
-          }
-        }
-        
-        // Auto progress logic for wrong answer in 1 answer mode
+        // Auto progress logic (only if not game over and not in shuffle mode)
         if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
           _autoProgressTimer?.cancel();
-          _autoProgressTimer = Timer(const Duration(milliseconds: 1500), () {
+          _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
             if (mounted && _currentIndex < _currentCards.length - 1) {
+              // Mark this question as auto-progressed before moving to next
               _autoProgressedQuestions.add(_currentIndex);
+              // Update the active question index to the next question
               _activeQuestionIndex = _currentIndex + 1;
               _goToNextQuestion();
             }
           });
         }
         
-        return;
-      }
+        // Play correct sound
+        SoundManager().playCorrectSound();
+      } else {
+        // Check if "1 answer mode" is enabled
+        bool oneAnswerMode = widget.studyConfig?.oneAnswerMode ?? false;
+        
+        if (oneAnswerMode) {
+          // Wrong answer in 1 answer mode - mark as answered immediately
+          _answered = true;
+          _totalAnswered++;
+          _answeredQuestions[_currentIndex] = index;
+          _correctAnswersMap[_currentIndex] = false;
+          
+          _applyHpPenalty(currentCard, wasCorrect: false);
+          _awardXPToWord(currentCard, false, 1); // 1 wrong attempt
+          _updateCardInProvider(currentCard);
+          
+          if (_useLivesMode) {
+            _lives--;
+            if (_lives <= 0) {
+              _showGameOverScreen();
+            }
+          }
+          
+          // Auto progress logic for wrong answer in 1 answer mode
+          if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
+            _autoProgressTimer?.cancel();
+            _autoProgressTimer = Timer(const Duration(milliseconds: 1500), () {
+              if (mounted && _currentIndex < _currentCards.length - 1) {
+                _autoProgressedQuestions.add(_currentIndex);
+                _activeQuestionIndex = _currentIndex + 1;
+                _goToNextQuestion();
+              }
+            });
+          }
+          
+          SoundManager().playWrongSound();
+          return;
+        }
 
-      // Wrong answer - disable this option, increment wrong attempts, and apply XP penalty
-      final newWrongAttempts = wrongAttempts + 1;
-      
-      // Disable this wrong option so it can't be clicked again (use same logic as hints)
-      // Add to both _disabledOptions (for tracking) and _blockedOptions (for UI blocking)
-      // CRITICAL: Must modify sets INSIDE setState to ensure state persists through rebuilds
-      setState(() {
+        // Wrong answer - disable this option, increment wrong attempts, and apply XP penalty
+        final newWrongAttempts = wrongAttempts + 1;
+        
         // Initialize sets if needed
         _disabledOptions[_currentIndex] ??= <int>{};
         _blockedOptions[_currentIndex] ??= <int>{};
         
-        // Add to blocked set INSIDE setState
-        if (!_blockedOptions[_currentIndex]!.contains(index)) {
-          _blockedOptions[_currentIndex]!.add(index);
-        }
-        if (!_disabledOptions[_currentIndex]!.contains(index)) {
-          _disabledOptions[_currentIndex]!.add(index);
-        }
+        _blockedOptions[_currentIndex]!.add(index);
+        _disabledOptions[_currentIndex]!.add(index);
         
         _wrongAttempts[_currentIndex] = newWrongAttempts;
-        // Keep track of the wrong answer to show visual feedback
-        _selectedAnswer = index; // Show which option was selected (wrong)
         
-        print('🔍 MultipleChoiceView: INSIDE setState - Blocked option $index for question $_currentIndex. Blocked: ${_blockedOptions[_currentIndex]}, Disabled: ${_disabledOptions[_currentIndex]}, wrongAttempts: $newWrongAttempts');
-      });
-      
-      // Verify state persists after setState
-      print('🔍 MultipleChoiceView: AFTER setState - Verifying blocked state. Blocked: ${_blockedOptions[_currentIndex]}, Disabled: ${_disabledOptions[_currentIndex]}');
-      
-      // Play wrong sound
-      SoundManager().playWrongSound();
-      
-      // Incorrect answers should only reduce XP (via wrong attempts tracking), not HP
-      // HP will only be reduced when the card is used in a completed game (when answer is correct)
-      // Wrong attempts are already tracked in _wrongAttempts and will be applied as XP penalty when correct
-      
-      // Handle lives system (update without affecting disabled options)
-      if (_useLivesMode) {
-        setState(() {
+        // Handle lives system 
+        if (_useLivesMode) {
           _lives--;
-          // Ensure disabled and blocked options persist
-          _disabledOptions[_currentIndex] ??= <int>{};
-          _blockedOptions[_currentIndex] ??= <int>{};
-          if (!_disabledOptions[_currentIndex]!.contains(index)) {
-            _disabledOptions[_currentIndex]!.add(index);
+          if (_lives <= 0) {
+            _applyHpPenalty(currentCard, wasCorrect: false);
+            _awardXPToWord(currentCard, false, newWrongAttempts);
+            _updateCardInProvider(currentCard);
+            _showGameOverScreen();
+            return;
           }
-          if (!_blockedOptions[_currentIndex]!.contains(index)) {
-            _blockedOptions[_currentIndex]!.add(index);
-          }
-        });
-        print('🔍 MultipleChoiceView: Lost a life! Lives remaining: $_lives');
+        }
         
-        // Check if game over
-        if (_lives <= 0) {
-          print('🔍 MultipleChoiceView: Game over! No lives remaining');
+        // If 5 wrong attempts, show the answer automatically
+        if (newWrongAttempts >= 5) {
+          _answered = true;
+          _totalAnswered++;
+          _correctAnswersMap[_currentIndex] = false;
+          _answeredQuestions[_currentIndex] = index;
+          
           _applyHpPenalty(currentCard, wasCorrect: false);
           _awardXPToWord(currentCard, false, newWrongAttempts);
           _updateCardInProvider(currentCard);
-          _showGameOverScreen();
-          return;
         }
-      }
-      
-      // If 5 wrong attempts, show the answer automatically
-      if (newWrongAttempts >= 5) {
-        // Award 0 XP since they failed after 5 attempts
-        _applyHpPenalty(currentCard, wasCorrect: false);
-        _awardXPToWord(currentCard, false, newWrongAttempts);
-        _updateCardInProvider(currentCard);
         
-        setState(() {
-          _answered = true;
-          _totalAnswered++;
-          
-          // Store the answer (wrong)
-          _answeredQuestions[_currentIndex] = index;
-          _correctAnswersMap[_currentIndex] = false;
-          // Show the correct answer
-          _selectedAnswer = _correctAnswerIndex;
-        });
-        
-        // Show message that answer will be revealed
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Maximum attempts reached. Showing correct answer (0 XP awarded)'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SoundManager().playWrongSound();
       }
-    }
+    });
   }
-  
+
   /// Show game over screen when all lives are lost
   void _showGameOverScreen() {
     // Play game over sound
@@ -896,10 +831,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             title: 'Test',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showCloseConfirmation(),
             ),
             rightAction: IconButton(
               icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showHomeConfirmation(),
             ),
           ),
@@ -976,7 +915,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                       ),
                       
                       // Hint button (bottom right)
-                      if (!_answered)
+                      if (!_answered && (widget.studyConfig?.enableHints ?? true))
                         Positioned(
                           bottom: 8,
                           right: 8,
@@ -1068,7 +1007,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
     // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
     final String questionCountText;
@@ -1256,12 +1195,18 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                 ),
                 const SizedBox(width: 12), // Reduced spacing
                 Expanded(
-                  child: Text(
-                    option,
-                    style: TextStyle(
-                      fontSize: 14, // Smaller font
-                      fontWeight: FontWeight.w500,
-                      color: shouldShowAsBlocked ? Colors.grey : null,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      option,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 14, // Smaller font
+                        fontWeight: FontWeight.w500,
+                        color: shouldShowAsBlocked ? Colors.grey : null,
+                      ),
                     ),
                   ),
                 ),
@@ -1294,7 +1239,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildResultsView() {
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     final isGameOver = _useLivesMode && _lives <= 0;
     
     return Scaffold(
@@ -1310,6 +1255,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.arrow_back_ios),
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
                       iconSize: 20,
                     ),
                     const Spacer(),
@@ -1324,6 +1271,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                     IconButton(
                       onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                       icon: const Icon(Icons.home),
+                      splashColor: Colors.transparent,
+                      highlightColor: Colors.transparent,
                       iconSize: 20,
                     ),
                   ],
@@ -1461,7 +1410,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
                           _wordMastery.clear();
                           _studiedWords.clear();
                           _initialHPPerWord.clear();
-                          _hpPenaltyAppliedWordIds.clear();
                           
                           // Reset hint and review tracking
                           _hintCount.clear();
@@ -1586,7 +1534,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
     }
     
     // Update session statistics
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
     final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
     
     context.read<UserProfileProvider>().updateSessionStats(
@@ -1632,7 +1580,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         latestEntry['xpGained'] = finalXPGained;
       }
       
-      _xpGainedPerWord[card.id] = finalXPGained;
+      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + finalXPGained;
       
       print('🔍 MultipleChoiceView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained, hints: $hintCount, wrongAttempts: $wrongAttempts)');
     } else {
@@ -1729,7 +1677,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
       _wordMastery.clear();
       _initialHPPerWord.clear();
       _studiedWords.clear();
-      _hpPenaltyAppliedWordIds.clear();
       
       // Reset wrong attempts tracking
       _wrongAttempts.clear();
@@ -1779,7 +1726,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
             _wordMastery.clear();
             _initialHPPerWord.clear();
             _studiedWords.clear();
-            _hpPenaltyAppliedWordIds.clear();
             _wrongAttempts.clear();
             _disabledOptions.clear();
           });
@@ -1863,7 +1809,16 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
 
   Widget _buildHintIcon() {
     final hintCount = _hintCount[_currentIndex] ?? 0;
-    final canUseHint = hintCount < 3; // Allow up to 3 hints
+    
+    // Count remaining wrong options that aren't already blocked
+    final currentBlocked = _blockedOptions[_currentIndex] ?? {};
+    final wrongOptionsRemaining = _options.length - 1 - currentBlocked.length;
+    
+    // Can use hint if:
+    // 1. We haven't used all 3 hints AND
+    // 2. Either it's the 3rd hint (auto-complete) OR there's more than 1 wrong option left
+    // This prevents a "giveaway" hint when only 1 wrong and 1 correct answer are left
+    final canUseHint = hintCount < 3 && (hintCount == 2 || wrongOptionsRemaining > 1);
     
     return GestureDetector(
       onTap: canUseHint ? _useHint : null,
@@ -1926,6 +1881,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   void _useHint() {
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
     if (_answered || currentHintCount >= 3) return;
+    
+    // Check if we should allow this specific hint (same logic as in buildHintIcon)
+    final currentBlocked = _blockedOptions[_currentIndex] ?? {};
+    final wrongOptionsRemaining = _options.length - 1 - currentBlocked.length;
+    if (currentHintCount < 2 && wrongOptionsRemaining <= 1) return;
     
     setState(() {
       _hintCount[_currentIndex] = currentHintCount + 1;

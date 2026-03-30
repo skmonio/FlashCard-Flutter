@@ -22,6 +22,8 @@ class PickYourCardView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const PickYourCardView({
     super.key,
@@ -35,6 +37,8 @@ class PickYourCardView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.shuffleQuestionOffset,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -820,7 +824,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
       _consecutiveCorrect = 0;
       _xpGainedPerWord[currentCard.id] = 0;
       
-      final currentAttempts = (_wrongAttempts[currentCardIndex] ?? 0) + 1;
+      final currentAttempts = widget.oneAnswerMode ? 5 : (_wrongAttempts[currentCardIndex] ?? 0) + 1;
       _wrongAttempts[currentCardIndex] = currentAttempts;
       
       if (currentAttempts >= 5) {
@@ -1142,10 +1146,14 @@ class _PickYourCardViewState extends State<PickYourCardView>
               title: 'Pick',
               leftAction: IconButton(
                 icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 onPressed: () => _showCloseConfirmation(),
               ),
               rightAction: IconButton(
                 icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
               ),
             ),
@@ -1447,7 +1455,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 // Hint button
-                _buildHintIcon(),
+                if (widget.enableHints) _buildHintIcon(),
                 
                 // Check Answer button
                 ElevatedButton(
@@ -1708,12 +1716,17 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
                         width: isCenter ? (widget.showHintOutline ? 3 : 2.5) : 1.5,
                       ),
                     ),
-                    child: Text(
-                      item,
-                      style: TextStyle(
-                        fontSize: isCenter ? 26 : 20,
-                        fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
-                        color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade900) : Colors.black87,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        item,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontSize: isCenter ? 26 : 20,
+                          fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
+                          color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade900) : Colors.black87,
+                        ),
                       ),
                     ),
                   ),

@@ -10,7 +10,12 @@ import '../providers/translation_language_provider.dart';
 import '../models/deck.dart';
 
 class PhotoImportView extends StatefulWidget {
-  const PhotoImportView({super.key});
+  final String? initialDeckId;
+
+  const PhotoImportView({
+    super.key,
+    this.initialDeckId,
+  });
 
   @override
   State<PhotoImportView> createState() => _PhotoImportViewState();
@@ -38,6 +43,12 @@ class _PhotoImportViewState extends State<PhotoImportView> {
   /// Check if camera is available
   bool get _isCameraAvailable {
     return _photoService.isCameraAvailable;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDeckId = widget.initialDeckId;
   }
 
   @override

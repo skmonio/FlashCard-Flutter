@@ -60,6 +60,8 @@ class MainHeader extends StatelessWidget {
               bottom: 0,
               child: rightAction ?? IconButton(
                 icon: Icon(Icons.person, color: Theme.of(context).colorScheme.onSurface),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 onPressed: onProfileTap ?? () {
                   Navigator.push(
                     context,

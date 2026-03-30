@@ -322,10 +322,6 @@ class LearningMastery {
       consecutiveCorrect++;
       consecutiveIncorrect = 0;
       _handleSuccess(quality);
- 
-       // Restore HP to full after a successful answer
-      dailyGameAttempts.clear();
-      lastGameResetDate = DateTime.now();
     } else {
       consecutiveIncorrect++;
       consecutiveCorrect = 0;

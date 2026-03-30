@@ -22,6 +22,7 @@ class PopYourCardView extends StatefulWidget {
   final bool useTimedMode;
   final int? timePerQuestion;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final bool oneAnswerMode;
 
   const PopYourCardView({
     super.key,
@@ -34,6 +35,7 @@ class PopYourCardView extends StatefulWidget {
     this.useTimedMode = false,
     this.timePerQuestion,
     this.shuffleQuestionOffset,
+    this.oneAnswerMode = true,
   });
 
   @override
@@ -379,7 +381,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
       _showCardXPFeedback(currentCard, true, correct);
     } else {
       // Wrong answer - increment wrong attempts
-      final newWrongAttempts = wrongAttempts + 1;
+      final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       _wrongAttempts[_currentIndex] = newWrongAttempts;
       
       // Track incorrect answers with 0 XP (will be updated when correct)
@@ -788,6 +790,8 @@ class _PopYourCardViewState extends State<PopYourCardView>
               title: 'Pop',
               leftAction: IconButton(
                 icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 onPressed: () async {
                   final shouldExit = await _showCloseConfirmation();
                   if (shouldExit) {
@@ -797,6 +801,8 @@ class _PopYourCardViewState extends State<PopYourCardView>
               ),
               rightAction: IconButton(
                 icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
                 onPressed: () => _showHomeConfirmation(),
               ),
             ),

@@ -473,7 +473,7 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                                             builder: (context) {
                                               final initialHP = widget.initialHPPerWord![word.id] ?? word.maxHP;
                                               final rawHpLoss = initialHP - word.currentHP;
-                                              final hpLoss = rawHpLoss > 0 ? 1 : 0;
+                                              final hpLoss = rawHpLoss.clamp(0, word.maxHP);
                                               if (hpLoss <= 0) return const SizedBox.shrink();
                                               
                                               return AnimatedBuilder(

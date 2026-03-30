@@ -32,6 +32,8 @@ class TrueFalseView extends StatefulWidget {
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
   final List<FlashCard>? answerPoolCards;
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const TrueFalseView({
     super.key,
@@ -46,6 +48,8 @@ class TrueFalseView extends StatefulWidget {
     this.studyConfig,
     this.shuffleQuestionOffset,
     this.answerPoolCards,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -92,8 +96,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   Map<String, LearningMastery> _wordMastery = {};
   Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
   List<FlashCard> _studiedWords = [];
-  Set<String> _hpPenaltyAppliedWordIds = {};
-
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
   // Review tracking
@@ -141,8 +143,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
   }
 
   void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
-    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
-    _hpPenaltyAppliedWordIds.add(card.id);
     if (wasCorrect) {
       card.markCorrect(GameDifficulty.medium);
     } else {
@@ -736,10 +736,14 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             title: 'True/False',
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showCloseConfirmation(),
             ),
             rightAction: IconButton(
               icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => _showHomeConfirmation(),
             ),
           ),
@@ -1287,7 +1291,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
                           _xpGainedPerWord.clear();
                           _wordMastery.clear();
                           _studiedWords.clear();
-                          _hpPenaltyAppliedWordIds.clear();
                           _reviewCards.clear();
  
                           // Reset wrong attempts tracking
@@ -1530,8 +1533,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
       _xpGainedPerWord.clear();
       _wordMastery.clear();
       _studiedWords.clear();
-      _hpPenaltyAppliedWordIds.clear();
-      _hpPenaltyAppliedWordIds.clear();
     });
     
     _generateQuestion();
@@ -1578,7 +1579,6 @@ class _TrueFalseViewState extends State<TrueFalseView> {
             _wordMastery.clear();
             _initialHPPerWord.clear();
             _studiedWords.clear();
-            _hpPenaltyAppliedWordIds.clear();
           });
           _generateQuestion();
         },

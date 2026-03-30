@@ -32,7 +32,7 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final storeProvider = context.read<StoreProvider>();
       final flashcardProvider = context.read<FlashcardProvider>();
@@ -101,7 +101,6 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
               tabs: const [
                 Tab(text: 'Cards'),
                 Tab(text: 'Exercises'),
-                Tab(text: 'Phrases'),
               ],
             ),
           ),
@@ -158,7 +157,6 @@ class _StoreViewState extends State<StoreView> with TickerProviderStateMixin {
                         children: [
                           _buildPackList(storeProvider.getPacksByCategory('vocabulary')),
                           _buildPackList(storeProvider.getPacksByCategory('exercises')),
-                          _buildPackList(storeProvider.getPacksByCategory('sentences')),
                         ],
                       ),
                     ),

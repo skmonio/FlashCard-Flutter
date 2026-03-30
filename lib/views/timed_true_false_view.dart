@@ -23,12 +23,16 @@ class TimedTrueFalseView extends StatefulWidget {
   final String title;
   final TimedDifficulty difficulty;
   final List<FlashCard>? answerPoolCards;
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const TimedTrueFalseView({
     super.key,
     required this.cards,
     required this.title,
     required this.difficulty,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
     this.answerPoolCards,
   });
 

@@ -77,6 +77,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.dutchExercise: true,
   };
 
+  Set<String> _selectedDeckIds = {}; // Track selected decks for shuffle mode
+
   @override
   void initState() {
     super.initState();
@@ -402,18 +404,29 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       case ShuffleMode.popYourCards:
       case ShuffleMode.pickYourCards:
         // Filter cards that can be studied today (have HP remaining)
-        final availableCards = allCards.where((card) => card.canBeStudiedToday).toList();
+        final availableCards = allCards.where((card) {
+          final canBeStudied = card.canBeStudiedToday;
+          
+          // If deck selection is used, check if card belongs to selected decks
+          if (_selectedDeckIds.isNotEmpty) {
+            bool isInSelectedDeck = false;
+            for (final deckId in _selectedDeckIds) {
+              if (card.deckIds.contains(deckId)) {
+                isInSelectedDeck = true;
+                break;
+              }
+            }
+            return canBeStudied && isInSelectedDeck;
+          }
+          
+          return canBeStudied;
+        }).toList();
         
         // Debug logging
-        print('🔍 ShuffleCardsView: Pick Your Card - Total cards: ${allCards.length}');
-        print('🔍 ShuffleCardsView: Pick Your Card - Available cards: ${availableCards.length}');
-        for (int i = 0; i < allCards.length && i < 5; i++) {
-          final card = allCards[i];
-          print('🔍 ShuffleCardsView: Card ${i + 1}: "${card.word}" - HP: ${card.currentHP}/${card.maxHP}, canBeStudied: ${card.canBeStudiedToday}');
-        }
+        print('🔍 ShuffleCardsView: Filtered cards: ${availableCards.length} (Deck filter: ${_selectedDeckIds.length} selected)');
         
         if (availableCards.isEmpty) {
-          print('🔍 ShuffleCardsView: Pick Your Card - No available cards, showing setup dialog');
+          print('🔍 ShuffleCardsView: No available cards after filtering, showing setup dialog');
           
           // Set game inactive immediately to prevent blank loading screen
           setState(() {
@@ -421,19 +434,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             _isTransitioningToNextChallenge = false;
           });
           
-          // Create friendly error message
-          final totalCards = allCards.length;
-          final defeatedCards = allCards.where((card) => card.isDefeated).length;
-          final healthyCards = allCards.where((card) => !card.isDefeated).length;
-          
-          String message;
-          if (defeatedCards == totalCards && totalCards > 0) {
-            message = 'All your cards are defeated (0 HP) and need to rest until tomorrow to regain health.';
-          } else if (healthyCards < 5 && totalCards > 0) {
-            message = 'You need at least 5 healthy cards to play this game. Currently you have $healthyCards healthy cards.';
-          } else {
-            message = 'No cards available for this game. Please add more cards or wait for cards to regain HP.';
-          }
+          String message = _selectedDeckIds.isNotEmpty 
+              ? 'No healthy cards available in the selected deck(s). Try selecting other decks or wait for cards to regain HP.'
+              : 'All your cards are defeated (0 HP) and need to rest until tomorrow to regain health.';
           
           // Show dialog after a brief delay to ensure UI is ready
           Future.delayed(const Duration(milliseconds: 100), () {
@@ -528,6 +531,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: true,
+          enableHints: false,
         );
         break;
       case ShuffleMode.trueFalse:
@@ -578,6 +583,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: true,
+          enableHints: false,
         );
         break;
       case ShuffleMode.memoryGame:
@@ -642,6 +649,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: true,
+          enableHints: false,
         );
         break;
       case ShuffleMode.writing:
@@ -659,6 +668,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           autoProgress: true, // Enable auto progress for shuffle mode
           useLivesMode: false, // No lives in shuffle mode - one wrong letter ends the game
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          enableHints: false,
         );
         break;
       case ShuffleMode.popYourCards:
@@ -674,6 +684,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: true,
         );
         break;
       case ShuffleMode.pickYourCards:
@@ -690,6 +701,8 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           shuffleMode: true,
           autoProgress: true, // Enable auto progress for shuffle mode
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: true,
+          enableHints: false,
         );
         break;
       default:
@@ -945,7 +958,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     GameEndScreen.show(
       context,
       GameEndResult(
-        title: 'Shuffle Cards Complete',
+        title: 'Shuffle',
         studiedWords: _studiedWords,
         xpGainedPerWord: _xpGainedPerWord,
         wordMastery: _wordMastery,
@@ -1101,7 +1114,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
               leftAction: IconButton(
                 icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
                 onPressed: () {
-                  // Reset game state when user goes back
                   if (_isGameActive) {
                     setState(() {
                       _isGameActive = false;
@@ -1115,161 +1127,373 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                 },
               ),
               rightAction: IconButton(
-                icon: Icon(Icons.settings, color: Theme.of(context).colorScheme.onSurface),
-                onPressed: _showCustomizationDialog,
+                icon: const Icon(Icons.play_arrow, color: Colors.green, size: 32),
+                onPressed: _isGameActive ? null : _startGame,
+                tooltip: 'Start Shuffle',
               ),
             ),
             Expanded(
-              child: _isShowingEndScreen ? const SizedBox.shrink() : Container(
-        color: Theme.of(context).colorScheme.surface,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Game Icon
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(60),
-                  ),
-                  child: const Icon(
-                    Icons.shuffle,
-                    size: 60,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                // Title
-                Text(
-                  'Shuffle',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ) ??
-                      TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Description
-                Text(
-                  'Test your knowledge with a mix of all exercise types!\n'
-                  'Get as far as you can without making a mistake.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                // High Score
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'High Score: $_highScore',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Start Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isGameActive ? null : _startGame,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      _isGameActive ? 'Game in Progress...' : 'Start Shuffle',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Current Score (if game is active)
-                if (_isGameActive) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Current Score: $_currentScore',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  // Enabled modes summary
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                    ),
+              child: _isShowingEndScreen ? const SizedBox.shrink() : SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Row(
-                          children: [
-                            Icon(Icons.settings, size: 16, color: Colors.grey[600]),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Enabled Exercise Types:',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey[600],
+                        // Large Shuffle Icon with Animation
+                        Hero(
+                          tag: 'shuffle_icon',
+                          child: Icon(
+                            Icons.shuffle,
+                            size: 100,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // Title
+                        Text(
+                          'Shuffle Mode',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ) ??
+                          TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Description
+                        Text(
+                          'Test your knowledge with a mix of all exercise types!\n'
+                          'Get as far as you can without making a mistake.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // High Score
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'High Score: $_highScore',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Deck Selection
+                        _buildDeckSelection(),
+                        const SizedBox(height: 24),
+                        
+                        // Current Score (if game is active)
+                        if (_isGameActive) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'Current Score: $_currentScore',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: _buildEnabledModeChips(),
-                        ),
+                          ),
+                        ] else ...[
+                          // Enabled modes summary
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.settings, size: 16, color: Colors.grey[600]),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Enabled Exercise Types:',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: _showCustomizationDialog,
+                                      child: const Text('Customize'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: _buildEnabledModeChips(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeckSelection() {
+    final provider = context.read<FlashcardProvider>();
+    
+    // Get selected deck names for display
+    String selectedDecksText;
+    if (_selectedDeckIds.isEmpty) {
+      selectedDecksText = 'Any (All Decks)';
+    } else if (_selectedDeckIds.length == 1) {
+      final deck = provider.getDeck(_selectedDeckIds.first);
+      selectedDecksText = deck?.name ?? 'Unknown Deck';
+    } else {
+      selectedDecksText = '${_selectedDeckIds.length} decks selected';
+    }
+    
+    return Card(
+      child: InkWell(
+        onTap: () => _showDeckSelectionDialog(),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.folder, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Select your deck(s)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      selectedDecksText,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.3),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showDeckSelectionDialog() {
+    final provider = context.read<FlashcardProvider>();
+    final allDecks = provider.getAllDecksHierarchical();
+    
+    final searchController = TextEditingController();
+    String dialogSearchText = '';
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return StatefulBuilder(
+            builder: (context, setInternalState) {
+              final filteredDecks = dialogSearchText.isEmpty 
+                  ? allDecks 
+                  : allDecks.where((d) => d.name.toLowerCase().contains(dialogSearchText.toLowerCase())).toList();
+                  
+              return AlertDialog(
+                title: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Select Decks (${allDecks.length})'),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search decks...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: dialogSearchText.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  searchController.clear();
+                                  setInternalState(() {
+                                    dialogSearchText = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setInternalState(() {
+                          dialogSearchText = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // "Any" option (only show if not searching)
+                        if (dialogSearchText.isEmpty)
+                          _buildDeckOption(
+                            'Any (All Decks)',
+                            'Use cards from all available decks',
+                            _selectedDeckIds.isEmpty,
+                            () {
+                              setDialogState(() {
+                                _selectedDeckIds.clear();
+                              });
+                              setState(() {
+                                _selectedDeckIds.clear();
+                              });
+                              Navigator.of(context).pop();
+                            },
+                            setDialogState,
+                          ),
+                        if (dialogSearchText.isEmpty) const Divider(),
+                        if (dialogSearchText.isEmpty) const SizedBox(height: 8),
+                        
+                        // List of filtered decks
+                        if (filteredDecks.isEmpty) ...[
+                          const SizedBox(height: 32),
+                          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No decks found matching "$dialogSearchText"',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ] else ...[
+                          ...filteredDecks.map((deck) => _buildDeckOption(
+                            deck.name,
+                            '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
+                            _selectedDeckIds.contains(deck.id),
+                            () {
+                              setDialogState(() {
+                                if (_selectedDeckIds.contains(deck.id)) {
+                                  _selectedDeckIds.remove(deck.id);
+                                } else {
+                                  _selectedDeckIds.add(deck.id);
+                                }
+                              });
+                              setState(() {});
+                            },
+                            setDialogState,
+                          )).toList(),
+                        ]
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {});
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Done'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDeckOption(
+    String title, 
+    String subtitle, 
+    bool isSelected, 
+    VoidCallback onTap,
+    StateSetter setDialogState,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: isSelected ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

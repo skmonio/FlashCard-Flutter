@@ -23,12 +23,16 @@ class TimedWordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
   final String title;
   final TimedDifficulty difficulty;
+  final bool oneAnswerMode;
+  final bool enableHints;
 
   const TimedWordScrambleView({
     super.key,
     required this.cards,
     required this.title,
     required this.difficulty,
+    this.oneAnswerMode = true,
+    this.enableHints = true,
   });
 
   @override
@@ -408,7 +412,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
       });
     } else {
       // Wrong answer - increment attempts and allow retry
-      final newWrongAttempts = wrongAttempts + 1;
+      final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       _wrongAttempts[_currentIndex] = newWrongAttempts;
       
       // Provide feedback

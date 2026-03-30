@@ -9,6 +9,7 @@ import 'edit_profile_view.dart';
 import 'friends_view.dart';
 import 'leaderboard_view.dart';
 import '../components/cached_profile_avatar.dart';
+import 'package:intl/intl.dart';
 
 class UserProfileView extends StatefulWidget {
   const UserProfileView({super.key});
@@ -331,6 +332,14 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
       child: Column(
         children: [
           _buildStatCard(
+            'Last Studied',
+            provider.lastStudyDate != null 
+                ? DateFormat('MMM d, yyyy • HH:mm').format(provider.lastStudyDate!)
+                : 'Never',
+            Icons.history,
+            Colors.teal,
+          ),
+          _buildStatCard(
             'Total Sessions',
             '${provider.totalSessions}',
             Icons.play_circle_fill,
@@ -443,6 +452,8 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
           ),
         ),
         
@@ -453,6 +464,8 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           bottom: 0,
           child: IconButton(
             icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.onSurface),
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             onPressed: () => _showEditProfile(),
           ),
         ),

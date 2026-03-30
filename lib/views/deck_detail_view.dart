@@ -11,6 +11,7 @@ import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
 import 'add_card_view.dart';
+import '../components/universal_add_button.dart';
 import 'study_view.dart';
 import 'dutch_word_exercise_detail_view.dart';
 import 'create_word_exercise_view.dart';
@@ -81,12 +82,30 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                   return _buildEmptyState();
                 }
                 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: cards.length,
-                  itemBuilder: (context, index) {
-                    return _buildCardItem(cards[index], provider);
-                  },
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Text(
+                        '${cards.length} Cards',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: cards.length,
+                        itemBuilder: (context, index) {
+                          return _buildCardItem(cards[index], provider);
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -96,10 +115,8 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           if (_isSelectionMode) _buildSelectionFooter(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addCardToDeck(),
-        tooltip: 'Add Card to Deck',
-        child: const Icon(Icons.add),
+      floatingActionButton: UniversalAddButton(
+        initialDeckId: widget.deck.id,
       ),
     );
   }
@@ -271,8 +288,8 @@ class _DeckDetailViewState extends State<DeckDetailView> {
             ],
           ),
           
-          // View Mode Toggle (only for parent decks)
-          if (!widget.deck.isSubDeck) ...[
+          // View Mode Toggle (only for parent decks with sub-decks)
+          if (!widget.deck.isSubDeck && context.read<FlashcardProvider>().getSubDecks(widget.deck.id).isNotEmpty) ...[
             const SizedBox(height: 8),
             Row(
               children: [
@@ -785,6 +802,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       case 'study':
         _studyDeck();
         break;
+      case 'add_exercises':
+        _addExercisesToDeck();
+        break;
       case 'toggle_public':
         _toggleDeckPublicStatus();
         break;
@@ -800,7 +820,13 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         _editCard(card);
         break;
       case 'edit_exercises':
-        _editExercises(card);
+        final dutchProvider = context.read<DutchWordExerciseProvider>();
+        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+        if (existingExercise == null || existingExercise.exercises.isEmpty) {
+          _addExercisesToCard(card);
+        } else {
+          _editExercises(card);
+        }
         break;
       case 'delete':
         _deleteCard(card);
@@ -859,6 +885,220 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           ),
         ],
       ),
+    );
+  }
+
+  void _addExercisesToDeck() async {
+    final provider = context.read<FlashcardProvider>();
+    final dutchProvider = context.read<DutchWordExerciseProvider>();
+    final deck = widget.deck;
+    
+    // Get all cards in this deck including sub-decks
+    final allDeckCards = provider.getCardsForDeckWithSubDecks(deck.id);
+    
+    // Deduplicate cards by ID
+    final deckCards = <FlashCard>[];
+    final seenCardIds = <String>{};
+    for (final card in allDeckCards) {
+      if (!seenCardIds.contains(card.id)) {
+        deckCards.add(card);
+        seenCardIds.add(card.id);
+      }
+    }
+    
+    if (deckCards.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No cards in "${deck.name}" to add exercises to!')),
+        );
+      }
+      return;
+    }
+    
+    // Count how many cards already have exercises
+    int cardsWithExercises = 0;
+    int cardsWithoutExercises = 0;
+    for (final card in deckCards) {
+      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
+        cardsWithExercises++;
+      } else {
+        cardsWithoutExercises++;
+      }
+    }
+    
+    // Show confirmation dialog explaining what will happen
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Exercises to Deck'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            Text(
+              'This will create exercises for cards in "${deck.name}".',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('📊 Summary:'),
+            const SizedBox(height: 8),
+            Text('• Total cards: ${deckCards.length}'),
+            Text('• Cards without exercises: $cardsWithoutExercises'),
+            if (cardsWithExercises > 0)
+              Text('• Cards with existing exercises: $cardsWithExercises (will be skipped)'),
+            const SizedBox(height: 16),
+            const Text(
+              'What will be created:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('• Basic multiple choice exercises for cards with word and definition'),
+            const SizedBox(height: 16),
+            const Text(
+              'This action cannot be undone. Do you want to proceed?',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+    
+    if (shouldProceed != true) return;
+    
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Adding exercises to cards...'),
+          ],
+        ),
+      ),
+    );
+    
+    int addedCount = 0;
+    int skippedCount = 0;
+    
+    try {
+      for (final card in deckCards) {
+        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+        
+        if (existingExercise == null || existingExercise.exercises.isEmpty) {
+          final List<WordExercise> exercises = [];
+          if (card.word.isNotEmpty && card.definition.isNotEmpty) {
+            exercises.add(_generateBasicMultipleChoiceExercise(card, provider));
+          }
+          
+          if (exercises.isNotEmpty) {
+            final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
+            final deckName = provider.getDeck(deckId)?.name ?? 'Default';
+            
+            final newWordExercise = DutchWordExercise(
+              id: card.id,
+              targetWord: card.word,
+              wordTranslation: card.definition,
+              deckId: deckId,
+              deckName: deckName,
+              category: WordCategory.common,
+              difficulty: ExerciseDifficulty.beginner,
+              exercises: exercises,
+              createdAt: DateTime.now(),
+              isUserCreated: true,
+              learningProgress: LearningProgress(),
+            );
+            
+            await dutchProvider.addWordExercise(newWordExercise);
+            addedCount++;
+          } else {
+            skippedCount++;
+          }
+        } else {
+          skippedCount++;
+        }
+      }
+      
+      if (mounted) {
+        Navigator.of(context).pop();
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Add Exercises Complete'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('✅ Added exercises to $addedCount cards'),
+                if (skippedCount > 0)
+                  Text('⏭️ Skipped $skippedCount cards'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating exercises')),
+        );
+      }
+    }
+  }
+
+  WordExercise _generateBasicMultipleChoiceExercise(FlashCard card, FlashcardProvider provider) {
+    final allCards = provider.cards;
+    final otherCards = allCards.where((c) => c.id != card.id && c.definition.isNotEmpty).toList();
+    
+    otherCards.shuffle();
+    final wrongOptions = <String>[];
+    for (int i = 0; i < 3 && i < otherCards.length; i++) {
+      if (!wrongOptions.contains(otherCards[i].definition)) {
+        wrongOptions.add(otherCards[i].definition);
+      }
+    }
+    
+    while (wrongOptions.length < 3) {
+      final genericOptions = ['Not applicable', 'Different meaning', 'Other definition'];
+      for (final option in genericOptions) {
+        if (!wrongOptions.contains(option) && wrongOptions.length < 3) {
+          wrongOptions.add(option);
+        }
+      }
+    }
+    
+    final options = [card.definition, ...wrongOptions];
+    
+    return WordExercise(
+      id: '${card.id}_basic_${DateTime.now().millisecondsSinceEpoch}',
+      type: ExerciseType.multipleChoice,
+      prompt: 'Translate "${card.word}" to English',
+      correctAnswer: '0',
+      options: options,
+      explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
+      difficulty: ExerciseDifficulty.beginner,
     );
   }
 
@@ -1098,6 +1338,201 @@ class _DeckDetailViewState extends State<DeckDetailView> {
     );
   }
 
+  void _addExercisesToCard(FlashCard card) async {
+    final availableExercises = <String>[];
+    if (card.word.isNotEmpty && card.definition.isNotEmpty) {
+      availableExercises.add('Basic Multiple Choice');
+    }
+    if (card.article.isNotEmpty) {
+      availableExercises.add('De/Het Article Exercise');
+    }
+    if (card.plural.isNotEmpty) {
+      availableExercises.add('Plural Form Exercise');
+    }
+    if (card.example.isNotEmpty && card.exampleTranslation.isNotEmpty) {
+      availableExercises.add('Sentence Building Exercise');
+    }
+
+    if (availableExercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not enough data on this card to add exercises.')),
+      );
+      return;
+    }
+
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Exercises'),
+        content: Text('You can add ${availableExercises.length} exercises for "${card.word}". Proceed?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) return;
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Creating exercises...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final List<WordExercise> exercisesToCreate = [];
+      final provider = context.read<FlashcardProvider>();
+
+      for (final exerciseType in availableExercises) {
+        switch (exerciseType) {
+          case 'Basic Multiple Choice':
+            final allCards = provider.cards;
+            final otherCards = allCards.where((c) => c.id != card.id && c.definition.isNotEmpty).toList();
+            otherCards.shuffle();
+            final wrongOptions = <String>[];
+            for (int i = 0; i < 3 && i < otherCards.length; i++) {
+              if (!wrongOptions.contains(otherCards[i].definition)) {
+                wrongOptions.add(otherCards[i].definition);
+              }
+            }
+            while (wrongOptions.length < 3) {
+              for (final option in ['Not applicable', 'Different meaning', 'Other definition']) {
+                if (!wrongOptions.contains(option) && wrongOptions.length < 3) wrongOptions.add(option);
+              }
+            }
+            // Add correct answer at index 0 explicitly
+            final options = <String>[card.definition];
+            for (int i = 0; i < 5 && i < wrongOptions.length; i++) {
+              options.add(wrongOptions[i]);
+            }
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_basic_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'Translate "${card.word}" to English',
+              correctAnswer: '0',
+              options: options,
+              explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'De/Het Article Exercise':
+            final correctAnswer = card.article;
+            final wrongAnswer = correctAnswer == 'de' ? 'het' : 'de';
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_article_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'Is it De or Het "${card.word}"?',
+              options: [correctAnswer, wrongAnswer],
+              correctAnswer: '0',
+              explanation: 'The correct article for "${card.word}" is "$correctAnswer".',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'Plural Form Exercise':
+            final correctPlural = card.plural;
+            final possibleWrong = ['${card.word}s', '${card.word}en', '${card.word}eren']
+                .where((opt) => opt != correctPlural).toList();
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_plural_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'What is the plural form of "${card.word}"?',
+              options: [correctPlural, ...possibleWrong],
+              correctAnswer: '0',
+              explanation: 'The plural form of "${card.word}" is "$correctPlural".',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'Sentence Building Exercise':
+            final cleanedSentence = card.example.replaceAll(RegExp(r'[^\w\s]'), '').toLowerCase();
+            final dutchWords = cleanedSentence.split(' ').where((w) => w.isNotEmpty).toList();
+            final shuffledWords = List<String>.from(dutchWords)..shuffle();
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_sentencebuilder_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.sentenceBuilding,
+              prompt: 'Build the correct Dutch sentence: ${card.exampleTranslation}',
+              options: shuffledWords,
+              correctAnswer: cleanedSentence,
+              explanation: '${card.example}',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+        }
+      }
+
+      if (exercisesToCreate.isNotEmpty) {
+        final dutchProvider = context.read<DutchWordExerciseProvider>();
+        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+        
+        if (existingExercise != null) {
+          final updatedExercise = DutchWordExercise(
+            id: existingExercise.id,
+            targetWord: existingExercise.targetWord,
+            wordTranslation: existingExercise.wordTranslation,
+            deckId: existingExercise.deckId,
+            deckName: existingExercise.deckName,
+            category: existingExercise.category,
+            difficulty: existingExercise.difficulty,
+            exercises: [...existingExercise.exercises, ...exercisesToCreate],
+            createdAt: existingExercise.createdAt,
+            isUserCreated: existingExercise.isUserCreated,
+            learningProgress: existingExercise.learningProgress,
+          );
+          await dutchProvider.updateWordExercise(updatedExercise);
+        } else {
+          final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
+          final deckName = provider.getDeck(deckId)?.name ?? 'Default';
+          final newWordExercise = DutchWordExercise(
+            id: card.id,
+            targetWord: card.word,
+            wordTranslation: card.definition,
+            deckId: deckId,
+            deckName: deckName,
+            category: WordCategory.common,
+            difficulty: ExerciseDifficulty.beginner,
+            exercises: exercisesToCreate,
+            createdAt: DateTime.now(),
+            isUserCreated: true,
+            learningProgress: LearningProgress(),
+          );
+          await dutchProvider.addWordExercise(newWordExercise);
+        }
+      }
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Created ${exercisesToCreate.length} exercises!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating exercises')),
+        );
+      }
+    }
+  }
+
   void _studyCard(FlashCard card) {
     // Check if there's already an existing exercise for this card
     final dutchProvider = context.read<DutchWordExerciseProvider>();
@@ -1287,6 +1722,16 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     Icon(Icons.school),
                     SizedBox(width: 8),
                     Text('Study Deck'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'add_exercises',
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome),
+                    SizedBox(width: 8),
+                    Text('Add Exercises'),
                   ],
                 ),
               ),

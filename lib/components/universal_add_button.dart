@@ -3,12 +3,14 @@ import '../views/add_deck_view.dart';
 import '../views/add_card_view.dart';
 import '../views/create_word_exercise_view.dart';
 import '../views/add_phrase_view.dart';
+import '../views/photo_import_view.dart';
 
 class UniversalAddButton extends StatelessWidget {
   final String? tooltip;
   final Color? backgroundColor;
   final Color? foregroundColor;
   final double? elevation;
+  final String? initialDeckId;
 
   const UniversalAddButton({
     super.key,
@@ -16,6 +18,7 @@ class UniversalAddButton extends StatelessWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.elevation,
+    this.initialDeckId,
   });
 
   @override
@@ -55,6 +58,16 @@ class UniversalAddButton extends StatelessWidget {
           ),
         ),
         const PopupMenuItem<String>(
+          value: 'import',
+          child: Row(
+            children: [
+              Icon(Icons.camera_alt, size: 20, color: Colors.blue),
+              SizedBox(width: 12),
+              Text('Import Cards'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
           value: 'deck',
           child: Row(
             children: [
@@ -74,16 +87,6 @@ class UniversalAddButton extends StatelessWidget {
             ],
           ),
         ),
-        const PopupMenuItem<String>(
-          value: 'phrase',
-          child: Row(
-            children: [
-              Icon(Icons.translate, size: 20, color: Colors.purple),
-              SizedBox(width: 12),
-              Text('New Phrase'),
-            ],
-          ),
-        ),
       ],
     ).then((value) {
       if (value != null && context.mounted) {
@@ -91,14 +94,14 @@ class UniversalAddButton extends StatelessWidget {
           case 'card':
             _navigateToAddCard(context);
             break;
+          case 'import':
+            _navigateToImport(context);
+            break;
           case 'deck':
             _navigateToAddDeck(context);
             break;
           case 'exercise':
             _navigateToCreateExercise(context);
-            break;
-          case 'phrase':
-            _navigateToAddPhrase(context);
             break;
         }
       }
@@ -117,7 +120,15 @@ class UniversalAddButton extends StatelessWidget {
   void _navigateToAddCard(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const AddCardView(),
+        builder: (context) => AddCardView(initialDeckId: initialDeckId),
+      ),
+    );
+  }
+
+  void _navigateToImport(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PhotoImportView(initialDeckId: initialDeckId),
       ),
     );
   }
@@ -126,14 +137,6 @@ class UniversalAddButton extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const CreateWordExerciseView(),
-      ),
-    );
-  }
-
-  void _navigateToAddPhrase(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddPhraseView(),
       ),
     );
   }

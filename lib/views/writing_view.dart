@@ -26,6 +26,7 @@ class WritingView extends StatefulWidget {
   final int? timePerQuestion;
   final bool autoProgress;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
+  final bool enableHints;
 
   const WritingView({
     super.key,
@@ -40,6 +41,7 @@ class WritingView extends StatefulWidget {
     this.timePerQuestion,
     this.autoProgress = false,
     this.shuffleQuestionOffset,
+    this.enableHints = true,
   });
 
   @override
@@ -838,7 +840,7 @@ class _WritingViewState extends State<WritingView> {
                       ),
                       
                       // Hint button (bottom right)
-                      if (!_answered)
+                      if (!_answered && widget.enableHints)
                         Positioned(
                           bottom: 8,
                           right: 8,
@@ -1789,20 +1791,23 @@ class _WritingViewState extends State<WritingView> {
     
     if (correctAnswer.isEmpty) return;
     
-    // Find the next unrevealed letter (excluding the last one)
-    String? nextLetter;
-    for (int i = 0; i < correctAnswer.length - 1; i++) { // Exclude last letter
+    // Find all unrevealed letters
+    List<String> unrevealedLetters = [];
+    for (int i = 0; i < correctAnswer.length; i++) {
       final char = correctAnswer[i];
       if (RegExp(r'[a-zA-Z]').hasMatch(char)) {
         final upperChar = char.toUpperCase();
-        if (!_revealedLetters.contains(upperChar)) {
-          nextLetter = upperChar;
-          break;
+        if (!_revealedLetters.contains(upperChar) && !_guessedLetters.contains(upperChar)) {
+          if (!unrevealedLetters.contains(upperChar)) {
+            unrevealedLetters.add(upperChar);
+          }
         }
       }
     }
     
-    if (nextLetter != null) {
+    if (unrevealedLetters.isNotEmpty) {
+      final nextLetter = unrevealedLetters[Random().nextInt(unrevealedLetters.length)];
+      
       setState(() {
         // Increment hint count
         _hintCount[_currentIndex] = (_hintCount[_currentIndex] ?? 0) + 1;

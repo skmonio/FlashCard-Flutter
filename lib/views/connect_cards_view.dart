@@ -134,6 +134,7 @@ class ConnectCardsView extends StatefulWidget {
   final int? customLives;
   final bool useTimedMode;
   final int? timePerQuestion;
+  final bool enableHints;
   
   const ConnectCardsView({
     super.key,
@@ -144,6 +145,7 @@ class ConnectCardsView extends StatefulWidget {
     this.customLives,
     this.useTimedMode = false,
     this.timePerQuestion,
+    this.enableHints = true,
   });
 
   @override
@@ -216,6 +218,28 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     _initializeGame();
     _setupAnimations();
     _initializeTimedMode();
+  }
+
+  void _ensureCardTracked(FlashCard card) {
+    if (_studiedWords.any((word) => word.id == card.id)) return;
+    _studiedWords.add(card);
+    _initialHPPerWord[card.id] = card.currentHP;
+  }
+
+  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
+    _ensureCardTracked(card);
+    if (wasCorrect) {
+      card.markCorrect(GameDifficulty.medium);
+    } else {
+      card.markIncorrect(GameDifficulty.medium);
+    }
+  }
+
+  void _updateCardInProvider(FlashCard card) {
+    // Also update currentHP based on health tracking logic if necessary
+    // Card states are already updated locally and in DB through FlashcardProvider
+    final provider = context.read<FlashcardProvider>();
+    provider.updateCard(card);
   }
 
   bool _isValidWord(FlashCard card) {
@@ -1015,17 +1039,19 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _hintLevel = 0;
     });
     
-    // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
+    // Track the studied word
     final currentCard = _availableCards[_currentCardIndex];
     if (!_studiedWords.contains(currentCard)) {
-      _studiedWords.add(currentCard);
-      // Store initial HP when word is first encountered (BEFORE HP is reduced)
-      _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+      _ensureCardTracked(currentCard);
     }
     
-    if (!_markedCorrectWordIds.contains(currentWordId)) {
-      currentCard.markCorrect(GameDifficulty.medium);
-      _markedCorrectWordIds.add(currentWordId);
+    if (!_completedWordIds.contains(currentWordId)) {
+      _completedWordIds.add(currentWordId);
+      if (!_markedCorrectWordIds.contains(currentWordId)) {
+        _applyHpPenalty(currentCard, wasCorrect: true);
+        _markedCorrectWordIds.add(currentWordId);
+        _updateCardInProvider(currentCard);
+      }
     }
     
     // Advance the current unanswered index if this was the current question
@@ -1145,10 +1171,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   }
 
   void _showHint() {
-    if (_hintLevel >= _availableCards[_currentCardIndex].word.length) return;
+    final wordLength = _availableCards[_currentCardIndex].word.length;
+    if (_hintLevel >= wordLength - 1) return;
     
     String currentWordId = _availableCards[_currentCardIndex].id;
-    final wordLength = _availableCards[_currentCardIndex].word.length;
     final willCompleteWithThisHint = _hintLevel + 1 >= wordLength;
     
     setState(() {
@@ -1176,16 +1202,14 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         
         // Track the studied word and initial HP BEFORE processing (so we capture HP before it's reduced)
         final currentCard = _availableCards[_currentCardIndex];
-        if (!_studiedWords.contains(currentCard)) {
-          _studiedWords.add(currentCard);
-          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
-        }
+        _ensureCardTracked(currentCard);
         
         if (!_completedWordIds.contains(currentWordId)) {
           _completedWordIds.add(currentWordId);
           if (!_markedCorrectWordIds.contains(currentWordId)) {
-            currentCard.markCorrect(GameDifficulty.medium);
+            _applyHpPenalty(currentCard, wasCorrect: true);
             _markedCorrectWordIds.add(currentWordId);
+            _updateCardInProvider(currentCard);
           }
         }
         
@@ -1654,19 +1678,22 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                     foregroundColor: Colors.black,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.lightbulb),
-                  iconSize: 24,
-                  onPressed: _answeredWords.containsKey(currentCard.id) ? null : _showHint,
-                  tooltip: _answeredWords.containsKey(currentCard.id) 
-                      ? "Word already answered" 
-                      : "Show hint (${_hintLevel}/${currentCard.word.length})",
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.orange[100],
-                    foregroundColor: Colors.orange[800],
-                    padding: const EdgeInsets.all(12),
+                if (widget.enableHints)
+                  IconButton(
+                    icon: const Icon(Icons.lightbulb),
+                    iconSize: 24,
+                    onPressed: _answeredWords.containsKey(currentCard.id) || _hintLevel >= currentCard.word.length - 1 ? null : _showHint,
+                    tooltip: _answeredWords.containsKey(currentCard.id) 
+                        ? "Word already answered" 
+                        : _hintLevel >= currentCard.word.length - 1 
+                            ? "Must find final piece manually"
+                            : "Show hint (${_hintLevel}/${currentCard.word.length - 1})",
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.orange[100],
+                      foregroundColor: Colors.orange[800],
+                      padding: const EdgeInsets.all(12),
+                    ),
                   ),
-                ),
                 ElevatedButton.icon(
                   onPressed: _getNextButtonAction(),
                   icon: const Icon(Icons.arrow_forward),

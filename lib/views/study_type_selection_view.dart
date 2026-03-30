@@ -12,13 +12,13 @@ import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'writing_view.dart';
 import 'memory_game_view.dart';
-import 'word_scramble_view.dart';
 import 'timed_multiple_choice_view.dart';
 import 'timed_true_false_view.dart';
-import 'timed_word_scramble_view.dart';
 import 'pick_your_card_view.dart';
 import 'pop_your_card_view.dart';
 import 'connect_cards_view.dart';
+import 'word_scramble_view.dart';
+import 'timed_word_scramble_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -27,7 +27,7 @@ enum GameMode {
   trueFalse,
   write,
   game,
-  bubbleWord,
+  wordScramble,
   pickYourCard,
   popYourCard,
   connectCards,
@@ -65,7 +65,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   // Deck selection
   Set<String> _selectedDeckIds = {}; // Empty means "Any" (all decks)
   bool _useAllCardsForAnswers = false;
-  bool _oneAnswerMode = false;
+  bool _oneAnswerMode = true;
+  bool _enableHints = true;
 
   @override
   void initState() {
@@ -99,6 +100,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             title: _getGameModeTitle(),
             leftAction: IconButton(
               icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: () => Navigator.of(context).pop(),
             ),
             rightAction: IconButton(
@@ -107,6 +110,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 color: Colors.green,
                 size: 28,
               ),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
               onPressed: _startStudy,
             ),
           ),
@@ -221,72 +226,146 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     final provider = context.read<FlashcardProvider>();
     final allDecks = provider.getAllDecksHierarchical();
     
+    final searchController = TextEditingController();
+    String dialogSearchText = '';
+    
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Select Decks'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: MediaQuery.of(context).size.height * 0.6,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // "Any" option
-                  _buildDeckOption(
-                    'Any (All Decks)',
-                    'Use cards from all available decks',
-                    _selectedDeckIds.isEmpty,
-                    () {
-                      setDialogState(() {
+        builder: (context, setDialogState) {
+          return StatefulBuilder(
+            builder: (context, setInternalState) {
+              final filteredDecks = dialogSearchText.isEmpty 
+                  ? allDecks 
+                  : allDecks.where((d) => d.name.toLowerCase().contains(dialogSearchText.toLowerCase())).toList();
+                  
+              return AlertDialog(
+                title: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Select Decks (${allDecks.length})'),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search decks...',
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: dialogSearchText.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  searchController.clear();
+                                  setInternalState(() {
+                                    dialogSearchText = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setInternalState(() {
+                          dialogSearchText = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                content: SizedBox(
+                  width: double.maxFinite,
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // "Any" option (only show if not searching)
+                        if (dialogSearchText.isEmpty)
+                          _buildDeckOption(
+                            'Any (All Decks)',
+                            'Use cards from all available decks',
+                            _selectedDeckIds.isEmpty,
+                            () {
+                              setInternalState(() {
+                                _selectedDeckIds.clear();
+                              });
+                              setState(() {
+                                _selectedDeckIds.clear();
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        
+                        if (dialogSearchText.isEmpty) const SizedBox(height: 8),
+                        
+                        // Individual deck options
+                        if (filteredDecks.isNotEmpty) ...[
+                          if (dialogSearchText.isEmpty) const Divider(),
+                          if (dialogSearchText.isEmpty) const SizedBox(height: 8),
+                          ...filteredDecks.map((deck) => _buildDeckOption(
+                            deck.name,
+                            '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
+                            _selectedDeckIds.contains(deck.id),
+                            () {
+                              setInternalState(() {
+                                if (_selectedDeckIds.contains(deck.id)) {
+                                  _selectedDeckIds.remove(deck.id);
+                                } else {
+                                  _selectedDeckIds.add(deck.id);
+                                }
+                              });
+                              setState(() {
+                                // Update the main widget state to reflect the changes
+                              });
+                            },
+                          )),
+                        ] else if (dialogSearchText.isNotEmpty) ...[
+                          const SizedBox(height: 32),
+                          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No decks found matching "$dialogSearchText"',
+                            style: TextStyle(color: Colors.grey[600]),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      setInternalState(() {
                         _selectedDeckIds.clear();
                       });
                       setState(() {
                         _selectedDeckIds.clear();
                       });
-                      Navigator.of(context).pop();
                     },
+                    child: const Text('Clear', style: TextStyle(color: Colors.red)),
                   ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  // Individual deck options
-                  if (allDecks.isNotEmpty) ...[
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    ...allDecks.map((deck) => _buildDeckOption(
-                      deck.name,
-                      '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
-                      _selectedDeckIds.contains(deck.id),
-                      () {
-                        setDialogState(() {
-                          if (_selectedDeckIds.contains(deck.id)) {
-                            _selectedDeckIds.remove(deck.id);
-                          } else {
-                            _selectedDeckIds.add(deck.id);
-                          }
-                        });
-                        setState(() {
-                          // Update the main widget state to reflect the changes
-                          // The dialog state is already updated above
-                        });
-                      },
-                    )),
-                  ],
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Done'),
+                  ),
                 ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
-            ),
-          ],
-        ),
+              );
+            }
+          );
+        },
       ),
     );
+  }
+
+  bool _shouldShowAnswerPoolToggle() {
+    // Only show answer pool for test-like modes where wrong options are generated
+    return widget.gameMode != GameMode.study && 
+           widget.gameMode != GameMode.write && 
+           widget.gameMode != GameMode.popYourCard;
   }
 
   Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {
@@ -384,8 +463,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               const SizedBox(height: 16),
             ],
             
-            _buildAnswerPoolToggle(),
-            const SizedBox(height: 16),
+            if (_shouldShowAnswerPoolToggle()) ...[
+              _buildAnswerPoolToggle(),
+              const SizedBox(height: 16),
+            ],
             
             // Auto progress toggle (only for applicable modes)
             if (_shouldShowAutoProgress()) ...[
@@ -413,9 +494,14 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               const SizedBox(height: 16),
             ],
             
-            // 1 Answer Mode toggle (only for Test mode)
-            if (widget.gameMode == GameMode.test) ...[
+            // 1 Answer Mode toggle (only for applicable modes)
+            if (_shouldShowOneAnswerMode()) ...[
               _buildOneAnswerModeToggle(),
+              const SizedBox(height: 16),
+            ],
+            if (_shouldShowHintsToggle()) ...[
+              _buildHintsToggle(),
+              const SizedBox(height: 16),
             ],
           ],
         ),
@@ -423,7 +509,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  Widget _buildOneAnswerModeToggle() {
+  Widget _buildOneAnswerModeToggle([StateSetter? setState]) {
     return Row(
       children: [
         const Icon(Icons.touch_app, size: 20),
@@ -440,7 +526,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 ),
               ),
               Text(
-                'Only one attempt per question',
+                _oneAnswerMode ? 'Only one attempt per question' : 'Many attempts per question',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
@@ -452,8 +538,73 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         Switch(
           value: _oneAnswerMode,
           onChanged: (value) {
-            setState(() {
+            if (setState != null) {
+              setState(() {
+                _oneAnswerMode = value;
+                
+                if ((_useTimedMode || _useLivesMode) && _oneAnswerMode) {
+                  _enableHints = false;
+                }
+              });
+            }
+            this.setState(() {
               _oneAnswerMode = value;
+              
+              if ((_useTimedMode || _useLivesMode) && _oneAnswerMode) {
+                _enableHints = false;
+              }
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHintsToggle([StateSetter? setState]) {
+    final bool isForcedOffForDifficulty = (_useTimedMode || _useLivesMode) && _oneAnswerMode;
+    
+    return Row(
+      children: [
+        Icon(
+          Icons.lightbulb_outline, 
+          size: 20, 
+          color: isForcedOffForDifficulty ? Colors.grey : Colors.orange
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Enable Hints',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: isForcedOffForDifficulty ? Theme.of(context).disabledColor : null,
+                ),
+              ),
+              Text(
+                isForcedOffForDifficulty 
+                    ? 'Hints disabled in Timed/Lives & 1-Answer mode'
+                    : (_enableHints ? 'Hints are enabled during play' : 'No hints allowed during play'),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: isForcedOffForDifficulty ? false : _enableHints,
+          onChanged: isForcedOffForDifficulty ? null : (value) {
+            if (setState != null) {
+              setState(() {
+                _enableHints = value;
+              });
+            }
+            this.setState(() {
+              _enableHints = value;
             });
           },
         ),
@@ -613,6 +764,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               if (value) {
                 _useTimedMode = false;
               }
+              // Force hints off in Timed/Lives & 1 Answer mode
+              if ((_useTimedMode || _useLivesMode) && _oneAnswerMode) {
+                _enableHints = false;
+              }
             });
           },
         ),
@@ -691,6 +846,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               }
               if (!value) {
                 _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
+              }
+              // Force hints off in Timed/Lives & 1 Answer mode
+              if ((_useTimedMode || _useLivesMode) && _oneAnswerMode) {
+                _enableHints = false;
               }
             });
           },
@@ -1047,6 +1206,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       timePerQuestion: _getTimePerQuestion(),
       useAllCardsForAnswers: _useAllCardsForAnswers,
       oneAnswerMode: _oneAnswerMode,
+      enableHints: _enableHints,
     );
     
     final answerPoolCards = _useAllCardsForAnswers ? provider.cards : allSelectedCards;
@@ -1072,9 +1232,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               builder: (context) => TimedMultipleChoiceView(
                 cards: studyCards,
                 title: 'Timed Test',
-                difficulty: _selectedTimedDifficulty,
+                difficulty: _selectedTimedDifficulty!,
                 startFlipped: _getStartFlipped(),
                 answerPoolCards: answerPoolCards,
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1102,8 +1264,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               builder: (context) => TimedTrueFalseView(
                 cards: studyCards,
                 title: 'Timed True/False',
-                difficulty: _selectedTimedDifficulty,
+                difficulty: _selectedTimedDifficulty!,
                 answerPoolCards: answerPoolCards,
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1136,6 +1300,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               startFlipped: _getStartFlipped(),
               useTimedMode: _useTimedMode,
               timePerQuestion: _getTimePerQuestion(),
+              enableHints: _enableHints,
             ),
           ),
         );
@@ -1149,14 +1314,16 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             ),
           );
         break;
-      case GameMode.bubbleWord:
+      case GameMode.wordScramble:
         if (_useTimedMode) {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => TimedWordScrambleView(
                 cards: studyCards,
-                title: 'Timed Word Scramble',
-                difficulty: _selectedTimedDifficulty,
+                title: 'Timed Jumble',
+                difficulty: _selectedTimedDifficulty!,
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1165,11 +1332,13 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             MaterialPageRoute(
               builder: (context) => WordScrambleView(
                 cards: studyCards,
-                title: 'Word Scramble',
+                title: 'Jumble',
                 autoProgress: _autoProgress,
                 useLivesMode: _useLivesMode,
                 customLives: _useLivesMode ? _selectedLives : null,
                 startFlipped: _getStartFlipped(),
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1181,6 +1350,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               builder: (context) => PickYourCardView(
                 cards: studyCards,
                 title: 'Pick Your Card',
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1195,6 +1366,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 customLives: _useLivesMode ? _selectedLives : null,
                 useTimedMode: _useTimedMode,
                 timePerQuestion: _useTimedMode ? _getTimePerQuestion() : null,
+                oneAnswerMode: _oneAnswerMode,
               ),
             ),
           );
@@ -1204,12 +1376,13 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             MaterialPageRoute(
               builder: (context) => ConnectCardsView(
                 cards: studyCards,
-                title: 'Connect Your Cards',
+                title: 'Connect Cards',
                 autoProgress: _autoProgress,
                 useLivesMode: _useLivesMode,
                 customLives: _useLivesMode ? _selectedLives : null,
                 useTimedMode: _useTimedMode,
                 timePerQuestion: _useTimedMode ? _getTimePerQuestion() : null,
+                enableHints: _enableHints,
               ),
             ),
           );
@@ -1261,7 +1434,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return result;
   }
 
-
   void _showSettingsDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -1303,6 +1475,19 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 
                 // SRS Filtering (for all modes)
                 _buildSRSFilteringSetting(setState),
+                const SizedBox(height: 16),
+
+                // One Answer Mode (for applicable modes)
+                if (_shouldShowOneAnswerMode()) ...[
+                  _buildOneAnswerModeToggle(setState),
+                  const SizedBox(height: 16),
+                ],
+
+                // Hints Toggle (for applicable modes)
+                if (_shouldShowHintsToggle()) ...[
+                  _buildHintsToggle(setState),
+                  const SizedBox(height: 16),
+                ],
               ],
             ),
           ),
@@ -1329,7 +1514,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Write';
       case GameMode.game:
         return 'Remember';
-      case GameMode.bubbleWord:
+      case GameMode.wordScramble:
         return 'Jumble';
       case GameMode.pickYourCard:
         return 'Pick';
@@ -1349,7 +1534,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _shouldShowAutoProgress() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           widget.gameMode == GameMode.bubbleWord ||
+           widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.write ||
            widget.gameMode == GameMode.connectCards;
@@ -1358,7 +1543,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _shouldShowLivesMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           widget.gameMode == GameMode.bubbleWord ||
+           widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
@@ -1368,12 +1553,27 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _shouldShowTimedMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           widget.gameMode == GameMode.bubbleWord ||
            // widget.gameMode == GameMode.game || // Removed timed mode for memory game
+           widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
            widget.gameMode == GameMode.connectCards;
+  }
+  
+  bool _shouldShowOneAnswerMode() {
+    return widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.trueFalse || 
+           widget.gameMode == GameMode.pickYourCard ||
+           widget.gameMode == GameMode.popYourCard;
+  }
+
+  bool _shouldShowHintsToggle() {
+    return widget.gameMode == GameMode.test || 
+           widget.gameMode == GameMode.wordScramble ||
+           widget.gameMode == GameMode.connectCards ||
+           widget.gameMode == GameMode.write ||
+           widget.gameMode == GameMode.pickYourCard;
   }
   
   Widget _buildFlippedModeSetting(StateSetter setState) {
@@ -1738,9 +1938,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         title = 'Memory Game';
         content = 'Match pairs of cards to improve your memory and recognition.';
         break;
-      case GameMode.bubbleWord:
+      case GameMode.wordScramble:
         title = 'Jumble Mode';
-        content = 'Arrange scrambled letters to form the correct translation.';
+        content = 'Unscramble the letters to form the correct word translation.';
         break;
       case GameMode.pickYourCard:
         title = 'Pick Your Card Mode';
@@ -1859,6 +2059,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           title: 'Timed Test',
           difficulty: difficulty,
           startFlipped: _startFlipped,
+          oneAnswerMode: _oneAnswerMode,
+          enableHints: _enableHints,
         ),
       ),
     );
@@ -1913,55 +2115,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     );
   }
 
-  void _showTimedWordScrambleDifficultyDialog(List<FlashCard> allCards) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Choose Difficulty'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Select the difficulty level for your timed word scramble test:'),
-            SizedBox(height: 16),
-            Text('• Easy: 7 seconds per question'),
-            Text('• Medium: 5 seconds per question'),
-            Text('• Hard: 3 seconds per question'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedWordScramble(allCards, TimedDifficulty.easy);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Easy - 7s'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedWordScramble(allCards, TimedDifficulty.medium);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Medium - 5s'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _startTimedWordScramble(allCards, TimedDifficulty.hard);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Hard - 3s'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _startTimedTrueFalse(List<FlashCard> allCards, TimedDifficulty difficulty) {
     // Shuffle and take a subset of cards
     final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
@@ -1974,27 +2127,12 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           cards: studyCards,
           title: 'Timed True/False',
           difficulty: difficulty,
+          oneAnswerMode: _oneAnswerMode,
         ),
       ),
     );
   }
 
-  void _startTimedWordScramble(List<FlashCard> allCards, TimedDifficulty difficulty) {
-    // Shuffle and take a subset of cards
-    final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
-    final studyCards = shuffledCards.take(_selectedCardCount).toList();
-    
-    // Navigate to timed word scramble view
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => TimedWordScrambleView(
-          cards: studyCards,
-          title: 'Timed Word Scramble',
-          difficulty: difficulty,
-        ),
-      ),
-    );
-  }
 
   Widget _buildAnswerPoolToggle() {
     return Row(
@@ -2416,31 +2554,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           ),
         );
         break;
-      case GameMode.bubbleWord:
-        if (widget.useTimedMode && widget.timedDifficulty != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedWordScrambleView(
-                cards: filteredCards,
-                title: title,
-                difficulty: widget.timedDifficulty!,
-              ),
-            ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => WordScrambleView(
-                cards: filteredCards,
-                title: title,
-                startFlipped: widget.startFlipped,
-                autoProgress: widget.autoProgress,
-                useLivesMode: widget.useLivesMode,
-                customLives: widget.customLives,
-              ),
-            ),
-          );
-        }
         break;
       case GameMode.pickYourCard:
         Navigator.of(context).push(
@@ -2483,6 +2596,32 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             ),
           ),
         );
+        break;
+      case GameMode.wordScramble:
+        if (widget.useTimedMode && widget.timedDifficulty != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimedWordScrambleView(
+                cards: filteredCards,
+                title: title,
+                difficulty: widget.timedDifficulty!,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => WordScrambleView(
+                cards: filteredCards,
+                title: title,
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.customLives,
+                startFlipped: widget.startFlipped,
+              ),
+            ),
+          );
+        }
         break;
     }
   }
