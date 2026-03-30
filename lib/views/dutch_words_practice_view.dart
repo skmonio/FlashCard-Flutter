@@ -10,6 +10,7 @@ import '../models/learning_mastery.dart';
 import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../utils/sentence_utils.dart';
+import '../components/main_header.dart';
 
 class DutchWordsPracticeView extends StatefulWidget {
   final String deckId;
@@ -157,25 +158,24 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: MainHeader(
+          title: 'Exercise',
+          leftAction: IconButton(
+            onPressed: () => _showCloseConfirmation(),
+            icon: const Icon(Icons.arrow_back_ios),
+            tooltip: 'Back',
+          ),
+          rightAction: IconButton(
+            onPressed: () => _showHomeConfirmation(),
+            icon: const Icon(Icons.home),
+            tooltip: 'Go Home',
+          ),
+        ),
+      ),
       body: Column(
         children: [
-          // Fixed Header - matching Taal Trek header height
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: _buildCustomHeader(context),
-            ),
-          ),
-          
           // Progress Bar
           _buildProgressBar(),
           
@@ -1092,10 +1092,6 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
     );
   }
   
-
-  
-
-  
   /// Convert ExerciseType enum to string for XP service
   String _getExerciseTypeString(ExerciseType type) {
     switch (type) {
@@ -1107,56 +1103,4 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         return 'sentence_building';
     }
   }
-
-  Widget _buildCustomHeader(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final onSurface = colorScheme.onSurface;
-    final titleStyle = Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: onSurface,
-        ) ??
-        TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: onSurface,
-        );
-
-    return Stack(
-      children: [
-        // Centered title - always in the center regardless of other elements
-        Center(
-          child: Text(
-            'Exercise',
-            style: titleStyle,
-          ),
-        ),
-        
-        // Left side - Back button with proper padding
-        Positioned(
-          left: 16, // Add proper padding from left edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => _showCloseConfirmation(),
-            icon: Icon(Icons.arrow_back_ios, color: onSurface),
-            tooltip: 'Back',
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-          ),
-        ),
-        
-        // Right side - Home button
-        Positioned(
-          right: 16, // Add proper padding from right edge
-          top: 0,
-          bottom: 0,
-          child: IconButton(
-            onPressed: () => _showHomeConfirmation(),
-            icon: Icon(Icons.home, color: onSurface),
-            tooltip: 'Go Home',
-            constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-          ),
-        ),
-      ],
-    );
-  }
-} 
+}

@@ -135,6 +135,7 @@ class ConnectCardsView extends StatefulWidget {
   final bool useTimedMode;
   final int? timePerQuestion;
   final bool enableHints;
+  final bool oneAnswerMode;
   
   const ConnectCardsView({
     super.key,
@@ -146,6 +147,7 @@ class ConnectCardsView extends StatefulWidget {
     this.useTimedMode = false,
     this.timePerQuestion,
     this.enableHints = true,
+    this.oneAnswerMode = true,
   });
 
   @override
@@ -829,7 +831,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         print('❌ Word is incorrect');
         
         // Increment wrong attempts counter
-        _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
+        // If oneAnswerMode is enabled, set to 5 immediately to trigger solution reveal
+        int increment = widget.oneAnswerMode ? 5 : 1;
+        _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + increment;
         int wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
         
         // Track initial HP BEFORE processing (so we capture HP before it's reduced)
@@ -1555,8 +1559,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                   builder: (context) {
                     final totalWords = _availableCards.length;
                     final completedCount = _completedWordIds.length.clamp(0, totalWords);
-                    final progressValue = totalWords == 0 ? 0.0 : completedCount / totalWords;
-                    final percentText = totalWords == 0 ? '0%' : '${(progressValue * 100).round()}%';
+                    final progressValue = totalWords == 0 ? 0.0 : _currentCardIndex / totalWords;
+                    final accuracy = totalWords == 0 ? 0 : (completedCount / totalWords * 100).toInt();
+                    final percentText = '$accuracy%';
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Column(
@@ -1567,8 +1572,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                               Text(
                                 'Card ${_currentCardIndex + 1}/$totalWords',
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.normal,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               if (_isLivesMode) _buildLivesIndicator(),
@@ -1576,8 +1581,8 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                               Text(
                                 percentText,
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.normal,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
@@ -1586,7 +1591,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                           LinearProgressIndicator(
                             value: progressValue,
                             backgroundColor: Colors.grey[300],
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
                           ),
                         ],
                       ),

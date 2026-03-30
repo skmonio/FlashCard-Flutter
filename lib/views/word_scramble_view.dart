@@ -402,7 +402,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       // Track XP for wrong attempt
       XpService.recordAnswer(_gameSession, false);
       
-      // Handle lives system
+      // Handle lives system (already handles life loss correctly)
       if (_useLivesMode) {
         setState(() {
           _lives--;
@@ -419,31 +419,28 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
         }
       }
       
-      // If 5 wrong attempts, auto-complete with correct answer (0 XP)
-      print('🔍 WordScrambleView: Wrong attempt $newWrongAttempts of 5');
-      if (newWrongAttempts >= 5) {
-        print('🔍 WordScrambleView: 5 wrong attempts reached! Auto-completing answer.');
+      // If 1-Click Answer is enabled or 5 wrong attempts reached, auto-complete
+      if (widget.oneAnswerMode || newWrongAttempts >= 5) {
+        print('🔍 WordScrambleView: ${widget.oneAnswerMode ? '1-Click Answer mode' : '5 wrong attempts'} reached! Auto-completing.');
         
-        // Award 0 XP since they failed after 5 attempts
+        // Award 0 XP since they failed
         _applyHpPenalty(currentCard, wasCorrect: false);
-        _awardXPToWord(currentCard, false, newWrongAttempts);
+        _awardXPToWord(currentCard, false, 5); // Force penalty for XP calculation
         _updateCardInProvider(currentCard);
         
         // Get the correct piece order and set it as the user answer
         final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
         
         setState(() {
+          // Clear any current showing of wrong state
           _isShowingWrongAnswer = false;
           // Set user answer to the correct order of pieces
           _userAnswer = List<String>.from(correctPieces);
           _answered = true;
           _totalAnswered++;
-          _correctAnswersMap[_currentIndex] = false; // Mark as incorrect (failed after 5 attempts)
+          _correctAnswersMap[_currentIndex] = false;
           
-          // Store the answer (even though it's incorrect due to 5 wrong attempts)
           _answeredQuestions[_currentIndex] = List<String>.from(correctPieces);
-          
-          print('🔍 WordScrambleView: Auto-completed with correct pieces: $_userAnswer');
         });
         
         return;
@@ -456,7 +453,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       setState(() {
         _isShowingWrongAnswer = true;
         // IMPORTANT: Keep userAnswer visible so pieces stay in place
-        print('🔍 WordScrambleView: Set _isShowingWrongAnswer = true, userAnswer length: ${_userAnswer.length}');
       });
       
       SoundManager().playWrongSound();
@@ -465,23 +461,16 @@ class _WordScrambleViewState extends State<WordScrambleView> with SingleTickerPr
       _shakeController.forward(from: 0);
       
       // After shake animation completes, reset and allow retry
-      // Keep pieces visible (red and shaking) for longer to show feedback
-      // Wait for animation duration plus a pause to see the red highlight and "Incorrect, try again" message
+      // Wait for feedback to be visible
       Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted && !_answered) { // Only reset if not already answered (i.e., not auto-completed)
-          print('🔍 WordScrambleView: Resetting wrong answer state after delay. UserAnswer before clear: $_userAnswer, ScrambledLetters before: $_scrambledLetters');
-          
-          // Store pieces to return them to the pool
+        if (mounted && !_answered) {
+          // Only reset if not already answered (e.g. by auto-complete after penalty)
           final piecesToReturn = List<String>.from(_userAnswer);
           
           setState(() {
             _isShowingWrongAnswer = false;
-            // Return all pieces from user answer back to scrambled letters pool
             _scrambledLetters.addAll(piecesToReturn);
-            // Now clear user answer
             _userAnswer.clear();
-            
-            print('🔍 WordScrambleView: After reset - ScrambledLetters: $_scrambledLetters, UserAnswer: $_userAnswer');
           });
         }
       });

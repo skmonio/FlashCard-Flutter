@@ -1393,31 +1393,7 @@ class _AddCardViewState extends State<AddCardView> {
               final availableExercises = _getAvailableExerciseTypes(updatedCard);
               
               if (availableExercises.isNotEmpty && mounted) {
-                final selectedExercises = await _showCreateExercisesDialog(
-                  updatedCard.word, 
-                  availableExercises,
-                  message: 'The word was changed from "$originalWord" to "${updatedCard.word}". Would you like to create new exercises for the new word?'
-                );
-                
-                if (selectedExercises.isNotEmpty) {
-                  // Create new exercises for the new word
-                  await _createSelectedExercises(updatedCard, selectedExercises);
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Card updated successfully! ${selectedExercises.length} new exercise${selectedExercises.length == 1 ? '' : 's'} created for "${updatedCard.word}".'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Card updated successfully! Exercises for the original word remain unchanged.')),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Card updated successfully! Exercises for the original word remain unchanged.')),
-                );
+                await _showCreateExercisesDialog(updatedCard, availableExercises);
               }
             } else {
               // Word wasn't changed - check if new grammar information was added
@@ -1425,31 +1401,7 @@ class _AddCardViewState extends State<AddCardView> {
               
               if (newExerciseTypes.isNotEmpty && mounted) {
                 // Ask user if they want to create exercises for the newly added grammar information
-                final selectedNewExercises = await _showCreateExercisesDialog(
-                  updatedCard.word, 
-                  newExerciseTypes,
-                  message: 'New grammar information was added. Would you like to create exercises for these new features?'
-                );
-                
-                if (selectedNewExercises.isNotEmpty) {
-                  // Create exercises for the new grammar information
-                  await _createSelectedExercises(updatedCard, selectedNewExercises);
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Card updated successfully! ${selectedNewExercises.length} additional exercise${selectedNewExercises.length == 1 ? '' : 's'} created for new grammar information.'),
-                      backgroundColor: Colors.blue,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Card updated successfully!')),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Card updated successfully!')),
-                );
+                await _showCreateExercisesDialog(updatedCard, newExerciseTypes);
               }
             }
           } else {
@@ -1457,32 +1409,11 @@ class _AddCardViewState extends State<AddCardView> {
             final availableExercises = _getAvailableExerciseTypes(updatedCard);
             
             if (availableExercises.isNotEmpty && mounted) {
-              // Ask user which exercises they want to create
-              final selectedExercises = await _showCreateExercisesDialog(updatedCard.word, availableExercises);
-              
-              if (selectedExercises.isNotEmpty) {
-                // Create selected exercises
-                await _createSelectedExercises(updatedCard, selectedExercises);
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Card updated successfully! ${selectedExercises.length} exercise${selectedExercises.length == 1 ? '' : 's'} created.'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Card updated successfully!')),
-                );
-              }
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Card updated successfully!')),
-              );
+              await _showCreateExercisesDialog(updatedCard, availableExercises);
             }
           }
           
-          Navigator.of(context).pop(true); // Return true to indicate successful update
+          if (mounted) Navigator.of(context).pop(true);
         }
       } else {
         // Create new card
@@ -1504,23 +1435,8 @@ class _AddCardViewState extends State<AddCardView> {
           final availableExercises = _getAvailableExerciseTypes(newCard);
           
           if (availableExercises.isNotEmpty && mounted) {
-            // Ask user which exercises they want to create
-            final selectedExercises = await _showCreateExercisesDialog(newCard.word, availableExercises);
-            
-            if (selectedExercises.isNotEmpty) {
-              // Create selected exercises
-              await _createSelectedExercises(newCard, selectedExercises);
-              
-              EnhancedSnackBar.showSuccess(
-                context,
-                message: 'Card added successfully! ${selectedExercises.length} exercise${selectedExercises.length == 1 ? '' : 's'} created.',
-              );
-            } else {
-              EnhancedSnackBar.showSuccess(
-                context,
-                message: 'Card added successfully!',
-              );
-            }
+            // Show prompt to create exercises
+            await _showCreateExercisesDialog(newCard, availableExercises);
           } else {
             EnhancedSnackBar.showSuccess(
               context,
@@ -1532,7 +1448,7 @@ class _AddCardViewState extends State<AddCardView> {
           final dutchProvider = context.read<DutchWordExerciseProvider>();
           await dutchProvider.initialize();
           
-          Navigator.of(context).pop(true); // Return true to indicate successful update
+          if (mounted) Navigator.of(context).pop(true);
         }
       }
     } catch (e) {
@@ -1790,6 +1706,67 @@ class _AddCardViewState extends State<AddCardView> {
     }
   }
 
+  /// Show dialog to select exercises to create
+  Future<void> _showCreateExercisesDialog(FlashCard card, List<String> availableExercises) async {
+    if (!mounted) return;
+    
+    final List<String> selectedExercises = List.from(availableExercises);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Create Exercises'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Which exercises would you like to create for this card?'),
+              const SizedBox(height: 16),
+              ...availableExercises.map((exercise) => CheckboxListTile(
+                title: Text(exercise),
+                value: selectedExercises.contains(exercise),
+                onChanged: (value) {
+                  setDialogState(() {
+                    if (value == true) {
+                      selectedExercises.add(exercise);
+                    } else {
+                      selectedExercises.remove(exercise);
+                    }
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              )),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Skip'),
+            ),
+            ElevatedButton(
+              onPressed: selectedExercises.isEmpty ? null : () async {
+                Navigator.of(context).pop();
+                await _createSelectedExercises(card, selectedExercises);
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Created ${selectedExercises.length} exercise${selectedExercises.length == 1 ? '' : 's'}!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
 
   /// Get available exercise types based on card content
@@ -1863,163 +1840,6 @@ class _AddCardViewState extends State<AddCardView> {
     }
 
     return newExerciseTypes;
-  }
-
-  /// Show exercise selection dialog using a different approach
-  Future<List<String>> _showExerciseSelectionDialog(String word, List<String> availableExercises) async {
-    if (!mounted) {
-      return [];
-    }
-    
-    final selectedExercises = <String>{};
-    
-    // Check for existing exercises
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final existingExercise = dutchProvider.getWordExerciseByWord(word);
-    
-    try {
-      // Use a completely different approach - create a custom dialog
-      final result = await showDialog<List<String>>(
-        context: context,
-        barrierDismissible: true,
-        builder: (BuildContext context) {
-          return Dialog(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              constraints: const BoxConstraints(maxHeight: 600),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title
-                    const Text(
-                      'Select Exercises',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Description
-                    Text('Which exercises would you like to create for "$word"?'),
-                    const SizedBox(height: 16),
-                    
-                    // Show existing exercises if any
-                    if (existingExercise != null && existingExercise.exercises.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.info_outline, color: Colors.blue[700], size: 16),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Existing Exercises (${existingExercise.exercises.length})',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue[700],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            ...existingExercise.exercises.map((exercise) {
-                              return Padding(
-                                padding: const EdgeInsets.only(left: 24, bottom: 4),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _getExerciseTypeIcon(exercise.type),
-                                      size: 14,
-                                      color: Colors.blue[600],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _getExerciseTypeName(exercise.type),
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.blue[600],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  
-                  // Exercise checkboxes
-                  ...availableExercises.map((exercise) {
-                    return StatefulBuilder(
-                      builder: (context, setState) {
-                        return CheckboxListTile(
-                          title: Text(exercise),
-                          value: selectedExercises.contains(exercise),
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                selectedExercises.add(exercise);
-                              } else {
-                                selectedExercises.remove(exercise);
-                              }
-                            });
-                          },
-                          contentPadding: EdgeInsets.zero,
-                        );
-                      },
-                    );
-                  }),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          print('Cancel pressed - new dialog approach');
-                          Navigator.of(context).pop(<String>[]);
-                        },
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () {
-                          print('Create selected pressed - new dialog approach');
-                          Navigator.of(context).pop(selectedExercises.toList());
-                        },
-                        child: const Text('Create Selected'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            ),
-          );
-        },
-      );
-      
-      return result ?? [];
-    } catch (e) {
-      print('Error showing exercise selection dialog: $e');
-      return [];
-    }
   }
 
   /// Get exercise type name for display
@@ -2165,58 +1985,7 @@ class _AddCardViewState extends State<AddCardView> {
     }
   }
 
-  /// Show dialog asking which exercises user wants to create
-  Future<List<String>> _showCreateExercisesDialog(String word, List<String> availableExercises, {String? message}) async {
-    // Check if widget is still mounted before showing dialog
-    if (!mounted) {
-      return [];
-    }
-    
-    final selectedExercises = <String>{};
-    
-    try {
-      // First show a simple confirmation dialog
-      final shouldShowDialog = await showDialog<bool>(
-        context: context,
-        barrierDismissible: true,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Create Exercises?'),
-          content: Text(message ?? 'Would you like me to create exercises for "$word"?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                print('No thanks pressed - simple dialog');
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('No, thanks'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                print('Yes pressed - simple dialog');
-                Navigator.of(dialogContext).pop(true);
-              },
-              child: const Text('Yes, create exercises'),
-            ),
-          ],
-        ),
-      );
-      
-      print('Simple dialog result: $shouldShowDialog');
-      
-      if (shouldShowDialog != true) {
-        return [];
-      }
-      
-      // If user wants to create exercises, show the detailed dialog using a different approach
-      final result = await _showExerciseSelectionDialog(word, availableExercises);
-      
-      print('Detailed dialog result: $result');
-      return result ?? [];
-    } catch (e) {
-      print('Error showing exercise creation dialog: $e');
-      return [];
-    }
-  }
+
 
 
 

@@ -365,7 +365,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     // Only show answer pool for test-like modes where wrong options are generated
     return widget.gameMode != GameMode.study && 
            widget.gameMode != GameMode.write && 
-           widget.gameMode != GameMode.popYourCard;
+           widget.gameMode != GameMode.popYourCard &&
+           widget.gameMode != GameMode.connectCards &&
+           widget.gameMode != GameMode.wordScramble;
   }
 
   Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {
@@ -1565,7 +1567,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.pickYourCard ||
-           widget.gameMode == GameMode.popYourCard;
+           widget.gameMode == GameMode.popYourCard ||
+           widget.gameMode == GameMode.wordScramble ||
+           widget.gameMode == GameMode.write ||
+           widget.gameMode == GameMode.connectCards;
   }
 
   bool _shouldShowHintsToggle() {
@@ -2626,10 +2631,58 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
     }
   }
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchText = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filteredDecks = _searchText.isEmpty
+        ? widget.decks
+        : widget.decks.where((d) => d.name.toLowerCase().contains(_searchText.toLowerCase())).toList();
+
     return AlertDialog(
-      title: const Text('Select Decks'),
+      title: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Select Decks'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search decks...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchText.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchText = '';
+                        });
+                      },
+                    )
+                  : null,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchText = value;
+              });
+            },
+          ),
+        ],
+      ),
       content: SizedBox(
         width: double.maxFinite,
         height: MediaQuery.of(context).size.height * 0.6, // Use 60% of screen height
@@ -2637,23 +2690,23 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Summary of selected decks
+              // Summary of selected decks (only show if not searching or if items selected)
               if (_selectedDeckIds.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.check_circle, color: Colors.blue, size: 20),
+                      Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'} selected • $_totalSelectedCards cards',
                           style: TextStyle(
-                            color: Colors.blue,
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -2664,34 +2717,58 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               if (_selectedDeckIds.isNotEmpty) const SizedBox(height: 16),
               
               // Deck list
-              ...widget.decks.map((deck) {
-                // For parent decks, include sub-deck cards; for sub-decks, only their own cards
-                final deckCards = deck.isSubDeck 
-                    ? widget.provider.getCardsForDeck(deck.id)
-                    : widget.provider.getCardsForDeckWithSubDecks(deck.id);
-                final isSelected = _selectedDeckIds.contains(deck.id);
-                
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  child: CheckboxListTile(
-                    title: Text(deck.name),
-                    subtitle: Text('${deckCards.length} cards'),
-                    value: isSelected,
-                    onChanged: (bool? value) {
-                      _toggleDeckSelection(deck.id);
-                    },
-                    secondary: Icon(
-                      isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                      color: isSelected ? Colors.blue : Colors.grey,
+              if (filteredDecks.isEmpty) ...[
+                const SizedBox(height: 32),
+                Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'No decks found matching "$_searchText"',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ] else ...[
+                ...filteredDecks.map((deck) {
+                  // For parent decks, include sub-deck cards; for sub-decks, only their own cards
+                  final deckCards = deck.isSubDeck 
+                      ? widget.provider.getCardsForDeck(deck.id)
+                      : widget.provider.getCardsForDeckWithSubDecks(deck.id);
+                  final isSelected = _selectedDeckIds.contains(deck.id);
+                  
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    child: CheckboxListTile(
+                      title: Text(deck.name),
+                      subtitle: Text('${deckCards.length} cards'),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        _toggleDeckSelection(deck.id);
+                      },
+                      secondary: Icon(
+                        isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                        color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                      ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ],
             ],
           ),
         ),
       ),
       actions: [
+        if (_selectedDeckIds.isNotEmpty)
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _selectedDeckIds.clear();
+              });
+              _calculateTotalCards();
+            },
+            child: Text(
+              'Clear',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),

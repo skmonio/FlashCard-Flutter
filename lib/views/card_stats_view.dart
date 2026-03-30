@@ -5,6 +5,7 @@ import '../models/flash_card.dart';
 import '../providers/flashcard_provider.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
+import '../components/main_header.dart';
 
 class CardStatsView extends StatefulWidget {
   final FlashCard card;
@@ -31,82 +32,27 @@ class _CardStatsViewState extends State<CardStatsView> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: Column(
         children: [
-          // Standardized Header
-          SafeArea(
-            child: Container(
-              height: kToolbarHeight,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
-                    width: 1,
-                  ),
-                ),
+          MainHeader(
+            title: freshCard.word,
+            leftAction: IconButton(
+              icon: Icon(
+                Icons.arrow_back_ios,
+                color: Theme.of(context).colorScheme.onSurface,
+                size: 22,
               ),
-              child: Stack(
-                children: [
-                  // Centered title - always in the center
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          freshCard.article.isNotEmpty ? '${freshCard.article} ' : '',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          freshCard.word,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Left side - Back button
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.arrow_back_ios,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        size: 20,
-                      ),
-                      splashColor: Colors.transparent,
-                      highlightColor: Colors.transparent,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  
-                  // Right side - Home button
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.home,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        size: 20,
-                      ),
-                      splashColor: Colors.transparent,
-                      highlightColor: Colors.transparent,
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                    ),
-                  ),
-                ],
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            rightAction: IconButton(
+              icon: Icon(
+                Icons.home,
+                color: Theme.of(context).colorScheme.onSurface,
+                size: 24,
               ),
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
             ),
           ),
           

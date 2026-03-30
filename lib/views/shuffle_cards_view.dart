@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
+import '../models/deck.dart';
 import '../models/dutch_word_exercise.dart';
 import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
@@ -77,6 +78,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.dutchExercise: true,
   };
 
+  bool _oneAnswerMode = true; // Use 1-click answer mode across shuffle challenges
   Set<String> _selectedDeckIds = {}; // Track selected decks for shuffle mode
 
   @override
@@ -106,6 +108,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
         ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
       };
+      _oneAnswerMode = prefs.getBool('shuffle_one_answer_mode') ?? true;
     });
   }
  
@@ -119,6 +122,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
     await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
     await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
+    await prefs.setBool('shuffle_one_answer_mode', _oneAnswerMode);
   }
 
   List<FlashCard> _getAnswerPoolCards(FlashCard primaryCard) {
@@ -531,7 +535,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
-          oneAnswerMode: true,
+          oneAnswerMode: _oneAnswerMode,
           enableHints: false,
         );
         break;
@@ -583,7 +587,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
-          oneAnswerMode: true,
+          oneAnswerMode: _oneAnswerMode,
           enableHints: false,
         );
         break;
@@ -649,7 +653,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
-          oneAnswerMode: true,
+          oneAnswerMode: _oneAnswerMode,
           enableHints: false,
         );
         break;
@@ -668,6 +672,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           autoProgress: true, // Enable auto progress for shuffle mode
           useLivesMode: false, // No lives in shuffle mode - one wrong letter ends the game
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
+          oneAnswerMode: _oneAnswerMode,
           enableHints: false,
         );
         break;
@@ -684,7 +689,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           onComplete: _handleCardModeComplete,
           shuffleMode: true,
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
-          oneAnswerMode: true,
+          oneAnswerMode: _oneAnswerMode,
         );
         break;
       case ShuffleMode.pickYourCards:
@@ -701,7 +706,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           shuffleMode: true,
           autoProgress: true, // Enable auto progress for shuffle mode
           shuffleQuestionOffset: _totalQuestionsAsked - 1,
-          oneAnswerMode: true,
+          oneAnswerMode: _oneAnswerMode,
           enableHints: false,
         );
         break;
@@ -1333,171 +1338,17 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     final provider = context.read<FlashcardProvider>();
     final allDecks = provider.getAllDecksHierarchical();
     
-    final searchController = TextEditingController();
-    String dialogSearchText = '';
-    
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return StatefulBuilder(
-            builder: (context, setInternalState) {
-              final filteredDecks = dialogSearchText.isEmpty 
-                  ? allDecks 
-                  : allDecks.where((d) => d.name.toLowerCase().contains(dialogSearchText.toLowerCase())).toList();
-                  
-              return AlertDialog(
-                title: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Select Decks (${allDecks.length})'),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search decks...',
-                        prefixIcon: const Icon(Icons.search, size: 20),
-                        suffixIcon: dialogSearchText.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 20),
-                                onPressed: () {
-                                  searchController.clear();
-                                  setInternalState(() {
-                                    dialogSearchText = '';
-                                  });
-                                },
-                              )
-                            : null,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onChanged: (value) {
-                        setInternalState(() {
-                          dialogSearchText = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                content: SizedBox(
-                  width: double.maxFinite,
-                  height: MediaQuery.of(context).size.height * 0.6,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // "Any" option (only show if not searching)
-                        if (dialogSearchText.isEmpty)
-                          _buildDeckOption(
-                            'Any (All Decks)',
-                            'Use cards from all available decks',
-                            _selectedDeckIds.isEmpty,
-                            () {
-                              setDialogState(() {
-                                _selectedDeckIds.clear();
-                              });
-                              setState(() {
-                                _selectedDeckIds.clear();
-                              });
-                              Navigator.of(context).pop();
-                            },
-                            setDialogState,
-                          ),
-                        if (dialogSearchText.isEmpty) const Divider(),
-                        if (dialogSearchText.isEmpty) const SizedBox(height: 8),
-                        
-                        // List of filtered decks
-                        if (filteredDecks.isEmpty) ...[
-                          const SizedBox(height: 32),
-                          Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No decks found matching "$dialogSearchText"',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ] else ...[
-                          ...filteredDecks.map((deck) => _buildDeckOption(
-                            deck.name,
-                            '${provider.getCardsForDeckWithSubDecks(deck.id).length} cards',
-                            _selectedDeckIds.contains(deck.id),
-                            () {
-                              setDialogState(() {
-                                if (_selectedDeckIds.contains(deck.id)) {
-                                  _selectedDeckIds.remove(deck.id);
-                                } else {
-                                  _selectedDeckIds.add(deck.id);
-                                }
-                              });
-                              setState(() {});
-                            },
-                            setDialogState,
-                          )).toList(),
-                        ]
-                      ],
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() {});
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('Done'),
-                  ),
-                ],
-              );
-            },
-          );
+      builder: (context) => _ShuffleDeckSelectionDialog(
+        decks: allDecks,
+        provider: provider,
+        selectedDeckIds: _selectedDeckIds,
+        onSelectionChanged: (newSelection) {
+          setState(() {
+            _selectedDeckIds = newSelection;
+          });
         },
-      ),
-    );
-  }
-
-  Widget _buildDeckOption(
-    String title, 
-    String subtitle, 
-    bool isSelected, 
-    VoidCallback onTap,
-    StateSetter setDialogState,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: isSelected ? Colors.green : Colors.grey,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1508,10 +1359,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       context: context,
       builder: (context) => ShuffleCustomizationDialog(
         enabledModes: Map.from(_enabledModes),
+        oneAnswerMode: _oneAnswerMode,
         availableModes: availableModes,
-        onSettingsChanged: (newEnabledModes) {
+        onSettingsChanged: (newEnabledModes, newOneAnswerMode) {
           setState(() {
             _enabledModes = newEnabledModes;
+            _oneAnswerMode = newOneAnswerMode;
           });
           _saveEnabledModes();
         },
@@ -1609,17 +1462,222 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       ];
     }
   }
+
 }
 
-// Separate stateful widget for the customization dialog
+class _ShuffleDeckSelectionDialog extends StatefulWidget {
+  final List<Deck> decks;
+  final FlashcardProvider provider;
+  final Set<String> selectedDeckIds;
+  final Function(Set<String>) onSelectionChanged;
+
+  const _ShuffleDeckSelectionDialog({
+    required this.decks,
+    required this.provider,
+    required this.selectedDeckIds,
+    required this.onSelectionChanged,
+  });
+
+  @override
+  State<_ShuffleDeckSelectionDialog> createState() => _ShuffleDeckSelectionDialogState();
+}
+
+class _ShuffleDeckSelectionDialogState extends State<_ShuffleDeckSelectionDialog> {
+  late Set<String> _localSelectedDeckIds;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _localSelectedDeckIds = Set.from(widget.selectedDeckIds);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredDecks = _searchText.isEmpty
+        ? widget.decks
+        : widget.decks.where((d) => d.name.toLowerCase().contains(_searchText.toLowerCase())).toList();
+
+    int totalSelectedCards = 0;
+    for (final deckId in _localSelectedDeckIds) {
+      totalSelectedCards += widget.provider.getCardsForDeckWithSubDecks(deckId).length;
+    }
+
+    return AlertDialog(
+      title: Text('Select Decks${_localSelectedDeckIds.isNotEmpty ? " (${_localSelectedDeckIds.length})" : ""}'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search decks...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _searchText.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchText = '';
+                            });
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchText = value;
+                  });
+                },
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_localSelectedDeckIds.isNotEmpty && _searchText.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${_localSelectedDeckIds.length} deck${_localSelectedDeckIds.length == 1 ? '' : 's'} selected • $totalSelectedCards cards',
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (_localSelectedDeckIds.isNotEmpty && _searchText.isEmpty) const SizedBox(height: 16),
+                    if (_searchText.isEmpty)
+                      Card(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        child: CheckboxListTile(
+                          title: const Text('Any (All Decks)'),
+                          subtitle: const Text('Use cards from all available decks'),
+                          value: _localSelectedDeckIds.isEmpty,
+                          onChanged: (bool? value) {
+                            if (value == true) {
+                              setState(() {
+                                _localSelectedDeckIds.clear();
+                              });
+                              widget.onSelectionChanged(_localSelectedDeckIds);
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          secondary: Icon(
+                            _localSelectedDeckIds.isEmpty ? Icons.check_circle : Icons.radio_button_unchecked,
+                            color: _localSelectedDeckIds.isEmpty ? Theme.of(context).colorScheme.primary : Colors.grey,
+                          ),
+                        ),
+                      ),
+                    if (_searchText.isEmpty) const Divider(),
+                    if (filteredDecks.isEmpty) ...[
+                      const SizedBox(height: 32),
+                      Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No decks found matching "$_searchText"',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ] else ...[
+                      ...filteredDecks.map((deck) {
+                        final deckCards = widget.provider.getCardsForDeckWithSubDecks(deck.id);
+                        final isSelected = _localSelectedDeckIds.contains(deck.id);
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          child: CheckboxListTile(
+                            title: Text(deck.name),
+                            subtitle: Text('${deckCards.length} cards'),
+                            value: isSelected,
+                            onChanged: (bool? value) {
+                              setState(() {
+                                if (isSelected) {
+                                  _localSelectedDeckIds.remove(deck.id);
+                                } else {
+                                  _localSelectedDeckIds.add(deck.id);
+                                }
+                              });
+                              widget.onSelectionChanged(_localSelectedDeckIds);
+                            },
+                            secondary: Icon(
+                              isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        if (_localSelectedDeckIds.isNotEmpty)
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _localSelectedDeckIds.clear();
+              });
+              widget.onSelectionChanged(_localSelectedDeckIds);
+            },
+            child: Text(
+              'Clear',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Done'),
+        ),
+      ],
+    );
+  }
+}
+
 class ShuffleCustomizationDialog extends StatefulWidget {
   final Map<ShuffleMode, bool> enabledModes;
-  final Function(Map<ShuffleMode, bool>) onSettingsChanged;
+  final bool oneAnswerMode;
+  final Function(Map<ShuffleMode, bool>, bool) onSettingsChanged;
   final Set<ShuffleMode> availableModes;
 
   const ShuffleCustomizationDialog({
     super.key,
     required this.enabledModes,
+    required this.oneAnswerMode,
     required this.onSettingsChanged,
     required this.availableModes,
   });
@@ -1630,84 +1688,45 @@ class ShuffleCustomizationDialog extends StatefulWidget {
 
 class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog> {
   late Map<ShuffleMode, bool> _localEnabledModes;
+  late bool _localOneAnswerMode;
 
   @override
   void initState() {
     super.initState();
     _localEnabledModes = Map.from(widget.enabledModes);
+    _localOneAnswerMode = widget.oneAnswerMode;
   }
 
   void _updateMode(ShuffleMode mode, bool value) {
     setState(() {
       _localEnabledModes[mode] = value;
     });
-    widget.onSettingsChanged(_localEnabledModes);
+    widget.onSettingsChanged(_localEnabledModes, _localOneAnswerMode);
   }
 
+  void _updateOneAnswerMode(bool value) {
+    setState(() {
+      _localOneAnswerMode = value;
+    });
+    widget.onSettingsChanged(_localEnabledModes, _localOneAnswerMode);
+  }
 
   @override
   Widget build(BuildContext context) {
     final modeConfigs = [
-      {
-        'title': 'Test Your Cards',
-        'mode': ShuffleMode.multipleChoice,
-        'icon': Icons.check_circle,
-        'color': Colors.teal,
-      },
-      {
-        'title': 'True or False',
-        'mode': ShuffleMode.trueFalse,
-        'icon': Icons.help_outline,
-        'color': Colors.orange,
-      },
-      {
-        'title': 'Remember Your Cards',
-        'mode': ShuffleMode.memoryGame,
-        'icon': Icons.psychology,
-        'color': Colors.grey,
-      },
-      {
-        'title': 'Jumble Your Cards',
-        'mode': ShuffleMode.wordScramble,
-        'icon': Icons.text_fields,
-        'color': Colors.blue,
-      },
-      {
-        'title': 'Write Your Cards',
-        'mode': ShuffleMode.writing,
-        'icon': Icons.edit,
-        'color': Colors.blue,
-      },
-      {
-        'title': 'Pop Your Card',
-        'mode': ShuffleMode.popYourCards,
-        'icon': Icons.bubble_chart,
-        'color': Colors.purple,
-      },
-      {
-        'title': 'Pick Your Card',
-        'mode': ShuffleMode.pickYourCards,
-        'icon': Icons.touch_app,
-        'color': Colors.pink,
-      },
-      {
-        'title': 'Words',
-        'mode': ShuffleMode.dutchExercise,
-        'icon': Icons.school,
-        'color': Colors.green,
-      },
+      {'title': 'Test Your Cards', 'mode': ShuffleMode.multipleChoice, 'icon': Icons.check_circle, 'color': Colors.teal},
+      {'title': 'True or False', 'mode': ShuffleMode.trueFalse, 'icon': Icons.help_outline, 'color': Colors.orange},
+      {'title': 'Remember Your Cards', 'mode': ShuffleMode.memoryGame, 'icon': Icons.psychology, 'color': Colors.grey},
+      {'title': 'Jumble Your Cards', 'mode': ShuffleMode.wordScramble, 'icon': Icons.text_fields, 'color': Colors.blue},
+      {'title': 'Write Your Cards', 'mode': ShuffleMode.writing, 'icon': Icons.edit, 'color': Colors.blue},
+      {'title': 'Pop Your Card', 'mode': ShuffleMode.popYourCards, 'icon': Icons.bubble_chart, 'color': Colors.purple},
+      {'title': 'Pick Your Card', 'mode': ShuffleMode.pickYourCards, 'icon': Icons.touch_app, 'color': Colors.pink},
+      {'title': 'Words', 'mode': ShuffleMode.dutchExercise, 'icon': Icons.school, 'color': Colors.green},
     ];
 
     final visibleModeTiles = modeConfigs
         .where((config) => widget.availableModes.contains(config['mode']))
-        .map(
-          (config) => _buildModeToggle(
-            config['title'] as String,
-            config['mode'] as ShuffleMode,
-            config['icon'] as IconData,
-            config['color'] as Color,
-          ),
-        )
+        .map((config) => _buildModeToggle(config['title'] as String, config['mode'] as ShuffleMode, config['icon'] as IconData, config['color'] as Color))
         .toList();
 
     return AlertDialog(
@@ -1718,55 +1737,53 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Select which exercise types to include in shuffle mode:',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
-              ),
+              const Text('Select which exercise types to include in shuffle mode:', style: TextStyle(fontSize: 14, color: Colors.grey)),
               const SizedBox(height: 16),
               if (visibleModeTiles.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    'Add cards or exercises to unlock game modes.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-                  ),
+                  child: Text('Add cards or exercises to unlock game modes.', style: TextStyle(color: Theme.of(context).colorScheme.secondary)),
                 )
               else
                 ...visibleModeTiles,
+              const Divider(height: 32),
+              SwitchListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                title: const Row(
+                  children: [
+                    Icon(Icons.touch_app, color: Colors.indigo, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('1-Click Answer Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+                subtitle: const Text('One attempt per question across all challenges', style: TextStyle(fontSize: 12)),
+                value: _localOneAnswerMode,
+                onChanged: _updateOneAnswerMode,
+              ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Done'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Done')),
       ],
     );
   }
 
   Widget _buildModeToggle(String title, ShuffleMode mode, IconData icon, Color color) {
     return SwitchListTile(
-      dense: true, // Make the tiles more compact
+      dense: true, 
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       title: Row(
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 14))),
         ],
       ),
       value: _localEnabledModes[mode] ?? true,
       onChanged: (value) => _updateMode(mode, value),
     );
   }
-
 }

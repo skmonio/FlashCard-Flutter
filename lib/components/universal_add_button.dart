@@ -77,19 +77,9 @@ class UniversalAddButton extends StatelessWidget {
             ],
           ),
         ),
-        const PopupMenuItem<String>(
-          value: 'exercise',
-          child: Row(
-            children: [
-              Icon(Icons.quiz, size: 20, color: Colors.orange),
-              SizedBox(width: 12),
-              Text('New Exercise'),
-            ],
-          ),
-        ),
       ],
     ).then((value) {
-      if (value != null && context.mounted) {
+      if (value != null) {
         switch (value) {
           case 'card':
             _navigateToAddCard(context);
@@ -99,9 +89,6 @@ class UniversalAddButton extends StatelessWidget {
             break;
           case 'deck':
             _navigateToAddDeck(context);
-            break;
-          case 'exercise':
-            _navigateToCreateExercise(context);
             break;
         }
       }

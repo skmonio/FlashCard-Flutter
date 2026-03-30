@@ -6,6 +6,7 @@ import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/flashcard_provider.dart';
+import '../components/main_header.dart';
 
 class CreateWordExerciseView extends StatefulWidget {
   final DutchWordExercise? editingExercise;
@@ -67,17 +68,19 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.editingExercise != null ? 'Edit Exercise' : 'Exercise'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.save, color: Theme.of(context).colorScheme.onSurface),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: MainHeader(
+          title: widget.editingExercise != null ? 'Edit Exercise' : 'Exercise',
+          leftAction: IconButton(
+            icon: const Icon(Icons.arrow_back_ios),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          rightAction: IconButton(
+            icon: const Icon(Icons.save),
             onPressed: _saveExercise,
           ),
-        ],
+        ),
       ),
       body: Form(
         key: _formKey,
@@ -451,7 +454,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                   child: Text(_getExerciseTypeName(type)),
                 );
               }).toList(),
-              onChanged: (value) {
+              onChanged: widget.editingExercise != null ? null : (value) {
                 setState(() {
                   _exerciseTypes[index] = value!;
                 });
@@ -550,11 +553,12 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
 
               ],
             ),
-            TextButton.icon(
-              onPressed: () => _addOption(exerciseIndex),
-              icon: const Icon(Icons.add),
-              label: const Text('Add Option'),
-            ),
+            if (widget.editingExercise == null)
+              TextButton.icon(
+                onPressed: () => _addOption(exerciseIndex),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Option'),
+              ),
           ],
         ),
         
@@ -583,12 +587,13 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
                 ),
                 if ((_exerciseTypes[exerciseIndex] == ExerciseType.multipleChoice || 
                      _exerciseTypes[exerciseIndex] == ExerciseType.fillInBlank) 
-                    ? options.length > 6 
+                    ? options.length > 4 
                     : options.length > 2)
-                  IconButton(
-                    icon: const Icon(Icons.remove, color: Colors.red),
-                    onPressed: () => _removeOption(exerciseIndex, optionIndex),
-                  ),
+                  if (widget.editingExercise == null)
+                    IconButton(
+                      icon: const Icon(Icons.remove, color: Colors.red),
+                      onPressed: () => _removeOption(exerciseIndex, optionIndex),
+                    ),
               ],
             ),
           );
@@ -660,6 +665,8 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
   }
 
   Widget _buildAddExerciseButton() {
+    if (widget.editingExercise != null) return const SizedBox.shrink();
+    
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
@@ -695,7 +702,7 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         type: ExerciseType.multipleChoice,
         prompt: '',
-        options: ['', '', '', '', '', ''], // 6 options for multiple choice exercises
+        options: ['', '', '', ''], // 4 options for multiple choice exercises
         correctAnswer: '',
         explanation: '',
         difficulty: ExerciseDifficulty.beginner,
@@ -757,10 +764,10 @@ class _CreateWordExerciseViewState extends State<CreateWordExerciseView> {
     final exerciseType = _exerciseTypes[exerciseIndex];
     final currentLength = _optionControllers[exerciseIndex].length;
     
-    // For multiple choice exercises, enforce minimum of 6 options
+    // For multiple choice exercises, enforce minimum of 4 options
     // For other exercise types, allow minimum of 2 options
     final minOptions = (exerciseType == ExerciseType.multipleChoice || 
-                       exerciseType == ExerciseType.fillInBlank) ? 6 : 2;
+                       exerciseType == ExerciseType.fillInBlank) ? 4 : 2;
     
     if (currentLength > minOptions) {
       setState(() {

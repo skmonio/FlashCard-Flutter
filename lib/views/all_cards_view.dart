@@ -710,7 +710,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                           children: [
                             Icon(hasExercises ? Icons.quiz : Icons.add, size: 16),
                             SizedBox(width: 8),
-                            Text(hasExercises ? 'Edit Exercises' : 'Add Exercises'),
+                            Text(hasExercises ? 'Edit Exercises' : 'Scan for Exercises'),
                           ],
                         );
                       },
@@ -951,7 +951,13 @@ class _AllCardsViewState extends State<AllCardsView> {
           _editCard(card);
           break;
         case 'edit_exercises':
-          _editExercises(card);
+          final dutchProvider = context.read<DutchWordExerciseProvider>();
+          final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+          if (existingExercise == null || existingExercise.exercises.isEmpty) {
+            _scanCardForExercises(card);
+          } else {
+            _editExercises(card);
+          }
           break;
         case 'delete':
           _showDeleteCardConfirmation(card, provider);
@@ -1438,6 +1444,182 @@ class _AllCardsViewState extends State<AllCardsView> {
         ),
       ),
     );
+  }
+
+  void _scanCardForExercises(FlashCard card) async {
+    final availableExercises = <String>[];
+    if (card.word.isNotEmpty && card.definition.isNotEmpty) {
+      availableExercises.add('Basic Multiple Choice');
+    }
+    if (card.article.isNotEmpty) {
+      availableExercises.add('De/Het Article Exercise');
+    }
+    if (card.plural.isNotEmpty) {
+      availableExercises.add('Plural Form Exercise');
+    }
+    if (card.example.isNotEmpty && card.exampleTranslation.isNotEmpty) {
+      availableExercises.add('Sentence Building Exercise');
+    }
+
+    if (availableExercises.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not enough data on this card to add exercises.')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Creating exercises...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final List<WordExercise> exercisesToCreate = [];
+      final provider = context.read<FlashcardProvider>();
+
+      for (final exerciseType in availableExercises) {
+        switch (exerciseType) {
+          case 'Basic Multiple Choice':
+            final allCards = provider.cards;
+            final otherCards = allCards.where((c) => c.id != card.id && c.definition.isNotEmpty).toList();
+            otherCards.shuffle();
+            final wrongOptions = <String>[];
+            for (int i = 0; i < 3 && i < otherCards.length; i++) {
+              if (!wrongOptions.contains(otherCards[i].definition)) {
+                wrongOptions.add(otherCards[i].definition);
+              }
+            }
+            while (wrongOptions.length < 3) {
+              for (final option in ['Not applicable', 'Different meaning', 'Other definition']) {
+                if (!wrongOptions.contains(option) && wrongOptions.length < 3) wrongOptions.add(option);
+              }
+            }
+            // Add correct answer at index 0 explicitly
+            final options = <String>[card.definition];
+            for (int i = 0; i < 5 && i < wrongOptions.length; i++) {
+              options.add(wrongOptions[i]);
+            }
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_basic_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'Translate "${card.word}" to English',
+              correctAnswer: '0',
+              options: options,
+              explanation: 'The Dutch word "${card.word}" means "${card.definition}" in English.',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'De/Het Article Exercise':
+            final correctAnswer = card.article;
+            final wrongAnswer = correctAnswer == 'de' ? 'het' : 'de';
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_article_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'Is it De or Het "${card.word}"?',
+              options: [correctAnswer, wrongAnswer],
+              correctAnswer: '0',
+              explanation: 'The correct article for "${card.word}" is "$correctAnswer".',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'Plural Form Exercise':
+            final correctPlural = card.plural;
+            final possibleWrong = ['${card.word}s', '${card.word}en', '${card.word}eren']
+                .where((opt) => opt != correctPlural).toList();
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_plural_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.multipleChoice,
+              prompt: 'What is the plural form of "${card.word}"?',
+              options: [correctPlural, ...possibleWrong],
+              correctAnswer: '0',
+              explanation: 'The plural form of "${card.word}" is "$correctPlural".',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+            
+          case 'Sentence Building Exercise':
+            final cleanedSentence = card.example.replaceAll(RegExp(r'[^\w\s]'), '').toLowerCase();
+            final dutchWords = cleanedSentence.split(' ').where((w) => w.isNotEmpty).toList();
+            final shuffledWords = List<String>.from(dutchWords)..shuffle();
+            exercisesToCreate.add(WordExercise(
+              id: '${card.id}_sentencebuilder_${DateTime.now().millisecondsSinceEpoch}',
+              type: ExerciseType.sentenceBuilding,
+              prompt: 'Build the correct Dutch sentence: ${card.exampleTranslation}',
+              options: shuffledWords,
+              correctAnswer: cleanedSentence,
+              explanation: '${card.example}',
+              difficulty: ExerciseDifficulty.beginner,
+            ));
+            break;
+        }
+      }
+
+      if (exercisesToCreate.isNotEmpty) {
+        final dutchProvider = context.read<DutchWordExerciseProvider>();
+        final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
+        
+        if (existingExercise != null) {
+          final updatedExercise = DutchWordExercise(
+            id: existingExercise.id,
+            targetWord: existingExercise.targetWord,
+            wordTranslation: existingExercise.wordTranslation,
+            deckId: existingExercise.deckId,
+            deckName: existingExercise.deckName,
+            category: existingExercise.category,
+            difficulty: existingExercise.difficulty,
+            exercises: [...existingExercise.exercises, ...exercisesToCreate],
+            createdAt: existingExercise.createdAt,
+            isUserCreated: existingExercise.isUserCreated,
+            learningProgress: existingExercise.learningProgress,
+          );
+          await dutchProvider.updateWordExercise(updatedExercise);
+        } else {
+          final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
+          final deckName = provider.getDeck(deckId)?.name ?? 'Default';
+          final newWordExercise = DutchWordExercise(
+            id: card.id,
+            targetWord: card.word,
+            wordTranslation: card.definition,
+            deckId: deckId,
+            deckName: deckName,
+            category: WordCategory.common,
+            difficulty: ExerciseDifficulty.beginner,
+            exercises: exercisesToCreate,
+            createdAt: DateTime.now(),
+            isUserCreated: true,
+            learningProgress: LearningProgress(),
+          );
+          await dutchProvider.addWordExercise(newWordExercise);
+        }
+      }
+      
+      if (mounted) {
+        Navigator.of(context).pop(); // dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Created ${exercisesToCreate.length} exercises!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating exercises')),
+        );
+      }
+    }
   }
 
   void _showBulkActionsMenu() {

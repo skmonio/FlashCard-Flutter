@@ -92,6 +92,7 @@ class _HomeViewState extends State<HomeView> {
           () => _navigateToMemoryGame(context),
           'Play a memory matching game. Find pairs of Dutch words and their English translations by remembering their positions.',
         ),
+        const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
           'Jumble your cards',
           Icons.abc,

@@ -27,6 +27,7 @@ class WritingView extends StatefulWidget {
   final bool autoProgress;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
   final bool enableHints;
+  final bool oneAnswerMode;
 
   const WritingView({
     super.key,
@@ -42,6 +43,7 @@ class WritingView extends StatefulWidget {
     this.autoProgress = false,
     this.shuffleQuestionOffset,
     this.enableHints = true,
+    this.oneAnswerMode = true,
   });
 
   @override
@@ -558,6 +560,14 @@ class _WritingViewState extends State<WritingView> {
           if (mounted && widget.onComplete != null) {
             widget.onComplete!(false);
           }
+          return;
+        }
+        
+        // In standalone mode, if oneAnswerMode is enabled, any wrong letter ends the question
+        if (widget.oneAnswerMode) {
+          // Force wrong attempts to 5 for XP penalty consistency
+          _wrongAttemptsPerWord[cardId] = 5;
+          _finalizeIncorrectAnswer();
           return;
         }
         
@@ -1364,6 +1374,13 @@ class _WritingViewState extends State<WritingView> {
       return;
     }
     
+    // Hint Penalty: usage also affects the overall session accuracy
+    final hintCount = _hintCount[_currentIndex] ?? 0;
+    if (hintCount > 0) {
+      // simulate extra "attempts" so the final session summary % is lowered
+      _totalAnswered += (hintCount * 0.5).ceil().toInt();
+    }
+
     // Store the word mastery for display (for both correct and incorrect)
     _wordMastery[card.id] = card.learningMastery;
     

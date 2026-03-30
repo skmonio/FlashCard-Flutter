@@ -1006,7 +1006,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
   }
 
   Widget _buildProgressBar() {
-    final progress = _currentIndex / _currentCards.length;
+    final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
     final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
     // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
@@ -1575,6 +1575,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> {
         finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
       }
       
+      // Hint Penalty: usage also affects the overall session accuracy
+      if (hintCount > 0) {
+        // Increment attempts to lower overall accuracy %
+        _totalAttempts += (hintCount * 0.5).ceil();
+      }
+
       if (latestEntry != null) {
         card.learningMastery.currentXP += finalXPGained - actualXPGained;
         latestEntry['xpGained'] = finalXPGained;

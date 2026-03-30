@@ -630,17 +630,6 @@ class _DutchWordsViewState extends State<DutchWordsView> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => _navigateToCreateExercise(),
-            icon: const Icon(Icons.add),
-            label: const Text('Create Your First Exercise'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-          ),
         ],
       ),
     );

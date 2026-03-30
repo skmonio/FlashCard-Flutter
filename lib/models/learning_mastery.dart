@@ -310,6 +310,8 @@ class LearningMastery {
   /// NEW: Process answer using SuperMemo SM-2 algorithm
   /// This replaces the old markCorrect/markIncorrect methods
   void processAnswer(GameDifficulty difficulty, AnswerQuality quality) {
+    // Only increment attempts if it's not a 'creation' entry
+    // Each attempt in processAnswer effectively represents a study session for that card
     _incrementAttempts(difficulty);
     
     // Update legacy fields for backward compatibility
@@ -468,15 +470,16 @@ class LearningMastery {
   int getXPForGame(String exerciseType) {
     _resetDailyAttemptsIfNeeded();
     
-    final attempts = dailyGameAttempts[exerciseType] ?? 0;
+    // Sum up all attempts for this word today across all exercise types
+    final totalAttemptsToday = dailyGameAttempts.values.fold(0, (sum, val) => sum + val);
     
     // First attempt: 5 XP, then -1 each time
-    final baseXP = 5 - attempts;
+    final baseXP = 5 - totalAttemptsToday;
     
     // Minimum 0 XP
     final finalXP = baseXP.clamp(0, 5);
     
-    print('🔍 LearningMastery: getXPForGame - exerciseType: $exerciseType, attempts: $attempts, baseXP: $baseXP, finalXP: $finalXP');
+    print('🔍 LearningMastery: getXPForGame - exerciseType: $exerciseType, totalToday: $totalAttemptsToday, finalXP: $finalXP');
     
     return finalXP;
   }
@@ -542,13 +545,14 @@ class LearningMastery {
         .fold(0, (sum, entry) => sum + (entry['xpGained'] as int));
   }
   
-  /// Get the number of times this word was studied today
-  /// This counts all study attempts per day, reducing HP for each attempt
+  /// Get the number of times this word was studied today (as distinct sessions)
+  /// We define a "session" as any number of exercises completed within the same hour.
+  /// This ensures multiple exercises for one word in one study block only lose 1 HP.
   int get timesStudiedToday {
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
     
-    // Count all exercise history entries for today, excluding 'creation' entries
+    // Get all exercise history entries for today, excluding 'creation'
     final todayEntries = exerciseHistory
         .where((entry) {
           final timestamp = DateTime.parse(entry['timestamp']);
@@ -557,9 +561,18 @@ class LearningMastery {
         })
         .toList();
     
-    // Return the actual count of study attempts today
-    // Each attempt reduces HP by 1, encouraging variety in study
-    return todayEntries.length;
+    if (todayEntries.isEmpty) return 0;
+    
+    // Group entries by hour-level timestamp to count distinct "sessions"
+    final Set<String> sessions = {};
+    for (final entry in todayEntries) {
+      final timestamp = DateTime.parse(entry['timestamp']);
+      // Unique key for year-month-day-hour
+      final sessionKey = '${timestamp.year}-${timestamp.month}-${timestamp.day}-${timestamp.hour}';
+      sessions.add(sessionKey);
+    }
+    
+    return sessions.length;
   }
   
   /// Get the timestamp of the most recent exercise (when card was last used)
