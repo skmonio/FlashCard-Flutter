@@ -65,7 +65,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   // Deck selection
   Set<String> _selectedDeckIds = {}; // Empty means "Any" (all decks)
   bool _useAllCardsForAnswers = false;
-  bool _oneAnswerMode = true;
+  bool _oneAnswerMode = false;
   bool _enableHints = true;
 
   @override
@@ -367,7 +367,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode != GameMode.write && 
            widget.gameMode != GameMode.popYourCard &&
            widget.gameMode != GameMode.connectCards &&
-           widget.gameMode != GameMode.wordScramble;
+           widget.gameMode != GameMode.wordScramble &&
+           widget.gameMode != GameMode.pickYourCard;
   }
 
   Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {

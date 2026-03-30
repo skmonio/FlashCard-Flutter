@@ -10,6 +10,7 @@ import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../components/main_header.dart';
+import '../services/haptic_service.dart';
 import 'add_card_view.dart';
 
 class PickYourCardView extends StatefulWidget {
@@ -595,23 +596,25 @@ class _PickYourCardViewState extends State<PickYourCardView>
     });
   }
 
-  Widget _buildWheelWithLock(int wheelIndex, GlobalKey<_DialWheelState> wheelKey, List<String> items) {
+  Widget _buildWheelWithLock(int wheelIndex, GlobalKey<_DialWheelState> wheelKey, List<String> items, bool isCorrect) {
     final hintedWheels = _hintedWheels[currentCardIndex] ?? <int>{};
     final isLocked = hintedWheels.contains(wheelIndex);
     
-    print('🔍 PickYourCardView: Building wheel ${wheelIndex + 1} - isLocked: $isLocked, hintedWheels: $hintedWheels');
-    print('🔍 PickYourCardView: Building wheel ${wheelIndex + 1} with items: $items');
-    print('🔍 PickYourCardView: Current selections - Part1: "$selectedPart1", Part2: "$selectedPart2", Part3: "$selectedPart3"');
-    
+    // Determine the border color based on result
+    Color? resultColor;
+    if (_showResult) {
+      resultColor = isCorrect ? Colors.green : Colors.red;
+    }
+
     return DialWheel(
       key: wheelKey,
       items: items,
       onChanged: (value) {
-        print('🔍 PickYourCardView: Wheel${wheelIndex + 1} changed to: $value');
         _onWheelChanged(wheelIndex, value);
       },
       enabled: (!_showResult || !widget.autoProgress) && !isLocked,
       showHintOutline: isLocked,
+      resultColor: resultColor,
     );
   }
 
@@ -1179,7 +1182,19 @@ class _PickYourCardViewState extends State<PickYourCardView>
             // Progress bar
             _buildProgressBar(),
             
-            
+            // English word to translate - Always under progress bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Text(
+                "Translate '${currentCard.definition}'",
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueGrey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
             // Main content
             Expanded(
               child: _buildMainContent(currentCard),
@@ -1458,71 +1473,80 @@ class _PickYourCardViewState extends State<PickYourCardView>
   }
 
   Widget _buildMainContent(FlashCard currentCard) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final wheelWidth = (screenWidth - 80) / (hasThirdWheel ? 3 : 2);
+    final clampedWheelWidth = wheelWidth.clamp(80.0, 120.0);
+    
+    final correctAnswer = currentCard.word.toLowerCase();
+    final correctParts = _correctParts[currentCardIndex] ?? [];
+    
+    bool isPart1Correct = selectedPart1.toLowerCase() == (correctParts.isNotEmpty ? correctParts[0].toLowerCase() : "");
+    bool isPart2Correct = selectedPart2.toLowerCase() == (correctParts.length > 1 ? correctParts[1].toLowerCase() : "");
+    bool isPart3Correct = selectedPart3.toLowerCase() == (correctParts.length > 2 ? correctParts[2].toLowerCase() : "");
+
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+          const SizedBox(height: 40),
           
-          // English word to translate (simple text, no bubble)
-          Text(
-            "Translate '${currentCard.definition}'",
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueGrey,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          const SizedBox(height: 10),
           
           const SizedBox(height: 40),
           
-          // Wheels
+          // Wheels Centered
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildWheelWithLock(0, wheel1Key, wheel1Items),
-              const SizedBox(width: 20),
-              _buildWheelWithLock(1, wheel2Key, wheel2Items),
+              SizedBox(
+                width: clampedWheelWidth,
+                child: _buildWheelWithLock(0, wheel1Key, wheel1Items, isPart1Correct),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: clampedWheelWidth,
+                child: _buildWheelWithLock(1, wheel2Key, wheel2Items, isPart2Correct),
+              ),
               if (hasThirdWheel) ...[
-                const SizedBox(width: 20),
-                _buildWheelWithLock(2, wheel3Key, wheel3Items),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: clampedWheelWidth,
+                  child: _buildWheelWithLock(2, wheel3Key, wheel3Items, isPart3Correct),
+                ),
               ],
             ],
           ),
           
           const SizedBox(height: 40),
           
-          const SizedBox(height: 20),
-          
-          // Current selection display with individual pieces
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueGrey.shade300),
+          // Current selection display
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blueGrey.shade300),
+              ),
+              child: _buildAnswerPieces(),
             ),
-            child: _buildAnswerPieces(),
           ),
           
-          const SizedBox(height: 30),
+          const SizedBox(height: 40),
           
-          // Hint button and Check Answer button row (only show if not showing result)
+          // Controls Centered
           if (!_showResult || (!_isLastAnswerCorrect && !_showAnswer))
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Column(
               children: [
-                // Hint button
-                if (widget.enableHints) _buildHintIcon(),
-                
-                // Check Answer button
+                // Check Answer button (Centered)
                 ElevatedButton(
                   onPressed: _checkAnswer,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueGrey.shade700,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -1532,32 +1556,46 @@ class _PickYourCardViewState extends State<PickYourCardView>
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
+
+                // Hint button below (Centered)
+                if (widget.enableHints) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: _buildHintIcon(),
+                  ),
+                ],
               ],
             ),
           
-          // Result display (if showing result) - simple red text
+          // Result display
           if (_showResult) ...[
-            const SizedBox(height: 20),
-            Text(
-              _isLastAnswerCorrect 
-                ? "Correct!"
-                : (_showAnswer 
-                    ? "Correct answer is: $_lastCorrectAnswer" 
-                    : "Incorrect, try again (${_wrongAttempts[currentCardIndex] ?? 0}/5 attempts)"),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _isLastAnswerCorrect ? Colors.green : Colors.red,
+            const SizedBox(height: 24),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  _isLastAnswerCorrect 
+                    ? "Correct!"
+                    : (_showAnswer 
+                        ? "Correct answer is: $_lastCorrectAnswer" 
+                        : "Incorrect, try again (${_wrongAttempts[currentCardIndex] ?? 0}/5 attempts)"),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _isLastAnswerCorrect ? Colors.green : Colors.red,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
           
-          const SizedBox(height: 20),
+          const SizedBox(height: 40),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _showCloseConfirmation() {
     showDialog(
@@ -1589,8 +1627,9 @@ class DialWheel extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final bool enabled;
   final bool showHintOutline;
+  final Color? resultColor;
 
-  const DialWheel({super.key, required this.items, required this.onChanged, this.enabled = true, this.showHintOutline = false});
+  const DialWheel({super.key, required this.items, required this.onChanged, this.enabled = true, this.showHintOutline = false, this.resultColor});
 
   @override
   State<DialWheel> createState() => _DialWheelState();
@@ -1632,7 +1671,10 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
     return widget.items[index];
   }
 
-  void _reportSelection() => widget.onChanged(_getSelectedItem());
+  void _reportSelection() {
+    HapticService().selectionFeedback();
+    widget.onChanged(_getSelectedItem());
+  }
 
   void setSelection(String value) {
     final index = widget.items.indexOf(value);
@@ -1723,17 +1765,19 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
       onVerticalDragUpdate: _onDragUpdate,
       onVerticalDragEnd: _onDragEnd,
       child: Container(
-        width: 100,
         height: 180,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.blueGrey.shade400, width: 3),
-          boxShadow: const [
+          border: Border.all(
+            color: widget.resultColor ?? Colors.blueGrey.shade400, 
+            width: widget.resultColor != null ? 4 : 3
+          ),
+          boxShadow: [
             BoxShadow(
-              color: Colors.black26,
+              color: (widget.resultColor ?? Colors.black26).withValues(alpha: 0.2),
               blurRadius: 8,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -1771,23 +1815,27 @@ class _DialWheelState extends State<DialWheel> with SingleTickerProviderStateMix
                       color: isCenter ? (widget.showHintOutline ? Colors.orange.withValues(alpha: 0.2) : Colors.lightBlue.shade50) : Colors.transparent,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade600) : Colors.grey.shade400,
-                        width: isCenter ? (widget.showHintOutline ? 3 : 2.5) : 1.5,
-                      ),
-                    ),
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        item,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                          fontSize: isCenter ? 26 : 20,
-                          fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
-                          color: isCenter ? (widget.showHintOutline ? Colors.orange : Colors.blue.shade900) : Colors.black87,
+                          color: isCenter 
+                            ? (widget.resultColor ?? (widget.showHintOutline ? Colors.orange : Colors.blue.shade600)) 
+                            : Colors.grey.shade400,
+                          width: isCenter ? (widget.showHintOutline || widget.resultColor != null ? 3 : 2.5) : 1.5,
                         ),
                       ),
-                    ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          item,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                            fontSize: isCenter ? 26 : 20,
+                            fontWeight: isCenter ? FontWeight.bold : FontWeight.normal,
+                            color: isCenter 
+                              ? (widget.resultColor ?? (widget.showHintOutline ? Colors.orange : Colors.blue.shade900)) 
+                              : Colors.black87,
+                          ),
+                        ),
+                      ),
                   ),
                 ),
               ),

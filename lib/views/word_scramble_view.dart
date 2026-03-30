@@ -456,6 +456,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
           _applyHpPenalty(currentCard, wasCorrect: false);
           _awardXPToWord(currentCard, false, newWrongAttempts);
           _updateCardInProvider(currentCard);
+          
+          // In shuffle mode, complete with failure
+          if (widget.shuffleMode && mounted && widget.onComplete != null) {
+            widget.onComplete!(false);
+            return;
+          }
+          
           _showGameOverScreen();
           return;
         }
@@ -488,6 +495,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         });
         
         HapticService().errorFeedback();
+        
+        // In shuffle mode, complete with failure after the attempts are used up
+        if (widget.shuffleMode && mounted && widget.onComplete != null) {
+          widget.onComplete!(false);
+        }
         
         return;
       }

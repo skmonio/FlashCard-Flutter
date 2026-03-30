@@ -196,7 +196,7 @@ class ConnectCardsView extends StatefulWidget {
     this.useTimedMode = false,
     this.timePerQuestion,
     this.enableHints = true,
-    this.oneAnswerMode = true,
+    this.oneAnswerMode = false,
   });
 
   @override
@@ -882,9 +882,14 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         
         // Increment wrong attempts counter
         // If oneAnswerMode is enabled, set to 5 immediately to trigger solution reveal
-        int increment = widget.oneAnswerMode ? 5 : 1;
-        _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + increment;
-        int wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
+        int wrongAttempts;
+        if (widget.oneAnswerMode) {
+          _wrongAttemptsPerWord[currentWordId] = 5;
+          wrongAttempts = 5;
+        } else {
+          _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
+          wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
+        }
         
         // Track initial HP BEFORE processing (so we capture HP before it's reduced)
         final currentCard = _availableCards[_currentCardIndex];
@@ -1700,6 +1705,28 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                     ),
                   ),
                 ),
+
+                // Attempts remaining text (only if not answered and multiple attempts allowed)
+                if (!_showFeedback && !widget.oneAnswerMode)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Builder(
+                      builder: (context) {
+                        final wrongAttempts = _wrongAttemptsPerWord[currentCard.id] ?? 0;
+                        return Text(
+                          wrongAttempts == 0 
+                              ? '5 attempts allowed'
+                              : 'Incorrect, try again ($wrongAttempts/5 attempts)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: wrongAttempts == 0 ? Colors.grey : Colors.red,
+                          ),
+                          textAlign: TextAlign.center,
+                        );
+                      },
+                    ),
+                  ),
 
                 // Spacing for Feedback
                 SizedBox(

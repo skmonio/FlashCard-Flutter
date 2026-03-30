@@ -13,6 +13,7 @@ import '../models/dutch_word_exercise.dart';
 import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../components/main_header.dart';
+import 'add_card_view.dart';
 
 class WritingView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -43,7 +44,7 @@ class WritingView extends StatefulWidget {
     this.autoProgress = false,
     this.shuffleQuestionOffset,
     this.enableHints = true,
-    this.oneAnswerMode = true,
+    this.oneAnswerMode = false,
   });
 
   @override
@@ -554,26 +555,28 @@ class _WritingViewState extends State<WritingView> {
         final updatedAttempts = (_wrongAttemptsPerWord[cardId] ?? 0) + 1;
         _wrongAttemptsPerWord[cardId] = updatedAttempts;
         
-        // In shuffle mode, any wrong letter ends the challenge immediately
-        if (widget.shuffleMode) {
-          _finalizeIncorrectAnswer(revealAnswer: false, allowAutoProgress: false);
-          if (mounted && widget.onComplete != null) {
-            widget.onComplete!(false);
-          }
-          return;
-        }
-        
         // In standalone mode, if oneAnswerMode is enabled, any wrong letter ends the question
         if (widget.oneAnswerMode) {
           // Force wrong attempts to 5 for XP penalty consistency
           _wrongAttemptsPerWord[cardId] = 5;
           _finalizeIncorrectAnswer();
+          
+          // In shuffle mode, complete immediately on failure if oneAnswerMode is ON
+          if (widget.shuffleMode && mounted && widget.onComplete != null) {
+            widget.onComplete!(false);
+          }
           return;
         }
-        
+
+        // Multiple attempts mode (1-click answer OFF)
         if (updatedAttempts >= 5) {
           _maxMistakeRevealQuestions.add(_currentIndex);
           _finalizeIncorrectAnswer();
+          
+          // In shuffle mode, only complete after the 5th wrong attempt
+          if (widget.shuffleMode && mounted && widget.onComplete != null) {
+            widget.onComplete!(false);
+          }
           return;
         }
         
@@ -581,6 +584,13 @@ class _WritingViewState extends State<WritingView> {
         if (_useLivesMode && _lives <= 0) {
           _finalizeIncorrectAnswer(allowAutoProgress: false);
           print('🔍 WritingView: Game over! No lives remaining');
+          
+          // In shuffle mode, complete immediately on life depletion
+          if (widget.shuffleMode && mounted && widget.onComplete != null) {
+            widget.onComplete!(false);
+            return;
+          }
+          
           _showGameOverScreen();
           return;
         }
@@ -862,69 +872,68 @@ class _WritingViewState extends State<WritingView> {
                   const SizedBox(height: 16),
                   
                   // Navigation buttons (always visible, greyed out when not available)
-                  Row(
-                    children: [
-                      // Back button
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: (_answered && _currentIndex > 0) ? _goToPreviousQuestion : null,
-                          icon: const Icon(Icons.arrow_back_ios, size: 16),
-                          label: const Text('Back'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: (_answered && _currentIndex > 0) ? Colors.blue : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Next/Finish button
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _answered ? (_currentIndex == _currentCards.length - 1 ? _finishGame : _goToNextQuestion) : null,
-                          icon: const Icon(Icons.arrow_forward, size: 16),
-                          label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _answered ? Colors.green : Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
                   const SizedBox(height: 16),
                   
-                  // Display word with underscores
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                      ),
+                // Display word with interactive letter trays
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                     ),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Center(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: _displayWord.split('').map((char) {
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            width: 25,
-                            height: 35,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Center(
-                              child: Text(
-                                char,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                        children: _displayWord.split('').asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final char = entry.value;
+                          final isFilled = char != '_' && char != ' ';
+                          final isCorrect = _correctAnswer.isNotEmpty && idx < _correctAnswer.length && 
+                                          char.toLowerCase() == _correctAnswer[idx].toLowerCase();
+
+                          return AnimatedScale(
+                            scale: isFilled ? 1.05 : 1.0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: 30,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isFilled 
+                                    ? (isCorrect ? Colors.green.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1))
+                                    : Theme.of(context).colorScheme.surface,
+                                border: Border.all(
+                                  color: isFilled 
+                                      ? (isCorrect ? Colors.green : Colors.red)
+                                      : Colors.grey.shade400,
+                                  width: isFilled ? 2 : 1,
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: isFilled ? [
+                                  BoxShadow(
+                                    color: (isCorrect ? Colors.green : Colors.red).withValues(alpha: 0.2),
+                                    blurRadius: 4,
+                                    spreadRadius: 1,
+                                  )
+                                ] : [],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  char,
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: isFilled 
+                                        ? (isCorrect ? Colors.green.shade700 : Colors.red.shade700)
+                                        : Theme.of(context).colorScheme.onSurface,
+                                  ),
                                 ),
                               ),
                             ),
@@ -933,68 +942,185 @@ class _WritingViewState extends State<WritingView> {
                       ),
                     ),
                   ),
+                ),
                   
                 if (_answered && (_correctAnswersMap[_currentIndex] ?? false)) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'The answer is: ${_correctAnswer.toUpperCase()}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'Correct! The answer is: ${_correctAnswer.toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                ] else if (_maxMistakeRevealQuestions.contains(_currentIndex)) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'The answer is: ${_correctAnswer.toUpperCase()}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.error,
+                ] else if (_maxMistakeRevealQuestions.contains(_currentIndex) || (_answered && !(_correctAnswersMap[_currentIndex] ?? false))) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(
+                      'The answer is: ${_correctAnswer.toUpperCase()}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ] else if (!_answered) ...[
-                  // Show attempts remaining when incorrect (before 5 attempts)
+                  // Show attempts remaining UI
                   Builder(
                     builder: (context) {
                       final cardId = _currentCards[_currentIndex].id;
                       final wrongAttempts = _wrongAttemptsPerWord[cardId] ?? 0;
-                      if (wrongAttempts > 0 && wrongAttempts < 5) {
+                      
+                      // In Single Attempt mode, we only show it after the first mistake (which fails it)
+                      // In Multiple Attempt mode, we show the countdown
+                      if (widget.oneAnswerMode) {
+                        return const SizedBox.shrink();
+                      } else {
                         return Column(
                           children: [
                             const SizedBox(height: 12),
-                            Text(
-                              'Incorrect, try again ($wrongAttempts/5 attempts)',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red,
+                            Center(
+                              child: Text(
+                                wrongAttempts == 0 
+                                    ? 'Enter letters (5 attempts allowed)'
+                                    : 'Incorrect, try again ($wrongAttempts/5 attempts)',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: wrongAttempts == 0 ? Colors.grey : Colors.red,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                              textAlign: TextAlign.center,
                             ),
                           ],
                         );
                       }
-                      return const SizedBox.shrink();
                     },
                   ),
                 ],
                 
                   const SizedBox(height: 20),
                   
-                  // Add some bottom padding to ensure content doesn't get hidden behind keyboard
-                  const SizedBox(height: 40),
+                  // Letter keyboard placed HERE (above footer) when not answered
+                  if (!_answered) _buildCustomKeyboard(),
+                  
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ),
-          
-          // Custom keyboard (fixed at bottom) - only show when not answered
-          if (!_answered) _buildCustomKeyboard(),
         ],
+      ),
+      bottomNavigationBar: _buildUnifiedFooter(),
+    );
+  }
+
+  double _getAdaptiveCardHeight(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    if (screenHeight < 700) return 140;
+    if (screenHeight < 850) return 180;
+    return 220;
+  }
+
+  double _getAdaptiveFontSize(BuildContext context) {
+    double screenWidth = MediaQuery.of(context).size.width;
+    if (screenWidth < 360) return 24;
+    if (screenWidth < 400) return 28;
+    return 32;
+  }
+
+  void _editCurrentCard() {
+    final currentCard = _currentCards[_currentIndex];
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddCardView(
+          cardToEdit: currentCard,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnifiedFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: (_answered && _currentIndex > 0) ? _goToPreviousQuestion : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (_answered && _currentIndex > 0) ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: (_answered && _currentIndex > 0) ? Colors.black87 : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: (_answered && _currentIndex > 0) ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: () => _editCurrentCard(),
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _answered ? (_currentIndex == _currentCards.length - 1 ? _finishGame : _goToNextQuestion) : null,
+                icon: const Icon(Icons.arrow_forward, size: 16),
+                label: Text(_currentIndex == _currentCards.length - 1 ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _answered ? Colors.green : Colors.grey.withValues(alpha: 0.1),
+                  foregroundColor: _answered ? Colors.white : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: _answered ? Colors.transparent : Colors.grey[300]!),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1053,32 +1179,17 @@ class _WritingViewState extends State<WritingView> {
       body: Column(
           children: [
             // Small header - matching study view
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios),
-                      iconSize: 20,
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Writing Complete',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      icon: const Icon(Icons.home),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
+            MainHeader(
+              title: 'Writing Complete',
+              leftAction: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back_ios),
+                iconSize: 20,
+              ),
+              rightAction: IconButton(
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                icon: const Icon(Icons.home),
+                iconSize: 20,
               ),
             ),
             
@@ -1349,7 +1460,7 @@ class _WritingViewState extends State<WritingView> {
       // Apply -1 XP for each incorrect letter attempt (up to the available XP)
       final wrongAttempts = _wrongAttemptsPerWord[card.id] ?? 0;
       if (wrongAttempts > 0) {
-        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, finalXPGained);
+        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, finalXPGained).toInt();
       }
       
       if (card.learningMastery.exerciseHistory.isNotEmpty) {
@@ -1536,22 +1647,15 @@ class _WritingViewState extends State<WritingView> {
   
   Widget _buildCustomKeyboard() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), // Added bottom padding for gap
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
