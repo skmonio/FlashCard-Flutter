@@ -2066,6 +2066,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         title = 'Sentence Builder';
         content = 'Build full sentences by putting words in the correct order. Practice using Dutch words in context with their example sentences.';
         break;
+      case GameMode.deHet:
+        title = 'De of Het';
+        content = 'Practice Dutch articles! See a word and decide if it takes "de" or "het".';
+        break;
     }
 
     showDialog(
@@ -2756,6 +2760,46 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 startFlipped: widget.startFlipped,
                 oneAnswerMode: widget.oneAnswerMode,
                 enableHints: true,
+                useTimedMode: widget.useTimedMode,
+                timedDifficulty: widget.timedDifficulty,
+              ),
+            ),
+          );
+        break;
+      case GameMode.deHet:
+          final cardsWithArticles = filteredCards.where((c) => c.article == 'de' || c.article == 'het').toList();
+          
+          if (cardsWithArticles.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No cards with articles available in selected decks.')),
+            );
+            return;
+          }
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => DeHetView(
+                cards: cardsWithArticles,
+                title: 'De of Het',
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.useLivesMode ? widget.customLives : null,
+                useTimedMode: widget.useTimedMode,
+                timedDifficulty: widget.timedDifficulty,
+                studyConfig: StudyConfig(
+                  deckIds: _selectedDeckIds.toList(),
+                  deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
+                  cardCount: cardsWithArticles.length,
+                  useSRSFiltering: widget.useSRSFiltering,
+                  startFlipped: widget.startFlipped,
+                  autoProgress: widget.autoProgress,
+                  useLivesMode: widget.useLivesMode,
+                  customLives: widget.customLives,
+                  useTimedMode: widget.useTimedMode,
+                  timedDifficulty: widget.timedDifficulty,
+                  timePerQuestion: _getTimePerQuestion(),
+                  useAllCardsForAnswers: widget.useAllCardsForAnswers,
+                  oneAnswerMode: false,
+                ),
               ),
             ),
           );

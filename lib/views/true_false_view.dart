@@ -19,6 +19,7 @@ import '../utils/game_end_screen.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../components/main_header.dart';
 import 'add_card_view.dart';
+import '../models/timed_difficulty.dart';
 
 class TrueFalseView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -34,6 +35,8 @@ class TrueFalseView extends StatefulWidget {
   final List<FlashCard>? answerPoolCards;
   final bool oneAnswerMode;
   final bool enableHints;
+  final bool useTimedMode;
+  final TimedDifficulty? timedDifficulty;
 
   const TrueFalseView({
     super.key,
@@ -50,6 +53,8 @@ class TrueFalseView extends StatefulWidget {
     this.answerPoolCards,
     this.oneAnswerMode = true,
     this.enableHints = true,
+    this.useTimedMode = false,
+    this.timedDifficulty,
   });
 
   @override
@@ -98,6 +103,13 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   List<FlashCard> _studiedWords = [];
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
+  // Timer system
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  bool _useTimedMode = false;
+  
   // Animation controllers for feedback
   late AnimationController _shakeController;
   late AnimationController _successController;
@@ -120,6 +132,12 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     if (_useLivesMode) {
       _maxLives = widget.customLives ?? _getDefaultLives();
       _lives = _maxLives;
+    }
+
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode) {
+      _timeRemaining = GameDifficultyHelper.getTimeForDifficulty(widget.timedDifficulty);
+      _totalTime = _timeRemaining;
     }
 
     // Initialize animation controllers
@@ -155,8 +173,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     final provider = context.read<FlashcardProvider>();
     provider.removeListener(_onProviderChanged);
     
-    // Cancel auto progress timer
+    // Cancel timers
     _autoProgressTimer?.cancel();
+    _timer?.cancel();
     
     // Dispose animation controllers
     _shakeController.dispose();
@@ -230,6 +249,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       // Award XP for the session if not in shuffle mode
       _awardXp();
       
+      // Stop timer on completion
+      _timer?.cancel();
+
       // Call the onComplete callback if provided
       if (widget.onComplete != null) {
         widget.onComplete!(wasSuccessful);
@@ -242,6 +264,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       // Play completion sound when test is finished
       SoundManager().playCompleteSound();
       return;
+    }
+
+    if (_useTimedMode) {
+      _startTimer();
     }
 
     // Check if this question has already been answered
@@ -354,6 +380,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     print('🔍 TrueFalseView: Question: "$_question"');
     print('🔍 TrueFalseView: Correct answer: $_correctAnswer');
     print('🔍 TrueFalseView: Question mode: ${_isQuestionMode ? "word to definition" : "definition to word"}');
+    
+    if (_useTimedMode) {
+      _startTimer();
+    }
     
     setState(() {
       _answered = false;
@@ -566,6 +596,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     
     final isCorrect = (answer == _correctAnswer);
     final currentCard = _currentCards[_currentIndex];
+    
+    // Stop the timer when an answer is selected
+    _timer?.cancel();
     
     // Provide haptic feedback and animations based on answer correctness
     if (isCorrect) {
@@ -940,15 +973,21 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                 ),
               ),
               
-              // Middle side: Lives and/or streak
-              if (widget.useLivesMode || _consecutiveCorrect >= 3)
+              // Middle side: Lives and/or streak and/or timer
+              if (widget.useLivesMode || (widget.useTimedMode ?? false) || _consecutiveCorrect >= 3)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (widget.useLivesMode) _buildLivesIndicator(),
-                      if (widget.useLivesMode && _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      if (widget.useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if ((widget.useTimedMode ?? false) || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (widget.useTimedMode ?? false) ...[
+                        _buildTimerIndicator(),
+                        if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
                       if (_consecutiveCorrect >= 3)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -996,6 +1035,37 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimerIndicator() {
+    if (_totalTime == 0) return const SizedBox.shrink();
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1891,6 +1961,32 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     }
 
     return deckCards.isEmpty ? provider.cards : deckCards;
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timeUp = false;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _timer?.cancel();
+          _handleTimeUp();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered) return;
+    
+    // When time runs out, mark as incorrect and auto-progress
+    _selectAnswer(!_correctAnswer!); // Invert correct answer to force failure
   }
 
 } 

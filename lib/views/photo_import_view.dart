@@ -39,6 +39,8 @@ class _PhotoImportViewState extends State<PhotoImportView> {
   String? _errorMessage;
   String? _selectedDeckId;
   String _newDeckName = '';
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   
   /// Check if camera is available
   bool get _isCameraAvailable {
@@ -54,6 +56,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
   @override
   void dispose() {
     _photoService.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -306,9 +309,11 @@ class _PhotoImportViewState extends State<PhotoImportView> {
     final provider = context.read<FlashcardProvider>();
     final existingWords = provider.cards.map((card) => card.word.toLowerCase()).toSet();
     
-    // Sort words alphabetically and mark duplicates
-    final sortedWords = List<ExtractedWord>.from(_extractedWords)
-      ..sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
+    // Filter words based on search query and keep extraction order
+    final displayWords = _extractedWords.where((w) {
+      if (_searchQuery.isEmpty) return true;
+      return w.word.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +322,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Extracted Words (${sortedWords.length})',
+              'Extracted Words (${displayWords.length})',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -325,26 +330,56 @@ class _PhotoImportViewState extends State<PhotoImportView> {
               ),
             ),
             TextButton.icon(
-              onPressed: _selectedWords.length == sortedWords.length
+              onPressed: _selectedWords.length == displayWords.length
                   ? _deselectAll
                   : _selectAll,
               icon: Icon(
-                _selectedWords.length == sortedWords.length
+                _selectedWords.length == displayWords.length
                     ? Icons.check_box
                     : Icons.check_box_outline_blank,
               ),
               label: Text(
-                _selectedWords.length == sortedWords.length
+                _selectedWords.length == displayWords.length
                     ? 'Deselect All'
                     : 'Select All',
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        // Search Bar
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Search extracted words...',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _searchQuery.isNotEmpty 
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+          ),
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value;
+            });
+          },
+        ),
+        const SizedBox(height: 12),
         // Show summary of existing words
         Builder(
           builder: (context) {
-            final duplicateCount = sortedWords.where((w) => existingWords.contains(w.word.toLowerCase())).length;
+            final duplicateCount = displayWords.where((w) => existingWords.contains(w.word.toLowerCase())).length;
             if (duplicateCount > 0) {
               return Container(
                 margin: const EdgeInsets.only(top: 8, bottom: 8),
@@ -377,7 +412,7 @@ class _PhotoImportViewState extends State<PhotoImportView> {
         ),
         const SizedBox(height: 12),
         
-        // Words list in alphabetical order
+        // Words list in extraction order (filtered by search)
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
@@ -386,10 +421,10 @@ class _PhotoImportViewState extends State<PhotoImportView> {
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: sortedWords.length,
+            itemCount: displayWords.length,
             separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey.shade200),
             itemBuilder: (context, index) {
-              final extractedWord = sortedWords[index];
+              final extractedWord = displayWords[index];
               final isSelected = _selectedWords.contains(extractedWord.word);
               final isDuplicate = existingWords.contains(extractedWord.word.toLowerCase());
               

@@ -166,19 +166,25 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     }
   }
 
-  Color _cardAccentColor(FlashCard card) {
-    final colors = [
-      const Color(0xFFE91E63),
-      const Color(0xFF9C27B0),
-      const Color(0xFF3F51B5),
-      const Color(0xFF2196F3),
-      const Color(0xFF009688),
-      const Color(0xFF4CAF50),
-      const Color(0xFFFF9800),
-      const Color(0xFFFF5722),
+  Color _getCardBorderColor(FlashCard card) {
+    final vibrantColors = [
+      const Color(0xFFFF6B35), // Coral/Orange-Red
+      const Color(0xFFFF9900), // Bright Orange
+      const Color(0xFFFFCC00), // Golden Yellow
+      const Color(0xFF33CC99), // Teal/Turquoise
+      const Color(0xFF00B3CC), // Cyan Blue
+      const Color(0xFF9966FF), // Purple
+      const Color(0xFFFF4D94), // Pink
+      const Color(0xFF66E64D), // Lime Green
     ];
-    final hash = card.word.hashCode + card.definition.hashCode;
-    return colors[hash.abs() % colors.length];
+    
+    if (card.word.isEmpty || card.definition.isEmpty) {
+      return vibrantColors[0];
+    }
+    
+    final hash = (card.word.hashCode + card.definition.hashCode).abs();
+    final index = hash % vibrantColors.length;
+    return vibrantColors[index];
   }
 
   // ─── Question logic ────────────────────────────────────────────────────────
@@ -447,7 +453,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     }
 
     final card = _currentCards[_currentIndex];
-    final accentColor = _cardAccentColor(card);
+    final accentColor = _getCardBorderColor(card);
     final progress = (_currentIndex + 1) / _currentCards.length;
 
     return Scaffold(
@@ -470,234 +476,131 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
           ),
 
           // ── Progress bar ──────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('${_currentIndex + 1}/${_currentCards.length}',
-                        style: Theme.of(context).textTheme.bodySmall),
-                    if (_useLivesMode)
-                      Row(
-                        children: List.generate(
-                          _maxLives,
-                          (i) => Icon(
-                            i < _lives ? Icons.favorite : Icons.favorite_border,
-                            size: 16,
-                            color: i < _lives ? Colors.red : Colors.grey,
-                          ),
-                        ),
-                      ),
-                    Text('${(_correctAnswers / (_totalAttempts > 0 ? _totalAttempts : 1) * 100).toInt()}%',
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 6,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(accentColor),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Timer bar (timed mode) ────────────────────────────────────────
-          if (_useTimedMode && !_answered)
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.timer,
-                      size: 16,
-                      color: _timeRemaining <= 2
-                          ? Colors.red
-                          : Theme.of(context).colorScheme.onSurface),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: _timeRemaining / _totalTime,
-                        minHeight: 6,
-                        backgroundColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          _timeRemaining <= 2 ? Colors.red : Colors.orange,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('${_timeRemaining}s',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: _timeRemaining <= 2
-                            ? Colors.red
-                            : Theme.of(context).colorScheme.onSurface,
-                      )),
-                ],
-              ),
-            ),
+          _buildProgressBar(),
 
           // ── Card display ─────────────────────────────────────────────────
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: AnimatedBuilder(
-                animation: _shakeAnimation,
-                builder: (context, child) {
-                  return Transform.translate(
-                    offset: Offset(_shakeController.isAnimating
-                        ? _shakeAnimation.value *
-                            (0.5 - _shakeController.value).sign
-                        : 0.0, 0),
-                    child: child,
-                  );
-                },
-                child: ScaleTransition(
-                  scale: _pulseAnimation,
-                  child: Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(maxWidth: 560),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _answered
-                            ? (_isCorrectMap[_currentIndex] == true
-                                ? Colors.green
-                                : Colors.red)
-                            : accentColor.withValues(alpha: 0.5),
-                        width: _answered ? 2.5 : 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withValues(alpha: 0.12),
-                          blurRadius: 20,
-                          spreadRadius: 2,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: AnimatedBuilder(
+                  animation: _shakeAnimation,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(_shakeController.isAnimating
+                          ? _shakeAnimation.value *
+                              (0.5 - _shakeController.value).sign
+                          : 0.0, 0),
+                      child: child,
+                    );
+                  },
+                  child: ScaleTransition(
+                    scale: _pulseAnimation,
+                    child: Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: _answered
+                              ? (_isCorrectMap[_currentIndex] == true
+                                  ? Colors.green
+                                  : Colors.red)
+                              : accentColor.withValues(alpha: 0.8),
+                          width: _answered ? 4 : 3,
                         ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Article prompt
-                          Text(
-                            'De of Het?',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.5),
-                                  letterSpacing: 1.2,
-                                ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.15),
+                            blurRadius: 24,
+                            spreadRadius: 2,
                           ),
-                          const SizedBox(height: 20),
-                          // Article accent chip
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                  color: accentColor.withValues(alpha: 0.3)),
-                            ),
-                            child: Text(
-                              '___  ${card.word}',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: accentColor,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          // Definition
-                          Text(
-                            card.definition,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.75),
-                                ),
-                            textAlign: TextAlign.center,
-                          ),
-
-                          // ── Answer reveal ──────────────────────────────
-                          if (_answered) ...[
-                            const SizedBox(height: 20),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 350),
-                              curve: Curves.easeOutCubic,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: _isCorrectMap[_currentIndex] == true
-                                    ? Colors.green.withValues(alpha: 0.1)
-                                    : Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: _isCorrectMap[_currentIndex] == true
-                                      ? Colors.green.withValues(alpha: 0.4)
-                                      : Colors.red.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _isCorrectMap[_currentIndex] == true
-                                        ? Icons.check_circle
-                                        : Icons.cancel,
-                                    color:
-                                        _isCorrectMap[_currentIndex] == true
-                                            ? Colors.green
-                                            : Colors.red,
-                                    size: 20,
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Article prompt
+                            Text(
+                              'De of Het?',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.5),
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.5,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _isCorrectMap[_currentIndex] == true
-                                        ? 'Correct! It\'s "${_correctArticle} ${card.word}"'
-                                        : _timeUp
-                                            ? 'Time\'s up! It\'s "${_correctArticle} ${card.word}"'
-                                            : 'Wrong! It\'s "${_correctArticle} ${card.word}"',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
+                            ),
+                            const SizedBox(height: 24),
+                            // Article accent chip
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '___  ${card.word}',
+                                style: TextStyle(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: accentColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+
+                            // ── Answer reveal ──────────────────────────────
+                            if (_answered) ...[
+                              const SizedBox(height: 28),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeOutCubic,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: _isCorrectMap[_currentIndex] == true
+                                      ? Colors.green.withValues(alpha: 0.1)
+                                      : Colors.red.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _isCorrectMap[_currentIndex] == true
+                                          ? Icons.check_circle_rounded
+                                          : Icons.cancel_rounded,
                                       color:
                                           _isCorrectMap[_currentIndex] == true
-                                              ? Colors.green[700]
-                                              : Colors.red[700],
+                                              ? Colors.green
+                                              : Colors.red,
+                                      size: 20,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _isCorrectMap[_currentIndex] == true
+                                          ? 'It\'s "${_correctArticle} ${card.word}"'
+                                          : _timeUp
+                                              ? 'Time\'s up! "${_correctArticle}"'
+                                              : 'Wrong! "${_correctArticle}"',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color:
+                                            _isCorrectMap[_currentIndex] == true
+                                                ? Colors.green[700]
+                                                : Colors.red[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -749,7 +652,140 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildProgressBar() {
+    final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
+    final card = _currentCards[_currentIndex];
+    final accentColor = _getCardBorderColor(card);
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Left side: Card count
+              Expanded(
+                child: Text(
+                  'Card ${_currentIndex + 1}/${_currentCards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+              
+              // Middle: Lives and/or timer
+              if (_useLivesMode || _useTimedMode || _consecutiveCorrect >= 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 12),
+                      ],
+                      if (_useTimedMode) ...[
+                        _buildTimerIndicator(),
+                        if (_consecutiveCorrect >= 3) const SizedBox(width: 12),
+                      ],
+                      if (_consecutiveCorrect >= 3)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_consecutiveCorrect',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              
+              // Right side: Accuracy
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
+            color: Colors.red,
+            size: 18,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 18,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildArticleButton(String article, Color accentColor) {
+    // ... use current build article button logic
     final isSelected = _selectedArticle == article;
     final isCorrect = _correctArticle == article;
     final wasAnswered = _answered;
@@ -798,9 +834,9 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
                     BoxShadow(
                       color: accentColor.withValues(alpha: 0.08),
                       blurRadius: 8,
-                    )
+                    ),
                   ]
-                : null,
+                : [],
           ),
           child: Center(
             child: Row(

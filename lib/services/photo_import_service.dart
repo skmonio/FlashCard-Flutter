@@ -104,9 +104,9 @@ class PhotoImportService {
       
       // Remove duplicates and limit to prevent memory issues
       final uniqueWords = extractedWords.toSet().toList();
-      if (uniqueWords.length > 100) {
-        print('PhotoImportService: Limiting words to 100 to prevent memory issues');
-        uniqueWords.removeRange(100, uniqueWords.length);
+      if (uniqueWords.length > 200) {
+        print('PhotoImportService: Limiting words to 200 to prevent memory issues');
+        uniqueWords.removeRange(200, uniqueWords.length);
       }
       
       print('PhotoImportService: Extracted ${uniqueWords.length} unique words');
@@ -153,9 +153,9 @@ class PhotoImportService {
           uniqueWords[extractedWord.word] = extractedWord;
         }
         
-        // Limit to 50 words to prevent memory issues (reduced from 100)
-        if (uniqueWords.length >= 50) {
-          print('PhotoImportService: Limiting words to 50 to prevent memory issues');
+        // Limit to 200 words to prevent memory issues
+        if (uniqueWords.length >= 200) {
+          print('PhotoImportService: Limiting words to 200 to prevent memory issues');
           break;
         }
       }

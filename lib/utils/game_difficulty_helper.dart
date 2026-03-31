@@ -64,4 +64,20 @@ class GameDifficultyHelper {
         return '#9C27B0'; // Purple
     }
   }
+
+  /// Get time per question (in seconds) for timed modes
+  static int getTimeForDifficulty(dynamic difficulty) {
+    if (difficulty == null) return 7;
+    final diffStr = difficulty.toString().split('.').last.toLowerCase();
+    switch (diffStr) {
+      case 'easy':
+        return 7;
+      case 'medium':
+        return 5;
+      case 'hard':
+        return 3;
+      default:
+        return 7;
+    }
+  }
 }

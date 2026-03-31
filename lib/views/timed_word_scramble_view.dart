@@ -874,14 +874,28 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Card ${_currentIndex + 1}/${_currentCards.length}'),
-              // Show timer in the middle
-              _buildTimerIndicator(),
-              Text(
-                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              // Left side: Card count
+              Expanded(
+                child: Text(
+                  'Card ${_currentIndex + 1}/${_currentCards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+              
+              // Middle: Timer indicator
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildTimerIndicator(),
+              ),
+                
+              // Right side: Accuracy
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),

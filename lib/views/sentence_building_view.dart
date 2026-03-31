@@ -33,6 +33,8 @@ class SentenceBuildingView extends StatefulWidget {
   final int? customLives;
   final bool oneAnswerMode;
   final bool enableHints;
+  final bool useTimedMode;
+  final dynamic timedDifficulty; // Using dynamic to avoid import if needed, or import TimedDifficulty
 
   const SentenceBuildingView({
     super.key,
@@ -46,6 +48,8 @@ class SentenceBuildingView extends StatefulWidget {
     this.customLives,
     this.oneAnswerMode = true,
     this.enableHints = true,
+    this.useTimedMode = false,
+    this.timedDifficulty,
   });
 
   @override
@@ -81,6 +85,13 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
   int _maxLives = 0;
   bool _useLivesMode = false;
   
+  // Timed mode
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _useTimedMode = false;
+  bool _timeUp = false;
+  
   // XP & Progress
   Map<String, int> _xpGainedPerWord = {};
   Map<String, LearningMastery> _wordMastery = {};
@@ -115,6 +126,13 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
       _lives = _maxLives;
     }
     
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode && widget.timedDifficulty != null) {
+      _timeRemaining = GameDifficultyHelper.getTimeForDifficulty(widget.timedDifficulty);
+      _totalTime = _timeRemaining;
+      _startTimer();
+    }
+    
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 500),
@@ -145,6 +163,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
   void dispose() {
     _autoProgressTimer?.cancel();
     _hintStatusTimer?.cancel();
+    _timer?.cancel();
     _shakeController.dispose();
     _successController.dispose();
     _dealController.dispose();
@@ -208,6 +227,10 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
       }
       _lockedPositions[_currentIndex] = <int>{};
     });
+    
+    if (_useTimedMode) {
+      _startTimer();
+    }
   }
 
   void _addWord(String word) {
@@ -247,6 +270,8 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
 
   void _checkAnswer() {
     if (_answered || _userAnswer.isEmpty || _isShowingWrongAnswer) return;
+    
+    _timer?.cancel();
     
     final correctWords = _correctSentence.split(' ').where((w) => w.trim().isNotEmpty).toList();
     final isCorrect = listEquals(_userAnswer, correctWords);
@@ -351,6 +376,86 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
         });
       }
     });
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timeUp = false;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _handleTimeUp();
+          _timer?.cancel();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered) return;
+    
+    final correctWords = _correctSentence.split(' ').where((w) => w.trim().isNotEmpty).toList();
+    setState(() {
+      _answered = true;
+      _timeUp = true;
+      _totalAttempts++;
+      _correctAnswersMap[_currentIndex] = false;
+      _userAnswer = List<String>.from(correctWords);
+      _availableWords.clear();
+      _answeredQuestions[_currentIndex] = List<String>.from(correctWords);
+    });
+    
+    HapticService().errorFeedback();
+    SoundManager().playWrongSound();
+    
+    _gameSession.recordAnswer(false);
+    
+    if (widget.autoProgress && !widget.shuffleMode) {
+      _autoProgressTimer?.cancel();
+      _autoProgressTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted && _currentIndex < _currentCards.length - 1) {
+          _activeQuestionIndex = _currentIndex + 1;
+          _goToNextQuestion();
+        }
+      });
+    }
+  }
+
+  Widget _buildTimerIndicator() {
+    if (_totalTime == 0) return const SizedBox.shrink();
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
   }
 
   void _useHint() {
@@ -852,13 +957,48 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
                 ),
               ),
               
-              // Middle: Lives
-              if (_useLivesMode)
+              // Middle: Timer and/or Lives
+              if (_useLivesMode || _useTimedMode || _consecutiveCorrect >= 3)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: _buildLivesIndicator(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (_useTimedMode) ...[
+                        _buildTimerIndicator(),
+                        if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (_consecutiveCorrect >= 3)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_consecutiveCorrect',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              
+                
               // Right: Accuracy
               Expanded(
                 child: Text(
