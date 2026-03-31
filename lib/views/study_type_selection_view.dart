@@ -20,6 +20,7 @@ import 'connect_cards_view.dart';
 import 'word_scramble_view.dart';
 import 'timed_word_scramble_view.dart';
 import 'sentence_building_view.dart';
+import 'de_het_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -33,6 +34,7 @@ enum GameMode {
   popYourCard,
   connectCards,
   sentenceBuilding,
+  deHet,
 }
 
 class StudyTypeSelectionView extends StatefulWidget {
@@ -1191,17 +1193,34 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     }
     
     // 🔍 Special filtering for Sentence Your Cards
-    // Move this BEFORE subset selection to ensure we always have enough valid cards
     if (widget.gameMode == GameMode.sentenceBuilding) {
       filteredCards = filteredCards.where((card) => 
         card.example.isNotEmpty && card.exampleTranslation.isNotEmpty
       ).toList();
     }
+
+    // 🔍 Special filtering for De of Het — only cards with article
+    if (widget.gameMode == GameMode.deHet) {
+      filteredCards = filteredCards
+          .where((card) => card.article == 'de' || card.article == 'het')
+          .toList();
+      if (filteredCards.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'None of your cards have an article (de/het) set. Open a card and add the article to play this game.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+    }
     
     // Check if we have enough cards to play
     if (filteredCards.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards with examples available in the selected pool.')),
+        const SnackBar(content: Text('No cards available in the selected pool.')),
       );
       return;
     }
@@ -1449,6 +1468,21 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             ),
           );
         break;
+      case GameMode.deHet:
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => DeHetView(
+                cards: studyCards,
+                title: 'De of Het',
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+                useTimedMode: _useTimedMode,
+                timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+                studyConfig: studyConfig,
+              ),
+            ),
+          );
+        break;
     }
   }
 
@@ -1586,6 +1620,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Connect';
       case GameMode.sentenceBuilding:
         return 'Sentence';
+      case GameMode.deHet:
+        return 'De of Het';
       default:
         return 'Study';
     }
@@ -1614,7 +1650,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
-           widget.gameMode == GameMode.connectCards;
+           widget.gameMode == GameMode.connectCards ||
+           widget.gameMode == GameMode.deHet;
   }
   
   bool _shouldShowTimedMode() {
@@ -1624,7 +1661,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
-           widget.gameMode == GameMode.connectCards;
+           widget.gameMode == GameMode.connectCards ||
+           widget.gameMode == GameMode.deHet;
   }
   
   bool _shouldShowOneAnswerMode() {

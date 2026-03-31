@@ -126,6 +126,14 @@ class _HomeViewState extends State<HomeView> {
         ),
         const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
+          'De of Het',
+          Icons.article,
+          const Color(0xFF1565C0),
+          () => _navigateToDeHet(context),
+          'Practice Dutch articles! See a word and decide if it takes "de" or "het". Only cards with an article set will appear.',
+        ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
           'Shuffle Your Cards',
           Icons.shuffle,
           Colors.purple,
@@ -316,6 +324,17 @@ class _HomeViewState extends State<HomeView> {
         settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.write,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToDeHet(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.deHet,
         ),
       ),
     );
