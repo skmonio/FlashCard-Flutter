@@ -351,9 +351,10 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
       
       if (mounted) {
         if (result != null) {
+          final savedFilename = result.split(RegExp(r'[/\\]')).last;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Export successful! File saved as: $filename'),
+              content: Text('Export successful! File saved as: $savedFilename'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),

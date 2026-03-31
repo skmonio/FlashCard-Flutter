@@ -59,7 +59,7 @@ class TrueFalseView extends StatefulWidget {
 class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
-  int _totalAnswered = 0;
+  int _totalAttempts = 0;
   bool _showingResults = false;
   bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
@@ -224,7 +224,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       
       // Award XP for the session if not in shuffle mode
@@ -600,7 +600,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     setState(() {
       _selectedAnswer = answer;
       _answered = true;
-      _totalAnswered++;
+      _totalAttempts++;
       
       // Store the answer and whether it was correct
       _answeredQuestions[_currentIndex] = answer;
@@ -931,48 +931,58 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              // Show lives in the middle if active
-              if (widget.useLivesMode || _consecutiveCorrect >= 3) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.useLivesMode) _buildLivesIndicator(),
-                    if (widget.useLivesMode && _consecutiveCorrect >= 3) const SizedBox(width: 8),
-                    if (_consecutiveCorrect >= 3)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$_consecutiveCorrect',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+              // Left side: Card count
+              Expanded(
+                child: Text(
+                  'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-              ],
-              Text(
-                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              
+              // Middle side: Lives and/or streak
+              if (widget.useLivesMode || _consecutiveCorrect >= 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.useLivesMode) _buildLivesIndicator(),
+                      if (widget.useLivesMode && _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      if (_consecutiveCorrect >= 3)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_consecutiveCorrect',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                
+              // Right side: Accuracy (or empty expanded to maintain center)
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),
@@ -1014,7 +1024,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                 label: const Text('Back'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
-                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  foregroundColor: _currentIndex > 0 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1267,7 +1279,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   }
 
   Widget _buildResultsView() {
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1338,11 +1350,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                     const SizedBox(height: 24),
                     
                     // Stats
-                    _buildStatCard('Questions', _totalAnswered.toString(), Icons.quiz),
+                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.quiz),
                     const SizedBox(height: 16),
                     _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                     const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                       AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
@@ -1409,7 +1421,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
-                          _totalAnswered = 0;
+                          _totalAttempts = 0;
                           _showingResults = false;
                           _answered = false;
                           _selectedAnswer = null;
@@ -1551,11 +1563,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     }
     
     // Update session statistics
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
-    final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
+    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
     
     context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAnswered,
+      cardsStudied: _totalAttempts,
       sessionAccuracy: accuracy,
       isPerfect: isPerfect,
     );
@@ -1648,7 +1660,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       _currentCards = newCards;
       _currentIndex = 0;
       _correctAnswers = 0;
-      _totalAnswered = 0;
+      _totalAttempts = 0;
       _showingResults = false;
       _hasShownResults = false;
       _answered = false;
@@ -1693,13 +1705,14 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
         wordMastery: sessionWordMastery,
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
-        totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        totalQuestions: _totalAttempts,
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
-            _totalAnswered = 0;
+            _totalAttempts = 0;
             _showingResults = false;
             _hasShownResults = false;
             _answered = false;
@@ -1722,8 +1735,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           _generateQuestion();
         },
         onShuffle: widget.studyConfig != null
-            ? () {
+            ? (available) {
                 Navigator.of(context).pop();
+                setState(() {
+                  _currentCards = List.from(available)..shuffle();
+                });
                 _shuffleAndRestart();
               }
             : null,

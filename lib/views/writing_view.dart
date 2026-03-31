@@ -54,7 +54,7 @@ class WritingView extends StatefulWidget {
 class _WritingViewState extends State<WritingView> {
   int _currentIndex = 0;
   int _correctAnswers = 0;
-  int _totalAnswered = 0;
+  int _totalAttempts = 0;
   bool _showingResults = false;
   bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
@@ -283,7 +283,7 @@ class _WritingViewState extends State<WritingView> {
   void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       
       // In shuffle mode, call onComplete callback instead of showing results
@@ -436,7 +436,7 @@ class _WritingViewState extends State<WritingView> {
 
     setState(() {
       _answered = true;
-      _totalAnswered++;
+      _totalAttempts++;
       _correctAnswersMap[_currentIndex] = false;
       _answeredQuestions[_currentIndex] = revealAnswer ? _correctAnswer : _displayWord;
       _correctAnswersText[_currentIndex] = _correctAnswer;
@@ -497,7 +497,6 @@ class _WritingViewState extends State<WritingView> {
       if (_correctAnswer.toLowerCase().contains(lowerLetter)) {
         // Correct guess - reveal all instances of this letter
         _revealedLetters.add(upperLetter);
-        SoundManager().playCorrectSound();
         HapticService().successFeedback();
         
         // Update display word
@@ -507,11 +506,14 @@ class _WritingViewState extends State<WritingView> {
         if (_isWordComplete()) {
           _answered = true;
           _correctAnswers++;
-          _totalAnswered++;
+          _totalAttempts++;
           _correctAnswersMap[_currentIndex] = true;
           _answeredQuestions[_currentIndex] = _displayWord;
           _correctAnswersText[_currentIndex] = _correctAnswer;
           _questionModes[_currentIndex] = _isQuestionMode;
+          
+          // Sound for word completion as requested
+          SoundManager().playCorrectSound();
           
           // In shuffle mode, reduce HP immediately for every answer attempt
           // (XP tracking is handled by shuffle view at completion)
@@ -549,7 +551,6 @@ class _WritingViewState extends State<WritingView> {
           _lives--;
           print('🔍 WritingView: Lost a life! Lives remaining: $_lives');
         }
-        SoundManager().playWrongSound();
         HapticService().errorFeedback();
         
         final updatedAttempts = (_wrongAttemptsPerWord[cardId] ?? 0) + 1;
@@ -559,6 +560,9 @@ class _WritingViewState extends State<WritingView> {
         if (widget.oneAnswerMode) {
           // Force wrong attempts to 5 for XP penalty consistency
           _wrongAttemptsPerWord[cardId] = 5;
+          
+          // Sound for 1-click failure
+          SoundManager().playWrongSound();
           _finalizeIncorrectAnswer();
           
           // In shuffle mode, complete immediately on failure if oneAnswerMode is ON
@@ -571,6 +575,9 @@ class _WritingViewState extends State<WritingView> {
         // Multiple attempts mode (1-click answer OFF)
         if (updatedAttempts >= 5) {
           _maxMistakeRevealQuestions.add(_currentIndex);
+          
+          // Sound for max attempts exhausted
+          SoundManager().playWrongSound();
           _finalizeIncorrectAnswer();
           
           // In shuffle mode, only complete after the 5th wrong attempt
@@ -582,6 +589,8 @@ class _WritingViewState extends State<WritingView> {
         
         // Check if game over (only if using lives mode in standalone)
         if (_useLivesMode && _lives <= 0) {
+          // Sound for game over (runs on final mistake)
+          SoundManager().playWrongSound();
           _finalizeIncorrectAnswer(allowAutoProgress: false);
           print('🔍 WritingView: Game over! No lives remaining');
           
@@ -694,7 +703,7 @@ class _WritingViewState extends State<WritingView> {
     
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       if (widget.onComplete != null) {
         widget.onComplete!(wasSuccessful);
@@ -722,7 +731,7 @@ class _WritingViewState extends State<WritingView> {
     if (!_answered) return;
     
     // Check if in shuffle mode
-    final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+    final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
     final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
     
     if (widget.shuffleMode && widget.onComplete != null) {
@@ -1072,7 +1081,9 @@ class _WritingViewState extends State<WritingView> {
                 label: const Text('Back'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: (_answered && _currentIndex > 0) ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
-                  foregroundColor: (_answered && _currentIndex > 0) ? Colors.black87 : Colors.grey,
+                  foregroundColor: (_answered && _currentIndex > 0) 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1127,7 +1138,6 @@ class _WritingViewState extends State<WritingView> {
 
   Widget _buildProgressBar() {
     final progress = _currentIndex / _currentCards.length;
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
     
     // In shuffle mode, show cumulative question count (e.g., 1/1, 2/2, 3/3...)
     final String questionCountText;
@@ -1138,24 +1148,44 @@ class _WritingViewState extends State<WritingView> {
       questionCountText = '${_currentIndex + 1}/${_currentCards.length}';
     }
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(questionCountText),
-              if (_useLivesMode && _useTimedMode) ...[
-                _buildLivesIndicator(),
-                const SizedBox(width: 8),
-                _buildTimerIndicator(),
-              ] else if (_useLivesMode) ...[
-                _buildLivesIndicator(),
-              ] else if (_useTimedMode) ...[
-                _buildTimerIndicator(),
-              ],
-              Text('$accuracy%'),
+              // Left: Card count
+              Expanded(
+                child: Text(
+                  questionCountText,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ),
+              
+              // Middle: Status indicators
+              if (_useLivesMode || _useTimedMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if (_useTimedMode) const SizedBox(width: 8),
+                      ],
+                      if (_useTimedMode) _buildTimerIndicator(),
+                    ],
+                  ),
+                ),
+              
+              // Right side: Accuracy
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1172,7 +1202,7 @@ class _WritingViewState extends State<WritingView> {
   }
 
   Widget _buildResultsView() {
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1228,11 +1258,11 @@ class _WritingViewState extends State<WritingView> {
                     const SizedBox(height: 24),
                     
                     // Stats
-                    _buildStatCard('Questions', _totalAnswered.toString(), Icons.edit),
+                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.edit),
                     const SizedBox(height: 16),
                     _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                     const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     
                     // Swipe hint if XP was gained
                     if (_xpGainedPerWord.values.isNotEmpty) ...[
@@ -1296,7 +1326,7 @@ class _WritingViewState extends State<WritingView> {
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
-                          _totalAnswered = 0;
+                          _totalAttempts = 0;
                           _showingResults = false;
                           _hasShownResults = false;
                           _answered = false;
@@ -1489,7 +1519,7 @@ class _WritingViewState extends State<WritingView> {
     final hintCount = _hintCount[_currentIndex] ?? 0;
     if (hintCount > 0) {
       // simulate extra "attempts" so the final session summary % is lowered
-      _totalAnswered += (hintCount * 0.5).ceil().toInt();
+      _totalAttempts += (hintCount * 0.5).ceil().toInt();
     }
 
     // Store the word mastery for display (for both correct and incorrect)
@@ -1555,7 +1585,7 @@ class _WritingViewState extends State<WritingView> {
       _currentCards = newCards;
       _currentIndex = 0;
       _correctAnswers = 0;
-      _totalAnswered = 0;
+      _totalAttempts = 0;
       _showingResults = false;
       _hasShownResults = false;
       _answered = false;
@@ -1604,13 +1634,14 @@ class _WritingViewState extends State<WritingView> {
         wordMastery: sessionWordMastery,
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
-        totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        totalQuestions: _totalAttempts,
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
-            _totalAnswered = 0;
+            _totalAttempts = 0;
             _showingResults = false;
             _hasShownResults = false;
             _answered = false;
@@ -1619,7 +1650,6 @@ class _WritingViewState extends State<WritingView> {
             _textController.clear();
             _guessedLetters.clear();
             _revealedLetters.clear();
-            _currentCards.shuffle(Random());
             _answeredQuestions.clear();
             _correctAnswersMap.clear();
             _correctAnswersText.clear();
@@ -1633,8 +1663,11 @@ class _WritingViewState extends State<WritingView> {
           });
           _generateQuestion();
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
+          setState(() {
+            _currentCards = List.from(available)..shuffle();
+          });
           _shuffleAndRestart();
         },
         onDone: () {
@@ -1931,6 +1964,7 @@ class _WritingViewState extends State<WritingView> {
       
       setState(() {
         // Increment hint count
+        _totalAttempts++;
         _hintCount[_currentIndex] = (_hintCount[_currentIndex] ?? 0) + 1;
         
         // Add the letter to revealed letters
@@ -1943,7 +1977,7 @@ class _WritingViewState extends State<WritingView> {
         if (_isWordComplete()) {
           _answered = true;
           _correctAnswers++;
-          _totalAnswered++;
+          _totalAttempts++;
           _correctAnswersMap[_currentIndex] = true;
           _answeredQuestions[_currentIndex] = _displayWord;
           

@@ -13,8 +13,8 @@ class GameEndResult {
   final int? correctAnswers;
   final int? totalQuestions;
   final bool showSwipeToReview;
-  final VoidCallback? onStudyAgain;
-  final VoidCallback? onShuffle;
+  final void Function(List<FlashCard> available)? onStudyAgain;
+  final void Function(List<FlashCard> available)? onShuffle;
   final VoidCallback? onDone;
 
   const GameEndResult({

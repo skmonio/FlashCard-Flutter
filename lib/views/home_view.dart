@@ -53,7 +53,7 @@ class _HomeViewState extends State<HomeView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Flash Card Studies',
+          'Flash Card Games',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -115,6 +115,14 @@ class _HomeViewState extends State<HomeView> {
           Colors.blue,
           () => _navigateToWriting(context),
           'Practice writing Dutch words from memory. Type the Dutch word that matches the English translation.',
+        ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'Sentence your cards',
+          Icons.reorder,
+          Colors.blueGrey,
+          () => _navigateToSentenceBuilding(context),
+          'Build full sentences by putting words in the correct order. Practice using Dutch words in context with their example sentences.',
         ),
         const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
@@ -272,6 +280,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToStudy(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.study,
         ),
@@ -282,6 +291,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToTest(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.test,
         ),
@@ -292,6 +302,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToTrueFalse(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.trueFalse,
         ),
@@ -302,8 +313,20 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToWriting(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.write,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToSentenceBuilding(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.sentenceBuilding,
         ),
       ),
     );
@@ -312,6 +335,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToMemoryGame(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.game,
         ),
@@ -323,6 +347,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToJumble(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.wordScramble,
         ),
@@ -333,6 +358,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToConnectCards(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.connectCards,
         ),
@@ -351,6 +377,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToPickYourCard(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.pickYourCard,
         ),
@@ -361,6 +388,7 @@ class _HomeViewState extends State<HomeView> {
   void _navigateToPopYourCard(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.popYourCard,
         ),

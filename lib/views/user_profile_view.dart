@@ -334,7 +334,7 @@ class _UserProfileViewState extends State<UserProfileView> with TickerProviderSt
           _buildStatCard(
             'Last Studied',
             provider.lastStudyDate != null 
-                ? DateFormat('MMM d, yyyy • HH:mm').format(provider.lastStudyDate!)
+                ? DateFormat('dd/MM').format(provider.lastStudyDate!)
                 : 'Never',
             Icons.history,
             Colors.teal,

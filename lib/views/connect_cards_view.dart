@@ -1244,6 +1244,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       
       // Track hints used for this word
       _hintsUsedPerWord[currentWordId] = (_hintsUsedPerWord[currentWordId] ?? 0) + 1;
+      _totalAttempts++; // Hint usage counts as an attempt for accuracy calculation
       
       // Add the hinted letter to hint indexes (permanently highlight it)
       if (_hintLevel <= _correctPath.length) {
@@ -1328,13 +1329,13 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _answeredWords.length,
         totalQuestions: widget.cards.length,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
-          _restartGame();
+          _restartGameWithCards(available);
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
-          _restartGameWithShuffle();
+          _restartGameWithCards(available..shuffle());
         },
         onDone: () {
           Navigator.of(context).pop();
@@ -1371,6 +1372,40 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _hasNavigatedBack = false;
       
       // Reset lives if in lives mode
+      if (_isLivesMode) {
+        _maxLives = widget.customLives ?? 3;
+        _livesRemaining = _maxLives;
+      }
+    });
+    _shuffleCards();
+    _setupGrid();
+  }
+
+  void _restartGameWithCards(List<FlashCard> cards) {
+    // Update the working card list with the filtered available cards
+    _availableCards = List<FlashCard>.from(cards);
+    setState(() {
+      _currentCardIndex = 0;
+      _hintLevel = 0;
+      _gameCompleted = false;
+      _studiedWords.clear();
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _initialHPPerWord.clear();
+      _hintsUsedPerWord.clear();
+      _answeredWords.clear();
+      _answeredHintLevels.clear();
+      _answeredHintIndexes.clear();
+      _answeredShowFeedback.clear();
+      _savedGridLetters.clear();
+      _savedCorrectPaths.clear();
+      _savedGridSizes.clear();
+      _wrongAttemptsPerWord.clear();
+      _solutionRevealedPerWord.clear();
+      _completedWordIds.clear();
+      _markedCorrectWordIds.clear();
+      _currentUnansweredIndex = 0;
+      _hasNavigatedBack = false;
       if (_isLivesMode) {
         _maxLives = widget.customLives ?? 3;
         _livesRemaining = _maxLives;
@@ -1614,48 +1649,66 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           ),
           // Progress bar
           Builder(
-                  builder: (context) {
-                    final totalWords = _availableCards.length;
-                    final completedCount = _completedWordIds.length.clamp(0, totalWords);
-                    final progressValue = totalWords == 0 ? 0.0 : _currentCardIndex / totalWords;
-                    final accuracy = totalWords == 0 ? 0 : (completedCount / totalWords * 100).toInt();
-                    final percentText = '$accuracy%';
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Card ${_currentCardIndex + 1}/$totalWords',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (_isLivesMode) _buildLivesIndicator(),
-                              if (_isTimedMode && !_isLivesMode) _buildTimerIndicator(),
-                              Text(
-                                'Acc: ${_totalAttempts > 0 ? (_completedWordIds.length / _totalAttempts * 100).toInt() : 100}%',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+            builder: (context) {
+              final totalWords = _availableCards.length;
+              final progressValue = totalWords == 0 ? 0.0 : _currentCardIndex / totalWords;
+              
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        // Left: Card count
+                        Expanded(
+                          child: Text(
+                            'Card ${_currentCardIndex + 1}/$totalWords',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: progressValue,
-                            backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+                        ),
+                        
+                        // Middle: Status indicators
+                        if (_isLivesMode || (_isTimedMode && !_isLivesMode))
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_isLivesMode) _buildLivesIndicator(),
+                                if (_isTimedMode && !_isLivesMode) _buildTimerIndicator(),
+                              ],
+                            ),
                           ),
-                        ],
+                          
+                        // Right side: Accuracy
+                        Expanded(
+                          child: Text(
+                            'Acc: ${_totalAttempts > 0 ? (_completedWordIds.length / _totalAttempts * 100).toInt() : 100}%',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: progressValue,
+                      backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Theme.of(context).colorScheme.primary,
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
+              );
+            },
+          ),
           // Main content area
           Expanded(
             child: Column(

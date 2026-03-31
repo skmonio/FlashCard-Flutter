@@ -56,7 +56,7 @@ class WordScrambleView extends StatefulWidget {
 class _WordScrambleViewState extends State<WordScrambleView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
-  int _totalAnswered = 0;
+  int _totalAttempts = 0;
   bool _showingResults = false;
   bool _hasShownResults = false; // Prevent multiple end screens
   bool _answered = false;
@@ -260,7 +260,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       
       // Award XP for the session if not in shuffle mode
@@ -410,7 +410,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       
       setState(() {
         _answered = true;
-        _totalAnswered++;
+        _totalAttempts++;
         _correctAnswers++;
         _correctAnswersMap[_currentIndex] = true;
         _consecutiveCorrect++;
@@ -440,6 +440,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       // Wrong answer - shake, turn red, reset, and apply XP penalty
       final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       _wrongAttempts[_currentIndex] = newWrongAttempts;
+      
+      setState(() {
+        _totalAttempts++;
+      });
       
       // Track XP for wrong attempt
       XpService.recordAnswer(_gameSession, false);
@@ -486,7 +490,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
           // Set user answer to the correct order of pieces
           _userAnswer = List<String>.from(correctPieces);
           _answered = true;
-          _totalAnswered++;
+          _totalAttempts++;
           _correctAnswersMap[_currentIndex] = false;
           _consecutiveCorrect = 0; // Reset streak
           _shakeController.forward(from: 0);
@@ -986,50 +990,60 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              // Show lives and/or streak in the middle
-              if (_useLivesMode || _consecutiveCorrect >= 3) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_useLivesMode) ...[
-                      _buildLivesIndicator(),
-                      if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
-                    ],
-                    if (_consecutiveCorrect >= 3)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$_consecutiveCorrect',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+              // Left: Card count
+              Expanded(
+                child: Text(
+                  'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${widget.cards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-              ],
-              Text(
-                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              
+              // Middle: Status indicators
+              if (_useLivesMode || _consecutiveCorrect >= 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (_consecutiveCorrect >= 3)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_consecutiveCorrect',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                
+              // Right side: Accuracy
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),
@@ -1071,7 +1085,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
                 label: const Text('Back'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
-                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  foregroundColor: _currentIndex > 0 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1428,7 +1444,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   }
 
   Widget _buildResultsView() {
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
     
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1486,11 +1502,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
                     const SizedBox(height: 24),
                     
                     // Stats
-                    _buildStatCard('Questions', _totalAnswered.toString(), Icons.text_fields),
+                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.text_fields),
                     const SizedBox(height: 16),
                     _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                     const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                       AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
@@ -1557,7 +1573,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
-                          _totalAnswered = 0;
+                          _totalAttempts = 0;
                           _showingResults = false;
                           _hasShownResults = false;
                           _answered = false;
@@ -1862,6 +1878,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     if (_answered) return;
     
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
+    _totalAttempts++; // Hint usage counts as an attempt for accuracy calculation
     final revealedPieces = _hintRevealed[_currentIndex] ?? [];
     final remainingPieces = _scrambledLetters.length;
     
@@ -2067,11 +2084,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     }
     
     // Update session statistics
-    final accuracy = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
-    final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
+    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
+    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
     
     context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAnswered,
+      cardsStudied: _totalAttempts,
       sessionAccuracy: accuracy,
       isPerfect: isPerfect,
     );
@@ -2137,12 +2154,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         wordMastery: sessionWordMastery,
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
-        totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        totalQuestions: _totalAttempts,
+        onStudyAgain: (available) {
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
-            _totalAnswered = 0;
+            _totalAttempts = 0;
             _showingResults = false;
             _hasShownResults = false;
             _answered = false;
@@ -2152,7 +2170,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
             _originalLetters.clear();
             _isCardFlipped = false;
             _gameSession.reset();
-            _currentCards.shuffle(Random());
             if (_useLivesMode) {
               _lives = _maxLives;
             }
@@ -2173,8 +2190,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
           _generateQuestion();
           Navigator.of(context).pop();
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
+          setState(() {
+            _currentCards = List.from(available)..shuffle();
+          });
           _shuffleAndRestart();
         },
         onDone: () {
@@ -2239,7 +2259,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       _currentCards = newCards;
       _currentIndex = 0;
       _correctAnswers = 0;
-      _totalAnswered = 0;
+      _totalAttempts = 0;
       _showingResults = false;
       _hasShownResults = false;
       _answered = false;

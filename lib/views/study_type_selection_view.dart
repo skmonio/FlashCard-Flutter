@@ -19,6 +19,7 @@ import 'pop_your_card_view.dart';
 import 'connect_cards_view.dart';
 import 'word_scramble_view.dart';
 import 'timed_word_scramble_view.dart';
+import 'sentence_building_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -31,6 +32,7 @@ enum GameMode {
   pickYourCard,
   popYourCard,
   connectCards,
+  sentenceBuilding,
 }
 
 class StudyTypeSelectionView extends StatefulWidget {
@@ -74,6 +76,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     // Add listener to refresh when provider updates
     final provider = context.read<FlashcardProvider>();
     provider.addListener(_onProviderChanged);
+    
+    // Set default flipped mode to 'flipped' for sentence building (Build Dutch from English)
+    if (widget.gameMode == GameMode.sentenceBuilding) {
+      _flippedMode = 'flipped';
+    }
   }
 
   @override
@@ -366,9 +373,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode != GameMode.study && 
            widget.gameMode != GameMode.write && 
            widget.gameMode != GameMode.popYourCard &&
-           widget.gameMode != GameMode.connectCards &&
-           widget.gameMode != GameMode.wordScramble &&
-           widget.gameMode != GameMode.pickYourCard;
+           widget.gameMode != GameMode.connectCards && 
+           widget.gameMode != GameMode.wordScramble && 
+           widget.gameMode != GameMode.pickYourCard &&
+           widget.gameMode != GameMode.sentenceBuilding;
   }
 
   Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {
@@ -1106,6 +1114,14 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   void _startStudy() {
     final provider = context.read<FlashcardProvider>();
     
+    // Check if provider is still loading data
+    if (provider.isLoading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Loading your cards, please wait a moment...')),
+      );
+      return;
+    }
+    
     // Get cards based on deck selection
     List<FlashCard> allSelectedCards = [];
     Set<String> seenCardIds = {};
@@ -1136,29 +1152,56 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       return;
     }
     
+    // Prepare lists for filtering and warnings
+    final availableCards = allSelectedCards.where((card) => card.canBeStudiedToday).toList();
+    final limitedCards = allSelectedCards.where((card) => card.hasReachedDailyLimit).toList();
+    
     // Apply SRS filtering if enabled
     List<FlashCard> filteredCards;
     if (_useSRSFiltering) {
       // Sort by due status: due cards first, then not due
-      final dueCards = allSelectedCards.where((card) => card.isDueForReview).toList();
-      final notDueCards = allSelectedCards.where((card) => !card.isDueForReview).toList();
-      filteredCards = [...dueCards, ...notDueCards];
+      // Only include cards that can be studied today (have HP > 0)
+      final dueCards = availableCards.where((card) => card.isDueForReview).toList();
+      final potentiallyDueCards = availableCards.where((card) => !card.isDueForReview).toList();
+      filteredCards = [...dueCards, ...potentiallyDueCards];
+      
+      if (filteredCards.isEmpty) {
+        if (limitedCards.isNotEmpty) {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No cards currently due for SRS study. Your cards need some rest!')),
+          );
+        } else {
+           ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No cards are currently due for review based on SRS.')),
+          );
+        }
+        return;
+      }
     } else {
       // Show all cards regardless of SRS status
-      filteredCards = allSelectedCards;
+      // But we still prioritize those that can be studied today
+      final defeatedCards = allSelectedCards.where((card) => !card.canBeStudiedToday).toList();
+      
+      if (availableCards.isNotEmpty) {
+        filteredCards = [...availableCards, ...defeatedCards];
+      } else {
+        // If ALL are defeated, we still let them play if SRS is off, but show a warning
+        filteredCards = allSelectedCards;
+      }
     }
     
-    // Apply daily study limit filtering - exclude cards that have reached their daily limit
-    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
-    final limitedCards = filteredCards.where((card) => card.hasReachedDailyLimit).toList();
-    
-    // Use available cards for study
-    filteredCards = availableCards;
+    // 🔍 Special filtering for Sentence Your Cards
+    // Move this BEFORE subset selection to ensure we always have enough valid cards
+    if (widget.gameMode == GameMode.sentenceBuilding) {
+      filteredCards = filteredCards.where((card) => 
+        card.example.isNotEmpty && card.exampleTranslation.isNotEmpty
+      ).toList();
+    }
     
     // Check if we have enough cards to play
     if (filteredCards.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards available for study. All cards have reached their daily limit.')),
+        const SnackBar(content: Text('No cards with examples available in the selected pool.')),
       );
       return;
     }
@@ -1390,6 +1433,22 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             ),
           );
         break;
+      case GameMode.sentenceBuilding:
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SentenceBuildingView(
+                cards: studyCards,
+                title: 'Sentence Your Cards',
+                autoProgress: _autoProgress,
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+                startFlipped: _getStartFlipped(),
+                oneAnswerMode: _oneAnswerMode,
+                enableHints: _enableHints,
+              ),
+            ),
+          );
+        break;
     }
   }
 
@@ -1525,13 +1584,18 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Pop';
       case GameMode.connectCards:
         return 'Connect';
+      case GameMode.sentenceBuilding:
+        return 'Sentence';
+      default:
+        return 'Study';
     }
   }
   
   bool _shouldShowFlippedMode() {
     return widget.gameMode == GameMode.study || 
            widget.gameMode == GameMode.test || 
-           widget.gameMode == GameMode.trueFalse;
+           widget.gameMode == GameMode.trueFalse ||
+           widget.gameMode == GameMode.sentenceBuilding;
   }
   
   bool _shouldShowAutoProgress() {
@@ -1556,7 +1620,6 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   bool _shouldShowTimedMode() {
     return widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse || 
-           // widget.gameMode == GameMode.game || // Removed timed mode for memory game
            widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
@@ -1566,12 +1629,12 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   
   bool _shouldShowOneAnswerMode() {
     return widget.gameMode == GameMode.test || 
-           widget.gameMode == GameMode.trueFalse || 
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.write ||
-           widget.gameMode == GameMode.connectCards;
+           widget.gameMode == GameMode.connectCards ||
+           widget.gameMode == GameMode.sentenceBuilding;
   }
 
   bool _shouldShowHintsToggle() {
@@ -1579,7 +1642,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.connectCards ||
            widget.gameMode == GameMode.write ||
-           widget.gameMode == GameMode.pickYourCard;
+           widget.gameMode == GameMode.pickYourCard ||
+           widget.gameMode == GameMode.sentenceBuilding;
   }
   
   Widget _buildFlippedModeSetting(StateSetter setState) {
@@ -1665,7 +1729,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
           ),
         ),
         Switch(
-          value: isDisabled ? false : _autoProgress,
+          value: isDisabled ? true : _autoProgress,
           onChanged: isDisabled ? null : (value) {
             setState(() {
               _autoProgress = value;
@@ -1776,8 +1840,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 setState(() {
                   _useTimedMode = value;
                   if (value) {
-                    // When timed mode is enabled, disable auto progress
-                    _autoProgress = false;
+                    // When timed mode is enabled, enable auto progress
+                    _autoProgress = true;
                   }
                   if (!value) {
                     _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
@@ -1786,8 +1850,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 this.setState(() {
                   _useTimedMode = value;
                   if (value) {
-                    // When timed mode is enabled, disable auto progress
-                    _autoProgress = false;
+                    // When timed mode is enabled, enable auto progress
+                    _autoProgress = true;
                   }
                   if (!value) {
                     _selectedTimedDifficulty = TimedDifficulty.medium; // Reset to default
@@ -1959,6 +2023,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
       case GameMode.connectCards:
         title = 'Connect Your Cards Mode';
         content = 'Connect letters in a grid to spell Dutch words. Drag to connect adjacent letters and form the correct translation.';
+        break;
+      case GameMode.sentenceBuilding:
+        title = 'Sentence Builder';
+        content = 'Build full sentences by putting words in the correct order. Practice using Dutch words in context with their example sentences.';
         break;
     }
 
@@ -2560,7 +2628,6 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
           ),
         );
         break;
-        break;
       case GameMode.pickYourCard:
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -2628,6 +2695,32 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
             ),
           );
         }
+        break;
+      case GameMode.sentenceBuilding:
+          // Filter cards that have both example and translation
+          final cardsWithSentences = filteredCards.where((c) => c.example.isNotEmpty && c.exampleTranslation.isNotEmpty).toList();
+          
+          if (cardsWithSentences.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No cards with sentences available in selected decks.')),
+            );
+            return;
+          }
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SentenceBuildingView(
+                cards: cardsWithSentences,
+                title: 'Sentence your cards',
+                autoProgress: widget.autoProgress,
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.useLivesMode ? widget.customLives : null,
+                startFlipped: widget.startFlipped,
+                oneAnswerMode: widget.oneAnswerMode,
+                enableHints: true,
+              ),
+            ),
+          );
         break;
     }
   }

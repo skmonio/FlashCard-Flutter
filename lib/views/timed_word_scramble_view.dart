@@ -1171,8 +1171,9 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
             _totalAnswered = 0;

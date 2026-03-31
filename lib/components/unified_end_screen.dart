@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
+import '../providers/flashcard_provider.dart';
 import 'main_header.dart';
 
 class UnifiedEndScreen extends StatefulWidget {
@@ -10,9 +12,9 @@ class UnifiedEndScreen extends StatefulWidget {
   final Map<String, int> xpGainedPerWord;
   final Map<String, LearningMastery> wordMastery;
   final Map<String, int>? initialHPPerWord; // Initial HP when session started
-  final VoidCallback? onStudyAgain;
+  final void Function(List<FlashCard> available)? onStudyAgain;
   final VoidCallback? onDone;
-  final VoidCallback? onShuffle;
+  final void Function(List<FlashCard> available)? onShuffle;
   final String title;
   final bool showSwipeToReview;
   final int? correctAnswers; // Optional overall score
@@ -105,11 +107,11 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
               title: widget.title,
               leftAction: IconButton(
                 onPressed: () {
-                  // Use the onDone callback if available, otherwise just pop
+                  // Use the onDone callback if available, otherwise pop to options or first
                   if (widget.onDone != null) {
                     widget.onDone!();
                   } else {
-                    Navigator.of(context).pop();
+                    Navigator.of(context).popUntil((route) => route.settings.name == '/options' || route.isFirst);
                   }
                 },
                 icon: const Icon(Icons.arrow_back_ios),
@@ -566,16 +568,88 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                   ),
                   child: Row(
                     children: [
+                      // Study Again button with availability check
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: widget.onStudyAgain,
+                          onPressed: () {
+                            if (widget.onStudyAgain != null) {
+                              final provider = context.read<FlashcardProvider>();
+                              
+                              // Check availability
+                              final available = widget.studiedWords.where((c) {
+                                final updated = provider.getCard(c.id) ?? c;
+                                return updated.isAvailableForStudy;
+                              }).toList();
+                              
+                              if (available.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No cards are available for study (all defeated or mastered).'),
+                                    backgroundColor: Colors.red,
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                                return;
+                              }
+                              
+                              if (available.length < widget.studiedWords.length) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Some cards are not available (defeated or mastered).'),
+                                    backgroundColor: Colors.orange,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                              
+                              widget.onStudyAgain!(available);
+                            }
+                          },
                           child: const Text('Study Again'),
                         ),
                       ),
                       const SizedBox(width: 16),
+                      // Shuffle button with availability check
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: widget.onShuffle ?? widget.onDone,
+                          onPressed: () {
+                            if (widget.onShuffle != null) {
+                              final provider = context.read<FlashcardProvider>();
+                              
+                              // Check availability
+                              final available = widget.studiedWords.where((c) {
+                                final updated = provider.getCard(c.id) ?? c;
+                                return updated.isAvailableForStudy;
+                              }).toList();
+                              
+                              if (available.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No cards are available for shuffle (all defeated or mastered).'),
+                                    backgroundColor: Colors.red,
+                                    duration: Duration(seconds: 3),
+                                  ),
+                                );
+                                return;
+                              }
+                              
+                              if (available.length < widget.studiedWords.length) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Some cards are not available (defeated or mastered).'),
+                                    backgroundColor: Colors.orange,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                              
+                              widget.onShuffle!(available);
+                            } else if (widget.onDone != null) {
+                              widget.onDone!();
+                            } else {
+                              Navigator.of(context).popUntil((route) => route.settings.name == '/options' || route.isFirst);
+                            }
+                          },
                           child: Text(widget.onShuffle != null ? 'Shuffle' : 'Done'),
                         ),
                       ),

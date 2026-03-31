@@ -883,16 +883,16 @@ class _StudyViewState extends State<StudyView> {
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswers,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
+            _currentCards = List.from(available);
             _currentCardIndex = 0;
             _correctAnswers = 0;
             _totalAnswers = 0;
             _showAnswer = false;
             _isFlipped = widget.startFlipped;
             _consecutiveCorrect = 0;
-            _currentCards.shuffle(Random());
             _xpGainedPerWord.clear();
             _wordMastery.clear();
             _studiedWords.clear();

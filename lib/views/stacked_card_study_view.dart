@@ -318,9 +318,10 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswers,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
+            _currentCards = List.from(available);
             topIndex = 0;
             _studiedWords.clear();
             _xpGainedPerWord.clear();
@@ -411,8 +412,8 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
                     alignment: Alignment.center,
                     clipBehavior: Clip.none,
                     children: [
-                      // Directional label behind the card (only show relevant one)
-                      if (_swipeDirection != SwipeDirection.none && _swipeIntensity > 0.3)
+                      // Directional label behind the card (only show when enough distance reached)
+                      if (_swipeDirection != SwipeDirection.none && _swipeIntensity >= 1.0)
                         _buildDirectionalLabel(),
                       
                       // Stacked cards
@@ -446,12 +447,13 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
 
   // Background color based on swipe direction
   Color _getSwipeBackgroundColor() {
-    if (_swipeDirection == SwipeDirection.none || _swipeIntensity < 0.3) {
+    // Only show background when swiped enough to register
+    if (_swipeDirection == SwipeDirection.none || _swipeIntensity < 1.0) {
       return Colors.transparent;
     }
     
     final baseColor = _getSwipeColor();
-    final intensity = (_swipeIntensity * 0.3).clamp(0.0, 0.3);
+    final intensity = (_swipeIntensity * 0.35).clamp(0.0, 0.4);
     return baseColor.withValues(alpha: intensity);
   }
 
@@ -773,20 +775,27 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
     // Gesture handling with smooth movement
     return GestureDetector(
       onPanStart: (details) {
-        // Start continuous long vibration when user starts touching the card
-        HapticService().startContinuousVibration();
+        // Continuous vibration removed as requested for a better experience
       },
       onPanUpdate: (details) {
         final previousDirection = swipeDirection;
+        final previousReached = position.distance > 150;
         
         setState(() {
           position += details.delta;
           
-          // Calculate swipe intensity
-          final intensity = (position.distance / 150).clamp(0.0, 1.0);
+          // Calculate swipe intensity - mapping 0 to 150 distance to 0 to 1.0 intensity
+          // This way 1.0 means background color and haptic should trigger
+          final intensity = (position.distance / 150).clamp(0.0, 1.2);
           
           // Call the swipe update callback
           widget.onSwipeUpdate?.call(details.delta, intensity);
+          
+          // Determine reached state for single haptic click
+          final currentReached = position.distance > 150;
+          if (currentReached && !previousReached) {
+            HapticService().selectionFeedback(); // Precise haptic click when reached enough distance
+          }
           
           // Determine swipe direction - strict cardinal directions only (like Quick Study)
           final horizontalDistance = position.dx.abs();
@@ -819,10 +828,10 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
           }
         });
         
-        // Continuous haptic feedback is handled in onPanStart
+        // Threshold check happens below in onPanEnd
       },
       onPanEnd: (details) {
-        // Stop continuous vibration when pan ends
+        // Stop any remaining vibration if needed (optional)
         HapticService().stopContinuousVibration();
         
         final velocity = details.velocity.pixelsPerSecond;
@@ -830,8 +839,8 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
         
         print('🔍 Stacked Study: Pan ended - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
         
-        // Use the exact logic from your working code
-        if (position.distance > 60 || speed > 300) {
+        // Increased threshold to 150 for better control as requested
+        if (position.distance > 150 || (position.distance > 80 && speed > 500)) {
           print('🎯 Stacked Study: Swipe completed - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
           // Provide haptic feedback for successful swipe
           HapticService().mediumImpact();

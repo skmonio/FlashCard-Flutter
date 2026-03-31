@@ -817,7 +817,7 @@ class _PhraseExerciseDetailViewState extends State<PhraseExerciseDetailView> {
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
             _currentExerciseIndex = 0;

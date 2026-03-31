@@ -1053,7 +1053,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswered,
-        onStudyAgain: () async {
+        onStudyAgain: (available) async {
           Navigator.of(context).pop();
           setState(() {
             _currentExerciseIndex = 0;
@@ -1080,7 +1080,7 @@ class _DutchWordsPracticeViewState extends State<DutchWordsPracticeView> {
             _initializePractice(shuffle: false);
           });
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
           _shuffleAndRestart();
         },

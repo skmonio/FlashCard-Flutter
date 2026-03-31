@@ -27,9 +27,9 @@ class SentenceUtils {
     // Quick path: strict equality by value
     if (listEquals(answerWords, correctWords)) return true;
 
-    // Normalize to lowercase for safety (generators usually already do this)
-    final List<String> a = answerWords.map((w) => w.toLowerCase()).toList();
-    final List<String> c = correctWords.map((w) => w.toLowerCase()).toList();
+    // Normalize to lowercase and remove trailing punctuation (like periods)
+    final List<String> a = answerWords.map((w) => w.toLowerCase().replaceAll(RegExp(r'[.!?]$'), '')).toList();
+    final List<String> c = correctWords.map((w) => w.toLowerCase().replaceAll(RegExp(r'[.!?]$'), '')).toList();
 
     // Build filtered sequences without flexible words
     final List<String> aFixed = a.where((w) => !_flexibleWords.contains(w)).toList();

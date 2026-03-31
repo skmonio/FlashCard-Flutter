@@ -654,19 +654,25 @@ class _PopYourCardViewState extends State<PopYourCardView>
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalQuestions,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           Navigator.of(context).pop();
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => PopYourCardView(
-                cards: widget.cards,
+                cards: available,
                 title: widget.title,
+                shuffleMode: widget.shuffleMode,
+                shuffleQuestionOffset: widget.shuffleQuestionOffset,
+                useLivesMode: widget.useLivesMode,
+                useTimedMode: widget.useTimedMode,
+                oneAnswerMode: widget.oneAnswerMode,
+                onComplete: widget.onComplete,
               ),
             ),
           );
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
           Navigator.of(context).pop();
           _shuffleAndRestart();
@@ -834,36 +840,49 @@ class _PopYourCardViewState extends State<PopYourCardView>
                   child: Column(
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            widget.shuffleMode && widget.shuffleQuestionOffset != null
-                                ? "Card ${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}/${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}"
-                                : "Card ${_currentIndex + 1}/${widget.cards.length}",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onSurface,
+                          Expanded(
+                            child: Text(
+                              widget.shuffleMode && widget.shuffleQuestionOffset != null
+                                  ? "Card ${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}/${(widget.shuffleQuestionOffset ?? 0) + _currentIndex + 1}"
+                                  : "Card ${_currentIndex + 1}/${widget.cards.length}",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
                             ),
                           ),
-                          // Show lives and/or timer in the middle if active
-                          if (_useLivesMode && _useTimedMode) ...[
-                            _buildLivesIndicator(),
-                            const SizedBox(width: 8),
-                            _buildTimerIndicator(),
-                          ] else if (_useLivesMode) ...[
-                            _buildLivesIndicator(),
-                          ] else if (_useTimedMode) ...[
-                            _buildTimerIndicator(),
-                          ] else ...[
-                            const SizedBox.shrink(),
-                          ],
-                          Text(
-                            "Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface,
+                          
+                          // Middle side: Lives and/or timer
+                          if (_useLivesMode || _useTimedMode)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_useLivesMode && _useTimedMode) ...[
+                                    _buildLivesIndicator(),
+                                    const SizedBox(width: 8),
+                                    _buildTimerIndicator(),
+                                  ] else if (_useLivesMode) ...[
+                                    _buildLivesIndicator(),
+                                  ] else if (_useTimedMode) ...[
+                                    _buildTimerIndicator(),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            
+                          Expanded(
+                            child: Text(
+                              "Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              textAlign: TextAlign.right,
                             ),
                           ),
                         ],

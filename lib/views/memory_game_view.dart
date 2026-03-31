@@ -391,14 +391,14 @@ class _MemoryGameViewState extends State<MemoryGameView>
           initialHPPerWord: _initialHPPerWord,
           correctAnswers: _matches,
           totalQuestions: _studiedWords.isNotEmpty ? _studiedWords.length : _matches,
-          onStudyAgain: () {
+          onStudyAgain: (available) {
             if (mounted) {
-              _resetGame();
+              _resetGameWithCards(available);
             }
           },
-          onShuffle: () {
+          onShuffle: (available) {
             if (mounted) {
-              _shuffleAndRestart();
+              _resetGameWithCards(available..shuffle());
             }
           },
           onDone: () {
@@ -1205,18 +1205,52 @@ class _MemoryGameViewState extends State<MemoryGameView>
     _pendingReplacementIndices.clear();
     _isProcessingBatch = false;
     
-    // Shuffle the cards for a different order
-    final shuffledCards = List<FlashCard>.from(widget.cards);
-    shuffledCards.shuffle(Random());
-    
     // Initialize the game
     _initializeGame();
     
     // Trigger a rebuild to return to the game view
     if (mounted) {
-      setState(() {
-        // This will cause the build method to return the game view instead of the end screen
-      });
+      setState(() {});
+    }
+  }
+
+  void _resetGameWithCards(List<FlashCard> cards) {
+    // Reset game state
+    _memoryCards.clear();
+    _firstCard = null;
+    _secondCard = null;
+    _canSelect = true;
+    _moves = 0;
+    _matches = 0;
+    _gameComplete = false;
+    _gameSession.reset();
+    _xpGainedPerWord.clear();
+    _wordMastery.clear();
+    _studiedWords.clear();
+    _incorrectlyMatchedCards.clear();
+    _pendingReplacementIndices.clear();
+    _isProcessingBatch = false;
+    
+    // Use filtered cards for this session
+    _remainingCards = List.from(cards);
+    _totalCardsProcessed = 0;
+    _matches = 0;
+    _moves = 0;
+    
+    if (cards.length <= 5) {
+      _totalPairs = cards.length;
+      _createMemoryCards(cards);
+      _remainingCards.clear();
+    } else {
+      _totalPairs = 5;
+      final initialCards = _remainingCards.take(5).toList();
+      _remainingCards.removeRange(0, 5);
+      _totalCardsProcessed = 0;
+      _createMemoryCards(initialCards);
+    }
+    
+    if (mounted) {
+      setState(() {});
     }
   }
 

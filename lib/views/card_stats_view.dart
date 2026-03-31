@@ -294,6 +294,7 @@ class _CardStatsViewState extends State<CardStatsView> {
       'timed_true_false': 'Timed True or False',
       'timed_word_scramble': 'Timed Jumble Your Cards',
       'dutch_word_exercise_detail': 'Exercise',
+      'sentence': 'Sentence Your Cards',
     };
     
     // Get unique game names in order of preference

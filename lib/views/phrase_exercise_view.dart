@@ -110,7 +110,7 @@ class _PhraseExerciseViewState extends State<PhraseExerciseView> {
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalQuestions,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           _restartExercise();
         },

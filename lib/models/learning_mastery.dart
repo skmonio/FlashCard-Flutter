@@ -401,33 +401,41 @@ class LearningMastery {
   
   /// Legacy method - now delegates to processAnswer and awards XP
   void markCorrect(GameDifficulty difficulty) {
-    // Record the attempt and get XP (with daily diminishing returns)
-    final xpGained = recordGameAttempt(_getExerciseTypeFromDifficulty(difficulty));
-    
-    // Default to "good" quality for legacy calls
-    processAnswer(difficulty, AnswerQuality.good);
-    
-    // Add the XP to the word
-    addXP(xpGained, _getExerciseTypeFromDifficulty(difficulty));
+    markCorrectAs(_getExerciseTypeFromDifficulty(difficulty), difficulty);
   }
   
   /// Legacy method - now delegates to processAnswer (no XP for incorrect)
   void markIncorrect(GameDifficulty difficulty) {
-    final exerciseType = _getExerciseTypeFromDifficulty(difficulty);
+    markIncorrectAs(_getExerciseTypeFromDifficulty(difficulty), difficulty);
+  }
+
+  /// Mark correct with an explicit exercise type string (e.g. 'sentence', 'writing').
+  /// Use this instead of markCorrect when the game mode doesn't map cleanly to GameDifficulty.
+  void markCorrectAs(String exerciseType, [GameDifficulty difficulty = GameDifficulty.medium]) {
+    // Record the attempt and get XP (with daily diminishing returns)
+    final xpGained = recordGameAttempt(exerciseType);
     
+    // Default to "good" quality
+    processAnswer(difficulty, AnswerQuality.good);
+    
+    // Add the XP to the word
+    addXP(xpGained, exerciseType);
+  }
+
+  /// Mark incorrect with an explicit exercise type string (e.g. 'sentence', 'writing').
+  void markIncorrectAs(String exerciseType, [GameDifficulty difficulty = GameDifficulty.medium]) {
     // Record the attempt (no XP for incorrect answers)
     recordGameAttempt(exerciseType);
     
     // Add to exerciseHistory with 0 XP to keep game usage in sync with timesShown
-    // This ensures that game usage stats match the total attempts count
     exerciseHistory.add({
       'timestamp': DateTime.now().toIso8601String(),
       'exerciseType': exerciseType,
-      'xpGained': 0, // No XP for incorrect answers
+      'xpGained': 0,
       'totalXP': currentXP,
     });
     
-    // Default to "incorrect" quality for legacy calls
+    // Default to "incorrect" quality
     processAnswer(difficulty, AnswerQuality.incorrect);
   }
   
@@ -553,26 +561,12 @@ class LearningMastery {
     final todayStart = DateTime(today.year, today.month, today.day);
     
     // Get all exercise history entries for today, excluding 'creation'
-    final todayEntries = exerciseHistory
-        .where((entry) {
-          final timestamp = DateTime.parse(entry['timestamp']);
-          final exerciseType = entry['exerciseType'] as String?;
-          return timestamp.isAfter(todayStart) && exerciseType != 'creation';
-        })
-        .toList();
-    
-    if (todayEntries.isEmpty) return 0;
-    
-    // Group entries by hour-level timestamp to count distinct "sessions"
-    final Set<String> sessions = {};
-    for (final entry in todayEntries) {
+    // Each entry represents one completed exercise/session for this card
+    return exerciseHistory.where((entry) {
       final timestamp = DateTime.parse(entry['timestamp']);
-      // Unique key for year-month-day-hour
-      final sessionKey = '${timestamp.year}-${timestamp.month}-${timestamp.day}-${timestamp.hour}';
-      sessions.add(sessionKey);
-    }
-    
-    return sessions.length;
+      final exerciseType = entry['exerciseType'] as String?;
+      return timestamp.isAfter(todayStart) && exerciseType != 'creation';
+    }).length;
   }
   
   /// Get the timestamp of the most recent exercise (when card was last used)

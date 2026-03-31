@@ -113,6 +113,9 @@ class FlashCard {
   double get hpPercentage => learningMastery.hpPercentage;
   String get hpStatus => learningMastery.hpStatus;
   
+  /// Check if card is available for study (has HP and can still gain XP)
+  bool get isAvailableForStudy => !isDefeated && learningMastery.currentXP < 1100;
+  
   // Legacy getters for backward compatibility
   int get timesShown => learningMastery.totalAttempts;
   int get timesCorrect => learningMastery.totalCorrect;
@@ -134,6 +137,18 @@ class FlashCard {
   /// Mark answer as incorrect for specific game difficulty
   void markIncorrect(GameDifficulty difficulty) {
     learningMastery.markIncorrect(difficulty);
+    lastModified = DateTime.now();
+  }
+
+  /// Mark correct with an explicit exercise type string (for precise game-usage tracking)
+  void markCorrectAs(String exerciseType, [GameDifficulty difficulty = GameDifficulty.medium]) {
+    learningMastery.markCorrectAs(exerciseType, difficulty);
+    lastModified = DateTime.now();
+  }
+
+  /// Mark incorrect with an explicit exercise type string (for precise game-usage tracking)
+  void markIncorrectAs(String exerciseType, [GameDifficulty difficulty = GameDifficulty.medium]) {
+    learningMastery.markIncorrectAs(exerciseType, difficulty);
     lastModified = DateTime.now();
   }
   

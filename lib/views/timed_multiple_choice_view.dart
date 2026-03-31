@@ -641,8 +641,9 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
             _totalAnswered = 0;
@@ -741,14 +742,25 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Card ${_currentIndex + 1}/${_currentCards.length}'),
-              // Show timer in the middle
-              _buildTimerIndicator(),
-              Text(
-                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              // Left: Card count
+              Expanded(
+                child: Text('Card ${_currentIndex + 1}/${_currentCards.length}'),
+              ),
+              
+              // Middle: Timer indicator
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildTimerIndicator(),
+              ),
+              
+              // Right: Accuracy
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),
@@ -1068,33 +1080,41 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                   
                   const SizedBox(height: 32),
                   
-                  // Options
+                  // Options - 2 answers on one line, flexible on devices
                   Expanded(
-                    child: Column(
-                      children: _options.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final option = entry.value;
-                        
-                        // Check if option is blocked/disabled
-                        _blockedOptions[_currentIndex] ??= <int>{};
-                        _disabledOptions[_currentIndex] ??= <int>{};
-                        final isBlocked = _blockedOptions[_currentIndex]!.contains(index);
-                        final isDisabled = _disabledOptions[_currentIndex]!.contains(index);
-                        final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
-                        
-                        // Block interactions: if answered, wrong answers are not selectable
-                        final isNotSelectable = isBlocked || isDisabled || (_answered && index != _correctAnswerIndex);
-                        
-                        // Visual appearance: only show as blocked if there were wrong attempts or if it's actually blocked/disabled
-                        final shouldShowAsBlocked = (isBlocked || isDisabled) || (_answered && index != _correctAnswerIndex && wrongAttempts > 0);
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: GestureDetector(
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 400,
+                          mainAxisExtent: 80,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                        ),
+                        itemCount: _options.length,
+                        itemBuilder: (context, index) {
+                          final option = _options[index];
+                          
+                          // Check if option is blocked/disabled
+                          _blockedOptions[_currentIndex] ??= <int>{};
+                          _disabledOptions[_currentIndex] ??= <int>{};
+                          final isBlocked = _blockedOptions[_currentIndex]!.contains(index);
+                          final isDisabled = _disabledOptions[_currentIndex]!.contains(index);
+                          final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
+                          
+                          // Block interactions: if answered, wrong answers are not selectable
+                          final isNotSelectable = isBlocked || isDisabled || (_answered && index != _correctAnswerIndex);
+                          
+                          // Visual appearance: only show as blocked if there were wrong attempts or if it's actually blocked/disabled
+                          final shouldShowAsBlocked = (isBlocked || isDisabled) || (_answered && index != _correctAnswerIndex && wrongAttempts > 0);
+                          
+                          return GestureDetector(
                             onTap: isNotSelectable ? null : () => _selectAnswer(index),
                             child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: shouldShowAsBlocked ? Colors.grey.withValues(alpha: 0.5) : _getOptionColor(index),
                                 borderRadius: BorderRadius.circular(12),
@@ -1114,41 +1134,36 @@ class _TimedMultipleChoiceViewState extends State<TimedMultipleChoiceView> {
                                     ),
                                     child: Center(
                                       child: shouldShowAsBlocked
-                                          ? const Icon(Icons.block, color: Colors.grey, size: 18)
+                                          ? const Icon(Icons.block, color: Colors.grey, size: 16)
                                           : Text(
                                               String.fromCharCode(65 + index), // A, B, C, D
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 12,
+                                                fontSize: 10,
                                               ),
                                             ),
                                     ),
                                   ),
-                                  const SizedBox(width: 16),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       option,
                                       style: TextStyle(
-                                        fontSize: 16,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                         color: shouldShowAsBlocked ? Colors.grey : _getOptionTextColor(index),
                                       ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if (_answered && index == _correctAnswerIndex)
-                                    const Icon(Icons.check_circle, color: Colors.green, size: 24),
-                                  if (_answered && index == _selectedAnswer && index != _correctAnswerIndex)
-                                    const Icon(Icons.cancel, color: Colors.red, size: 24),
-                                  // Show X icon for disabled/wrong answers (only if there were wrong attempts)
-                                  if ((isBlocked || isDisabled) && !_answered)
-                                    const Icon(Icons.close, color: Colors.red, size: 20),
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   

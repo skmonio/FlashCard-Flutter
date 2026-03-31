@@ -64,7 +64,6 @@ class MultipleChoiceView extends StatefulWidget {
 class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctAnswers = 0;
-  int _totalAnswered = 0;
   int _totalAttempts = 0;
   bool _showingResults = false;
   bool _answered = false;
@@ -274,7 +273,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     setState(() {
       _answered = true;
       _timeUp = true;
-      _totalAnswered++;
+      _totalAttempts++;
       _correctAnswersMap[_currentIndex] = false; // Time out = incorrect answer
       _selectedAnswer = null; // No answer selected
     });
@@ -305,7 +304,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
   void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
       // Calculate success rate
-      final successRate = _totalAnswered > 0 ? (_correctAnswers / _totalAnswered) : 0.0;
+      final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
       final wasSuccessful = successRate >= 0.6; // 60% or higher is considered successful
       
       // Call the onComplete callback if provided
@@ -512,7 +511,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       
       if (isCorrect) {
         _answered = true;
-        _totalAnswered++;
+        _totalAttempts++;
         _correctAnswers++;
         
         // Store the answer
@@ -547,7 +546,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         if (oneAnswerMode) {
           // Wrong answer in 1 answer mode - mark as answered immediately
           _answered = true;
-          _totalAnswered++;
+          _totalAttempts++;
           _answeredQuestions[_currentIndex] = index;
           _correctAnswersMap[_currentIndex] = false;
           
@@ -605,7 +604,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         // If 5 wrong attempts, show the answer automatically
         if (newWrongAttempts >= 5) {
           _answered = true;
-          _totalAnswered++;
+          _totalAttempts++;
           _correctAnswersMap[_currentIndex] = false;
           _answeredQuestions[_currentIndex] = index;
           
@@ -947,17 +946,25 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                   
                   const SizedBox(height: 20), // Reduced spacing
                   
-                  // Options
+                  // Options - 2 answers on one line, flexible on devices
                   Expanded(
-                    child: Column(
-                      children: _options.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final option = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: _buildOptionButton(index, option),
-                        );
-                      }).toList(),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 400,
+                          mainAxisExtent: 80,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                        ),
+                        itemCount: _options.length,
+                        itemBuilder: (context, index) {
+                          return _buildOptionButton(index, _options[index]);
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -978,54 +985,64 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${_currentCards.length}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              // Show lives and/or timer in the middle if active
-              if (_useLivesMode || _useTimedMode || _consecutiveCorrect >= 3) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_useLivesMode) ...[
-                      _buildLivesIndicator(),
-                      if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
-                    ],
-                    if (_useTimedMode) ...[
-                      _buildTimerIndicator(),
-                      if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
-                    ],
-                    if (_consecutiveCorrect >= 3)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$_consecutiveCorrect',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+              // Left side: Card count
+              Expanded(
+                child: Text(
+                  'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + _currentIndex + 1) : (_currentIndex + 1)}/${_currentCards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
-              ],
-              Text(
-                'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              
+              // Middle: Lives and/or timer
+              if (_useLivesMode || _useTimedMode || _consecutiveCorrect >= 3)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                        if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (_useTimedMode) ...[
+                        _buildTimerIndicator(),
+                        if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
+                      if (_consecutiveCorrect >= 3)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_consecutiveCorrect',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              
+              // Right side: Accuracy (or empty expanded to maintain center)
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),
@@ -1067,7 +1084,9 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                 label: const Text('Back'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _currentIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
-                  foregroundColor: _currentIndex > 0 ? Colors.black87 : Colors.grey,
+                  foregroundColor: _currentIndex > 0 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1258,8 +1277,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
           offset: Offset(shakeOffset, 0),
           child: Transform.scale(
             scale: successScale,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
+            child: SizedBox(
               width: double.infinity,
               child: Material(
                 color: Colors.transparent,
@@ -1409,11 +1427,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                     const SizedBox(height: 24),
                     
                     // Stats
-                    _buildStatCard('Questions', _totalAnswered.toString(), Icons.quiz),
+                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.quiz),
                     const SizedBox(height: 16),
                     _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
                     const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAnswered - _correctAnswers).toString(), Icons.cancel, Colors.red),
+                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
                       AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
@@ -1481,7 +1499,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                         setState(() {
                           _currentIndex = 0;
                           _correctAnswers = 0;
-                          _totalAnswered = 0;
+                          _totalAttempts = 0;
                           _showingResults = false;
                           _answered = false;
                           _selectedAnswer = null;
@@ -1629,10 +1647,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     
     // Update session statistics
     final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
-    final isPerfect = _correctAnswers == _totalAnswered && _totalAnswered > 0;
+    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
     
     context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAnswered,
+      cardsStudied: _totalAttempts,
       sessionAccuracy: accuracy,
       isPerfect: isPerfect,
     );
@@ -1754,7 +1772,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       _currentCards = newCards;
       _currentIndex = 0;
       _correctAnswers = 0;
-      _totalAnswered = 0;
+      _totalAttempts = 0;
       _showingResults = false;
       _answered = false;
       _selectedAnswer = null;
@@ -1802,18 +1820,18 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         wordMastery: sessionWordMastery,
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
-        totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        totalQuestions: _totalAttempts,
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
+            _currentCards = List.from(available);
             _currentIndex = 0;
             _correctAnswers = 0;
-            _totalAnswered = 0;
+            _totalAttempts = 0;
             _showingResults = false;
             _answered = false;
             _selectedAnswer = null;
             _gameSession.reset();
-            _currentCards.shuffle(Random());
             if (_useLivesMode) {
               _lives = _maxLives;
             }
@@ -1832,8 +1850,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
           _generateQuestion();
         },
         onShuffle: widget.studyConfig != null
-            ? () {
+            ? (available) {
                 Navigator.of(context).pop();
+                setState(() {
+                  _currentCards = List.from(available)..shuffle();
+                });
                 _shuffleAndRestart();
               }
             : null,
@@ -1989,6 +2010,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     
     setState(() {
       _hintCount[_currentIndex] = currentHintCount + 1;
+      _totalAttempts++; // Hint usage counts as an attempt for accuracy calculation
     });
     
     // Third hint: Complete the question automatically

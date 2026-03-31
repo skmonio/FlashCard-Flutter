@@ -50,6 +50,7 @@ class PickYourCardView extends StatefulWidget {
 class _PickYourCardViewState extends State<PickYourCardView>
     with TickerProviderStateMixin {
   int currentCardIndex = 0;
+  List<FlashCard> _currentCards = []; // mutable working set, supports card filtering on restart
   String selectedPart1 = "";
   String selectedPart2 = "";
   String selectedPart3 = "";
@@ -180,6 +181,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
   @override
   void initState() {
     super.initState();
+    
+    // Initialize working card set
+    _currentCards = List.from(widget.cards);
     
     // Initialize lives system
     _useLivesMode = widget.useLivesMode;
@@ -1056,10 +1060,12 @@ class _PickYourCardViewState extends State<PickYourCardView>
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswers,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           if (mounted) {
             setState(() {
+              // Use filtered available cards
+              _currentCards = List.from(available);
               currentCardIndex = 0;
               _studiedWords.clear();
               _xpGainedPerWord.clear();
@@ -1090,8 +1096,11 @@ class _PickYourCardViewState extends State<PickYourCardView>
           }
           _loadCurrentCard();
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
+          setState(() {
+            _currentCards = List.from(available)..shuffle();
+          });
           _shuffleAndRestart();
         },
         onDone: () {
@@ -1276,7 +1285,9 @@ class _PickYourCardViewState extends State<PickYourCardView>
                 label: const Text('Back'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: currentCardIndex > 0 ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
-                  foregroundColor: currentCardIndex > 0 ? Colors.black87 : Colors.grey,
+                  foregroundColor: currentCardIndex > 0 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
@@ -1336,24 +1347,42 @@ class _PickYourCardViewState extends State<PickYourCardView>
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + currentCardIndex + 1) : (currentCardIndex + 1)}/${widget.cards.length}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
+              // Left side: Card count
+              Expanded(
+                child: Text(
+                  'Card ${widget.shuffleMode && widget.shuffleQuestionOffset != null ? (widget.shuffleQuestionOffset! + currentCardIndex + 1) : (currentCardIndex + 1)}/${widget.cards.length}',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
               ),
-              if (_useLivesMode && widget.useTimedMode) ...[
-                _buildLivesIndicator(),
-                const SizedBox(width: 8),
-                _buildTimerIndicator(),
-              ] else if (_useLivesMode) ...[
-                _buildLivesIndicator(),
-              ] else if (widget.useTimedMode) ...[
-                _buildTimerIndicator(),
-              ],
-              Text(
-                'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              
+              // Middle side: Lives and/or timer
+              if (_useLivesMode || widget.useTimedMode)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_useLivesMode && widget.useTimedMode) ...[
+                        _buildLivesIndicator(),
+                        const SizedBox(width: 8),
+                        _buildTimerIndicator(),
+                      ] else if (_useLivesMode) ...[
+                        _buildLivesIndicator(),
+                      ] else if (widget.useTimedMode) ...[
+                        _buildTimerIndicator(),
+                      ],
+                    ],
+                  ),
+                ),
+              
+              // Right side: Accuracy (or empty expanded to maintain center)
+              Expanded(
+                child: Text(
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                ),
               ),
             ],
           ),

@@ -1007,7 +1007,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
         initialHPPerWord: sessionInitialHPPerWord,
         correctAnswers: _correctAnswers,
         totalQuestions: _totalAnswered,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
             _currentExerciseIndex = 0;
@@ -1029,7 +1029,7 @@ class _DutchWordExerciseDetailViewState extends State<DutchWordExerciseDetailVie
             _studiedWords.clear();
           });
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
           setState(() {
             _currentExerciseIndex = 0;

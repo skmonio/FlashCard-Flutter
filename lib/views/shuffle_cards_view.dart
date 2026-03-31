@@ -78,7 +78,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.dutchExercise: true,
   };
 
-  bool _oneAnswerMode = true; // Use 1-click answer mode across shuffle challenges
+  bool _oneAnswerMode = false; // Use 1-click answer mode across shuffle challenges (disabled by default)
   Set<String> _selectedDeckIds = {}; // Track selected decks for shuffle mode
 
   @override
@@ -140,7 +140,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     }
   }
 
-  void _startGame({bool useSameSequence = false}) {
+  void _startGame({bool useSameSequence = false, List<FlashCard>? filteredCards}) {
     setState(() {
       _currentScore = 0;
       _totalQuestionsAsked = 0;
@@ -154,8 +154,13 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _gameSession.reset();
       _currentChallengeCards.clear();
       
-      // For "Study Again" - retry the same sequence
-      if (useSameSequence && _challengeSequence.isNotEmpty) {
+      // If filtered cards were provided (from the end screen), use only those
+      if (filteredCards != null) {
+        _challengeSequence.clear();
+        _isRetryingSameSequence = false;
+        _currentSequenceIndex = 0;
+      } else if (useSameSequence && _challengeSequence.isNotEmpty) {
+        // For "Study Again" - retry the same sequence
         _isRetryingSameSequence = true;
         _currentSequenceIndex = 0;
       } else {
@@ -970,7 +975,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         initialHPPerWord: _initialHPPerWord,
         correctAnswers: correct,
         totalQuestions: total,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
           if (mounted) {
             setState(() {
@@ -978,12 +983,12 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             });
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                _startGame(useSameSequence: true);
+                _startGame(useSameSequence: true, filteredCards: available);
               }
             });
           }
         },
-        onShuffle: () {
+        onShuffle: (available) {
           Navigator.of(context).pop();
           if (mounted) {
             setState(() {
@@ -991,7 +996,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             });
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                _startGame(useSameSequence: false);
+                _startGame(useSameSequence: false, filteredCards: available);
               }
             });
           }
@@ -1746,21 +1751,6 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
                 )
               else
                 ...visibleModeTiles,
-              const Divider(height: 32),
-              SwitchListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                title: const Row(
-                  children: [
-                    Icon(Icons.touch_app, color: Colors.indigo, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('1-Click Answer Mode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-                  ],
-                ),
-                subtitle: const Text('One attempt per question across all challenges', style: TextStyle(fontSize: 12)),
-                value: _localOneAnswerMode,
-                onChanged: _updateOneAnswerMode,
-              ),
             ],
           ),
         ),

@@ -489,30 +489,32 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     return Container(
       decoration: BoxDecoration(
         color: _getSwipeBackgroundColor(),
-        borderRadius: BorderRadius.circular(12),
       ),
-      child: Stack(
+      child: Column(
         children: [
-          // Directional label behind the card (only show relevant one)
-          if (_swipeDirection != SwipeDirection.none && _swipeIntensity > 0.3)
-            _buildDirectionalLabel(),
-          
           // Card area
-          _buildCardArea(),
+          Expanded(
+            child: _buildCardArea(),
+          ),
+          
+          // Directional label below the card
+          Container(
+            height: 100,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: (_swipeDirection != SwipeDirection.none && _swipeIntensity >= 1.0)
+                  ? _buildDirectionalLabelForDirection(_swipeDirection)
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
   Widget _buildDirectionalLabel() {
-    return Positioned.fill(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: _buildDirectionalLabelForDirection(_swipeDirection),
-        ),
-      ),
-    );
+    return _buildDirectionalLabelForDirection(_swipeDirection);
   }
 
   Widget _buildDirectionalLabelForDirection(SwipeDirection direction) {
@@ -582,47 +584,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         );
         
       case SwipeDirection.up:
-        return Opacity(
-          opacity: opacity,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.orange, width: 4),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              "REVIEW",
-              style: TextStyle(
-                color: Colors.orange,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-        );
-        
       case SwipeDirection.down:
-        return Opacity(
-          opacity: opacity,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.blue, width: 4),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              "SKIP",
-              style: TextStyle(
-                color: Colors.blue,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-        );
-        
       default:
         return const SizedBox.shrink();
     }
@@ -800,22 +762,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       _dragOffset += details.delta;
       _swipeIntensity = (_dragOffset.distance / 150).clamp(0.0, 1.0);
       
-      // Determine swipe direction - strict cardinal directions only
-      final horizontalDistance = _dragOffset.dx.abs();
-      final verticalDistance = _dragOffset.dy.abs();
-      
-      // Only allow pure horizontal or vertical swipes (no diagonal)
-      if (horizontalDistance > verticalDistance * 2.0) {
-        // Horizontal swipe - left or right
+      // Determine swipe direction - easier diagonal support, horizontal priority
+      if (_dragOffset.dx.abs() > 10) {
         _swipeDirection = _dragOffset.dx > 0 ? SwipeDirection.right : SwipeDirection.left;
-      } else if (verticalDistance > horizontalDistance * 2.0) {
-        // Vertical swipe - up or down
-        _swipeDirection = _dragOffset.dy > 0 ? SwipeDirection.down : SwipeDirection.up;
       } else {
-        // Diagonal swipe - reset to none and don't allow movement
         _swipeDirection = SwipeDirection.none;
-        _swipeIntensity = 0;
-        _dragOffset = Offset.zero;
       }
     });
     
@@ -961,12 +912,13 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
 
   Color _getSwipeBackgroundColor() {
-    if (_swipeDirection == SwipeDirection.none || _swipeIntensity < 0.3) {
+    // Only show background when swiped enough to register
+    if (_swipeDirection == SwipeDirection.none || _swipeIntensity < 1.0) {
       return Colors.transparent;
     }
     
     final baseColor = _getSwipeColor();
-    final intensity = (_swipeIntensity * 0.3).clamp(0.0, 0.3);
+    final intensity = (_swipeIntensity * 0.35).clamp(0.0, 0.4);
     return baseColor.withValues(alpha: intensity);
   }
 
@@ -1306,14 +1258,14 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         initialHPPerWord: Map<String, int>.from(_initialHPPerWord),
         correctAnswers: _knownCards.length,
         totalQuestions: sessionStudiedWords.isNotEmpty ? sessionStudiedWords.length : _currentCards.length,
-        onStudyAgain: () {
+        onStudyAgain: (available) {
           Navigator.of(context).pop();
-          _resetStudySession();
+          _resetStudySession(shuffleCards: false, filteredCards: available);
         },
         onShuffle: widget.studyConfig != null
-            ? () {
+            ? (available) {
                 Navigator.of(context).pop();
-                _shuffleAndRestart();
+                _resetStudySession(shuffleCards: true, filteredCards: available);
               }
             : null,
         onDone: () {
@@ -1324,12 +1276,15 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     );
   }
 
-  void _resetStudySession({bool shuffleCards = true}) {
+  void _resetStudySession({bool shuffleCards = true, List<FlashCard>? filteredCards}) {
     setState(() {
       // Reset all card state
       _currentIndex = 0;
       _topIndex = 0;
-      _currentCards = List<FlashCard>.from(_sessionCards);
+      // Use filtered cards if provided, otherwise use all session cards
+      _currentCards = filteredCards != null
+          ? List<FlashCard>.from(filteredCards)
+          : List<FlashCard>.from(_sessionCards);
       if (shuffleCards) {
         _currentCards.shuffle(math.Random());
       }
@@ -1517,22 +1472,10 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         // Update learning progress - marked as correct
         _updateCardLearningProgress(currentCard, true);
         break;
-      case SwipeDirection.up: // Review
-        // Add card to review deck
-        _addCardToReview(currentCard);
-        // No XP for review actions - these are cards that need more study
-        // But still track them for end screen display
-        if (!_studiedWords.any((word) => word.id == currentCard.id)) {
-          _studiedWords.add(currentCard);
-        }
-        break;
-      case SwipeDirection.down: // Skip
-        _skippedCards.add(currentCard.id);
-        _combo = 0;
-        // Don't update learning progress for skipped cards
-        break;
+      case SwipeDirection.up: // Review - removed
+      case SwipeDirection.down: // Skip - removed
       default:
-        return;
+        break;
     }
   }
 }
@@ -1635,10 +1578,8 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
         exitOffset = const Offset(2.0, 0.0); // Exit right
         break;
       case SwipeDirection.up:
-        exitOffset = const Offset(0.0, -2.0); // Exit up
-        break;
       case SwipeDirection.down:
-        exitOffset = const Offset(0.0, 2.0); // Exit down
+        exitOffset = const Offset(0.0, -2.0); // Exit top as fallback
         break;
       default:
         exitOffset = const Offset(2.0, 0.0); // Default to right
@@ -1706,26 +1647,28 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
     // Gesture handling with smooth movement
     return GestureDetector(
       onPanStart: (details) {
-        // Start continuous long vibration when user starts touching the card
-        HapticService().startContinuousVibration();
+        // Continuous vibration removed for a cleaner experience
       },
       onPanUpdate: (details) {
+        final previousReached = position.distance > 100;
+        
         setState(() {
           position += details.delta;
           
-          // Calculate swipe intensity
-          final intensity = (position.distance / 150).clamp(0.0, 1.0);
+          // Calculate swipe intensity - mapping 0 to 100 distance to 0 to 1.0 intensity
+          final intensity = (position.distance / 100).clamp(0.0, 1.2);
           
           // Call the swipe update callback
           widget.onSwipeUpdate?.call(swipeDirection, intensity);
           
-          // Determine swipe direction - strict cardinal directions only (like Quick Study)
-          final horizontalDistance = position.dx.abs();
-          final verticalDistance = position.dy.abs();
+          // Determine reached state for single haptic click
+          final currentReached = position.distance > 100;
+          if (currentReached && !previousReached) {
+            HapticService().selectionFeedback(); // Precise haptic click when reached enough distance
+          }
           
-          // Only allow pure horizontal or vertical swipes (no diagonal)
-          if (horizontalDistance > verticalDistance * 2.0) {
-            // Horizontal swipe - left or right
+          // Determine swipe direction - easier diagonal support, horizontal priority
+          if (position.dx.abs() > 10) {
             if (position.dx > 0) {
               userAnswer = true; // Swiping right = know
               swipeDirection = SwipeDirection.right;
@@ -1733,35 +1676,24 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
               userAnswer = false; // Swiping left = don't know
               swipeDirection = SwipeDirection.left;
             }
-          } else if (verticalDistance > horizontalDistance * 2.0) {
-            // Vertical swipe - up or down
-            if (position.dy < 0) {
-              userAnswer = true; // Swiping up = review (use true as placeholder)
-              swipeDirection = SwipeDirection.up;
-            } else {
-              userAnswer = false; // Swiping down = skip (use false as placeholder)
-              swipeDirection = SwipeDirection.down;
-            }
           } else {
-            // Diagonal swipe - reset to none and don't allow movement
-            position = Offset.zero;
             userAnswer = null;
             swipeDirection = SwipeDirection.none;
           }
         });
         
-        // Continuous haptic feedback is handled in onPanStart
+        // Threshold check happens below in onPanEnd
       },
       onPanEnd: (details) {
-        // Stop continuous vibration when pan ends
+        // Stop any remaining vibration if needed
         HapticService().stopContinuousVibration();
         final velocity = details.velocity.pixelsPerSecond;
         final speed = velocity.distance;
         
         print('🔍 TaalTrekStackCard: Pan ended - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
         
-        // Use the exact logic from your working code
-        if (position.distance > 60 || speed > 300) {
+        // Increased threshold to 100 (from 60) for better control as requested
+        if (position.distance > 100 || speed > 450) {
           print('🎯 TaalTrekStackCard: Swipe completed - direction: $swipeDirection, distance: ${position.distance}, speed: $speed');
           // Play swipe sound for successful swipe
           SoundManager().playSwipeSound();
