@@ -4,11 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../services/unified_import_service.dart';
 import '../services/export_service.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 import '../models/deck.dart';
 import 'enhanced_export_view.dart';
 
@@ -267,18 +265,13 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
           print('🔍 CSV content preview: ${csvContent.substring(0, csvContent.length > 200 ? 200 : csvContent.length)}...');
           
           final flashcardProvider = context.read<FlashcardProvider>();
-          final dutchProvider = context.read<DutchWordExerciseProvider>();
-
-          // Parse the CSV to get both cards and exercises
-          print('🔍 Parsing CSV with UnifiedImportService...');
-          final parseResult = await UnifiedImportService.parseUnifiedCSV(csvContent);
           
+          final parseResult = await UnifiedImportService.parseUnifiedCSV(csvContent);
           final cards = (parseResult['cards'] as List<dynamic>?)?.cast<FlashCard>() ?? [];
-          final exercises = (parseResult['exercises'] as List<dynamic>?)?.cast<DutchWordExercise>() ?? [];
           final parseErrors = (parseResult['errors'] as List<dynamic>?)?.cast<String>() ?? [];
           final errors = <String>[];
           
-          print('🔍 Parse result: ${cards.length} cards, ${exercises.length} exercises, ${parseErrors.length} errors');
+          print('🔍 Parse result: ${cards.length} cards, ${parseErrors.length} errors');
           
           // Add parsing errors to the error list
           errors.addAll(parseErrors);
@@ -354,9 +347,9 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
               deckIds: actualDeckIds,
               article: card.article,
               plural: card.plural,
+              presentTense: card.presentTense,
               pastTense: card.pastTense,
-              futureTense: card.futureTense,
-              pastParticiple: card.pastParticiple,
+              perfectTense: card.perfectTense,
             );
             
             if (newCard != null) {
@@ -368,48 +361,16 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
             }
           }
 
-          // Import exercises using DutchWordExerciseProvider
-          var exerciseSuccessCount = 0;
-          print('🔍 Starting exercise import...');
-          for (final exercise in exercises) {
-            // Check for duplicates
-            final existingExercise = dutchProvider.wordExercises.firstWhere(
-              (existing) => existing.targetWord.toLowerCase() == exercise.targetWord.toLowerCase(),
-              orElse: () => DutchWordExercise(
-                id: '',
-                targetWord: '',
-                wordTranslation: '',
-                deckId: '',
-                deckName: '',
-                category: WordCategory.common,
-                difficulty: ExerciseDifficulty.beginner,
-                exercises: [],
-                createdAt: DateTime.now(),
-                isUserCreated: true,
-              ),
-            );
-            
-            if (existingExercise.id.isNotEmpty) {
-              print('🔍 Skipping duplicate exercise: ${exercise.targetWord}');
-              continue; // Skip duplicate
-            }
-            
-            // Add the exercise
-            await dutchProvider.addWordExercise(exercise);
-            exerciseSuccessCount++;
-            print('🔍 Successfully created exercise: ${exercise.targetWord}');
-          }
-
-          print('🔍 Import completed: $cardSuccessCount cards, $exerciseSuccessCount exercises, $skippedCount skipped');
+          print('🔍 Import completed: $cardSuccessCount cards, $skippedCount skipped');
 
           setState(() {
             if (errors.isNotEmpty) {
               _importResult = 'Import completed with errors. '
-                  'Imported $cardSuccessCount cards and $exerciseSuccessCount exercises. '
+                  'Imported $cardSuccessCount cards. '
                   'Skipped $skippedCount duplicate cards.';
             } else {
               _importResult = 'Import completed successfully! '
-                  'Imported $cardSuccessCount cards and $exerciseSuccessCount exercises. '
+                  'Imported $cardSuccessCount cards. '
                   'Skipped $skippedCount duplicate cards.';
             }
             _importErrors = List<String>.from(errors);
@@ -448,19 +409,13 @@ class _UnifiedImportExportViewState extends State<UnifiedImportExportView> {
 
     try {
       final flashcardProvider = context.read<FlashcardProvider>();
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
 
-      // Get all deck IDs for export
-      final allDeckIds = flashcardProvider.decks.map((d) => d.id).toSet();
+      // Get all cards and decks for export
+      final cards = flashcardProvider.cards;
+      final decks = flashcardProvider.decks;
       
-      // Get all exercises for export
-      final allExercises = dutchProvider.wordExercises;
-      
-      // Export using unified service
-      final csvContent = flashcardProvider.exportUnifiedCSV(
-        allDeckIds,
-        exercises: allExercises,
-      );
+      // Export using simplified service
+      final csvContent = ExportService.exportCardsToCSV(cards, decks);
 
       // Save file using proper mobile approach
       final result = await FilePicker.platform.saveFile(

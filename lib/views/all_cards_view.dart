@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 import '../models/learning_mastery.dart';
 import '../models/deck.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
-
-import 'dutch_word_exercise_detail_view.dart';
-import 'dutch_word_exercise_detail_view.dart';
 import '../components/universal_add_button.dart';
 import 'add_card_view.dart';
 import 'shuffle_cards_view.dart';
@@ -195,6 +190,17 @@ class _AllCardsViewState extends State<AllCardsView> {
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
             icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).colorScheme.onSurface),
+          ),
+        ),
+        
+        // Right side - Home button
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
         
@@ -572,119 +578,91 @@ class _AllCardsViewState extends State<AllCardsView> {
                   ),
                 ],
               ),
-              subtitle: Consumer<DutchWordExerciseProvider>(
-                builder: (context, dutchProvider, child) {
-                  final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-                  final exerciseCount = existingExercise?.exercises.length ?? 0;
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(card.definition),
+                  const SizedBox(height: 4),
+                  Row(
                     children: [
-                      Text(card.definition),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _getDeckNames(card, provider),
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      Icon(Icons.folder_outlined, size: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _getDeckNames(card, provider),
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Added: ${_formatDate(card.dateCreated)}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (exerciseCount > 0) ...[
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.green[700],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ],
-                          // Daily limit indicator
-                          if (card.hasReachedDailyLimit) ...[
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Daily limit reached',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.orange[700],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ] else if (card.timesStudiedToday > 0) ...[
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '${card.currentHP}/${card.maxHP} HP',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: card.isDefeated 
-                                        ? Colors.grey[600]
-                                        : card.hpPercentage > 0.6 
-                                            ? Colors.green[600]
-                                            : card.hpPercentage > 0.3 
-                                                ? Colors.orange[600]
-                                                : Colors.red[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
-                  );
-                },
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Added: ${_formatDate(card.dateCreated)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Daily limit indicator
+                      if (card.hasReachedDailyLimit) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Daily limit reached',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ] else if (card.timesStudiedToday > 0) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${card.currentHP}/${card.maxHP} HP',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: card.isDefeated 
+                                    ? Colors.grey[600]
+                                    : card.hpPercentage > 0.6 
+                                        ? Colors.green[600]
+                                        : card.hpPercentage > 0.3 
+                                            ? Colors.orange[600]
+                                            : Colors.red[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
               trailing: _isSelectionMode ? null : PopupMenuButton<String>(
                 onSelected: (value) => _handleCardAction(value, card, provider),
@@ -719,16 +697,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                       ],
                     ),
                   ),
-                  const PopupMenuItem(
-                    value: 'study',
-                    child: Row(
-                      children: [
-                        Icon(Icons.school, size: 16),
-                        SizedBox(width: 8),
-                        Text('Study Card'),
-                      ],
-                    ),
-                  ),
+
                 ],
               ),
             ),
@@ -741,13 +710,13 @@ class _AllCardsViewState extends State<AllCardsView> {
   String _getSortOptionText(SortOption option) {
     switch (option) {
       case SortOption.wordAZ:
-        return 'Word (A-Z)';
+        return 'A-Z';
       case SortOption.wordZA:
-        return 'Word (Z-A)';
+        return 'Z-A';
       case SortOption.definitionAZ:
-        return 'Definition (A-Z)';
+        return 'Definition A-Z';
       case SortOption.definitionZA:
-        return 'Definition (Z-A)';
+        return 'Definition Z-A';
       case SortOption.srsLevel:
         return 'SRS Level';
       case SortOption.learningPercentage:
@@ -939,9 +908,6 @@ class _AllCardsViewState extends State<AllCardsView> {
         case 'reset':
           _resetCardProgress(card, provider);
           break;
-        case 'study':
-          _studyCard(card);
-          break;
       }
     } catch (e) {
       print('🔍 AllCardsView: Error handling card action $action: $e');
@@ -1059,7 +1025,6 @@ class _AllCardsViewState extends State<AllCardsView> {
 
   void _deleteSelectedCards() async {
     final provider = context.read<FlashcardProvider>();
-    final exerciseProvider = context.read<DutchWordExerciseProvider>();
     int successCount = 0;
     int errorCount = 0;
     
@@ -1075,9 +1040,6 @@ class _AllCardsViewState extends State<AllCardsView> {
         
         final success = await provider.deleteCard(cardId);
         if (success) {
-          // Also delete exercises for this word
-          await exerciseProvider.deleteWordExerciseByWord(card.word);
-          print('AllCardsView: Deleted exercises for word: ${card.word}');
           successCount++;
         } else {
           errorCount++;
@@ -1101,7 +1063,7 @@ class _AllCardsViewState extends State<AllCardsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Deleted $successCount card${successCount == 1 ? '' : 's'} and associated exercises'
+            'Deleted $successCount card${successCount == 1 ? '' : 's'}'
             '${errorCount > 0 ? ' ($errorCount failed)' : ''}',
           ),
           backgroundColor: errorCount > 0 ? Colors.orange : Colors.green,
@@ -1118,19 +1080,10 @@ class _AllCardsViewState extends State<AllCardsView> {
       print('AllCardsView: Delete result: $success');
       
       // Also delete any exercises for this word
-      if (success) {
-        final exerciseProvider = context.read<DutchWordExerciseProvider>();
-        await exerciseProvider.deleteWordExerciseByWord(card.word);
-        print('AllCardsView: Deleted exercises for word: ${card.word}');
-      }
-      
-      // Clear cache after deletion
-      _cachedFilteredCards = null;
-      
       if (mounted) {
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deleted card and exercises: ${card.word}')),
+            SnackBar(content: Text('Deleted card: ${card.word}')),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1204,57 +1157,6 @@ class _AllCardsViewState extends State<AllCardsView> {
         ],
       ),
     );
-  }
-
-
-  Future<void> _studyCard(FlashCard card) async {
-    try {
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      final flashcardProvider = context.read<FlashcardProvider>();
-      
-      // Automatically sync/generate exercises first
-      final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
-      final deckName = flashcardProvider.getDeck(deckId)?.name ?? 'Default';
-      await dutchProvider.syncExercisesForCard(card, deckName: deckName);
-      
-      // Check if there's now an exercise for this card
-      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-      
-      if (!mounted) return;
-
-      if (existingExercise == null || existingExercise.exercises.isEmpty) {
-        // Show message that no exercises exist even after sync
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No grammar data (Article, Plural, or Example) found for "${card.word}" to study.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-      
-      // Use the synchronized exercise
-      print('🔍 AllCardsView: Found exercise for "${card.word}" with ${existingExercise.exercises.length} exercises');
-      
-      // Navigate to the Dutch word exercise detail view for this card
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => DutchWordExerciseDetailView(
-            wordExercise: existingExercise,
-          ),
-        ),
-      );
-    } catch (e) {
-      print('🔍 AllCardsView: Error studying card: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error opening study mode: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   void _showCardDetails(FlashCard card) {

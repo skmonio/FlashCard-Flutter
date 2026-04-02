@@ -3,10 +3,8 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
-import '../models/flash_card.dart';
 import '../models/deck.dart';
-import '../models/dutch_word_exercise.dart';
+import '../models/flash_card.dart';
 import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'memory_game_view.dart';
@@ -14,7 +12,6 @@ import 'word_scramble_view.dart';
 import 'writing_view.dart';
 import 'pop_your_card_view.dart';
 import 'pick_your_card_view.dart';
-import 'dutch_word_exercise_detail_view.dart';
 import '../utils/game_end_screen.dart';
 import '../models/learning_mastery.dart';
 import '../models/game_session.dart';
@@ -29,7 +26,6 @@ enum ShuffleMode {
   writing,
   popYourCards,
   pickYourCards,
-  dutchExercise,
 }
 
 class ShuffleCardsView extends StatefulWidget {
@@ -48,7 +44,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   bool _isShowingEndScreen = false; // Track if we're showing/hiding the end screen
   ShuffleMode? _currentMode;
   FlashCard? _currentCard;
-  DutchWordExercise? _currentExercise;
   final Random _random = Random();
   
   // XP and card tracking for end screen
@@ -75,7 +70,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     ShuffleMode.writing: true,
     ShuffleMode.popYourCards: true,
     ShuffleMode.pickYourCards: true,
-    ShuffleMode.dutchExercise: true,
   };
 
   bool _oneAnswerMode = false; // Use 1-click answer mode across shuffle challenges (disabled by default)
@@ -106,7 +100,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         ShuffleMode.writing: prefs.getBool('shuffle_mode_writing') ?? true,
         ShuffleMode.popYourCards: prefs.getBool('shuffle_mode_pop_your_cards') ?? true,
         ShuffleMode.pickYourCards: prefs.getBool('shuffle_mode_pick_your_cards') ?? true,
-        ShuffleMode.dutchExercise: prefs.getBool('shuffle_mode_dutch_exercise') ?? true,
       };
       _oneAnswerMode = prefs.getBool('shuffle_one_answer_mode') ?? true;
     });
@@ -114,14 +107,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
  
   void _saveEnabledModes() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('shuffle_mode_multiple_choice', _enabledModes[ShuffleMode.multipleChoice] ?? true);
-    await prefs.setBool('shuffle_mode_true_false', _enabledModes[ShuffleMode.trueFalse] ?? true);
-    await prefs.setBool('shuffle_mode_memory_game', _enabledModes[ShuffleMode.memoryGame] ?? true);
-    await prefs.setBool('shuffle_mode_word_scramble', _enabledModes[ShuffleMode.wordScramble] ?? true);
-    await prefs.setBool('shuffle_mode_writing', _enabledModes[ShuffleMode.writing] ?? true);
-    await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
-    await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
-    await prefs.setBool('shuffle_mode_dutch_exercise', _enabledModes[ShuffleMode.dutchExercise] ?? true);
     await prefs.setBool('shuffle_one_answer_mode', _oneAnswerMode);
   }
 
@@ -258,9 +243,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             learningMastery: LearningMastery(),
             article: '',
             plural: '',
+            presentTense: '',
             pastTense: '',
-            futureTense: '',
-            pastParticiple: '',
+            perfectTense: '',
           ),
         );
         
@@ -293,67 +278,20 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             _launchCardMode(_currentMode!);
           }
         }
-      } else if (savedChallenge['exerciseId'] != null) {
-        final dutchProvider = context.read<DutchWordExerciseProvider>();
-        final exerciseId = savedChallenge['exerciseId'] as String;
-        _currentExercise = dutchProvider.wordExercises.firstWhere(
-          (exercise) => exercise.id == exerciseId,
-          orElse: () => dutchProvider.wordExercises.first,
-        );
-        _launchDutchExercise();
       }
       return;
     }
 
     final provider = context.read<FlashcardProvider>();
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
     
-    // Ensure Dutch exercise provider has finished loading before checking exercises
-    // This fixes the issue where only "Words" exercises are enabled and provider hasn't loaded yet
-    if (dutchProvider.isLoading) {
-      print('🔍 ShuffleCardsView: Dutch exercise provider is still loading, waiting...');
-      // Wait for provider to finish loading (check every 100ms, max 5 seconds)
-      int attempts = 0;
-      while (dutchProvider.isLoading && attempts < 50) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        attempts++;
-      }
-      if (dutchProvider.isLoading) {
-        print('⚠️ ShuffleCardsView: Dutch exercise provider still loading after timeout');
-      } else {
-        print('🔍 ShuffleCardsView: Dutch exercise provider finished loading, exercises: ${dutchProvider.wordExercises.length}');
-      }
-    }
-    
-    // If only Dutch exercises are enabled, ensure we have exercises available
-    // Check if Dutch exercises are the only enabled mode
-    bool onlyDutchExercisesEnabled = _enabledModes[ShuffleMode.dutchExercise] == true &&
-        _enabledModes[ShuffleMode.multipleChoice] != true &&
-        _enabledModes[ShuffleMode.trueFalse] != true &&
-        _enabledModes[ShuffleMode.memoryGame] != true &&
-        _enabledModes[ShuffleMode.wordScramble] != true &&
-        _enabledModes[ShuffleMode.writing] != true &&
-        _enabledModes[ShuffleMode.popYourCards] != true &&
-        _enabledModes[ShuffleMode.pickYourCards] != true;
-    
-    if (onlyDutchExercisesEnabled && dutchProvider.wordExercises.isEmpty) {
-      print('🔍 ShuffleCardsView: Only Dutch exercises enabled but none available yet');
-      // Give it one more brief moment for async loading to complete
-      await Future.delayed(const Duration(milliseconds: 200));
-      print('🔍 ShuffleCardsView: After brief delay, exercises: ${dutchProvider.wordExercises.length}');
-    }
-    
-    // Get all available cards and exercises
+    // Get all available cards
     final allCards = provider.cards;
-    final allExercises = dutchProvider.wordExercises;
     
     // Debug logging
     print('🔍 ShuffleCardsView: Available cards: ${allCards.length}');
-    print('🔍 ShuffleCardsView: Available exercises: ${allExercises.length}');
-    print('🔍 ShuffleCardsView: Dutch provider isLoading: ${dutchProvider.isLoading}');
     
-    if (allCards.isEmpty && allExercises.isEmpty) {
-      _showSetupRequiredDialog('No cards or exercises available. Please add some cards or exercises to play.');
+    if (allCards.isEmpty) {
+      _showSetupRequiredDialog('No cards available. Please add some cards to play.');
       return;
     }
 
@@ -384,10 +322,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       }
     }
     
-    if (allExercises.isNotEmpty && _enabledModes[ShuffleMode.dutchExercise] == true) {
-      availableModes.add(ShuffleMode.dutchExercise);
-    }
-    
 
     if (availableModes.isEmpty) {
       _showSetupRequiredDialog('All game modes are disabled or no content is available. Please enable some game modes in settings or add cards/exercises.');
@@ -412,77 +346,7 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       case ShuffleMode.writing:
       case ShuffleMode.popYourCards:
       case ShuffleMode.pickYourCards:
-        // Filter cards that can be studied today (have HP remaining)
-        final availableCards = allCards.where((card) {
-          final canBeStudied = card.canBeStudiedToday;
-          
-          // If deck selection is used, check if card belongs to selected decks
-          if (_selectedDeckIds.isNotEmpty) {
-            bool isInSelectedDeck = false;
-            for (final deckId in _selectedDeckIds) {
-              if (card.deckIds.contains(deckId)) {
-                isInSelectedDeck = true;
-                break;
-              }
-            }
-            return canBeStudied && isInSelectedDeck;
-          }
-          
-          return canBeStudied;
-        }).toList();
-        
-        // Debug logging
-        print('🔍 ShuffleCardsView: Filtered cards: ${availableCards.length} (Deck filter: ${_selectedDeckIds.length} selected)');
-        
-        if (availableCards.isEmpty) {
-          print('🔍 ShuffleCardsView: No available cards after filtering, showing setup dialog');
-          
-          // Set game inactive immediately to prevent blank loading screen
-          setState(() {
-            _isGameActive = false;
-            _isTransitioningToNextChallenge = false;
-          });
-          
-          String message = _selectedDeckIds.isNotEmpty 
-              ? 'No healthy cards available in the selected deck(s). Try selecting other decks or wait for cards to regain HP.'
-              : 'All your cards are defeated (0 HP) and need to rest until tomorrow to regain health.';
-          
-          // Show dialog after a brief delay to ensure UI is ready
-          Future.delayed(const Duration(milliseconds: 100), () {
-            if (mounted) {
-              _showSetupRequiredDialog(message);
-            }
-          });
-          return;
-        }
-        
-        _currentCard = availableCards[_random.nextInt(availableCards.length)];
-        print('🔍 ShuffleCardsView: Pick Your Card - Selected card: "${_currentCard!.word}" with HP: ${_currentCard!.currentHP}/${_currentCard!.maxHP}');
-        
-        // Save to sequence for retry
-        if (!_isRetryingSameSequence) {
-          _challengeSequence.add({
-            'mode': selectedMode.index,
-            'cardId': _currentCard!.id,
-            'exerciseId': null,
-          });
-        }
-        
         _launchCardMode(selectedMode);
-        break;
-      case ShuffleMode.dutchExercise:
-        _currentExercise = allExercises[_random.nextInt(allExercises.length)];
-        
-        // Save to sequence for retry
-        if (!_isRetryingSameSequence) {
-          _challengeSequence.add({
-            'mode': selectedMode.index,
-            'cardId': null,
-            'exerciseId': _currentExercise!.id,
-          });
-        }
-        
-        _launchDutchExercise();
         break;
     }
   }
@@ -734,7 +598,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
           _currentScore = 0;
           _currentMode = null;
           _currentCard = null;
-          _currentExercise = null;
           _currentChallengeCards.clear();
         });
       }
@@ -744,61 +607,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
     // Reset the flag immediately after pushing, as we've successfully started the next challenge
     _isTransitioningToNextChallenge = false;
   }
-
-  void _launchDutchExercise() {
-    if (_currentExercise == null) return;
-
-    // For shuffle mode, we'll create a single-question version
-    // by modifying the exercise to only have one question
-    final singleQuestionExercise = DutchWordExercise(
-      id: _currentExercise!.id,
-      targetWord: _currentExercise!.targetWord,
-      wordTranslation: _currentExercise!.wordTranslation,
-      deckId: _currentExercise!.deckId,
-      deckName: _currentExercise!.deckName,
-      category: _currentExercise!.category,
-      difficulty: _currentExercise!.difficulty,
-      exercises: [_currentExercise!.exercises.first], // Only use the first exercise
-      createdAt: _currentExercise!.createdAt,
-      isUserCreated: _currentExercise!.isUserCreated,
-    );
-
-    setState(() {
-      _totalQuestionsAsked++;
-    });
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DutchWordExerciseDetailView(
-          wordExercise: singleQuestionExercise,
-          showEditDeleteButtons: false,
-          onComplete: _handleDutchExerciseComplete,
-          singleQuestionMode: true,
-          shuffleQuestionOffset: _totalQuestionsAsked - 1,
-        ),
-      ),
-    ).then((result) {
-      // If we return from a child view while game is still active
-      // and we're NOT transitioning to the next challenge,
-      // it means the user ended the test early - reset game state
-      if (_isGameActive && !_isTransitioningToNextChallenge && mounted) {
-        setState(() {
-          _isGameActive = false;
-          _currentScore = 0;
-          _currentMode = null;
-          _currentCard = null;
-          _currentExercise = null;
-          _currentChallengeCards.clear();
-        });
-      }
-      // Reset the flag after handling the return
-      _isTransitioningToNextChallenge = false;
-    });
-    // Reset the flag immediately after pushing, as we've successfully started the next challenge
-    _isTransitioningToNextChallenge = false;
-  }
-
 
   void _handleCardModeComplete(bool wasCorrect) {
     print('🔍 ShuffleCardsView: _handleCardModeComplete called with wasCorrect: $wasCorrect');
@@ -810,86 +618,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       _trackCardStudy(_currentCard!, wasCorrect);
     }
     _handleChallengeComplete(wasCorrect);
-  }
-
-  void _handleDutchExerciseComplete(bool wasCorrect) {
-    // Track the Dutch word exercise by finding the corresponding FlashCard
-    // The DutchWordExerciseDetailView already updates the FlashCard with XP, so we read it from the provider
-    if (_currentExercise != null) {
-      final provider = context.read<FlashcardProvider>();
-      // Try to find the FlashCard that matches the target word from the exercise
-      // Read fresh from provider to get the updated XP values
-      final matchingCard = provider.cards.firstWhere(
-        (card) => card.word.toLowerCase() == _currentExercise!.targetWord.toLowerCase(),
-        orElse: () => FlashCard(
-          id: '',
-          word: _currentExercise!.targetWord,
-          definition: _currentExercise!.wordTranslation,
-          example: '',
-          deckIds: {},
-          dateCreated: DateTime.now(),
-          learningMastery: LearningMastery(),
-          article: '',
-          plural: '',
-          pastTense: '',
-          futureTense: '',
-          pastParticiple: '',
-        ),
-      );
-      
-      // Track the word (even if it doesn't match a card, create a virtual card entry)
-      if (matchingCard.id.isEmpty) {
-        // Create a temporary card for tracking purposes
-        // For words without cards, we still want to show them on the end screen
-        _trackCardStudy(matchingCard, wasCorrect);
-        // Store the word translation as definition if not already set
-        matchingCard.definition = _currentExercise!.wordTranslation;
-      } else {
-        // The card exists and has already been updated by DutchWordExerciseDetailView
-        // We just need to track it for the end screen display
-        _trackCardStudy(matchingCard, wasCorrect);
-      }
-    }
-    
-    _handleChallengeComplete(wasCorrect);
-  }
-
-
-  // For Dutch exercises, we need to track individual question results
-  void _handleDutchExerciseQuestionComplete(bool wasCorrect) {
-    if (!wasCorrect) {
-      if (mounted) {
-        Navigator.pop(context);
-        // Use a small delay to ensure the pop completes
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (mounted) {
-            _showGameOver('Game Over! You got one wrong.');
-          }
-        });
-      }
-      return;
-    }
-
-    setState(() {
-      _currentScore++;
-    });
-
-    // Show success message briefly
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Correct! Score: $_currentScore'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-
-    // Wait a moment then continue to next challenge
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (_isGameActive && mounted) {
-        _isTransitioningToNextChallenge = true;
-        _nextChallenge();
-      }
-    });
   }
 
   void _handleChallengeComplete(bool wasCorrect) {
@@ -1110,7 +838,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
             _currentScore = 0;
             _currentMode = null;
             _currentCard = null;
-            _currentExercise = null;
           });
         }
         return true;
@@ -1130,7 +857,6 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
                       _currentScore = 0;
                       _currentMode = null;
                       _currentCard = null;
-                      _currentExercise = null;
                     });
                   }
                   Navigator.of(context).pop();
@@ -1376,31 +1102,16 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
       ),
     );
   }
-  
+
   Set<ShuffleMode> _getAvailableModesForDialog() {
-    final provider = context.read<FlashcardProvider>();
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    
-    final hasCards = provider.cards.isNotEmpty;
-    final hasExercises = dutchProvider.wordExercises.isNotEmpty;
-    final Set<ShuffleMode> modes = {};
-    
-    if (hasCards) {
-      modes.addAll({
-        ShuffleMode.multipleChoice,
-        ShuffleMode.trueFalse,
-        ShuffleMode.memoryGame,
-        ShuffleMode.wordScramble,
-        ShuffleMode.writing,
-        ShuffleMode.popYourCards,
-        ShuffleMode.pickYourCards,
-      });
-    }
-    
-    if (hasExercises) {
-      modes.add(ShuffleMode.dutchExercise);
-    }
-    
+    final modes = <ShuffleMode>{};
+    if (_enabledModes[ShuffleMode.multipleChoice] == true) modes.add(ShuffleMode.multipleChoice);
+    if (_enabledModes[ShuffleMode.trueFalse] == true) modes.add(ShuffleMode.trueFalse);
+    if (_enabledModes[ShuffleMode.memoryGame] == true) modes.add(ShuffleMode.memoryGame);
+    if (_enabledModes[ShuffleMode.wordScramble] == true) modes.add(ShuffleMode.wordScramble);
+    if (_enabledModes[ShuffleMode.writing] == true) modes.add(ShuffleMode.writing);
+    if (_enabledModes[ShuffleMode.popYourCards] == true) modes.add(ShuffleMode.popYourCards);
+    if (_enabledModes[ShuffleMode.pickYourCards] == true) modes.add(ShuffleMode.pickYourCards);
     return modes;
   }
 
@@ -1726,7 +1437,6 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
       {'title': 'Write Your Cards', 'mode': ShuffleMode.writing, 'icon': Icons.edit, 'color': Colors.blue},
       {'title': 'Pop Your Card', 'mode': ShuffleMode.popYourCards, 'icon': Icons.bubble_chart, 'color': Colors.purple},
       {'title': 'Pick Your Card', 'mode': ShuffleMode.pickYourCards, 'icon': Icons.touch_app, 'color': Colors.pink},
-      {'title': 'Words', 'mode': ShuffleMode.dutchExercise, 'icon': Icons.school, 'color': Colors.green},
     ];
 
     final visibleModeTiles = modeConfigs
@@ -1777,3 +1487,4 @@ class _ShuffleCustomizationDialogState extends State<ShuffleCustomizationDialog>
     );
   }
 }
+

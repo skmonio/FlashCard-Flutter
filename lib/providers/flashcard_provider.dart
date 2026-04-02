@@ -3,12 +3,10 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 import '../models/learning_mastery.dart';
-import '../models/dutch_word_exercise.dart';
 import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
 import '../services/data_sync_service.dart';
 import '../services/supabase_service.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final FlashcardService _service = FlashcardService();
@@ -175,9 +173,9 @@ class FlashcardProvider extends ChangeNotifier {
     Set<String>? deckIds,
     String article = '',
     String? plural,
+    String? presentTense,
     String? pastTense,
-    String? futureTense,
-    String? pastParticiple,
+    String? perfectTense,
   }) async {
     try {
       print('Provider: Creating card: $word');
@@ -189,17 +187,17 @@ class FlashcardProvider extends ChangeNotifier {
         deckIds: deckIds,
         article: article,
         plural: plural ?? '',
+        presentTense: presentTense ?? '',
         pastTense: pastTense ?? '',
-        futureTense: futureTense ?? '',
-        pastParticiple: pastParticiple ?? '',
+        perfectTense: perfectTense ?? '',
       );
       
       // Refresh the cards list from the service
       _cards = _service.cards;
       print('Provider: Card created and refreshed. Total cards: ${_cards.length}');
       
-      // Note: Automatic grammar exercise generation has been disabled
-      // Exercises are now only created when explicitly requested by the user
+      // Note: Legacy pre-generated exercises have been removed in favor of dynamic card games
+      // Cards now power "Sentence your cards", "Test your cards", etc. without requiring separate exercise objects
       
       notifyListeners();
       return card;
@@ -217,8 +215,8 @@ class FlashcardProvider extends ChangeNotifier {
       // Refresh the cards list from the service
       _cards = _service.cards;
       
-      // Note: Automatic grammar exercise generation has been disabled
-      // Exercises are now only created when explicitly requested by the user
+      // Note: Legacy pre-generated exercises have been removed in favor of dynamic card games
+      // Cards now power "Sentence your cards", "Test your cards", etc. without requiring separate exercise objects
       
       notifyListeners();
       return true;
@@ -455,10 +453,10 @@ class FlashcardProvider extends ChangeNotifier {
   
   // MARK: - CSV Export/Import
   
-  String exportDecksToCSV(Set<String> deckIds) {
+  String exportUnifiedCSV(Set<String> deckIds) {
     final headers = [
       'Word', 'Definition', 'Example', 'Article', 'Plural', 
-      'Past Tense', 'Future Tense', 'Past Participle', 'Decks', 
+      'Present Tense', 'Past Tense', 'Perfect Tense', 'Decks', 
       'Times Shown', 'Times Correct'
     ];
     
@@ -494,9 +492,9 @@ class FlashcardProvider extends ChangeNotifier {
         _escapeCSVField(card.example),
         _escapeCSVField(card.article),
         _escapeCSVField(card.plural),
+        _escapeCSVField(card.presentTense),
         _escapeCSVField(card.pastTense),
-        _escapeCSVField(card.futureTense),
-        _escapeCSVField(card.pastParticiple),
+        _escapeCSVField(card.perfectTense),
         _escapeCSVField(deckPathsString),
         card.timesShown.toString(),
         card.timesCorrect.toString(),
@@ -723,9 +721,9 @@ class FlashcardProvider extends ChangeNotifier {
         final example = fields.length > 3 ? fields[3].trim() : '';
         final article = fields.length > 4 ? fields[4].trim() : '';
         final plural = fields.length > 5 ? fields[5].trim() : '';
-        final pastTense = fields.length > 6 ? fields[6].trim() : '';
-        final futureTense = fields.length > 7 ? fields[7].trim() : '';
-        final pastParticiple = fields.length > 8 ? fields[8].trim() : '';
+        final presentTense = fields.length > 6 ? fields[6].trim() : '';
+        final pastTense = fields.length > 7 ? fields[7].trim() : '';
+        final perfectTense = fields.length > 8 ? fields[8].trim() : '';
         
         // Handle deck assignment using pre-created decks
         final deckNames = fields[0].trim(); // Deck info is in first column
@@ -812,9 +810,9 @@ class FlashcardProvider extends ChangeNotifier {
           deckIds: deckIds,
           article: article,
           plural: plural,
+          presentTense: presentTense,
           pastTense: pastTense,
-          futureTense: futureTense,
-          pastParticiple: pastParticiple,
+          perfectTense: perfectTense,
         );
         
         if (newCard != null) {
@@ -897,96 +895,6 @@ class FlashcardProvider extends ChangeNotifier {
     }).toList();
   }
   
-  // MARK: - Unified Import/Export
-  
-  Future<Map<String, dynamic>> importUnifiedCSV(String csvContent) async {
-    print('Starting unified CSV import...');
-    try {
-      final result = await UnifiedImportService.parseUnifiedCSV(csvContent);
-      
-      if (!result['success']) {
-        return {
-          'success': 0,
-          'errors': result['errors'],
-        };
-      }
-      
-      final cards = (result['cards'] as List<dynamic>).cast<FlashCard>();
-      final exercises = (result['exercises'] as List<dynamic>).cast<DutchWordExercise>();
-      final errors = (result['errors'] as List<dynamic>).cast<String>();
-      
-      var successCount = 0;
-      var skippedCount = 0;
-      
-      // Import cards with duplicate prevention
-      for (final card in cards) {
-        // Check if card already exists (case-insensitive word match)
-        final existingCard = _cards.firstWhere(
-          (existing) => existing.word.toLowerCase() == card.word.toLowerCase(),
-          orElse: () => FlashCard(
-            id: '',
-            word: '',
-            definition: '',
-            example: '',
-          ),
-        );
-        
-        if (existingCard.id.isNotEmpty) {
-          // Card already exists, skip it
-          skippedCount++;
-          print('Skipping duplicate card: ${card.word}');
-          continue;
-        }
-        
-        final newCard = await createCard(
-          word: card.word,
-          definition: card.definition,
-          example: card.example,
-          deckIds: card.deckIds,
-          article: card.article,
-          plural: card.plural,
-          pastTense: card.pastTense,
-          futureTense: card.futureTense,
-          pastParticiple: card.pastParticiple,
-        );
-        
-        if (newCard != null) {
-          successCount++;
-        }
-      }
-      
-      // Import exercises to DutchWordExerciseProvider
-      var exerciseSuccessCount = 0;
-      if (exercises.isNotEmpty) {
-        try {
-          // Get the DutchWordExerciseProvider from the same context
-          // We'll need to pass it as a parameter or access it differently
-          print('Found ${exercises.length} exercises to import');
-          // TODO: Actually import exercises to DutchWordExerciseProvider
-          // This requires access to the provider context
-        } catch (e) {
-          print('Error importing exercises: $e');
-          errors.add('Failed to import exercises: $e');
-        }
-      }
-      
-      // Refresh data
-      await refresh();
-      
-      return {
-        'success': successCount,
-        'skipped': skippedCount,
-        'exercises': exercises.length,
-        'errors': errors,
-      };
-    } catch (e) {
-      return {
-        'success': 0,
-        'errors': [e.toString()],
-      };
-    }
-  }
-  
   // MARK: - Data Persistence
   
   Future<void> saveData() async {
@@ -998,143 +906,7 @@ class FlashcardProvider extends ChangeNotifier {
     }
   }
 
-  String exportUnifiedCSV(Set<String> deckIds, {List<DutchWordExercise>? exercises}) {
-    // Get cards from selected decks
-    final allCards = <FlashCard>{};
-    
-    for (final deckId in deckIds) {
-      final deck = _decks.firstWhere((d) => d.id == deckId);
-      final deckCards = getCardsForDeck(deck.id);
-      allCards.addAll(deckCards);
-      
-      // Add cards from sub-decks
-      final subDecks = getSubDecks(deck.id);
-      for (final subDeck in subDecks) {
-        final subDeckCards = getCardsForDeck(subDeck.id);
-        allCards.addAll(subDeckCards);
-      }
-    }
-    
-    // Get exercises for the cards in these decks
-    final allExercises = <DutchWordExercise>[];
-    final cardWords = allCards.map((card) => card.word).toSet();
-    
-    // Use provided exercises or empty list
-    if (exercises != null) {
-      // Filter exercises to only include those for cards in the selected decks
-      for (final exercise in exercises) {
-        if (cardWords.contains(exercise.targetWord)) {
-          allExercises.add(exercise);
-        }
-      }
-    }
-    
-    final cards = allCards.toList()
-      ..sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
-    
-    // Create a custom export that includes hierarchical deck names
-    return _exportUnifiedCSVWithDeckNames(cards, allExercises);
-  }
-  
-  // MARK: - Custom Export Methods
-  
-  String _exportUnifiedCSVWithDeckNames(List<FlashCard> cards, List<DutchWordExercise> exercises) {
-    final lines = <String>[];
-    
-    // Add header
-    final headers = [
-      'Decks', 'Word', 'Definition', 'Example', 'Article', 'Plural', 
-      'Past Tense', 'Future Tense', 'Past Participle', 'Exercise Type', 
-      'Question', 'Correct Answer', 'Options', 'Explanation'
-    ];
-    lines.add(headers.join(','));
-    
-    // Group exercises by word for easier lookup
-    final exerciseMap = <String, DutchWordExercise>{};
-    for (final exercise in exercises) {
-      exerciseMap[exercise.targetWord] = exercise;
-    }
-    
-    // Export each card
-    for (final card in cards) {
-      final exercise = exerciseMap[card.word];
-      final deckPaths = _getDeckPathsForCard(card);
-      final deckPathsString = deckPaths.join('; ');
-      
-      if (exercise != null && exercise.exercises.isNotEmpty) {
-        // Add word data row (no exercise)
-        lines.add([
-          _escapeCSVField(deckPathsString),
-          _escapeCSVField(card.word),
-          _escapeCSVField(card.definition ?? ''),
-          _escapeCSVField(card.example ?? ''),
-          _escapeCSVField(card.article ?? ''),
-          _escapeCSVField(card.plural ?? ''),
-          _escapeCSVField(card.pastTense ?? ''),
-          _escapeCSVField(card.futureTense ?? ''),
-          _escapeCSVField(card.pastParticiple ?? ''),
-          '', // No exercise type
-          '', // No question
-          '', // No correct answer
-          '', // No options
-          '', // No explanation
-        ].join(','));
-        
-        // Add exercise rows
-        for (final ex in exercise.exercises) {
-          lines.add([
-            _escapeCSVField(deckPathsString),
-            _escapeCSVField(card.word),
-            _escapeCSVField(card.definition ?? ''),
-            _escapeCSVField(card.example ?? ''),
-            _escapeCSVField(card.article ?? ''),
-            _escapeCSVField(card.plural ?? ''),
-            _escapeCSVField(card.pastTense ?? ''),
-            _escapeCSVField(card.futureTense ?? ''),
-            _escapeCSVField(card.pastParticiple ?? ''),
-            _escapeCSVField(_convertExerciseTypeToCSV(ex.type)),
-            _escapeCSVField(ex.prompt),
-            _escapeCSVField(ex.correctAnswer),
-            _escapeCSVField(ex.options.join(';')),
-            _escapeCSVField(ex.explanation ?? ''),
-          ].join(','));
-        }
-      } else {
-        // Export as basic flashcard (no exercises)
-        lines.add([
-          _escapeCSVField(deckPathsString),
-          _escapeCSVField(card.word),
-          _escapeCSVField(card.definition ?? ''),
-          _escapeCSVField(card.example ?? ''),
-          _escapeCSVField(card.article ?? ''),
-          _escapeCSVField(card.plural ?? ''),
-          _escapeCSVField(card.pastTense ?? ''),
-          _escapeCSVField(card.futureTense ?? ''),
-          _escapeCSVField(card.pastParticiple ?? ''),
-          '', // No exercise type
-          '', // No question
-          '', // No correct answer
-          '', // No options
-          '', // No explanation
-        ].join(','));
-      }
-    }
-    
-    return lines.join('\n');
-  }
-  
-  String _convertExerciseTypeToCSV(ExerciseType type) {
-    switch (type) {
-      case ExerciseType.sentenceBuilding:
-        return 'Sentence Building';
-      case ExerciseType.multipleChoice:
-        return 'Multiple Choice';
-      case ExerciseType.fillInBlank:
-        return 'Fill in Blank';
-      default:
-        return 'Multiple Choice';
-    }
-  }
+  // End of FlashcardProvider logic section
   
   // MARK: - Utility Methods
   

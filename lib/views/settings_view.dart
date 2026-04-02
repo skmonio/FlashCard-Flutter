@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/sound_provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/translation_language_provider.dart';
 
 

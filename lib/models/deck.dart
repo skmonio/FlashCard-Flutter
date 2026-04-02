@@ -158,6 +158,10 @@ class Deck {
       'cloudKitRecordName': cloudKitRecordName,
     };
   }
+
+  Map<String, dynamic> toMap() {
+    return toJson();
+  }
   
   factory Deck.fromJson(Map<String, dynamic> json) {
     return Deck(

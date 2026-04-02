@@ -3,10 +3,8 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import 'dart:async';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
 import '../services/sound_manager.dart';
@@ -1107,37 +1105,6 @@ class _MemoryGameViewState extends State<MemoryGameView>
     }
   }
 
-  Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
-    try {
-      // Import the DutchWordExerciseProvider
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      
-      // Find the corresponding Dutch word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.targetWord.toLowerCase() == card.word.toLowerCase(),
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isNotEmpty) {
-        // Update the Dutch word exercise learning progress
-        await dutchProvider.updateLearningProgress(wordExercise.id, wasCorrect);
-        print('🔍 MemoryGameView: Synced progress to Dutch word exercise "${wordExercise.targetWord}"');
-      }
-    } catch (e) {
-      print('🔍 MemoryGameView: Error syncing to Dutch words: $e');
-    }
-  }
 
   void _showCloseConfirmation() {
     showDialog(

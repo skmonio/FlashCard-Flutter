@@ -2,20 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
-
 import '../models/deck.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
 import 'add_card_view.dart';
 import '../components/universal_add_button.dart';
-import 'study_view.dart';
-import 'dutch_word_exercise_detail_view.dart';
-import 'dutch_words_practice_view.dart';
 import 'all_cards_view.dart'; // Import for SortOption enum
+import 'study_type_selection_view.dart';
 
 class DeckDetailView extends StatefulWidget {
   final Deck deck;
@@ -171,9 +166,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     value: SortOption.wordAZ,
                     child: Row(
                       children: [
-                        const Icon(Icons.sort_by_alpha),
+                        const Icon(Icons.arrow_upward),
                         const SizedBox(width: 8),
-                        const Text('Word A-Z'),
+                        const Text('A-Z'),
                       ],
                     ),
                   ),
@@ -181,9 +176,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     value: SortOption.wordZA,
                     child: Row(
                       children: [
-                        const Icon(Icons.sort_by_alpha),
+                        const Icon(Icons.arrow_downward),
                         const SizedBox(width: 8),
-                        const Text('Word Z-A'),
+                        const Text('Z-A'),
                       ],
                     ),
                   ),
@@ -191,7 +186,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     value: SortOption.definitionAZ,
                     child: Row(
                       children: [
-                        const Icon(Icons.sort_by_alpha),
+                        const Icon(Icons.arrow_upward),
                         const SizedBox(width: 8),
                         const Text('Definition A-Z'),
                       ],
@@ -201,7 +196,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     value: SortOption.definitionZA,
                     child: Row(
                       children: [
-                        const Icon(Icons.sort_by_alpha),
+                        const Icon(Icons.arrow_downward),
                         const SizedBox(width: 8),
                         const Text('Definition Z-A'),
                       ],
@@ -328,10 +323,11 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   IconData _getSortIcon(SortOption sortOption) {
     switch (sortOption) {
       case SortOption.wordAZ:
-      case SortOption.wordZA:
       case SortOption.definitionAZ:
+        return Icons.arrow_upward;
+      case SortOption.wordZA:
       case SortOption.definitionZA:
-        return Icons.sort_by_alpha;
+        return Icons.arrow_downward;
       case SortOption.dateCreated:
       case SortOption.dateCreatedOldestFirst:
         return Icons.access_time;
@@ -346,9 +342,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   String _getSortOptionText(SortOption sortOption) {
     switch (sortOption) {
       case SortOption.wordAZ:
-        return 'Word A-Z';
+        return 'A-Z';
       case SortOption.wordZA:
-        return 'Word Z-A';
+        return 'Z-A';
       case SortOption.definitionAZ:
         return 'Definition A-Z';
       case SortOption.definitionZA:
@@ -540,87 +536,57 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                 ),
               ],
             ),
-            subtitle: Consumer<DutchWordExerciseProvider>(
-              builder: (context, dutchProvider, child) {
-                final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-                final exerciseCount = existingExercise?.exercises.length ?? 0;
-                
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(card.definition),
+                const SizedBox(height: 4),
+                Row(
                   children: [
-                    Text(card.definition),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Added: ${_formatDate(card.dateCreated)}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                    Flexible(
+                      child: Text(
+                        'Added: ${_formatDate(card.dateCreated)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
-                        // Always show HP
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: card.hasReachedDailyLimit 
-                                  ? Colors.orange.withOpacity(0.1)
-                                  : Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              card.hasReachedDailyLimit 
-                                  ? 'Daily limit reached'
-                                  : '${card.currentHP}/${card.maxHP} HP',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: card.hasReachedDailyLimit
-                                    ? Colors.orange[700]
-                                    : card.isDefeated 
-                                        ? Colors.grey[600]
-                                        : card.hpPercentage > 0.6 
-                                            ? Colors.green[600]
-                                            : card.hpPercentage > 0.3 
-                                                ? Colors.orange[600]
-                                                : Colors.red[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: card.hasReachedDailyLimit 
+                              ? Colors.orange.withOpacity(0.1)
+                              : Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        // Show exercises if they exist
-                        if (exerciseCount > 0) ...[
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '$exerciseCount exercise${exerciseCount == 1 ? '' : 's'}',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                        child: Text(
+                          card.hasReachedDailyLimit 
+                              ? 'Daily limit reached'
+                              : '${card.currentHP}/${card.maxHP} HP',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: card.hasReachedDailyLimit
+                                ? Colors.orange[700]
+                                : card.isDefeated 
+                                    ? Colors.grey[600]
+                                    : card.hpPercentage > 0.6 
+                                        ? Colors.green[600]
+                                        : card.hpPercentage > 0.3 
+                                            ? Colors.orange[600]
+                                            : Colors.red[600],
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
-                      ],
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
                   ],
-                );
-              },
+                ),
+              ],
             ),
             trailing: _isSelectionMode ? null : PopupMenuButton<String>(
               onSelected: (value) => _handleCardAction(value, card),
@@ -645,16 +611,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     ],
                   ),
                 ),
-                const PopupMenuItem(
-                  value: 'study',
-                  child: Row(
-                    children: [
-                      Icon(Icons.quiz, size: 16, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Study This Card', style: TextStyle(color: Colors.green)),
-                    ],
-                  ),
-                ),
+
               ],
             ),
           ),
@@ -802,7 +759,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         _deleteCard(card);
         break;
       case 'study':
-        _studyCard(card);
+        // Study case removed as exercises are now part of regular games
         break;
     }
   }
@@ -859,82 +816,13 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
 
-  Future<void> _studyDeck() async {
-    // Get all cards in this deck including sub-decks with deduplication
-    final provider = context.read<FlashcardProvider>();
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final allDeckCards = provider.getCardsForDeckWithSubDecks(widget.deck.id);
-    
-    // Deduplicate cards by ID
-    final deckCards = <FlashCard>[];
-    final seenCardIds = <String>{};
-    for (final card in allDeckCards) {
-      if (!seenCardIds.contains(card.id)) {
-        deckCards.add(card);
-        seenCardIds.add(card.id);
-      }
-    }
-    
-    if (deckCards.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No cards in this deck or its sub-decks to study!')),
-        );
-      }
-      return;
-    }
-    
-    // Auto-generate missing exercises first
-    for (final card in deckCards) {
-      final deckName = provider.getDeck(card.deckIds.isNotEmpty ? card.deckIds.first : widget.deck.id)?.name ?? widget.deck.name;
-      await dutchProvider.syncExercisesForCard(card, deckName: deckName);
-    }
-    
-    final exercises = <DutchWordExercise>[];
-    int wordsWithoutExercises = 0;
-    
-    for (final card in deckCards) {
-      // Check if there's already an existing exercise for this card
-      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-      
-      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
-        exercises.add(existingExercise);
-      } else {
-        wordsWithoutExercises++;
-      }
-    }
-    
-    if (!mounted) return;
-
-    // Show informative message if some words don't have exercises (missing articles/plurals/examples)
-    if (wordsWithoutExercises > 0 && exercises.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have grammar data (Articles, Plurals, or Example Sentences) for exercises.'),
-          backgroundColor: Colors.blueAccent,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-    
-    // Only proceed if we have exercises to study
-    if (exercises.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No cards in this deck have enough grammar data (Articles, Plurals, or Examples) to build exercises.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    
-    // Navigate to the Dutch words practice view
-    Navigator.of(context).push(
+  void _studyDeck() {
+    Navigator.push(
+      context,
       MaterialPageRoute(
-        builder: (context) => DutchWordsPracticeView(
-          deckId: widget.deck.id,
-          deckName: widget.deck.name,
-          exercises: exercises,
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.study,
+          initialDeckId: widget.deck.id,
         ),
       ),
     );
@@ -1041,13 +929,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
             onPressed: () async {
               final navigator = Navigator.of(context);
               final provider = context.read<FlashcardProvider>();
-              final exerciseProvider = context.read<DutchWordExerciseProvider>();
               
               // Delete the card
               await provider.deleteCard(card.id);
-              
-              // Also delete exercises for this word
-              await exerciseProvider.deleteWordExerciseByWord(card.word);
               
               if (mounted) {
                 navigator.pop();
@@ -1064,43 +948,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
 
 
 
-  Future<void> _studyCard(FlashCard card) async {
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final flashcardProvider = context.read<FlashcardProvider>();
-    
-    // Automatically sync/generate exercises first
-    final deckName = flashcardProvider.getDeck(card.deckIds.isNotEmpty ? card.deckIds.first : widget.deck.id)?.name ?? widget.deck.name;
-    await dutchProvider.syncExercisesForCard(card, deckName: deckName);
-    
-    // Check if there's now an exercise for this card
-    final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-    
-    if (!mounted) return;
-
-    if (existingExercise == null || existingExercise.exercises.isEmpty) {
-      // Show message that no exercises exist even after sync
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No grammar data (Article, Plural, or Example) found for "${card.word}" to study.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    
-    // Use the synchronized exercise
-    print('🔍 DeckDetailView: Found exercise for "${card.word}" with ${existingExercise.exercises.length} exercises');
-    
-    // Navigate to the Dutch word exercise detail view for this card
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => DutchWordExerciseDetailView(
-          wordExercise: existingExercise,
-          showEditDeleteButtons: false,
-        ),
-      ),
-    );
-  }
+  // Removed _studyCard method as exercises are replaced by games
 
   void _showCardDetails(FlashCard card) {
     showModalBottomSheet(
@@ -1152,6 +1000,17 @@ class _DeckDetailViewState extends State<DeckDetailView> {
           ),
         ),
         
+        // Right side - Home button
+        Positioned(
+          right: 56, // Positioned to the left of the menu button
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+          ),
+        ),
+        
         // Right side - Menu button
         Positioned(
           right: 16, // Add proper padding from right edge
@@ -1167,16 +1026,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                     Icon(Icons.edit),
                     SizedBox(width: 8),
                     Text('Edit Deck'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'study',
-                child: Row(
-                  children: [
-                    Icon(Icons.school),
-                    SizedBox(width: 8),
-                    Text('Study Deck'),
                   ],
                 ),
               ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../views/add_deck_view.dart';
 import '../views/add_card_view.dart';
-import '../views/add_phrase_view.dart';
 import '../views/photo_import_view.dart';
 
 class UniversalAddButton extends StatelessWidget {

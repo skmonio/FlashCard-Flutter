@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/store_pack.dart';
-import '../models/dutch_word_exercise.dart';
+import '../models/store_pack.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import 'add_deck_view.dart';
 
 class StorePackDetailView extends StatefulWidget {
@@ -186,211 +185,21 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
       );
     }
 
-    if (widget.pack.category == 'exercises') {
-      // For exercises, group by word and show unique words
-              final uniqueWords = _packContents.map((item) => item['Word']?.toString().toLowerCase() ?? '').toSet().toList();
-      uniqueWords.sort();
-      
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: uniqueWords.length,
-        itemBuilder: (context, index) {
-          final word = uniqueWords[index];
-          final firstExerciseForWord = _packContents.firstWhere(
-            (item) => item['Word']?.toString().toLowerCase() == word,
-          );
-          return _buildContentItem(firstExerciseForWord, index);
-        },
-      );
-    } else {
-      return ListView.builder(
+    return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: _packContents.length,
         itemBuilder: (context, index) {
           final item = _packContents[index];
           return _buildContentItem(item, index);
         },
-      );
-    }
+    );
   }
 
   Widget _buildContentItem(Map<String, dynamic> item, int index) {
-    final isExercise = widget.pack.category == 'exercises';
-    
-    if (isExercise) {
-      return _buildExerciseItem(item, index);
-    } else {
-      return _buildVocabularyItem(item, index);
-    }
+    return _buildVocabularyItem(item, index);
   }
 
-  Widget _buildExerciseItem(Map<String, dynamic> item, int index) {
-    final word = item['Word'] ?? '';
-    
-    // Check if the word exists in any deck
-    final flashcardProvider = context.read<FlashcardProvider>();
-    final existingCard = flashcardProvider.cards.where(
-      (card) => card.word.toLowerCase() == word.toLowerCase(),
-    ).firstOrNull;
-    
-    final wordExists = existingCard != null;
 
-    // Get all exercises for this word
-              final exercisesForWord = _packContents.where(
-            (exercise) => (exercise['Word']?.toString().toLowerCase() ?? '') == word.toLowerCase(),
-          ).toList();
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ExpansionTile(
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                word,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (wordExists)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
-                ),
-                child: Text(
-                  'Word exists',
-                  style: TextStyle(
-                    color: Colors.green[700],
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withOpacity(0.3)),
-                ),
-                child: Text(
-                  'Word not found',
-                  style: TextStyle(
-                    color: Colors.red[700],
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        subtitle: Text('${exercisesForWord.length} exercises available'),
-        trailing: wordExists
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: () => _importAllExercisesForWord(word, exercisesForWord),
-                    icon: const Icon(Icons.add_circle_outline),
-                    tooltip: 'Import all exercises for this word',
-                  ),
-                ],
-              )
-            : null,
-        children: exercisesForWord.map((exercise) {
-          final exerciseType = exercise['Exercise Type'] ?? '';
-          final question = exercise['Question'] ?? '';
-          final correctAnswer = exercise['Correct Answer'] ?? '';
-          final isAlreadyImported = _isExerciseAlreadyImported(word, exercise);
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isAlreadyImported 
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.orange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isAlreadyImported 
-                                ? Colors.green.withOpacity(0.3)
-                                : Colors.orange.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Text(
-                          isAlreadyImported ? 'Imported' : exerciseType,
-                          style: TextStyle(
-                            color: isAlreadyImported 
-                                ? Colors.green[700]
-                                : Colors.orange[700],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (wordExists && !isAlreadyImported)
-                      IconButton(
-                        onPressed: () => _importExerciseItem(exercise),
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        tooltip: 'Import this exercise',
-                      ),
-                    if (wordExists && isAlreadyImported)
-                      IconButton(
-                        onPressed: null,
-                        icon: const Icon(Icons.check_circle, size: 20, color: Colors.green),
-                        tooltip: 'Already imported',
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Question:',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  question,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Answer:',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  correctAnswer,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.green[700],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                if (exercise != exercisesForWord.last) const Divider(),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
   Widget _buildVocabularyItem(Map<String, dynamic> item, int index) {
     final word = item['Word'] ?? '';
@@ -608,337 +417,6 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
     }
   }
 
-  Future<void> _importAllExercisesForWord(String word, List<Map<String, dynamic>> exercises) async {
-    final exerciseProvider = context.read<DutchWordExerciseProvider>();
-    final flashcardProvider = context.read<FlashcardProvider>();
-    
-    try {
-      // Find existing card for this word
-      final existingCard = flashcardProvider.cards.where(
-        (card) => card.word.toLowerCase() == word.toLowerCase(),
-      ).firstOrNull;
-
-      if (existingCard == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Word "$word" not found in any deck'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Filter out exercises that are already imported
-      final exercisesToImport = exercises.where((exercise) => !_isExerciseAlreadyImported(word, exercise)).toList();
-      
-      if (exercisesToImport.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('All exercises for "$word" have already been imported'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Check if exercise already exists for this word
-      final existingExercise = exerciseProvider.wordExercises.where(
-        (exercise) => exercise.targetWord.toLowerCase() == word.toLowerCase(),
-      ).firstOrNull;
-
-      final newWordExercises = exercisesToImport.map((exercise) {
-        final optionsString = exercise['Options'] ?? '';
-        final optionsList = _parseOptions(optionsString);
-            
-        return WordExercise(
-          id: DateTime.now().millisecondsSinceEpoch.toString() + exercisesToImport.indexOf(exercise).toString(),
-          type: _getExerciseType(exercise['Exercise Type'] ?? ''),
-          prompt: exercise['Question'] ?? '',
-          options: optionsList,
-          correctAnswer: exercise['Correct Answer'] ?? '',
-          explanation: exercise['Explanation'] ?? '',
-          difficulty: ExerciseDifficulty.beginner,
-        );
-      }).toList();
-
-      if (existingExercise != null) {
-        // Add new exercises to existing word exercise
-        final updatedExercise = DutchWordExercise(
-          id: existingExercise.id,
-          targetWord: existingExercise.targetWord,
-          wordTranslation: existingExercise.wordTranslation,
-          deckId: existingExercise.deckId,
-          deckName: existingExercise.deckName,
-          category: existingExercise.category,
-          difficulty: existingExercise.difficulty,
-          exercises: [...existingExercise.exercises, ...newWordExercises],
-          createdAt: existingExercise.createdAt,
-          isUserCreated: existingExercise.isUserCreated,
-          learningProgress: existingExercise.learningProgress,
-        );
-        
-        await exerciseProvider.updateWordExercise(updatedExercise);
-      } else {
-        // Create new word exercise
-        final exercise = DutchWordExercise(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          targetWord: word,
-          wordTranslation: exercises.first['Correct Answer'] ?? '',
-          deckId: existingCard.deckIds.first,
-          deckName: flashcardProvider.getDeck(existingCard.deckIds.first)?.name ?? 'Unknown Deck',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: newWordExercises,
-          createdAt: DateTime.now(),
-          isUserCreated: false,
-          learningProgress: LearningProgress(),
-        );
-        
-        await exerciseProvider.addWordExercise(exercise);
-      }
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Successfully imported ${exercisesToImport.length} exercises for "$word"'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('🔍 Import: Error occurred: $e');
-      print('🔍 Import: Error stack trace: ${StackTrace.current}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error importing exercises: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _importExerciseItem(Map<String, dynamic> item) async {
-    final exerciseProvider = context.read<DutchWordExerciseProvider>();
-    final flashcardProvider = context.read<FlashcardProvider>();
-    
-    try {
-      print('🔍 Import: Starting import for item: $item');
-      
-      final word = item['Word'] ?? '';
-      final exerciseType = item['Exercise Type'] ?? '';
-      final question = item['Question'] ?? '';
-      final correctAnswer = item['Correct Answer'] ?? '';
-      final options = item['Options'] ?? '';
-      final explanation = item['Explanation'] ?? '';
-      
-      print('🔍 Import: Parsed values - Word: "$word", Type: "$exerciseType", Question: "$question"');
-      print('🔍 Import: Options string: "$options"');
-
-      // Check if this exercise is already imported
-      if (_isExerciseAlreadyImported(word, item)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('This exercise has already been imported for "$word"'),
-              backgroundColor: Colors.blue,
-            ),
-          );
-        }
-        return;
-      }
-
-
-
-      // Find existing card for this word
-      final existingCard = flashcardProvider.cards.where(
-        (card) => card.word.toLowerCase() == word.toLowerCase(),
-      ).firstOrNull;
-
-      if (existingCard == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Word "$word" not found in any deck'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      // Check if exercise already exists for this word
-      final existingExercise = exerciseProvider.wordExercises.where(
-        (exercise) => exercise.targetWord.toLowerCase() == word.toLowerCase(),
-      ).firstOrNull;
-
-      if (existingExercise != null) {
-        // Add new exercise to existing word exercise
-        final optionsList = _parseOptions(options);
-            
-        final newWordExercise = WordExercise(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          type: _getExerciseType(exerciseType),
-          prompt: question,
-          options: optionsList,
-          correctAnswer: correctAnswer,
-          explanation: explanation,
-          difficulty: ExerciseDifficulty.beginner,
-        );
-        
-        final updatedExercise = DutchWordExercise(
-          id: existingExercise.id,
-          targetWord: existingExercise.targetWord,
-          wordTranslation: existingExercise.wordTranslation,
-          deckId: existingExercise.deckId,
-          deckName: existingExercise.deckName,
-          category: existingExercise.category,
-          difficulty: existingExercise.difficulty,
-          exercises: [...existingExercise.exercises, newWordExercise],
-          createdAt: existingExercise.createdAt,
-          isUserCreated: existingExercise.isUserCreated,
-          learningProgress: existingExercise.learningProgress,
-        );
-        
-        await exerciseProvider.updateWordExercise(updatedExercise);
-      } else {
-        // Create new word exercise
-        final optionsList = _parseOptions(options);
-            
-        final exercise = DutchWordExercise(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          targetWord: word,
-          wordTranslation: correctAnswer,
-          deckId: existingCard.deckIds.first, // Use the deck where the word exists
-          deckName: flashcardProvider.getDeck(existingCard.deckIds.first)?.name ?? 'Unknown Deck',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [
-            WordExercise(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              type: _getExerciseType(exerciseType),
-              prompt: question,
-              options: optionsList,
-              correctAnswer: correctAnswer,
-              explanation: explanation,
-              difficulty: ExerciseDifficulty.beginner,
-            ),
-          ],
-          createdAt: DateTime.now(),
-          isUserCreated: false,
-          learningProgress: LearningProgress(),
-        );
-        
-        await exerciseProvider.addWordExercise(exercise);
-      }
-      
-      final success = true;
-
-      if (success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Successfully imported exercise for "$word"'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to import exercise'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('🔍 Import: Error occurred in _importExerciseItem: $e');
-      print('🔍 Import: Error stack trace: ${StackTrace.current}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error importing exercise: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-
-
-  ExerciseType _getExerciseType(String exerciseType) {
-    switch (exerciseType.toLowerCase()) {
-      case 'multiple choice':
-        return ExerciseType.multipleChoice;
-      case 'fill in blank':
-        return ExerciseType.fillInBlank;
-      case 'sentence building':
-        return ExerciseType.sentenceBuilding;
-      default:
-        return ExerciseType.multipleChoice;
-    }
-  }
-
-  List<String> _parseOptions(String optionsString) {
-    if (optionsString.isEmpty) {
-      return <String>[];
-    }
-    
-    final splitOptions = optionsString.split(';');
-    final result = <String>[];
-    
-    for (final option in splitOptions) {
-      final trimmed = option.trim();
-      if (trimmed.isNotEmpty) {
-        result.add(trimmed);
-      }
-    }
-    
-    return result;
-  }
-
-  String _generateExerciseId(Map<String, dynamic> exercise) {
-    final question = exercise['Question'] ?? '';
-    final correctAnswer = exercise['Correct Answer'] ?? '';
-    final exerciseType = exercise['Exercise Type'] ?? '';
-    final options = exercise['Options'] ?? '';
-    
-    // Create a unique identifier based on the exercise content
-    return '$question|$correctAnswer|$exerciseType|$options';
-  }
-
-  bool _isExerciseAlreadyImported(String word, Map<String, dynamic> exercise) {
-    final exerciseProvider = context.read<DutchWordExerciseProvider>();
-    final exerciseId = _generateExerciseId(exercise);
-    
-    // Find existing word exercise
-    final existingWordExercise = exerciseProvider.wordExercises.where(
-      (wordExercise) => wordExercise.targetWord.toLowerCase() == word.toLowerCase(),
-    ).firstOrNull;
-    
-    if (existingWordExercise == null) {
-      return false;
-    }
-    
-    // Check if any existing exercise matches this one
-    for (final existingExercise in existingWordExercise.exercises) {
-      final existingId = '${existingExercise.prompt}|${existingExercise.correctAnswer}|${existingExercise.type.toString()}|${existingExercise.options.join(';')}';
-      if (existingId == exerciseId) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-
   Future<String?> _showDeckSelectionDialog() async {
     final flashcardProvider = context.read<FlashcardProvider>();
     final decks = List.from(flashcardProvider.decks)..sort((a, b) => a.name.compareTo(b.name));
@@ -1015,63 +493,33 @@ class _StorePackDetailViewState extends State<StorePackDetailView> {
 
     try {
       final flashcardProvider = context.read<FlashcardProvider>();
-      final exerciseProvider = context.read<DutchWordExerciseProvider>();
       
       int importedCount = 0;
       int skippedCount = 0;
 
-      if (widget.pack.category == 'exercises') {
-        // For exercises, import all exercises for each word
-        final uniqueWords = _packContents.map((item) => item['Word']?.toString().toLowerCase() ?? '').toSet().toList();
+      // For vocabulary cards, import all cards
+      for (final item in _packContents) {
+        final word = item['Word']?.toString().trim() ?? '';
+        final definition = (item['Definition'] ?? item['Correct Answer'])?.toString().trim() ?? '';
         
-        for (final word in uniqueWords) {
-          final exercisesForWord = _packContents.where(
-            (exercise) => (exercise['Word']?.toString().toLowerCase() ?? '') == word.toLowerCase(),
-          ).toList();
-
-          // Check if word exists in any deck
+        if (word.isNotEmpty) {
+          // Check if card already exists
           final existingCard = flashcardProvider.cards.where(
             (card) => card.word.toLowerCase() == word.toLowerCase(),
           ).firstOrNull;
 
-          if (existingCard != null) {
-            // Import all exercises for this word
-            for (final exercise in exercisesForWord) {
-              await _importExerciseItem(exercise);
+          if (existingCard == null) {
+            final newCard = await flashcardProvider.createCard(
+              word: word,
+              definition: definition,
+              deckIds: {selectedDeckId},
+            );
+            
+            if (newCard != null) {
               importedCount++;
             }
           } else {
-            skippedCount += exercisesForWord.length;
-          }
-        }
-      } else {
-        // For vocabulary cards, import all cards
-        for (final item in _packContents) {
-          final word = item['Word']?.toString().trim() ?? '';
-          final definition = item['Definition']?.toString().trim() ?? '';
-          
-          if (word.isNotEmpty) {
-            // Check if card already exists
-            final existingCard = flashcardProvider.cards.where(
-              (card) => card.word.toLowerCase() == word.toLowerCase(),
-            ).firstOrNull;
-
-            if (existingCard == null) {
-              final newCard = await flashcardProvider.createCard(
-                word: word,
-                definition: definition,
-                deckIds: {selectedDeckId},
-              );
-              
-              if (newCard != null) {
-                importedCount++;
-                // Automatically sync exercises for this new card
-                final deckName = flashcardProvider.getDeck(selectedDeckId)?.name ?? 'Default';
-                await exerciseProvider.syncExercisesForCard(newCard, deckName: deckName);
-              }
-            } else {
-              skippedCount++;
-            }
+            skippedCount++;
           }
         }
       }

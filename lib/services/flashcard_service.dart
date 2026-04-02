@@ -293,9 +293,9 @@ class FlashcardService {
     Set<String>? deckIds,
     String article = '',
     String plural = '',
+    String presentTense = '',
     String pastTense = '',
-    String futureTense = '',
-    String pastParticiple = '',
+    String perfectTense = '',
   }) async {
     print('Service: Creating card: $word with deckIds: $deckIds');
     try {
@@ -331,9 +331,9 @@ class FlashcardService {
         deckIds: finalDeckIds,
         article: article,
         plural: plural,
+        presentTense: presentTense,
         pastTense: pastTense,
-        futureTense: futureTense,
-        pastParticiple: pastParticiple,
+        perfectTense: perfectTense,
       );
       
       print('Service: Card object created: ${card.word} (${card.id})');

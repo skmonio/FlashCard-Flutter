@@ -3,10 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../services/export_service.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 
 class EnhancedExportView extends StatefulWidget {
   final Set<String>? selectedDeckIds;
@@ -22,7 +20,7 @@ class EnhancedExportView extends StatefulWidget {
 
 class _EnhancedExportViewState extends State<EnhancedExportView> {
   String _selectedFormat = ExportService.formatCSV;
-  String _selectedContent = ExportService.contentBoth;
+  String _selectedContent = ExportService.contentCards;
   bool _isExporting = false;
 
   @override
@@ -45,7 +43,7 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
             _buildFormatSelection(),
             const SizedBox(height: 24),
             
-            // Content Selection
+            // Content Selection (Simplified as we only have cards now)
             _buildSectionTitle('Export Content'),
             const SizedBox(height: 8),
             _buildContentSelection(),
@@ -59,7 +57,7 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
             
             // Export Button
             _buildExportButton(),
-            const SizedBox(height: 24), // Add extra padding at bottom for better scrolling
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -83,7 +81,7 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
           RadioListTile<String>(
             title: Row(
               children: [
-                Icon(Icons.table_chart, color: Colors.green),
+                const Icon(Icons.table_chart, color: Colors.green),
                 const SizedBox(width: 8),
                 const Text('CSV Format'),
               ],
@@ -100,7 +98,7 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
           RadioListTile<String>(
             title: Row(
               children: [
-                Icon(Icons.code, color: Colors.blue),
+                const Icon(Icons.code, color: Colors.blue),
                 const SizedBox(width: 8),
                 const Text('JSON Format'),
               ],
@@ -126,47 +124,13 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
           RadioListTile<String>(
             title: Row(
               children: [
-                Icon(Icons.style, color: Colors.orange),
+                const Icon(Icons.style, color: Colors.orange),
                 const SizedBox(width: 8),
                 const Text('Cards Only'),
               ],
             ),
-            subtitle: const Text('Export only flashcard data (words, definitions, examples, etc.)'),
+            subtitle: const Text('Export all flashcard data (words, definitions, examples, etc.)'),
             value: ExportService.contentCards,
-            groupValue: _selectedContent,
-            onChanged: (value) {
-              setState(() {
-                _selectedContent = value!;
-              });
-            },
-          ),
-          RadioListTile<String>(
-            title: Row(
-              children: [
-                Icon(Icons.quiz, color: Colors.purple),
-                const SizedBox(width: 8),
-                const Text('Exercises Only'),
-              ],
-            ),
-            subtitle: const Text('Export only exercise data (questions, answers, options)'),
-            value: ExportService.contentExercises,
-            groupValue: _selectedContent,
-            onChanged: (value) {
-              setState(() {
-                _selectedContent = value!;
-              });
-            },
-          ),
-          RadioListTile<String>(
-            title: Row(
-              children: [
-                Icon(Icons.integration_instructions, color: Colors.teal),
-                const SizedBox(width: 8),
-                const Text('Cards & Exercises'),
-              ],
-            ),
-            subtitle: const Text('Export both flashcard and exercise data together'),
-            value: ExportService.contentBoth,
             groupValue: _selectedContent,
             onChanged: (value) {
               setState(() {
@@ -180,10 +144,9 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
   }
 
   Widget _buildPreview() {
-    return Consumer2<FlashcardProvider, DutchWordExerciseProvider>(
-      builder: (context, flashcardProvider, exerciseProvider, child) {
+    return Consumer<FlashcardProvider>(
+      builder: (context, flashcardProvider, child) {
         final cards = _getCardsToExport(flashcardProvider);
-        final exercises = _getExercisesToExport(exerciseProvider, cards);
         
         return Card(
           child: Padding(
@@ -193,7 +156,7 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue),
+                    const Icon(Icons.info_outline, color: Colors.blue),
                     const SizedBox(width: 8),
                     Text(
                       'Export Summary',
@@ -205,9 +168,8 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
                 ),
                 const SizedBox(height: 12),
                 _buildPreviewRow('Cards to export:', '${cards.length}'),
-                _buildPreviewRow('Exercises to export:', '${exercises.length}'),
                 _buildPreviewRow('Format:', _selectedFormat.toUpperCase()),
-                _buildPreviewRow('Content:', _getContentDescription()),
+                _buildPreviewRow('Content:', 'Cards Only'),
                 if (widget.selectedDeckIds != null && widget.selectedDeckIds!.isNotEmpty)
                   _buildPreviewRow('Selected decks:', '${widget.selectedDeckIds!.length}'),
               ],
@@ -246,31 +208,18 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
     );
   }
 
-  String _getContentDescription() {
-    switch (_selectedContent) {
-      case ExportService.contentCards:
-        return 'Cards Only';
-      case ExportService.contentExercises:
-        return 'Exercises Only';
-      case ExportService.contentBoth:
-        return 'Cards & Exercises';
-      default:
-        return 'Unknown';
-    }
-  }
-
   Widget _buildExportButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: _isExporting ? null : _exportData,
         icon: _isExporting 
-          ? SizedBox(
+          ? const SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Icon(Icons.download),
+          : const Icon(Icons.download),
         label: Text(_isExporting ? 'Exporting...' : 'Export Data'),
         style: ElevatedButton.styleFrom(
           backgroundColor: Theme.of(context).colorScheme.primary,
@@ -296,22 +245,6 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
     }
   }
 
-  List<DutchWordExercise> _getExercisesToExport(
-    DutchWordExerciseProvider provider, 
-    List<FlashCard> cards
-  ) {
-    if (_selectedContent == ExportService.contentExercises) {
-      // Export all exercises
-      return provider.wordExercises;
-    } else {
-      // Export only exercises for the selected cards
-      final cardWords = cards.map((card) => card.word).toSet();
-      return provider.wordExercises
-          .where((exercise) => cardWords.contains(exercise.targetWord))
-          .toList();
-    }
-  }
-
   Future<void> _exportData() async {
     setState(() {
       _isExporting = true;
@@ -319,26 +252,19 @@ class _EnhancedExportViewState extends State<EnhancedExportView> {
 
     try {
       final flashcardProvider = context.read<FlashcardProvider>();
-      final exerciseProvider = context.read<DutchWordExerciseProvider>();
-      
       final cards = _getCardsToExport(flashcardProvider);
-      final exercises = _getExercisesToExport(exerciseProvider, cards);
       
       // Generate export content
       final exportContent = ExportService.export(
         format: _selectedFormat,
         content: _selectedContent,
         cards: cards,
-        exercises: exercises,
         decks: flashcardProvider.decks,
       );
       
       // Generate filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final contentSuffix = _selectedContent == ExportService.contentBoth 
-          ? 'unified' 
-          : _selectedContent;
-      final filename = 'flashcards_${contentSuffix}_export_$timestamp.${_selectedFormat}';
+      final filename = 'flashcards_export_$timestamp.${_selectedFormat}';
       
       // Save file
       final result = await FilePicker.platform.saveFile(

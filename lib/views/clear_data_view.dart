@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
-
 import '../providers/user_profile_provider.dart';
-import '../providers/phrase_provider.dart';
-
 import '../models/learning_mastery.dart';
 
 class ClearDataView extends StatefulWidget {
@@ -36,8 +32,6 @@ class _ClearDataViewState extends State<ClearDataView> {
       _selectedOptions = {
         'cards',
         'decks',
-        'exercises',
-        'phrases',
         'stats',
         'everything',
       };
@@ -111,17 +105,12 @@ class _ClearDataViewState extends State<ClearDataView> {
         await _clearAllDecks();
         currentStep += 1.0;
       }
-      
-      if (_selectedOptions.contains('everything') || _selectedOptions.contains('exercises')) {
-        _updateProgress(currentStep / totalSteps, 'Clearing exercises...');
-        await _clearAllExercises();
-        currentStep += 1.0;
-      }
-      
-      if (_selectedOptions.contains('everything') || _selectedOptions.contains('phrases')) {
-        _updateProgress(currentStep / totalSteps, 'Clearing phrases...');
-        await _clearAllPhrases();
-        currentStep += 1.0;
+
+      if (_selectedOptions.contains('everything')) {
+        // Legacy exercise and phrase cleanup logic removed
+        // as those providers are being decommissioned.
+        _updateProgress(currentStep / totalSteps, 'Cleaning up meta data...');
+        currentStep += 0.5;
       }
       
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) {
@@ -143,8 +132,6 @@ class _ClearDataViewState extends State<ClearDataView> {
           List<String> cleared = [];
           if (_selectedOptions.contains('cards')) cleared.add('cards');
           if (_selectedOptions.contains('decks')) cleared.add('decks');
-          if (_selectedOptions.contains('exercises')) cleared.add('exercises');
-          if (_selectedOptions.contains('phrases')) cleared.add('phrases');
           if (_selectedOptions.contains('stats')) cleared.add('stats & progress');
           message += cleared.join(', ');
         }
@@ -191,8 +178,6 @@ class _ClearDataViewState extends State<ClearDataView> {
     List<String> options = [];
     if (_selectedOptions.contains('cards')) options.add('All Cards');
     if (_selectedOptions.contains('decks')) options.add('All Decks');
-    if (_selectedOptions.contains('exercises')) options.add('All Exercises');
-    if (_selectedOptions.contains('phrases')) options.add('All Phrases');
     if (_selectedOptions.contains('stats')) options.add('Stats & Progress');
     if (_selectedOptions.contains('everything')) options.add('Everything');
     return options.join(', ');
@@ -214,30 +199,9 @@ class _ClearDataViewState extends State<ClearDataView> {
     // Clear all decks (except default ones)
     final decks = List.from(flashcardProvider.decks);
     for (final deck in decks) {
-      if (deck.name != 'Uncategorized' && deck.name != 'Default') {
+      if (deck.name != 'Uncategorized' && deck.name != 'Default' && deck.name != 'Review') {
         await flashcardProvider.deleteDeck(deck.id);
       }
-    }
-  }
-
-  Future<void> _clearAllExercises() async {
-    try {
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      await dutchProvider.clearAllExercises();
-    } catch (e) {
-      print('DutchWordExerciseProvider not available: $e');
-    }
-  }
-
-  Future<void> _clearAllPhrases() async {
-    try {
-      final phraseProvider = context.read<PhraseProvider>();
-      final phrases = List.from(phraseProvider.phrases);
-      for (final phrase in phrases) {
-        await phraseProvider.deletePhrase(phrase.id);
-      }
-    } catch (e) {
-      print('PhraseProvider not available: $e');
     }
   }
 
@@ -248,9 +212,6 @@ class _ClearDataViewState extends State<ClearDataView> {
     } catch (e) {
       print('UserProfileProvider not available: $e');
     }
-    
-
-    
     
     // Clear individual word RPG progress (XP and learning mastery)
     try {
@@ -275,7 +236,7 @@ class _ClearDataViewState extends State<ClearDataView> {
           lastGameResetDate: null,
         );
         
-        final updatedCard = card.copyWith(learningMastery: resetMastery);
+        final updatedCard = card.copyWith(learningMastery: resetMastery, successCount: 0);
         await flashcardProvider.updateCard(updatedCard);
       }
     } catch (e) {
@@ -291,7 +252,7 @@ class _ClearDataViewState extends State<ClearDataView> {
         children: [
           Column(
             children: [
-              // Fixed Header - matching Taal Trek header height
+              // Fixed Header
               SafeArea(
                 child: Container(
                   height: kToolbarHeight,
@@ -315,130 +276,117 @@ class _ClearDataViewState extends State<ClearDataView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  // Warning
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.warning,
-                          color: Colors.red[700],
-                          size: 24,
+                      // Warning
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Warning: This action cannot be undone. Please select carefully what you want to clear.',
-                            style: TextStyle(
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning,
                               color: Colors.red[700],
-                              fontWeight: FontWeight.w500,
+                              size: 24,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Select All / Clear All buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _selectAll,
-                          icon: const Icon(Icons.select_all),
-                          label: const Text('Select All'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Warning: This action cannot be undone. Please select carefully what you want to clear.',
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _clearSelection,
-                          icon: const Icon(Icons.clear_all),
-                          label: const Text('Clear All'),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Select All / Clear All buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _selectAll,
+                              icon: const Icon(Icons.select_all),
+                              label: const Text('Select All'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _clearSelection,
+                              icon: const Icon(Icons.clear_all),
+                              label: const Text('Clear All'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Options
+                      _buildOptionTile(
+                        'cards',
+                        'All Cards',
+                        'Delete all flashcards',
+                        Icons.style,
+                        Colors.blue,
+                      ),
+                      _buildOptionTile(
+                        'decks',
+                        'All Decks',
+                        'Delete all custom decks (except Uncategorized and Review)',
+                        Icons.folder,
+                        Colors.indigo,
+                      ),
+
+                      _buildOptionTile(
+                        'stats',
+                        'Stats & Progress',
+                        'Reset XP, levels, achievements, and word RPG progress',
+                        Icons.analytics,
+                        Colors.orange,
+                      ),
+                      _buildOptionTile(
+                        'everything',
+                        'Everything',
+                        'Clear all data (cards, decks, stats)',
+                        Icons.delete_forever,
+                        Colors.red,
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Clear Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _selectedOptions.isNotEmpty ? _executeClear : null,
+                          icon: const Icon(Icons.delete_forever),
+                          label: const Text('Clear Selected Data'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Options
-                  _buildOptionTile(
-                    'cards',
-                    'All Cards',
-                    'Delete all flashcards',
-                    Icons.style,
-                    Colors.blue,
-                  ),
-                  _buildOptionTile(
-                    'decks',
-                    'All Decks',
-                    'Delete all custom decks',
-                    Icons.folder,
-                    Colors.indigo,
-                  ),
-                  _buildOptionTile(
-                    'exercises',
-                    'All Exercises',
-                    'Delete all Dutch word exercises',
-                    Icons.quiz,
-                    Colors.green,
-                  ),
-                  _buildOptionTile(
-                    'phrases',
-                    'All Phrases',
-                    'Delete all phrases',
-                    Icons.translate,
-                    Colors.teal,
-                  ),
-                  _buildOptionTile(
-                    'stats',
-                    'Stats & Progress',
-                    'Reset XP, levels, achievements, and word RPG progress',
-                    Icons.analytics,
-                    Colors.orange,
-                  ),
-                  _buildOptionTile(
-                    'everything',
-                    'Everything',
-                    'Clear all data (cards, decks, exercises, phrases, stats)',
-                    Icons.delete_forever,
-                    Colors.red,
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Clear Button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _selectedOptions.isNotEmpty ? _executeClear : null,
-                      icon: const Icon(Icons.delete_forever),
-                      label: const Text('Clear Selected Data'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
           
           // Progress overlay when clearing data
           if (_isClearing)
@@ -563,7 +511,6 @@ class _ClearDataViewState extends State<ClearDataView> {
   Widget _buildCustomHeader(BuildContext context) {
     return Stack(
       children: [
-        // Centered title - always in the center regardless of other elements
         Center(
           child: Text(
             'Clear Data',
@@ -574,10 +521,8 @@ class _ClearDataViewState extends State<ClearDataView> {
             ),
           ),
         ),
-        
-        // Left side - Back button with proper padding
         Positioned(
-          left: 16, // Add proper padding from left edge
+          left: 16,
           top: 0,
           bottom: 0,
           child: IconButton(

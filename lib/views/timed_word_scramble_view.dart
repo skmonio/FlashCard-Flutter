@@ -14,9 +14,7 @@ import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../models/dutch_word_exercise.dart';
 import '../models/timed_difficulty.dart';
 
 class TimedWordScrambleView extends StatefulWidget {

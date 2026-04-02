@@ -5,15 +5,12 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
-import '../models/dutch_word_exercise.dart';
 import 'add_deck_view.dart';
 import 'deck_detail_view.dart';
 import 'add_card_view.dart';
 import 'edit_deck_view.dart';
-import 'dutch_words_practice_view.dart';
 import 'study_type_selection_view.dart';
 import '../components/universal_add_button.dart';
 
@@ -111,7 +108,7 @@ class _AllDecksViewState extends State<AllDecksView> {
         
         // Left side - Back button
         Positioned(
-          left: 16, // Add proper padding from left edge
+          left: 16,
           top: 0,
           bottom: 0,
           child: IconButton(
@@ -120,6 +117,16 @@ class _AllDecksViewState extends State<AllDecksView> {
           ),
         ),
         
+        // Right side - Home button
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: Icon(Icons.home, color: Theme.of(context).colorScheme.onSurface),
+          ),
+        ),
       ],
     );
   }
@@ -525,26 +532,6 @@ class _AllDecksViewState extends State<AllDecksView> {
                             ],
                           ),
                         ),
-                      Consumer<DutchWordExerciseProvider>(
-                        builder: (context, dutchProvider, child) {
-                          int totalExercises = 0;
-                          for (final card in cards) {
-                            final exercise = dutchProvider.getWordExerciseByWord(card.word);
-                            totalExercises += exercise?.exercises.length ?? 0;
-                          }
-                          
-                          if (totalExercises > 0) {
-                            return Text(
-                              '$totalExercises exercise${totalExercises == 1 ? '' : 's'}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.green[600],
-                                fontWeight: FontWeight.w500,
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
                     ],
                   ),
                 ),
@@ -579,16 +566,6 @@ class _AllDecksViewState extends State<AllDecksView> {
                             Icon(Icons.create_new_folder),
                             SizedBox(width: 8),
                             Text('Add Sub-deck'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'study',
-                        child: Row(
-                          children: [
-                            Icon(Icons.quiz, color: Colors.green),
-                            SizedBox(width: 8),
-                            Text('Study This Deck', style: TextStyle(color: Colors.green)),
                           ],
                         ),
                       ),
@@ -653,10 +630,10 @@ class _AllDecksViewState extends State<AllDecksView> {
         if (card.pastTense.isNotEmpty && card.pastTense.toLowerCase().contains(searchLower)) {
           return true;
         }
-        if (card.futureTense.isNotEmpty && card.futureTense.toLowerCase().contains(searchLower)) {
+        if (card.presentTense.isNotEmpty && card.presentTense.toLowerCase().contains(searchLower)) {
           return true;
         }
-        if (card.pastParticiple.isNotEmpty && card.pastParticiple.toLowerCase().contains(searchLower)) {
+        if (card.perfectTense.isNotEmpty && card.perfectTense.toLowerCase().contains(searchLower)) {
           return true;
         }
       }
@@ -701,10 +678,10 @@ class _AllDecksViewState extends State<AllDecksView> {
       if (card.pastTense.isNotEmpty && card.pastTense.toLowerCase().contains(searchLower)) {
         return true;
       }
-      if (card.futureTense.isNotEmpty && card.futureTense.toLowerCase().contains(searchLower)) {
+      if (card.presentTense.isNotEmpty && card.presentTense.toLowerCase().contains(searchLower)) {
         return true;
       }
-      if (card.pastParticiple.isNotEmpty && card.pastParticiple.toLowerCase().contains(searchLower)) {
+      if (card.perfectTense.isNotEmpty && card.perfectTense.toLowerCase().contains(searchLower)) {
         return true;
       }
     }
@@ -965,12 +942,8 @@ class _AllDecksViewState extends State<AllDecksView> {
   void _exportSelectedDecks() async {
     try {
       final provider = context.read<FlashcardProvider>();
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
       
-      // Get all exercises for the selected decks
-      final allExercises = dutchProvider.wordExercises;
-      
-      final csvContent = provider.exportUnifiedCSV(_selectedDeckIds, exercises: allExercises);
+      final csvContent = provider.exportUnifiedCSV(_selectedDeckIds);
       
       // Save file using FilePicker for mobile compatibility
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -1165,97 +1138,11 @@ class _AllDecksViewState extends State<AllDecksView> {
           ),
         );
         break;
-      case 'study':
-        _studyDeck(context, deck);
-        break;
       case 'delete':
         _showDeleteDeckDialog(context, deck);
         break;
     }
   }
-
-  Future<void> _studyDeck(BuildContext context, Deck deck) async {
-    // Get all cards in this deck including sub-decks for parent decks with deduplication
-    final provider = context.read<FlashcardProvider>();
-    final dutchProvider = context.read<DutchWordExerciseProvider>();
-    final allDeckCards = deck.isSubDeck 
-        ? provider.getCardsForDeck(deck.id)
-        : provider.getCardsForDeckWithSubDecks(deck.id);
-    
-    // Deduplicate cards by ID
-    final deckCards = <FlashCard>[];
-    final seenCardIds = <String>{};
-    for (final card in allDeckCards) {
-      if (!seenCardIds.contains(card.id)) {
-        deckCards.add(card);
-        seenCardIds.add(card.id);
-      }
-    }
-    
-    if (deckCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No cards in "${deck.name}"${deck.isSubDeck ? '' : ' or its sub-decks'} to study!')),
-      );
-      return;
-    }
-    
-    // Auto-generate missing exercises first
-    for (final card in deckCards) {
-      final deckName = provider.getDeck(card.deckIds.isNotEmpty ? card.deckIds.first : deck.id)?.name ?? deck.name;
-      await dutchProvider.syncExercisesForCard(card, deckName: deckName);
-    }
-    
-    final exercises = <DutchWordExercise>[];
-    int wordsWithoutExercises = 0;
-    
-    for (final card in deckCards) {
-      // Check if there's now an exercise for this card
-      final existingExercise = dutchProvider.getWordExerciseByWord(card.word);
-      
-      if (existingExercise != null && existingExercise.exercises.isNotEmpty) {
-        exercises.add(existingExercise);
-      } else {
-        wordsWithoutExercises++;
-      }
-    }
-    
-    // Show informative message if some words don't have exercises (missing articles/plurals/examples)
-    if (wordsWithoutExercises > 0 && exercises.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$wordsWithoutExercises word${wordsWithoutExercises == 1 ? '' : 's'} in this deck don\'t have grammar data (Articles, Plurals, or Example Sentences) for exercises.'),
-          backgroundColor: Colors.blueAccent,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-    
-    // Only proceed if we have exercises to study
-    if (exercises.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No cards in this deck have enough grammar data (Articles, Plurals, or Examples) to build exercises.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    
-    // Navigate to the Dutch words practice view
-    if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => DutchWordsPracticeView(
-            deckId: deck.id,
-            deckName: deck.name,
-            exercises: exercises,
-          ),
-        ),
-      );
-    }
-  }
-
-
   List<String> _generateIntelligentOptions(FlashCard targetCard, {String? preferredDeckId}) {
     // Start with the correct answer at position 0 (option 1)
     final options = <String>[targetCard.definition];
@@ -1454,4 +1341,4 @@ class _AllDecksViewState extends State<AllDecksView> {
     }
   }
 
-} 
+}

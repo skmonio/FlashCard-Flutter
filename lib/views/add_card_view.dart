@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
-import '../utils/exercise_generator.dart';
+import '../providers/flashcard_provider.dart';
 
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../models/dutch_word_exercise.dart';
+import '../models/flash_card.dart';
 import '../services/translation_service.dart';
 import '../providers/translation_language_provider.dart';
 import '../utils/enhanced_snackbar.dart';
@@ -37,9 +36,9 @@ class _AddCardViewState extends State<AddCardView> {
   final _exampleController = TextEditingController();
   final _exampleTranslationController = TextEditingController();
   final _pluralController = TextEditingController();
+  final _presentTenseController = TextEditingController();
   final _pastTenseController = TextEditingController();
-  final _futureTenseController = TextEditingController();
-  final _pastParticipleController = TextEditingController();
+  final _perfectTenseController = TextEditingController();
   
   String _selectedArticle = '';
   List<String> _selectedDeckIds = [];
@@ -54,9 +53,9 @@ class _AddCardViewState extends State<AddCardView> {
   String _originalExample = '';
   String _originalExampleTranslation = '';
   String _originalPlural = '';
+  String _originalPresentTense = '';
   String _originalPastTense = '';
-  String _originalFutureTense = '';
-  String _originalPastParticiple = '';
+  String _originalPerfectTense = '';
   String _originalArticle = '';
   List<String> _originalDeckIds = [];
 
@@ -72,9 +71,9 @@ class _AddCardViewState extends State<AddCardView> {
       _exampleController.text = card.example ?? '';
       _exampleTranslationController.text = card.exampleTranslation ?? '';
       _pluralController.text = card.plural ?? '';
+      _presentTenseController.text = card.presentTense ?? '';
       _pastTenseController.text = card.pastTense ?? '';
-      _futureTenseController.text = card.futureTense ?? '';
-      _pastParticipleController.text = card.pastParticiple ?? '';
+      _perfectTenseController.text = card.perfectTense ?? '';
       _selectedArticle = card.article ?? '';
       _selectedDeckIds = List.from(card.deckIds);
       
@@ -84,9 +83,9 @@ class _AddCardViewState extends State<AddCardView> {
       _originalExample = card.example ?? '';
       _originalExampleTranslation = card.exampleTranslation ?? '';
       _originalPlural = card.plural ?? '';
+      _originalPresentTense = card.presentTense ?? '';
       _originalPastTense = card.pastTense ?? '';
-      _originalFutureTense = card.futureTense ?? '';
-      _originalPastParticiple = card.pastParticiple ?? '';
+      _originalPerfectTense = card.perfectTense ?? '';
       _originalArticle = card.article ?? '';
       _originalDeckIds = List.from(card.deckIds);
     } else if (widget.preFilledWord != null) {
@@ -125,9 +124,9 @@ class _AddCardViewState extends State<AddCardView> {
 
     _exampleTranslationController.addListener(() => setState(() {}));
     _pluralController.addListener(() => setState(() {}));
+    _presentTenseController.addListener(() => setState(() {}));
     _pastTenseController.addListener(() => setState(() {}));
-    _futureTenseController.addListener(() => setState(() {}));
-    _pastParticipleController.addListener(() => setState(() {}));
+    _perfectTenseController.addListener(() => setState(() {}));
   }
 
   @override
@@ -137,9 +136,9 @@ class _AddCardViewState extends State<AddCardView> {
     _exampleController.dispose();
     _exampleTranslationController.dispose();
     _pluralController.dispose();
+    _presentTenseController.dispose();
     _pastTenseController.dispose();
-    _futureTenseController.dispose();
-    _pastParticipleController.dispose();
+    _perfectTenseController.dispose();
     super.dispose();
   }
 
@@ -523,74 +522,20 @@ class _AddCardViewState extends State<AddCardView> {
             color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _pastTenseController,
-                maxLength: 100,
-                decoration: InputDecoration(
-                  labelText: 'Past Tense',
-                  hintText: 'e.g., woonde',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: _pastTenseController.text.isNotEmpty ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _pastTenseController.clear();
-                      setState(() {});
-                    },
-                  ) : null,
-                  counterText: '',
-                ),
-                validator: (value) {
-                  if (value != null && value.length > 100) {
-                    return 'Past tense must be 100 characters or less';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextFormField(
-                controller: _futureTenseController,
-                maxLength: 100,
-                decoration: InputDecoration(
-                  labelText: 'Future Tense',
-                  hintText: 'e.g., zal wonen',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: _futureTenseController.text.isNotEmpty ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _futureTenseController.clear();
-                      setState(() {});
-                    },
-                  ) : null,
-                  counterText: '',
-                ),
-                validator: (value) {
-                  if (value != null && value.length > 100) {
-                    return 'Future tense must be 100 characters or less';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        // Present Tense
         TextFormField(
-          controller: _pastParticipleController,
+          controller: _presentTenseController,
           maxLength: 100,
           decoration: InputDecoration(
-            labelText: 'Past Participle',
-            hintText: 'e.g., gewoond',
+            labelText: 'Present Tense - Tegenwoordige Tijd',
+            hintText: 'e.g., Ik ga',
             border: const OutlineInputBorder(),
-            suffixIcon: _pastParticipleController.text.isNotEmpty ? IconButton(
+            prefixIcon: const Icon(Icons.today),
+            suffixIcon: _presentTenseController.text.isNotEmpty ? IconButton(
               icon: const Icon(Icons.clear),
               onPressed: () {
-                _pastParticipleController.clear();
+                _presentTenseController.clear();
                 setState(() {});
               },
             ) : null,
@@ -598,7 +543,59 @@ class _AddCardViewState extends State<AddCardView> {
           ),
           validator: (value) {
             if (value != null && value.length > 100) {
-              return 'Past participle must be 100 characters or less';
+              return 'Present tense must be 100 characters or less';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        // Past Tense
+        TextFormField(
+          controller: _pastTenseController,
+          maxLength: 100,
+          decoration: InputDecoration(
+            labelText: 'Past Tense - Verleden Tijd',
+            hintText: 'e.g., Ik ging',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.history),
+            suffixIcon: _pastTenseController.text.isNotEmpty ? IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _pastTenseController.clear();
+                setState(() {});
+              },
+            ) : null,
+            counterText: '',
+          ),
+          validator: (value) {
+            if (value != null && value.length > 100) {
+              return 'Past tense must be 100 characters or less';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        // Perfect Tense
+        TextFormField(
+          controller: _perfectTenseController,
+          maxLength: 100,
+          decoration: InputDecoration(
+            labelText: 'Perfect Tense - Voltooide Tijd',
+            hintText: 'e.g., Ik ben gegaan',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.done_all),
+            suffixIcon: _perfectTenseController.text.isNotEmpty ? IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () {
+                _perfectTenseController.clear();
+                setState(() {});
+              },
+            ) : null,
+            counterText: '',
+          ),
+          validator: (value) {
+            if (value != null && value.length > 100) {
+              return 'Perfect tense must be 100 characters or less';
             }
             return null;
           },
@@ -1145,9 +1142,9 @@ class _AddCardViewState extends State<AddCardView> {
            _exampleController.text.trim() != _originalExample ||
            _exampleTranslationController.text.trim() != _originalExampleTranslation ||
            _pluralController.text.trim() != _originalPlural ||
+           _presentTenseController.text.trim() != _originalPresentTense ||
            _pastTenseController.text.trim() != _originalPastTense ||
-           _futureTenseController.text.trim() != _originalFutureTense ||
-           _pastParticipleController.text.trim() != _originalPastParticiple ||
+           _perfectTenseController.text.trim() != _originalPerfectTense ||
            _selectedArticle != _originalArticle ||
            !_listEquals(_selectedDeckIds, _originalDeckIds);
   }
@@ -1340,18 +1337,15 @@ class _AddCardViewState extends State<AddCardView> {
           lastModified: DateTime.now(),
           article: _selectedArticle,
           plural: _pluralController.text.trim().isEmpty ? '' : _pluralController.text.trim(),
+          presentTense: _presentTenseController.text.trim().isEmpty ? '' : _presentTenseController.text.trim(),
           pastTense: _pastTenseController.text.trim().isEmpty ? '' : _pastTenseController.text.trim(),
-          futureTense: _futureTenseController.text.trim().isEmpty ? '' : _futureTenseController.text.trim(),
-          pastParticiple: _pastParticipleController.text.trim().isEmpty ? '' : _pastParticipleController.text.trim(),
+          perfectTense: _perfectTenseController.text.trim().isEmpty ? '' : _perfectTenseController.text.trim(),
         );
         
         await provider.updateCard(updatedCard);
         
         if (mounted) {
-          // Force automated exercise sync in background
-          await _syncExercises(updatedCard);
-          
-          if (mounted) Navigator.of(context).pop(true);
+        if (mounted) Navigator.of(context).pop(true);
         }
       } else {
         // Create new card
@@ -1362,16 +1356,13 @@ class _AddCardViewState extends State<AddCardView> {
           exampleTranslation: _exampleTranslationController.text.trim().isEmpty ? null : _exampleTranslationController.text.trim(),
           article: _selectedArticle,
           plural: _pluralController.text.trim().isEmpty ? '' : _pluralController.text.trim(),
+          presentTense: _presentTenseController.text.trim().isEmpty ? '' : _presentTenseController.text.trim(),
           pastTense: _pastTenseController.text.trim().isEmpty ? '' : _pastTenseController.text.trim(),
-          futureTense: _futureTenseController.text.trim().isEmpty ? '' : _futureTenseController.text.trim(),
-          pastParticiple: _pastParticipleController.text.trim().isEmpty ? '' : _pastParticipleController.text.trim(),
+          perfectTense: _perfectTenseController.text.trim().isEmpty ? '' : _perfectTenseController.text.trim(),
           deckIds: _selectedDeckIds.toSet(),
         );
         
         if (mounted && newCard != null) {
-          // Force automated exercise sync in background
-          await _syncExercises(newCard);
-          
           EnhancedSnackBar.showSuccess(
             context,
             message: 'Card added successfully!',
@@ -1480,23 +1471,7 @@ class _AddCardViewState extends State<AddCardView> {
     return options.take(6).toList();
   }
 
-  /// Synchronize exercises for a card automatically
-  Future<void> _syncExercises(FlashCard card) async {
-    try {
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      final flashcardProvider = context.read<FlashcardProvider>();
-      final deckId = card.deckIds.isNotEmpty ? card.deckIds.first : 'default';
-      final deckName = flashcardProvider.getDeck(deckId)?.name ?? 'Default';
-      
-      await dutchProvider.syncExercisesForCard(
-        card, 
-        deckName: deckName,
-        originalWord: _originalWord.isNotEmpty ? _originalWord : card.word
-      );
-    } catch (e) {
-      print('AddCardView: Error syncing exercises: $e');
-    }
-  }
+  // Removed _syncExercises method as exercises are replaced by games
 
   Widget _buildCustomHeader(BuildContext context) {
     return Stack(

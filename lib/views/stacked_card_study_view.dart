@@ -60,6 +60,10 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   
   // Completion guard to prevent double end screens
   bool _hasShownResults = false;
+  int _furthestIndex = 0; // Track furthest reached for Next button logic
+  
+  // Review and navigation tracking
+  Set<String> _reviewCards = {}; // card IDs marked for review
 
   @override
   void initState() {
@@ -107,15 +111,50 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
     });
   }
 
+  void _toggleFlag(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+    
+    // Add or remove from review deck in provider
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${card.word}" to review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.yellow.shade700,
+          ),
+        );
+      } else {
+        await provider.removeCardFromReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed "${card.word}" from review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.grey.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🔍 StackedCardStudyView: Error toggling review card: $e');
+    }
+  }
+
   void _removeTopCard() {
-    print('🔍 StackedCardStudyView: _removeTopCard called, topIndex: $topIndex, totalCards: ${_currentCards.length}');
     if (topIndex < _currentCards.length) {
       setState(() {
         topIndex++;
+        if (topIndex > _furthestIndex) {
+          _furthestIndex = topIndex;
+        }
       });
-      print('🔍 StackedCardStudyView: topIndex incremented to: $topIndex');
-    } else {
-      print('🔍 StackedCardStudyView: Cannot remove top card, already at end');
     }
   }
 
@@ -239,21 +278,18 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   void _goToPreviousCard() {
-    print('🔍 StackedCardStudyView: _goToPreviousCard called, topIndex: $topIndex');
     if (topIndex > 0) {
-      // Remove the current card's state since we're going back
-      _cardStates.remove(topIndex);
-      
       setState(() {
         topIndex--;
       });
-      
-      print('🔍 StackedCardStudyView: Went back to topIndex: $topIndex');
-      
-      // The previous card's state will be automatically restored when it's displayed
-      // since the TaalTrekStackCard widget will show the card in its current state
-    } else {
-      print('🔍 StackedCardStudyView: Cannot go back, already at first card');
+    }
+  }
+
+  void _goToNextCard() {
+    if (topIndex < _furthestIndex) {
+      setState(() {
+        topIndex++;
+      });
     }
   }
 
@@ -355,7 +391,6 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
     final size = MediaQuery.of(context).size;
     final visibleCards = min(_currentCards.length - topIndex, 3);
     final progress = _totalAnswers / _currentCards.length;
-    final isComplete = topIndex >= _currentCards.length;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -430,6 +465,7 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
                           onAnswer: _markAnswer,
                           startFlipped: widget.startFlipped,
                           onSwipeUpdate: _handleSwipeUpdate,
+                          onToggleFlag: () => _toggleFlag(_currentCards[topIndex + i]),
                         ),
                     ],
                   ),
@@ -569,50 +605,84 @@ class _StackedCardStudyViewState extends State<StackedCardStudyView>
   }
 
   Widget _buildNavigationButtons() {
-    print('🔍 StackedCardStudyView: Building navigation buttons, topIndex: $topIndex, totalCards: ${_currentCards.length}, canGoBack: ${topIndex > 0}');
-    print('🔍 StackedCardStudyView: Button will be ENABLED (always blue)');
+    final canGoBack = topIndex > 0;
+    final canGoNext = topIndex < _furthestIndex;
+    final isLastCard = topIndex == _currentCards.length - 1;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // Back button - always enabled
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () {
-                print('🔍 StackedCardStudyView: Back button onPressed called! topIndex: $topIndex');
-                if (topIndex > 0) {
-                  print('🔍 StackedCardStudyView: Back button pressed (previous card), topIndex: $topIndex');
-                  _goToPreviousCard();
-                } else {
-                  print('🔍 StackedCardStudyView: Back button pressed (first card), going to previous screen');
-                  Navigator.of(context).pop();
-                }
-              },
-              icon: const Icon(Icons.arrow_back_ios, size: 16),
-              label: const Text('Back'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue, // Always blue now
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-              ),
-            ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
           ),
-          const SizedBox(width: 12),
-          // Edit button in center
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _editCurrentCard(),
-              icon: const Icon(Icons.edit, size: 16),
-              label: const Text('Edit'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canGoBack ? _goToPreviousCard : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canGoBack ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: canGoBack 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: canGoBack ? Colors.grey[300]! : Colors.transparent),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: _editCurrentCard,
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canGoNext ? _goToNextCard : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(isLastCard ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canGoNext ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: canGoNext ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -628,6 +698,7 @@ class TaalTrekStackCard extends StatefulWidget {
   final Function(bool, SwipeDirection) onAnswer;
   final bool startFlipped;
   final Function(Offset, double)? onSwipeUpdate;
+  final VoidCallback? onToggleFlag;
 
   const TaalTrekStackCard({
     super.key,
@@ -641,6 +712,7 @@ class TaalTrekStackCard extends StatefulWidget {
     required this.onAnswer,
     this.startFlipped = false,
     this.onSwipeUpdate,
+    this.onToggleFlag,
   });
 
   @override
@@ -747,6 +819,7 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
           flipAnimation: _flipAnimation,
           startFlipped: widget.startFlipped,
           userAnswer: userAnswer,
+          onToggleFlag: widget.onToggleFlag,
         );
       },
     );
@@ -778,7 +851,6 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
         // Continuous vibration removed as requested for a better experience
       },
       onPanUpdate: (details) {
-        final previousDirection = swipeDirection;
         final previousReached = position.distance > 150;
         
         setState(() {
@@ -827,8 +899,6 @@ class _TaalTrekStackCardState extends State<TaalTrekStackCard>
             swipeDirection = SwipeDirection.none;
           }
         });
-        
-        // Threshold check happens below in onPanEnd
       },
       onPanEnd: (details) {
         // Stop any remaining vibration if needed (optional)
@@ -889,6 +959,7 @@ class TaalTrekFlashCard extends StatelessWidget {
   final Animation<double> flipAnimation;
   final bool startFlipped;
   final bool? userAnswer; // null = not answered, true = know, false = don't know
+  final VoidCallback? onToggleFlag;
 
   const TaalTrekFlashCard({
     super.key,
@@ -898,6 +969,7 @@ class TaalTrekFlashCard extends StatelessWidget {
     required this.flipAnimation,
     required this.startFlipped,
     this.userAnswer,
+    this.onToggleFlag,
   });
 
   @override
@@ -923,7 +995,6 @@ class TaalTrekFlashCard extends StatelessWidget {
   Widget _buildCardFront(BuildContext context) {
     final borderColor = _getCardBorderColor(card);
     final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
     
     // Responsive sizing based on screen dimensions
     final responsivePadding = screenHeight * 0.04; // 4% of screen height
@@ -956,15 +1027,39 @@ class TaalTrekFlashCard extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.all(responsivePadding),
-        child: Center(
-          child: Text(
-            card.word,
-            style: TextStyle(
-              fontSize: responsiveFontSize,
-              fontWeight: FontWeight.bold,
+        child: Stack(
+          children: [
+            Positioned(
+              top: 8, left: 8,
+              child: GestureDetector(
+                onTap: onToggleFlag,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: (card.isReview ?? false) ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.orange,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.flag,
+                    size: 16,
+                    color: (card.isReview ?? false) ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
+            Center(
+              child: Text(
+                card.word,
+                style: TextStyle(fontSize: responsiveFontSize, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1026,15 +1121,39 @@ class TaalTrekFlashCard extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.all(responsivePadding),
-        child: Center(
-          child: Text(
-            card.definition,
-            style: TextStyle(
-              fontSize: responsiveFontSize,
-              fontWeight: FontWeight.w600,
+        child: Stack(
+          children: [
+            Positioned(
+              top: 8, left: 8,
+              child: GestureDetector(
+                onTap: onToggleFlag,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: (card.isReview ?? false) ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.orange,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.flag,
+                    size: 16,
+                    color: (card.isReview ?? false) ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
+            Center(
+              child: Text(
+                card.definition,
+                style: TextStyle(fontSize: responsiveFontSize, fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ),
       ),
     );

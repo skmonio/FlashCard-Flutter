@@ -10,9 +10,7 @@ import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../models/dutch_word_exercise.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
@@ -30,13 +28,13 @@ class TrueFalseView extends StatefulWidget {
   final bool useLivesMode;
   final int? customLives;
   final bool startFlipped;
+  final bool useTimedMode;
+  final TimedDifficulty? timedDifficulty;
   final StudyConfig? studyConfig;
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
   final List<FlashCard>? answerPoolCards;
   final bool oneAnswerMode;
   final bool enableHints;
-  final bool useTimedMode;
-  final TimedDifficulty? timedDifficulty;
 
   const TrueFalseView({
     super.key,
@@ -48,13 +46,13 @@ class TrueFalseView extends StatefulWidget {
     this.useLivesMode = false,
     this.customLives,
     this.startFlipped = false,
+    this.useTimedMode = false,
+    this.timedDifficulty,
     this.studyConfig,
     this.shuffleQuestionOffset,
     this.answerPoolCards,
     this.oneAnswerMode = true,
     this.enableHints = true,
-    this.useTimedMode = false,
-    this.timedDifficulty,
   });
 
   @override
@@ -85,6 +83,13 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   Set<int> _autoProgressedQuestions = {}; // Track which questions have been auto-progressed
   int _activeQuestionIndex = 0; // Track the furthest question that auto progress has reached
   
+  // Timer variables for timed mode
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  bool _useTimedMode = false;
+  
   // Maintain our own copy of cards that can be updated
   late List<FlashCard> _currentCards;
   
@@ -103,13 +108,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   List<FlashCard> _studiedWords = [];
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
-  // Timer system
-  Timer? _timer;
-  int _timeRemaining = 0;
-  int _totalTime = 0;
-  bool _timeUp = false;
-  bool _useTimedMode = false;
-  
   // Animation controllers for feedback
   late AnimationController _shakeController;
   late AnimationController _successController;
@@ -119,6 +117,8 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   
   // Review tracking
   Set<String> _reviewCards = {}; // card IDs marked for review
+  String? _reviewStatusMessage;
+  Timer? _reviewStatusTimer;
 
   @override
   void initState() {
@@ -159,6 +159,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     ]).animate(_successController);
     
     _generateQuestion();
+    
+    // Start timer if in timed mode
+    if (_useTimedMode) {
+      _startTimer();
+    }
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -207,8 +212,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   
   /// Get default lives based on difficulty (assuming medium difficulty for now)
   int _getDefaultLives() {
-    // For now, return medium difficulty lives
-    // In the future, this could be based on actual difficulty detection
     return 2;
   }
 
@@ -236,8 +239,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
         _generateQuestion();
       }
     });
-    
-    print('🔍 TrueFalseView: Refreshed cards from provider');
   }
 
   void _generateQuestion() {
@@ -264,10 +265,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       // Play completion sound when test is finished
       SoundManager().playCompleteSound();
       return;
-    }
-
-    if (_useTimedMode) {
-      _startTimer();
     }
 
     // Check if this question has already been answered
@@ -312,7 +309,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       }
       _currentTranslation = correctAnswer;
       _correctAnswer = true;
-      print('🔍 TrueFalse: TRUE question - "${currentCard.word}" means "${correctAnswer}" = TRUE');
     } else {
       // False question - use wrong answer from another card
       if (otherCards.isNotEmpty) {
@@ -328,7 +324,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           if (otherAnswer.toLowerCase().trim() != correctAnswer.toLowerCase().trim()) {
             wrongAnswer = otherAnswer;
             foundDifferentAnswer = true;
-            print('🔍 TrueFalse: Found different answer: "${wrongAnswer}" vs correct "${correctAnswer}"');
             break;
           }
         }
@@ -341,7 +336,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           }
           _currentTranslation = wrongAnswer;
           _correctAnswer = false;
-          print('🔍 TrueFalse: FALSE question - "${currentCard.word}" does NOT mean "${wrongAnswer}" = FALSE');
         } else {
           // If all answers are somehow the same, try a different approach
           // Use a completely wrong answer by combining words or using a generic wrong answer
@@ -353,7 +347,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           }
           _currentTranslation = generatedWrongAnswer;
           _correctAnswer = false;
-          print('🔍 TrueFalse: Generated wrong answer: "${generatedWrongAnswer}" for FALSE question');
         }
       } else {
         // If no other cards available, generate a wrong answer
@@ -365,7 +358,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
         }
         _currentTranslation = generatedWrongAnswer;
         _correctAnswer = false;
-        print('🔍 TrueFalse: Generated wrong definition: "${generatedWrongAnswer}" for FALSE question (no other cards)');
       }
     }
     
@@ -375,20 +367,68 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     _questionModes[_currentIndex] = _isQuestionMode;
     _translations[_currentIndex] = _currentTranslation;
     
-    // Debug logging
-    print('🔍 TrueFalseView: Generated question for "${currentCard.word}"');
-    print('🔍 TrueFalseView: Question: "$_question"');
-    print('🔍 TrueFalseView: Correct answer: $_correctAnswer');
-    print('🔍 TrueFalseView: Question mode: ${_isQuestionMode ? "word to definition" : "definition to word"}');
-    
-    if (_useTimedMode) {
-      _startTimer();
-    }
-    
     setState(() {
       _answered = false;
       _selectedAnswer = null;
     });
+
+    // Reset timer for new question
+    if (_useTimedMode) {
+      _resetTimer();
+    }
+  }
+
+  void _startTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _handleTimeUp();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered || _timeUp) return;
+    
+    final currentCard = _currentCards[_currentIndex];
+    
+    setState(() {
+      _answered = true;
+      _timeUp = true;
+      _totalAttempts++;
+      _correctAnswersMap[_currentIndex] = false;
+      _answeredQuestions[_currentIndex] = false; // Mark as answered (incorrect)
+    });
+    
+    _applyHpPenalty(currentCard, wasCorrect: false);
+    _awardXPToWord(currentCard, false);
+    _updateCardInProvider(currentCard);
+    XpService.recordAnswer(_gameSession, false);
+    
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _goToNextQuestion();
+      }
+    });
+  }
+
+  void _resetTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timeRemaining = _totalTime;
+    _timeUp = false;
+    _startTimer();
   }
 
   void _goToPreviousQuestion() {
@@ -398,20 +438,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       });
       _generateQuestion();
     }
-  }
-
-  bool _isOnCurrentQuestion() {
-    // Find the highest index that has been answered
-    int highestAnsweredIndex = -1;
-    for (int index in _answeredQuestions.keys) {
-      if (index > highestAnsweredIndex) {
-        highestAnsweredIndex = index;
-      }
-    }
-    // If no questions have been answered, current question is 0
-    // Otherwise, current question is the next unanswered question after the highest answered
-    int currentQuestion = highestAnsweredIndex == -1 ? 0 : highestAnsweredIndex + 1;
-    return _currentIndex == currentQuestion;
   }
 
   bool _canUseNextButton() {
@@ -506,23 +532,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     // In shuffle mode, we only have one question, so call the callback immediately
     if (widget.shuffleMode) {
       // Use the stored isCorrect value from when the answer was selected
-      // This ensures we use the exact same correctness check that was used when the answer was submitted
       final isCorrect = _isCorrectMap[_currentIndex] ?? false;
       
-      // Fallback: if for some reason isCorrect wasn't stored, calculate it from stored values
-      if (!_isCorrectMap.containsKey(_currentIndex)) {
-        final storedCorrectAnswer = _correctAnswersMap[_currentIndex];
-        final userAnswer = _selectedAnswer ?? _answeredQuestions[_currentIndex];
-        final calculatedIsCorrect = userAnswer != null && storedCorrectAnswer != null && userAnswer == storedCorrectAnswer;
-        print('⚠️ TrueFalseView: isCorrect not found in map, calculated: $calculatedIsCorrect (user: $userAnswer, correct: $storedCorrectAnswer)');
-        if (widget.onComplete != null) {
-          widget.onComplete!(calculatedIsCorrect);
-        }
-      } else {
-        print('🔍 TrueFalseView: Using stored isCorrect value: $isCorrect');
-        if (widget.onComplete != null) {
-          widget.onComplete!(isCorrect);
-        }
+      if (widget.onComplete != null) {
+        widget.onComplete!(isCorrect);
       }
       return;
     }
@@ -584,16 +597,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   void _selectAnswer(bool answer) {
     if (_answered) return;
     
-    // Ensure _correctAnswer is not null before comparing
-    if (_correctAnswer == null) {
-      print('⚠️ TrueFalseView: _correctAnswer is null! Attempting to use stored value from map.');
-      _correctAnswer = _correctAnswersMap[_currentIndex];
-      if (_correctAnswer == null) {
-        print('❌ TrueFalseView: Cannot determine correct answer! Question may not have been generated properly.');
-        return;
-      }
-    }
-    
     final isCorrect = (answer == _correctAnswer);
     final currentCard = _currentCards[_currentIndex];
     
@@ -650,10 +653,8 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
         // Handle lives system
         if (_useLivesMode) {
           _lives--;
-          print('🔍 TrueFalseView: Lost a life! Lives remaining: $_lives');
           
           if (_lives <= 0) {
-            print('🔍 TrueFalseView: Game over! No lives remaining');
             _showGameOverScreen();
             return;
           }
@@ -682,10 +683,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       
       // Update the card in the provider to save the XP changes
       await provider.updateCard(card);
-      print('🔍 TrueFalseView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
       
     } catch (e) {
-      print('🔍 TrueFalseView: Error updating card in provider: $e');
+      // Handle error
     }
   }
 
@@ -701,38 +701,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     SoundManager().playCompleteSound();
   }
   
-  Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
-    try {
-      // Import the DutchWordExerciseProvider
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      
-      // Find the corresponding Dutch word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.targetWord.toLowerCase() == card.word.toLowerCase(),
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isNotEmpty) {
-        // Update the Dutch word exercise learning progress
-        await dutchProvider.updateLearningProgress(wordExercise.id, wasCorrect);
-        print('🔍 TrueFalseView: Synced progress to Dutch word exercise "${wordExercise.targetWord}"');
-      }
-    } catch (e) {
-      print('🔍 TrueFalseView: Error syncing to Dutch words: $e');
-    }
-  }
-
   Color _getButtonColor(bool isTrue) {
     if (!_answered) {
       // Use vibrant colors when not answered
@@ -886,8 +854,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                   
                   const SizedBox(height: 16),
                   
-                  const SizedBox(height: 20),
-                  
                   // "Translates to" text
                   Text(
                     'Translates to',
@@ -974,7 +940,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
               ),
               
               // Middle side: Lives and/or streak and/or timer
-              if (widget.useLivesMode || (widget.useTimedMode ?? false) || _consecutiveCorrect >= 3)
+              if (widget.useLivesMode || _useTimedMode || _consecutiveCorrect >= 3)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
@@ -982,9 +948,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                     children: [
                       if (widget.useLivesMode) ...[
                         _buildLivesIndicator(),
-                        if ((widget.useTimedMode ?? false) || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                        if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
                       ],
-                      if (widget.useTimedMode ?? false) ...[
+                      if (_useTimedMode) ...[
                         _buildTimerIndicator(),
                         if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
                       ],
@@ -1144,23 +1110,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
             ),
           ],
         ),
-      ),
-    );
-  }
-  
-  Widget _buildLivesDisplay() {
-    if (!_useLivesMode) return const SizedBox.shrink();
-    
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withOpacity(0.2)),
-        ),
-        child: _buildLivesIndicator(),
       ),
     );
   }
@@ -1346,417 +1295,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
         textAlign: TextAlign.center,
       ),
     );
-  }
-
-  Widget _buildResultsView() {
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
-    
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-          children: [
-            // Small header - matching study view
-            SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios),
-                      iconSize: 20,
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Test Complete',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.home),
-                      iconSize: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Results content - Make it scrollable
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    
-                    // Score
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                               accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                               Colors.red.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$accuracy%',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: accuracy >= 80 ? Colors.green : 
-                                   accuracy >= 60 ? Colors.orange : 
-                                   Colors.red,
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Stats
-                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.quiz),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
-                    const SizedBox(height: 16),
-                    _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                      AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
-                    
-                    // Swipe hint if XP was gained
-                    if (_xpGainedPerWord.values.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.swipe_right,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Swipe right to view word progress',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.amber.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    
-                    const SizedBox(height: 32),
-                    
-                    const SizedBox(height: 20), // Bottom padding
-                  ],
-                ),
-              ),
-            ),
-            
-            // Fixed footer with action buttons
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        
-                        setState(() {
-                          _currentIndex = 0;
-                          _correctAnswers = 0;
-                          _totalAttempts = 0;
-                          _showingResults = false;
-                          _answered = false;
-                          _selectedAnswer = null;
-                          _gameSession.reset(); // Reset XP tracking
-                          
-                          // Shuffle the cards for a different order
-                          _currentCards.shuffle(Random());
-                          
-                          // Reset all navigation state
-                          _answeredQuestions.clear();
-                          _correctAnswersMap.clear();
-                          _isCorrectMap.clear();
-                          _questionTexts.clear();
-                          _questionModes.clear();
-                          _translations.clear();
-                          
-                          // Reset RPG tracking
-                          _xpGainedPerWord.clear();
-                          _wordMastery.clear();
-                          _studiedWords.clear();
-                          _reviewCards.clear();
- 
-                          // Reset wrong attempts tracking
-                        });
-                        _generateQuestion();
-                      },
-                      child: const Text('Test Again'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                      child: const Text('Done'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, [Color? color, Widget? child]) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color ?? Theme.of(context).colorScheme.primary,
-            size: 24,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          child ?? Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color ?? Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCloseConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Test?'),
-        content: const Text('Are you sure you want to end this test?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: const Text('End Test'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showHomeConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Return to Home?'),
-        content: const Text('Are you sure you want to return to the home screen? This will end your current test.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).popUntil((route) => route.isFirst);
-            },
-            child: const Text('Go Home'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _awardXp() {
-    // Calculate total XP from actual word XP gained
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    
-    if (!widget.shuffleMode && totalXPGained > 0) {
-      print('🔍 TrueFalse: Awarding $totalXPGained XP to profile');
-      final userProfileProvider = context.read<UserProfileProvider>();
-      userProfileProvider.addXp(totalXPGained);
-    } else {
-      print('🔍 TrueFalse: Skipping XP award - shuffleMode: ${widget.shuffleMode}, xpGained: $totalXPGained');
-    }
-    
-    // Update session statistics
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
-    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
-    
-    context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAttempts,
-      sessionAccuracy: accuracy,
-      isPerfect: isPerfect,
-    );
-    
-    // Update streak based on study activity (Duolingo-style)
-    context.read<UserProfileProvider>().updateStreakFromStudyActivity();
-  }
-  
-  void _awardXPToWord(FlashCard card, bool isCorrect) {
-    // Track studied words and initial HP BEFORE processing (so we capture HP before it's reduced)
-    _ensureCardTracked(card);
-    
-    print('🔍 TrueFalseView: Logging result for "${card.word}" - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
-    
-    final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
-        ? card.learningMastery.exerciseHistory.last
-        : null;
-    final actualXPGained = latestEntry != null
-        ? (latestEntry['xpGained'] as int? ?? 0)
-        : 0;
-    
-    if (isCorrect) {
-      _xpGainedPerWord[card.id] = actualXPGained;
-    } else {
-      _xpGainedPerWord[card.id] = 0;
-    }
-    
-    // Store the word mastery for display (for both correct and incorrect)
-    _wordMastery[card.id] = card.learningMastery;
-  }
-  
-  void _shuffleAndRestart() {
-    if (widget.studyConfig == null) return;
-    
-    final provider = context.read<FlashcardProvider>();
-    
-    // Get all cards from the same deck configuration
-    List<FlashCard> allDeckCards = [];
-    Set<String> seenCardIds = {};
-    
-    if (widget.studyConfig!.deckIds.isEmpty) {
-      // Empty deckIds means all decks
-      allDeckCards = provider.cards;
-    } else {
-      for (final deckId in widget.studyConfig!.deckIds) {
-        final deckCards = provider.getCardsForDeckWithSubDecks(deckId);
-        for (final card in deckCards) {
-          if (!seenCardIds.contains(card.id)) {
-            allDeckCards.add(card);
-            seenCardIds.add(card.id);
-          }
-        }
-      }
-    }
-    
-    if (allDeckCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards available in selected decks.')),
-      );
-      return;
-    }
-    
-    // Apply SRS filtering if enabled
-    List<FlashCard> filteredCards;
-    if (widget.studyConfig!.useSRSFiltering) {
-      final dueCards = allDeckCards.where((card) => card.isDueForReview).toList();
-      final notDueCards = allDeckCards.where((card) => !card.isDueForReview).toList();
-      filteredCards = [...dueCards, ...notDueCards];
-    } else {
-      filteredCards = allDeckCards;
-    }
-    
-    // Apply daily study limit filtering
-    final availableCards = filteredCards.where((card) => card.canBeStudiedToday).toList();
-    
-    if (availableCards.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No cards available for study today.')),
-      );
-      return;
-    }
-    
-    // Shuffle and take the specified number of cards
-    availableCards.shuffle();
-    final cardCount = widget.studyConfig!.cardCount >= 50 ? availableCards.length : widget.studyConfig!.cardCount;
-    final newCards = availableCards.take(cardCount).toList();
-    
-    // Reset the view with new cards
-    setState(() {
-      _currentCards = newCards;
-      _currentIndex = 0;
-      _correctAnswers = 0;
-      _totalAttempts = 0;
-      _showingResults = false;
-      _hasShownResults = false;
-      _answered = false;
-      _selectedAnswer = null;
-      _gameSession.reset();
-      
-      // Reset lives if using lives mode
-      if (_useLivesMode) {
-        _lives = _maxLives;
-      }
-      
-      // Reset all navigation state
-      _answeredQuestions.clear();
-      _correctAnswersMap.clear();
-      _isCorrectMap.clear();
-      _questionTexts.clear();
-      _questionModes.clear();
-      _translations.clear();
-      
-      // Reset RPG tracking
-      _xpGainedPerWord.clear();
-      _wordMastery.clear();
-      _studiedWords.clear();
-    });
-    
-    _generateQuestion();
   }
 
   void _showWordProgress() {
@@ -1963,30 +1501,132 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     return deckCards.isEmpty ? provider.cards : deckCards;
   }
 
-  void _startTimer() {
-    _timer?.cancel();
-    _timeUp = false;
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          if (_timeRemaining > 0) {
-            _timeRemaining--;
-          }
-        });
-        
-        if (_timeRemaining <= 0) {
-          _timer?.cancel();
-          _handleTimeUp();
-        }
+
+
+  void _shuffleAndRestart() {
+    // Reset game state after shuffling
+    setState(() {
+      _currentIndex = 0;
+      _correctAnswers = 0;
+      _totalAttempts = 0;
+      _answered = false;
+      _selectedAnswer = null;
+      _correctAnswer = null;
+      _question = '';
+      _currentTranslation = '';
+      _isQuestionMode = true;
+      _answeredQuestions.clear();
+      _correctAnswersMap.clear();
+      _isCorrectMap.clear();
+      _questionTexts.clear();
+      _questionModes.clear();
+      _translations.clear();
+      _autoProgressedQuestions.clear();
+      _activeQuestionIndex = 0;
+      _showingResults = false;
+      _hasShownResults = false;
+      _consecutiveCorrect = 0;
+      _reviewCards.clear();
+      _reviewStatusMessage = null;
+      _xpGainedPerWord.clear();
+      _wordMastery.clear();
+      _studiedWords.clear();
+      _disabledOptions.clear();
+      
+      // Reset lives if in lives mode
+      if (_useLivesMode) {
+        _lives = _maxLives;
+      }
+      
+      // Reset timer
+      _timer?.cancel();
+      if (_useTimedMode) {
+        _timeRemaining = _totalTime;
+        _timeUp = false;
       }
     });
-  }
-
-  void _handleTimeUp() {
-    if (_answered) return;
     
-    // When time runs out, mark as incorrect and auto-progress
-    _selectAnswer(!_correctAnswer!); // Invert correct answer to force failure
+    _generateQuestion();
+    
+    // Restart timer if in timed mode
+    if (_useTimedMode) {
+      _startTimer();
+    }
   }
 
-} 
+  void _awardXp() {
+    // Calculate total XP from actual word XP gained
+    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    
+    if (!widget.shuffleMode && totalXPGained > 0) {
+      final userProfileProvider = context.read<UserProfileProvider>();
+      userProfileProvider.addXp(totalXPGained);
+    }
+  }
+
+  void _awardXPToWord(FlashCard card, bool isCorrect) {
+    _ensureCardTracked(card);
+    
+    if (isCorrect) {
+      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
+          ? card.learningMastery.exerciseHistory.last
+          : null;
+      final actualXPGained = latestEntry != null
+          ? (latestEntry['xpGained'] as int? ?? 0)
+          : 0;
+      
+      _xpGainedPerWord[card.id] = actualXPGained;
+    } else {
+      _xpGainedPerWord[card.id] = 0;
+    }
+    
+    _wordMastery[card.id] = card.learningMastery;
+  }
+
+
+  void _showCloseConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Quit Session?'),
+        content: const Text('Are you sure you want to quit? Your progress for this session will not be saved.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Quit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHomeConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Return to Home?'),
+        content: const Text('Are you sure you want to return to the home screen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
+            child: const Text('Go Home'),
+          ),
+        ],
+      ),
+    );
+  }
+}

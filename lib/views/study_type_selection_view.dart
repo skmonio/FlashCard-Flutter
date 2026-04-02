@@ -21,6 +21,8 @@ import 'word_scramble_view.dart';
 import 'timed_word_scramble_view.dart';
 import 'sentence_building_view.dart';
 import 'de_het_view.dart';
+import 'so_many_cards_view.dart';
+import 'time_your_cards_view.dart';
 import '../models/timed_difficulty.dart';
 
 enum GameMode {
@@ -35,14 +37,18 @@ enum GameMode {
   connectCards,
   sentenceBuilding,
   deHet,
+  soManyCards,
+  timeYourCards,
 }
 
 class StudyTypeSelectionView extends StatefulWidget {
   final GameMode gameMode;
+  final String? initialDeckId;
   
   const StudyTypeSelectionView({
     super.key,
     required this.gameMode,
+    this.initialDeckId,
   });
 
   @override
@@ -75,6 +81,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDeckId != null) {
+      _selectedDeckIds = {widget.initialDeckId!};
+    }
     // Add listener to refresh when provider updates
     final provider = context.read<FlashcardProvider>();
     provider.addListener(_onProviderChanged);
@@ -378,7 +387,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode != GameMode.connectCards && 
            widget.gameMode != GameMode.wordScramble && 
            widget.gameMode != GameMode.pickYourCard &&
-           widget.gameMode != GameMode.sentenceBuilding;
+           widget.gameMode != GameMode.sentenceBuilding &&
+           widget.gameMode != GameMode.deHet &&
+           widget.gameMode != GameMode.soManyCards &&
+           widget.gameMode != GameMode.timeYourCards;
   }
 
   Widget _buildDeckOption(String title, String subtitle, bool isSelected, VoidCallback onTap) {
@@ -1483,6 +1495,50 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             ),
           );
         break;
+      case GameMode.soManyCards:
+          final cardsWithPlurals = studyCards.where((c) => c.plural.isNotEmpty).toList();
+          if (cardsWithPlurals.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No cards with plurals.')));
+            return;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SoManyCardsView(
+                cards: cardsWithPlurals,
+                title: 'So Many Cards',
+                useLivesMode: _useLivesMode,
+                customLives: _useLivesMode ? _selectedLives : null,
+                useTimedMode: _useTimedMode,
+                timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+                studyConfig: studyConfig,
+              ),
+            ),
+          );
+        break;
+      case GameMode.timeYourCards:
+        final verbCards = studyCards.where((c) => 
+          c.presentTense.isNotEmpty || 
+          c.pastTense.isNotEmpty || 
+          c.perfectTense.isNotEmpty
+        ).toList();
+        if (verbCards.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No cards with verb forms found in selection.')));
+          return;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TimeYourCardsView(
+              cards: verbCards,
+              title: 'Time Your Cards',
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
+              useTimedMode: _useTimedMode,
+              timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+              studyConfig: studyConfig,
+            ),
+          ),
+        );
+        break;
     }
   }
 
@@ -1622,6 +1678,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         return 'Sentence';
       case GameMode.deHet:
         return 'De of Het';
+      case GameMode.soManyCards:
+        return 'So Many Cards';
+      case GameMode.timeYourCards:
+        return 'Time Your Cards';
       default:
         return 'Study';
     }
@@ -1631,7 +1691,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     return widget.gameMode == GameMode.study || 
            widget.gameMode == GameMode.test || 
            widget.gameMode == GameMode.trueFalse ||
-           widget.gameMode == GameMode.sentenceBuilding;
+           widget.gameMode == GameMode.sentenceBuilding ||
+           widget.gameMode == GameMode.soManyCards ||
+           widget.gameMode == GameMode.timeYourCards;
   }
   
   bool _shouldShowAutoProgress() {
@@ -1640,7 +1702,9 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.pickYourCard ||
            widget.gameMode == GameMode.write ||
-           widget.gameMode == GameMode.connectCards;
+           widget.gameMode == GameMode.connectCards ||
+           widget.gameMode == GameMode.soManyCards ||
+           widget.gameMode == GameMode.timeYourCards;
   }
   
   bool _shouldShowLivesMode() {
@@ -1651,7 +1715,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
            widget.gameMode == GameMode.connectCards ||
-           widget.gameMode == GameMode.deHet;
+           widget.gameMode == GameMode.deHet ||
+           widget.gameMode == GameMode.sentenceBuilding ||
+           widget.gameMode == GameMode.soManyCards ||
+           widget.gameMode == GameMode.timeYourCards;
   }
   
   bool _shouldShowTimedMode() {
@@ -1662,7 +1729,10 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.popYourCard ||
            widget.gameMode == GameMode.write ||
            widget.gameMode == GameMode.connectCards ||
-           widget.gameMode == GameMode.deHet;
+           widget.gameMode == GameMode.deHet ||
+           widget.gameMode == GameMode.sentenceBuilding ||
+           widget.gameMode == GameMode.soManyCards ||
+           widget.gameMode == GameMode.timeYourCards;
   }
   
   bool _shouldShowOneAnswerMode() {
@@ -1672,7 +1742,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
            widget.gameMode == GameMode.wordScramble ||
            widget.gameMode == GameMode.write ||
            widget.gameMode == GameMode.connectCards ||
-           widget.gameMode == GameMode.sentenceBuilding;
+           widget.gameMode == GameMode.sentenceBuilding ||
+           widget.gameMode == GameMode.timeYourCards;
   }
 
   bool _shouldShowHintsToggle() {
@@ -2051,7 +2122,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         content = 'Unscramble the letters to form the correct word translation.';
         break;
       case GameMode.pickYourCard:
-        title = 'Pick Your Card Mode';
+        title = 'Pick Mode';
         content = 'Use spinning wheels to select the correct word pieces and build the translation.';
         break;
       case GameMode.popYourCard:
@@ -2064,11 +2135,19 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         break;
       case GameMode.sentenceBuilding:
         title = 'Sentence Builder';
-        content = 'Build full sentences by putting words in the correct order. Practice using Dutch words in context with their example sentences.';
+        content = 'Build full sentences by putting words in the correct order.';
         break;
       case GameMode.deHet:
         title = 'De of Het';
         content = 'Practice Dutch articles! See a word and decide if it takes "de" or "het".';
+        break;
+      case GameMode.soManyCards:
+        title = 'So Many Cards';
+        content = 'Practice plural forms of Dutch nouns.';
+        break;
+      case GameMode.timeYourCards:
+        title = 'Time Your Cards';
+        content = 'Practice Dutch verb tenses! Identify the correct present, past, or perfect tense for a given verb.';
         break;
     }
 
@@ -2559,21 +2638,8 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         );
         break;
       case GameMode.test:
-        if (widget.useTimedMode && widget.timedDifficulty != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedMultipleChoiceView(
-                cards: filteredCards,
-                title: title,
-                difficulty: widget.timedDifficulty!,
-                startFlipped: widget.startFlipped,
-                answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
-              ),
-            ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
+        Navigator.of(context).push(
+          MaterialPageRoute(
             builder: (context) => MultipleChoiceView(
               cards: filteredCards,
               title: title,
@@ -2581,6 +2647,9 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               useLivesMode: widget.useLivesMode,
               customLives: widget.customLives,
               startFlipped: widget.startFlipped,
+              useTimedMode: widget.useTimedMode,
+              timedDifficulty: widget.timedDifficulty,
+              answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
               studyConfig: StudyConfig(
                 deckIds: _selectedDeckIds.toList(),
                 deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
@@ -2596,26 +2665,13 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 useAllCardsForAnswers: _useAllCardsForAnswers,
                 oneAnswerMode: widget.oneAnswerMode,
               ),
-              ),
             ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.trueFalse:
-        if (widget.useTimedMode && widget.timedDifficulty != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedTrueFalseView(
-                cards: filteredCards,
-                title: title,
-                difficulty: widget.timedDifficulty!,
-                answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
-              ),
-            ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
+        Navigator.of(context).push(
+          MaterialPageRoute(
             builder: (context) => TrueFalseView(
               cards: filteredCards,
               title: title,
@@ -2623,6 +2679,9 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
               useLivesMode: widget.useLivesMode,
               customLives: widget.customLives,
               startFlipped: widget.startFlipped,
+              useTimedMode: widget.useTimedMode,
+              timedDifficulty: widget.timedDifficulty,
+              answerPoolCards: _useAllCardsForAnswers ? widget.provider.cards : allSelectedCards,
               studyConfig: StudyConfig(
                 deckIds: _selectedDeckIds.toList(),
                 deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
@@ -2638,10 +2697,9 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                 useAllCardsForAnswers: _useAllCardsForAnswers,
                 oneAnswerMode: false,
               ),
-              ),
             ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.write:
         Navigator.of(context).push(
@@ -2713,30 +2771,20 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
         );
         break;
       case GameMode.wordScramble:
-        if (widget.useTimedMode && widget.timedDifficulty != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedWordScrambleView(
-                cards: filteredCards,
-                title: title,
-                difficulty: widget.timedDifficulty!,
-              ),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => WordScrambleView(
+              cards: filteredCards,
+              title: title,
+              autoProgress: widget.autoProgress,
+              useLivesMode: widget.useLivesMode,
+              customLives: widget.customLives,
+              startFlipped: widget.startFlipped,
+              useTimedMode: widget.useTimedMode,
+              timedDifficulty: widget.timedDifficulty,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => WordScrambleView(
-                cards: filteredCards,
-                title: title,
-                autoProgress: widget.autoProgress,
-                useLivesMode: widget.useLivesMode,
-                customLives: widget.customLives,
-                startFlipped: widget.startFlipped,
-              ),
-            ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.sentenceBuilding:
           // Filter cards that have both example and translation
@@ -2789,6 +2837,82 @@ class _MultiDeckSelectionDialogState extends State<_MultiDeckSelectionDialog> {
                   deckIds: _selectedDeckIds.toList(),
                   deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
                   cardCount: cardsWithArticles.length,
+                  useSRSFiltering: widget.useSRSFiltering,
+                  startFlipped: widget.startFlipped,
+                  autoProgress: widget.autoProgress,
+                  useLivesMode: widget.useLivesMode,
+                  customLives: widget.customLives,
+                  useTimedMode: widget.useTimedMode,
+                  timedDifficulty: widget.timedDifficulty,
+                  timePerQuestion: _getTimePerQuestion(),
+                  useAllCardsForAnswers: widget.useAllCardsForAnswers,
+                  oneAnswerMode: false,
+                ),
+              ),
+            ),
+          );
+        break;
+      case GameMode.soManyCards:
+          final cardsWithPlurals = filteredCards.where((c) => c.plural.isNotEmpty).toList();
+          
+          if (cardsWithPlurals.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No cards with plural forms available in selected decks.')),
+            );
+            return;
+          }
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => SoManyCardsView(
+                cards: cardsWithPlurals,
+                title: 'So Many Cards',
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.useLivesMode ? widget.customLives : null,
+                useTimedMode: widget.useTimedMode,
+                timedDifficulty: widget.timedDifficulty,
+                studyConfig: StudyConfig(
+                  deckIds: _selectedDeckIds.toList(),
+                  deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
+                  cardCount: cardsWithPlurals.length,
+                  useSRSFiltering: widget.useSRSFiltering,
+                  startFlipped: widget.startFlipped,
+                  autoProgress: widget.autoProgress,
+                  useLivesMode: widget.useLivesMode,
+                  customLives: widget.customLives,
+                  useTimedMode: widget.useTimedMode,
+                  timedDifficulty: widget.timedDifficulty,
+                  timePerQuestion: _getTimePerQuestion(),
+                  useAllCardsForAnswers: widget.useAllCardsForAnswers,
+                  oneAnswerMode: false,
+                ),
+              ),
+            ),
+          );
+        break;
+      case GameMode.timeYourCards:
+          final cardsWithVerbs = filteredCards.where((c) => c.presentTense.isNotEmpty || c.pastTense.isNotEmpty || c.perfectTense.isNotEmpty).toList();
+          
+          if (cardsWithVerbs.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No cards with verb forms available in selected decks.')),
+            );
+            return;
+          }
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TimeYourCardsView(
+                cards: cardsWithVerbs,
+                title: 'Time Your Cards',
+                useLivesMode: widget.useLivesMode,
+                customLives: widget.useLivesMode ? widget.customLives : null,
+                useTimedMode: widget.useTimedMode,
+                timedDifficulty: widget.timedDifficulty,
+                studyConfig: StudyConfig(
+                  deckIds: _selectedDeckIds.toList(),
+                  deckNames: _selectedDeckIds.map((id) => widget.decks.firstWhere((d) => d.id == id).name).toList(),
+                  cardCount: cardsWithVerbs.length,
                   useSRSFiltering: widget.useSRSFiltering,
                   startFlipped: widget.startFlipped,
                   autoProgress: widget.autoProgress,

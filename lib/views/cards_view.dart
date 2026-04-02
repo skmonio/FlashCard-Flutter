@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import 'all_cards_view.dart';
 import 'all_decks_view.dart';
 import 'photo_import_view.dart';
-import 'dutch_words_view.dart';
-
 
 class CardsView extends StatefulWidget {
   const CardsView({super.key});
@@ -18,10 +15,6 @@ class CardsView extends StatefulWidget {
 }
 
 class _CardsViewState extends State<CardsView> {
-  bool _showingAddCardView = false;
-  bool _showingAddDeckView = false;
-  bool _showingCardsInfoView = false;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,8 +30,6 @@ class _CardsViewState extends State<CardsView> {
       ),
     );
   }
-
-
 
   Widget _buildContent(BuildContext context, FlashcardProvider provider) {
     return SingleChildScrollView(
@@ -65,8 +56,6 @@ class _CardsViewState extends State<CardsView> {
     final allCards = provider.cards;
     final allDecks = provider.getAllDecksHierarchical();
     
-
-    
     // Calculate average learning percentage for cards
     final averageCardProgress = allCards.isEmpty 
         ? 0 
@@ -76,8 +65,6 @@ class _CardsViewState extends State<CardsView> {
     final averageDeckProgress = allDecks.isEmpty 
         ? 0 
         : _calculateOverallDeckProgress(context, allDecks);
-    
-
     
     return Row(
       children: [
@@ -196,7 +183,7 @@ class _CardsViewState extends State<CardsView> {
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.camera_alt,
                   color: Colors.blue,
                   size: 24,
@@ -251,18 +238,18 @@ class _CardsViewState extends State<CardsView> {
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.style,
                   color: Colors.blue,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
-                                    Text(
-                      'Cards',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                Text(
+                  'Cards',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const Spacer(),
                 Text(
                   '(${allCards.length})',
@@ -293,18 +280,18 @@ class _CardsViewState extends State<CardsView> {
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.folder,
                   color: Colors.green,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
-                                    Text(
-                      'Decks',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                Text(
+                  'Decks',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const Spacer(),
                 Text(
                   '(${allDecks.length})',
@@ -315,53 +302,6 @@ class _CardsViewState extends State<CardsView> {
               ],
             ),
           ),
-        ),
-        
-        // View All Exercises
-        Consumer<DutchWordExerciseProvider>(
-          builder: (context, exerciseProvider, child) {
-            final allExercises = exerciseProvider.wordExercises;
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ElevatedButton(
-                onPressed: () => _viewAllExercises(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  elevation: 2,
-                  shadowColor: Colors.indigo.withOpacity(0.2),
-                  padding: const EdgeInsets.all(16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.quiz,
-                      color: Colors.indigo,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                                         Text(
-                       'Exercises',
-                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                         fontWeight: FontWeight.w500,
-                       ),
-                     ),
-                    const Spacer(),
-                    Text(
-                      '(${allExercises.length})',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
         ),
       ],
     );
@@ -391,46 +331,6 @@ class _CardsViewState extends State<CardsView> {
     );
   }
 
-  void _viewAllExercises(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const DutchWordsView(),
-      ),
-    );
-  }
-
-
-
-  void _showCardsInfo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('How to Add Cards'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('1. Tap "Add New Card" to create a new flashcard'),
-            SizedBox(height: 8),
-            Text('2. Fill in the word and definition'),
-            SizedBox(height: 8),
-            Text('3. Select which deck(s) to add it to'),
-            SizedBox(height: 8),
-            Text('4. Add optional details like examples'),
-            SizedBox(height: 8),
-            Text('5. Tap "Create Card" to save'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
-
   int _calculateAverageCardProgress(List<FlashCard> cards) {
     if (cards.isEmpty) return 0;
     
@@ -448,11 +348,9 @@ class _CardsViewState extends State<CardsView> {
       return 0;
     }
     
-    // Calculate percentage of decks that are 100% learned
     int fullyLearnedDecks = 0;
     
     for (final deck in decks) {
-      // Get the actual cards for this deck from the provider
       final deckCards = context.read<FlashcardProvider>().getCardsForDeck(deck.id);
       
       if (deckCards.isNotEmpty) {
@@ -467,4 +365,4 @@ class _CardsViewState extends State<CardsView> {
     final percentageOfFullyLearnedDecks = (fullyLearnedDecks / decks.length) * 100;
     return percentageOfFullyLearnedDecks.round();
   }
-} 
+}

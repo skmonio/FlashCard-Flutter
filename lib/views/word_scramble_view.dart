@@ -13,13 +13,11 @@ import '../services/sound_manager.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../models/dutch_word_exercise.dart';
-import '../services/haptic_service.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../utils/game_end_screen.dart';
 import 'add_card_view.dart';
+import '../models/timed_difficulty.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -33,6 +31,8 @@ class WordScrambleView extends StatefulWidget {
   final int? shuffleQuestionOffset; // Offset for cumulative question count in shuffle mode
   final bool oneAnswerMode;
   final bool enableHints;
+  final bool useTimedMode;
+  final TimedDifficulty? timedDifficulty;
 
   const WordScrambleView({
     super.key,
@@ -47,6 +47,8 @@ class WordScrambleView extends StatefulWidget {
     this.shuffleQuestionOffset,
     this.oneAnswerMode = true,
     this.enableHints = true,
+    this.useTimedMode = false,
+    this.timedDifficulty,
   });
 
   @override
@@ -114,6 +116,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   String? _reviewStatusMessage;
   Timer? _reviewStatusTimer;
   
+  // Timer variables for timed mode
+  Timer? _timer;
+  int _timeRemaining = 0;
+  int _totalTime = 0;
+  bool _timeUp = false;
+  bool _useTimedMode = false;
+  
   // Wrong attempts tracking
   Map<int, int> _wrongAttempts = {}; // question index -> number of wrong attempts
   
@@ -158,8 +167,30 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       duration: const Duration(milliseconds: 800),
     );
     
+    // Initialize timed mode
+    _useTimedMode = widget.useTimedMode;
+    if (_useTimedMode && widget.timedDifficulty != null) {
+      switch (widget.timedDifficulty!) {
+        case TimedDifficulty.easy:
+          _timeRemaining = 7;
+          break;
+        case TimedDifficulty.medium:
+          _timeRemaining = 5;
+          break;
+        case TimedDifficulty.hard:
+          _timeRemaining = 3;
+          break;
+      }
+      _totalTime = _timeRemaining;
+    }
+    
     _generateQuestion();
     _dealController.forward();
+    
+    // Start timer if in timed mode
+    if (_useTimedMode) {
+      _startTimer();
+    }
     
     // Listen for card updates from the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -193,6 +224,9 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     _autoProgressTimer?.cancel();
     _hintStatusTimer?.cancel();
     _reviewStatusTimer?.cancel();
+    
+    // Cancel timer
+    _timer?.cancel();
     
     // Dispose animation controller
     _shakeController.dispose();
@@ -343,6 +377,69 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       // Reset hint tracking for new question (hint tracking is per question)
       _lockedPositions[_currentIndex] = <int>{}; // Reset locked positions for new question
     });
+
+    // Reset timer for new question
+    if (_useTimedMode) {
+      _resetTimer();
+    }
+  }
+
+  void _startTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_timeRemaining > 0) {
+            _timeRemaining--;
+          }
+        });
+        
+        if (_timeRemaining <= 0) {
+          _handleTimeUp();
+        }
+      }
+    });
+  }
+
+  void _handleTimeUp() {
+    if (_answered || _timeUp) return;
+    
+    final currentCard = _currentCards[_currentIndex];
+    final correctPieces = _correctPieceOrder[_currentIndex];
+    
+    setState(() {
+      _answered = true;
+      _timeUp = true;
+      _totalAttempts++;
+      _correctAnswersMap[_currentIndex] = false;
+      if (correctPieces != null) {
+        _userAnswer = List<String>.from(correctPieces);
+        _scrambledLetters.clear();
+      }
+      _answeredQuestions[_currentIndex] = _userAnswer;
+    });
+    
+    _applyHpPenalty(currentCard, wasCorrect: false);
+    _awardXPToWord(currentCard, false, 5);
+    _updateCardInProvider(currentCard);
+    XpService.recordAnswer(_gameSession, false);
+    
+    Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _goToNextQuestion();
+      }
+    });
+  }
+
+  void _resetTimer() {
+    if (!_useTimedMode) return;
+    
+    _timer?.cancel();
+    _timeRemaining = _totalTime;
+    _timeUp = false;
+    _startTimer();
   }
 
   void _addPiece(String piece) {
@@ -417,6 +514,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         _successController.forward(from: 0);
       });
       
+      // Stop timer in timed mode
+      if (_useTimedMode) {
+        _timer?.cancel();
+      }
+      
       HapticService().successFeedback();
       SoundManager().playCorrectSound();
       
@@ -480,6 +582,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         _applyHpPenalty(currentCard, wasCorrect: false);
         _awardXPToWord(currentCard, false, 5); // Force penalty for XP calculation
         _updateCardInProvider(currentCard);
+        
+        // Stop timer in timed mode
+        if (_useTimedMode) {
+          _timer?.cancel();
+        }
         
         // Get the correct piece order and set it as the user answer
         final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
@@ -564,37 +671,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     SoundManager().playCompleteSound();
   }
   
-  Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
-    try {
-      // Import the DutchWordExerciseProvider
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      
-      // Find the corresponding Dutch word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.targetWord.toLowerCase() == card.word.toLowerCase(),
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isNotEmpty) {
-        // Update the Dutch word exercise learning progress
-        await dutchProvider.updateLearningProgress(wordExercise.id, wasCorrect);
-        print('🔍 WordScrambleView: Synced progress to Dutch word exercise "${wordExercise.targetWord}"');
-      }
-    } catch (e) {
-      print('🔍 WordScrambleView: Error syncing to Dutch words: $e');
-    }
-  }
 
   void _goToPreviousQuestion() {
     if (_currentIndex > 0) {
@@ -1000,12 +1076,16 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
               ),
               
               // Middle: Status indicators
-              if (_useLivesMode || _consecutiveCorrect >= 3)
+              if (_useTimedMode || _useLivesMode || _consecutiveCorrect >= 3)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (_useTimedMode) ...[
+                        _buildTimerIndicator(),
+                        if (_useLivesMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
+                      ],
                       if (_useLivesMode) ...[
                         _buildLivesIndicator(),
                         if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
@@ -1769,6 +1849,45 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildTimerIndicator() {
+    if (!widget.useTimedMode) return const SizedBox.shrink();
+
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor;
+
+    if (progress > 0.6) {
+      timerColor = Colors.green;
+    } else if (progress > 0.3) {
+      timerColor = Colors.orange;
+    } else {
+      timerColor = Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: timerColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: timerColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, color: timerColor, size: 16),
+          const SizedBox(width: 4),
+          Text(
+            '$_timeRemaining',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: timerColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

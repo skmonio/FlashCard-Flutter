@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/deck.dart';
 import 'study_type_selection_view.dart';
-import 'main_navigation_view.dart';
 import 'connect_cards_view.dart';
 
 import 'advanced_study_view.dart';
@@ -131,6 +130,22 @@ class _HomeViewState extends State<HomeView> {
           const Color(0xFF1565C0),
           () => _navigateToDeHet(context),
           'Practice Dutch articles! See a word and decide if it takes "de" or "het". Only cards with an article set will appear.',
+        ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'So Many Cards',
+          Icons.library_add,
+          const Color(0xFFFF9800),
+          () => _navigateToSoManyCards(context),
+          'Master Dutch plurals! Identify the correct plural form of nouns using common patterns like -en, -s, and more.',
+        ),
+        const SizedBox(height: 12),
+        _buildMenuButtonWithInfo(
+          'Time Your Cards',
+          Icons.timer,
+          const Color(0xFFE91E63),
+          () => _navigateToTimeYourCards(context),
+          'Practice Dutch verb tenses! Identify the correct present, past, or perfect tense for a given verb.',
         ),
         const SizedBox(height: 12),
         _buildMenuButtonWithInfo(
@@ -335,6 +350,28 @@ class _HomeViewState extends State<HomeView> {
         settings: const RouteSettings(name: '/options'),
         builder: (context) => StudyTypeSelectionView(
           gameMode: GameMode.deHet,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToSoManyCards(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.soManyCards,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToTimeYourCards(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: '/options'),
+        builder: (context) => StudyTypeSelectionView(
+          gameMode: GameMode.timeYourCards,
         ),
       ),
     );

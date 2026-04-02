@@ -138,9 +138,9 @@ class SampleDataService {
       'example': 'Ik ben student.',
       'article': '',
       'plural': '',
+      'presentTense': 'ben',
       'pastTense': 'was',
-      'futureTense': 'zal zijn',
-      'pastParticiple': 'geweest',
+      'perfectTense': 'geweest',
     },
     {
       'word': 'hebben',
@@ -148,9 +148,9 @@ class SampleDataService {
       'example': 'Ik heb een hond.',
       'article': '',
       'plural': '',
+      'presentTense': 'heb',
       'pastTense': 'had',
-      'futureTense': 'zal hebben',
-      'pastParticiple': 'gehad',
+      'perfectTense': 'gehad',
     },
     {
       'word': 'doen',
@@ -158,9 +158,9 @@ class SampleDataService {
       'example': 'Wat doe je vandaag?',
       'article': '',
       'plural': '',
+      'presentTense': 'doe',
       'pastTense': 'deed',
-      'futureTense': 'zal doen',
-      'pastParticiple': 'gedaan',
+      'perfectTense': 'gedaan',
     },
     {
       'word': 'gaan',
@@ -168,9 +168,9 @@ class SampleDataService {
       'example': 'Ik ga naar huis.',
       'article': '',
       'plural': '',
+      'presentTense': 'ga',
       'pastTense': 'ging',
-      'futureTense': 'zal gaan',
-      'pastParticiple': 'gegaan',
+      'perfectTense': 'gegaan',
     },
     {
       'word': 'komen',
@@ -178,9 +178,9 @@ class SampleDataService {
       'example': 'Kom je naar het feest?',
       'article': '',
       'plural': '',
+      'presentTense': 'kom',
       'pastTense': 'kwam',
-      'futureTense': 'zal komen',
-      'pastParticiple': 'gekomen',
+      'perfectTense': 'gekomen',
     },
   ];
 
@@ -255,9 +255,9 @@ class SampleDataService {
         example: cardData['example']!,
         article: cardData['article'] ?? '',
         plural: cardData['plural'] ?? '',
+        presentTense: cardData['presentTense'] ?? '',
         pastTense: cardData['pastTense'] ?? '',
-        futureTense: cardData['futureTense'] ?? '',
-        pastParticiple: cardData['pastParticiple'] ?? '',
+        perfectTense: cardData['perfectTense'] ?? '',
         deckIds: {deck.id},
       );
       createdCount += 1;

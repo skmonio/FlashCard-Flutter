@@ -8,6 +8,7 @@ import '../models/learning_mastery.dart';
 
 import '../utils/game_end_screen.dart';
 import '../components/main_header.dart';
+import 'add_card_view.dart';
 
 enum StudyMode {
   multipleChoice,
@@ -55,6 +56,10 @@ class _StudyViewState extends State<StudyView> {
   List<FlashCard> _studiedWords = [];
   int _consecutiveCorrect = 0;
   Set<String> _hpPenaltyAppliedWordIds = {};
+  
+  // Review and navigation tracking
+  Set<String> _reviewCards = {}; // card IDs marked for review
+  Set<int> _answeredQuestions = {}; // indices of answered questions
 
   @override
   void initState() {
@@ -139,6 +144,97 @@ class _StudyViewState extends State<StudyView> {
       card.markCorrect(difficulty);
     } else {
       card.markIncorrect(difficulty);
+    }
+  }
+
+  void _goToPreviousQuestion() {
+    if (_currentCardIndex > 0) {
+      setState(() {
+        _currentCardIndex--;
+      });
+    }
+  }
+
+  void _goToNextQuestion() {
+    if (_currentCardIndex < _currentCards.length - 1) {
+      setState(() {
+        _currentCardIndex++;
+      });
+    } else {
+      // Last card - show completion screen
+      _showWordProgress();
+    }
+  }
+
+  void _editCurrentCard() {
+    final currentCard = _currentCards[_currentCardIndex];
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AddCardView(
+          cardToEdit: currentCard,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewFlag(FlashCard card) {
+    final isInReview = _reviewCards.contains(card.id);
+    return GestureDetector(
+      onTap: () => _toggleReviewCard(card),
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: isInReview ? Colors.yellow : Colors.yellow.withValues(alpha: 0.3),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.orange,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.flag,
+          size: 16,
+          color: isInReview ? Colors.orange : Colors.orange.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  void _toggleReviewCard(FlashCard card) async {
+    setState(() {
+      if (_reviewCards.contains(card.id)) {
+        _reviewCards.remove(card.id);
+      } else {
+        _reviewCards.add(card.id);
+      }
+    });
+    
+    // Add or remove from review deck in provider
+    try {
+      final provider = context.read<FlashcardProvider>();
+      if (_reviewCards.contains(card.id)) {
+        await provider.addCardToReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${card.word}" to review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.yellow.shade700,
+          ),
+        );
+      } else {
+        await provider.removeCardFromReview(card);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed "${card.word}" from review deck'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.grey.shade600,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🔍 StudyView: Error toggling review card: $e');
     }
   }
 
@@ -228,45 +324,55 @@ class _StudyViewState extends State<StudyView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Question card
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(
-                    _isFlipped ? 'Translate to Dutch:' : 'What does this mean?',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SelectableText(
-                    _isFlipped ? card.definition : card.word,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    enableInteractiveSelection: true,
-                    showCursor: false,
-                  ),
-                  if (card.article.isNotEmpty && !_isFlipped) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Article: ${card.article}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w500,
+          // Question card with flag
+          Stack(
+            children: [
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Text(
+                        _isFlipped ? 'Translate to Dutch:' : 'What does this mean?',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      const SizedBox(height: 16),
+                      SelectableText(
+                        _isFlipped ? card.definition : card.word,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                        enableInteractiveSelection: true,
+                        showCursor: false,
+                      ),
+                      if (card.article.isNotEmpty && !_isFlipped) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Article: ${card.article}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            ),
+              // Flag button (top-left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildReviewFlag(card),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           
@@ -290,52 +396,62 @@ class _StudyViewState extends State<StudyView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Scrambled word
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const Text(
-                    'Unscramble the word:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+          // Scrambled word with flag
+          Stack(
+            children: [
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Unscramble the word:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SelectableText(
+                        _scrambledWord,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                        textAlign: TextAlign.center,
+                        enableInteractiveSelection: true,
+                        showCursor: false,
+                        contextMenuBuilder: (context, editableTextState) {
+                          return const SizedBox.shrink(); // Hide context menu
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        'Hint: ${card.definition}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        textAlign: TextAlign.center,
+                        enableInteractiveSelection: true,
+                        showCursor: false,
+                        contextMenuBuilder: (context, editableTextState) {
+                          return const SizedBox.shrink(); // Hide context menu
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  SelectableText(
-                    _scrambledWord,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                    textAlign: TextAlign.center,
-                    enableInteractiveSelection: true,
-                    showCursor: false,
-                    contextMenuBuilder: (context, editableTextState) {
-                      return const SizedBox.shrink(); // Hide context menu
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  SelectableText(
-                    'Hint: ${card.definition}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                    textAlign: TextAlign.center,
-                    enableInteractiveSelection: true,
-                    showCursor: false,
-                    contextMenuBuilder: (context, editableTextState) {
-                      return const SizedBox.shrink(); // Hide context menu
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Flag button (top-left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildReviewFlag(card),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           
@@ -399,34 +515,44 @@ class _StudyViewState extends State<StudyView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Question
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(
-                    _isFlipped ? 'Write the Dutch word:' : 'Write the translation:',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+          // Question with flag
+          Stack(
+            children: [
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Text(
+                        _isFlipped ? 'Write the Dutch word:' : 'Write the translation:',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isFlipped ? card.definition : card.word,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                        overflow: TextOverflow.visible,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _isFlipped ? card.definition : card.word,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                    softWrap: true,
-                    overflow: TextOverflow.visible,
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Flag button (top-left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildReviewFlag(card),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           
@@ -490,32 +616,42 @@ class _StudyViewState extends State<StudyView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Question card
-          Card(
-            elevation: 4,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const Text(
-                    'True or False:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+          // Question card with flag
+          Stack(
+            children: [
+              Card(
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'True or False:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '${card.word} means ${card.definition}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '${card.word} means ${card.definition}',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Flag button (top-left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildReviewFlag(card),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           
@@ -557,35 +693,45 @@ class _StudyViewState extends State<StudyView> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Card display
-          Card(
-            elevation: 4,
-            child: InkWell(
-              onTap: _toggleShowAnswer,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Text(
-                      _showAnswer ? (_isFlipped ? card.word : card.definition) : (_isFlipped ? card.definition : card.word),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
+          // Card display with flag
+          Stack(
+            children: [
+              Card(
+                elevation: 4,
+                child: InkWell(
+                  onTap: _toggleShowAnswer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Text(
+                          _showAnswer ? (_isFlipped ? card.word : card.definition) : (_isFlipped ? card.definition : card.word),
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _showAnswer ? 'Tap to hide' : 'Tap to reveal',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _showAnswer ? 'Tap to hide' : 'Tap to reveal',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              // Flag button (top-left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildReviewFlag(card),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           
@@ -657,14 +803,84 @@ class _StudyViewState extends State<StudyView> {
   }
 
   Widget _buildFooter() {
+    final canGoBack = _currentCardIndex > 0;
+    final canGoNext = _answeredQuestions.contains(_currentCardIndex) || _currentCardIndex > 0 && !_answeredQuestions.contains(_currentCardIndex);
+    final isLastCard = _currentCardIndex == _currentCards.length - 1;
+    
     return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('Correct: $_correctAnswers / $_totalAnswers'),
-          Text('Accuracy: ${_totalAnswers > 0 ? ((_correctAnswers / _totalAnswers) * 100).toInt() : 0}%'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            offset: const Offset(0, -4),
+            blurRadius: 12,
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Back button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canGoBack ? _goToPreviousQuestion : null,
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                label: const Text('Back'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canGoBack ? Colors.grey.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.05),
+                  foregroundColor: canGoBack 
+                      ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87) 
+                      : Colors.grey,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: canGoBack ? Colors.grey[300]! : Colors.transparent),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Edit button in center
+            IconButton(
+              onPressed: _editCurrentCard,
+              icon: const Icon(Icons.edit),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                foregroundColor: Colors.blue,
+                padding: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
+            // Next/Finish button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canGoNext ? _goToNextQuestion : null,
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                label: Text(isLastCard ? 'Finish' : 'Next'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canGoNext ? Theme.of(context).colorScheme.primary : Colors.grey,
+                  foregroundColor: Colors.white,
+                  elevation: canGoNext ? 2 : 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -773,6 +989,9 @@ class _StudyViewState extends State<StudyView> {
     setState(() {
       if (isCorrect) _correctAnswers++;
       _totalAnswers++;
+      
+      // Track that this question has been answered
+      _answeredQuestions.add(_currentCardIndex);
     });
 
     // Update consecutive correct count for streak bonuses
@@ -802,22 +1021,6 @@ class _StudyViewState extends State<StudyView> {
 
     // Save the updated card
     context.read<FlashcardProvider>().updateCard(currentCard);
-
-    // Move to next card or finish
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        if (_currentCardIndex < _currentCards.length - 1) {
-          setState(() {
-            _currentCardIndex++;
-            _showAnswer = false;
-            _generateMultipleChoiceOptions();
-            _generateScrambledWord();
-          });
-        } else {
-          _showWordProgress();
-        }
-      }
-    });
   }
 
   void _awardXPToWord(FlashCard card) {

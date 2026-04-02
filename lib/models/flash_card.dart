@@ -13,6 +13,7 @@ class FlashCard {
   DateTime dateCreated;
   DateTime lastModified;
   bool isPublic; // Whether this card is visible to friends
+  bool? isReview; // Whether this card is flagged for the review deck
   
   // CloudKit tracking
   String? cloudKitRecordName;
@@ -23,9 +24,9 @@ class FlashCard {
   // Additional grammatical fields
   String article; // "het" or "de" for nouns
   String plural; // Plural form for nouns
-  String pastTense; // Past tense form
-  String futureTense; // Future tense form
-  String pastParticiple; // Past participle form
+  String presentTense; // Present Tense - Tegenwoordige Tijd
+  String pastTense; // Past Tense - Verleden Tijd
+  String perfectTense; // Perfect Tense - Voltooide Tijd
   
   FlashCard({
     String? id,
@@ -42,9 +43,10 @@ class FlashCard {
     LearningMastery? learningMastery,
     this.article = '',
     this.plural = '',
+    this.presentTense = '',
     this.pastTense = '',
-    this.futureTense = '',
-    this.pastParticiple = '',
+    this.perfectTense = '',
+    this.isReview = false,
   }) : 
     id = id ?? const Uuid().v4(),
     definition = definition ?? '',
@@ -172,10 +174,15 @@ class FlashCard {
       'learningMastery': learningMastery.toJson(),
       'article': article,
       'plural': plural,
+      'presentTense': presentTense,
       'pastTense': pastTense,
-      'futureTense': futureTense,
-      'pastParticiple': pastParticiple,
+      'perfectTense': perfectTense,
+      'isReview': isReview,
     };
+  }
+
+  Map<String, dynamic> toMap() {
+    return toJson();
   }
   
   factory FlashCard.fromJson(Map<String, dynamic> json) {
@@ -200,9 +207,11 @@ class FlashCard {
           : null,
       article: json['article'] ?? '',
       plural: json['plural'] ?? '',
+      presentTense: json['presentTense'] ?? '',
       pastTense: json['pastTense'] ?? '',
-      futureTense: json['futureTense'] ?? '',
-      pastParticiple: json['pastParticiple'] ?? '',
+      // Map old pastParticiple to the new perfectTense
+      perfectTense: json['perfectTense'] ?? json['pastParticiple'] ?? '',
+      isReview: json['isReview'] ?? false,
     );
   }
   
@@ -222,9 +231,10 @@ class FlashCard {
     LearningMastery? learningMastery,
     String? article,
     String? plural,
+    String? presentTense,
     String? pastTense,
-    String? futureTense,
-    String? pastParticiple,
+    String? perfectTense,
+    bool? isReview,
   }) {
     return FlashCard(
       id: id,
@@ -241,9 +251,10 @@ class FlashCard {
       learningMastery: learningMastery ?? this.learningMastery,
       article: article ?? this.article,
       plural: plural ?? this.plural,
+      presentTense: presentTense ?? this.presentTense,
       pastTense: pastTense ?? this.pastTense,
-      futureTense: futureTense ?? this.futureTense,
-      pastParticiple: pastParticiple ?? this.pastParticiple,
+      perfectTense: perfectTense ?? this.perfectTense,
+      isReview: isReview ?? this.isReview,
     );
   }
   

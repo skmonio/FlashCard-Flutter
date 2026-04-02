@@ -318,9 +318,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           learningMastery: LearningMastery(),
           article: '',
           plural: '',
+          presentTense: '',
           pastTense: '',
-          futureTense: '',
-          pastParticiple: '',
+          perfectTense: '',
         ),
         FlashCard(
           word: 'BOEK',
@@ -331,9 +331,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           learningMastery: LearningMastery(),
           article: '',
           plural: '',
+          presentTense: '',
           pastTense: '',
-          futureTense: '',
-          pastParticiple: '',
+          perfectTense: '',
         ),
       ];
     }
@@ -596,9 +596,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           learningMastery: LearningMastery(),
           article: '',
           plural: '',
+          presentTense: '',
           pastTense: '',
-          futureTense: '',
-          pastParticiple: '',
+          perfectTense: '',
         ),
         FlashCard(
           word: 'BOEK',
@@ -609,9 +609,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           learningMastery: LearningMastery(),
           article: '',
           plural: '',
+          presentTense: '',
           pastTense: '',
-          futureTense: '',
-          pastParticiple: '',
+          perfectTense: '',
         ),
       ];
     }

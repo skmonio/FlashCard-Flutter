@@ -8,9 +8,7 @@ import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
 import '../models/study_config.dart';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../providers/user_profile_provider.dart';
-import '../models/dutch_word_exercise.dart';
 import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../services/sound_manager.dart';
@@ -1050,8 +1048,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
       await provider.updateCard(card);
       print('🔍 AdvancedStudyView: Updated card "${card.word}" in provider - wasCorrect: $wasCorrect, current XP: ${card.learningMastery.currentXP}');
       
-      // Also sync to Dutch words if this card exists there
-      await _syncToDutchWords(card, wasCorrect);
+      
       
     } catch (e) {
       print('🔍 AdvancedStudyView: Error updating card in provider: $e');
@@ -1083,37 +1080,6 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     }
   }
 
-  Future<void> _syncToDutchWords(FlashCard card, bool wasCorrect) async {
-    try {
-      // Import the DutchWordExerciseProvider
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
-      
-      // Find the corresponding Dutch word exercise
-      final wordExercise = dutchProvider.wordExercises.firstWhere(
-        (exercise) => exercise.targetWord.toLowerCase() == card.word.toLowerCase(),
-        orElse: () => DutchWordExercise(
-          id: '',
-          targetWord: '',
-          wordTranslation: '',
-          deckId: '',
-          deckName: '',
-          category: WordCategory.common,
-          difficulty: ExerciseDifficulty.beginner,
-          exercises: [],
-          createdAt: DateTime.now(),
-          isUserCreated: true,
-        ),
-      );
-      
-      if (wordExercise.id.isNotEmpty) {
-        // Update the Dutch word exercise learning progress
-        await dutchProvider.updateLearningProgress(wordExercise.id, wasCorrect);
-        print('🔍 AdvancedStudyView: Synced progress to Dutch word exercise "${wordExercise.targetWord}"');
-      }
-    } catch (e) {
-      print('🔍 AdvancedStudyView: Error syncing to Dutch words: $e');
-    }
-  }
 
   void _nextCard() {
     if (_useStackedMode) {

@@ -5,7 +5,6 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'dart:convert';
 import '../providers/flashcard_provider.dart';
-import '../providers/dutch_word_exercise_provider.dart';
 import '../services/export_service.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
@@ -434,12 +433,8 @@ Brood,Bread,"Ik eet brood met kaas",het,broden,,,"A1 - Food & Drinks; Basics",5,
 
     try {
       final provider = context.read<FlashcardProvider>();
-      final dutchProvider = context.read<DutchWordExerciseProvider>();
       
-      // Get all exercises for the selected decks
-      final allExercises = dutchProvider.wordExercises;
-      
-      final csvContent = provider.exportUnifiedCSV(_selectedDeckIds, exercises: allExercises);
+      final csvContent = provider.exportUnifiedCSV(_selectedDeckIds);
       
       // Save file using FilePicker for mobile compatibility
       final timestamp = DateTime.now().millisecondsSinceEpoch;

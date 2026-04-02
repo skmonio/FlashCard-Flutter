@@ -9,6 +9,7 @@ import '../providers/user_profile_provider.dart';
 import '../services/sound_manager.dart';
 import '../services/supabase_service.dart';
 import '../services/data_sync_service.dart';
+import '../services/data_cleanup_service.dart';
 import 'loading_view.dart';
 import 'main_navigation_view.dart';
 import 'onboarding_view.dart';
@@ -38,6 +39,9 @@ class _AppInitializationViewState extends State<AppInitializationView> {
   }
 
   Future<void> _initializeProviders() async {
+    // Perform one-time cleanup of Exercises and Phrases if needed
+    await DataCleanupService.performCleanupIfNeeded();
+    
     // Initialize theme provider
     final themeProvider = context.read<ThemeProvider>();
     await themeProvider.initialize();

@@ -1519,11 +1519,29 @@ class _PickYourCardViewState extends State<PickYourCardView>
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-          const SizedBox(height: 40),
-          
           const SizedBox(height: 10),
           
-          const SizedBox(height: 40),
+          if (_showResult) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                _isLastAnswerCorrect 
+                  ? "Correct!"
+                  : (_showAnswer 
+                      ? "Correct answer is: $_lastCorrectAnswer" 
+                      : "Incorrect, try again (${_wrongAttempts[currentCardIndex] ?? 0}/5 attempts)"),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: _isLastAnswerCorrect ? Colors.green : Colors.red,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          
+          const SizedBox(height: 10),
           
           // Wheels Centered
           Row(
@@ -1596,28 +1614,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
               ],
             ),
           
-          // Result display
-          if (_showResult) ...[
-            const SizedBox(height: 24),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  _isLastAnswerCorrect 
-                    ? "Correct!"
-                    : (_showAnswer 
-                        ? "Correct answer is: $_lastCorrectAnswer" 
-                        : "Incorrect, try again (${_wrongAttempts[currentCardIndex] ?? 0}/5 attempts)"),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: _isLastAnswerCorrect ? Colors.green : Colors.red,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ],
+
           
           const SizedBox(height: 40),
         ],
