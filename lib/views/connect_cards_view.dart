@@ -877,6 +877,27 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         print('✅ Word is correct!');
         _checkWordCompletion();
       } else {
+        // Find longest correct prefix
+        int prefixLength = 0;
+        for (int i = 0; i < _selectedIndexes.length && i < _correctPath.length; i++) {
+          if (_selectedIndexes[i] == _correctPath[i]) {
+            prefixLength++;
+          } else {
+            break;
+          }
+        }
+        
+        // Update hint indexes with the correct prefix
+        for (int i = 0; i < prefixLength; i++) {
+          int indexToAdd = _correctPath[i];
+          if (!_hintIndexes.contains(indexToAdd)) {
+            _hintIndexes.add(indexToAdd);
+          }
+        }
+        
+        // Update hint level to match the new hint indexes count
+        _hintLevel = max(_hintLevel, prefixLength);
+
         // Incorrect word, show error
         print('❌ Word is incorrect');
         
@@ -897,9 +918,14 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
           _studiedWords.add(currentCard);
           _initialHPPerWord[currentCard.id] = currentCard.currentHP;
         }
-        
+
         setState(() {
           _wrongIndexes = List.from(_selectedIndexes);
+          // Remove correct prefix from wrong indexes so they prioritize hint color
+          for (int i = 0; i < prefixLength; i++) {
+            _wrongIndexes.remove(_correctPath[i]);
+          }
+          
           _totalAttempts++;
           
           // Handle lives mode
@@ -1013,7 +1039,19 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         _pressedIndex = index;
       });
       
-      // Don't allow selecting letters that are already selected (including hint letters)
+      // Check for back-tracking (undo feature)
+      // If the user moves back to the previous selected letter, remove the last one
+      if (_selectedIndexes.length >= 2 && _selectedIndexes[_selectedIndexes.length - 2] == index) {
+        setState(() {
+          _selectedIndexes.removeLast();
+          _pressedIndex = index;
+        });
+        HapticService().lightImpact(); // Subtle feedback for undo
+        print('⏪ Undid last letter selection: ${_letters[index]}');
+        return;
+      }
+      
+      // Don't allow selecting letters that are already selected
       if (_selectedIndexes.contains(index)) {
         return;
       }
