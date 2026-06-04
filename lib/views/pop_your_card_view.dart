@@ -876,7 +876,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
                             
                           Expanded(
                             child: Text(
-                              "Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%",
+                              "Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0}%",
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

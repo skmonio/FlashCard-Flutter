@@ -545,7 +545,7 @@ class _TimedTrueFalseViewState extends State<TimedTrueFalseView> {
               // Show timer in the middle
               _buildTimerIndicator(),
               Text(
-                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0}%',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],

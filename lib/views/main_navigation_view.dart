@@ -88,6 +88,7 @@ class _MainNavigationViewState extends State<MainNavigationView> {
           ),
         ],
       ),
+      floatingActionButton: const UniversalAddButton(),
       bottomNavigationBar: BottomNavigationView(
         selectedTabIndex: _selectedTabIndex,
         onTabChanged: _onTabChanged,

@@ -1724,7 +1724,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                         // Right side: Accuracy
                         Expanded(
                           child: Text(
-                            'Acc: ${_totalAttempts > 0 ? (_completedWordIds.length / _totalAttempts * 100).toInt() : 100}%',
+                            'Acc: ${_totalAttempts > 0 ? (_completedWordIds.length / _totalAttempts * 100).toInt() : 0}%',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,

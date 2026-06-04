@@ -351,9 +351,8 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     final currentCardIndex = _topIndex;
     final progress = _currentCards.isEmpty ? 0.0 : currentCardIndex / _currentCards.length;
     
-    // Calculate current accuracy - start at 100%
     final totalSwiped = _knownCards.length + _unknownCards.length;
-    final accuracy = totalSwiped > 0 ? (_knownCards.length / totalSwiped * 100).toInt() : 100;
+    final accuracy = totalSwiped > 0 ? (_knownCards.length / totalSwiped * 100).toInt() : 0;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

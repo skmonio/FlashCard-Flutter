@@ -195,8 +195,9 @@ class PerformanceService {
 
   /// Optimize animations with reduced motion support
   Duration getOptimizedAnimationDuration(Duration baseDuration) {
-    // Check if user prefers reduced motion
-    final mediaQuery = MediaQuery.maybeOf(navigatorKey.currentContext!);
+    final context = navigatorKey.currentContext;
+    if (context == null) return baseDuration;
+    final mediaQuery = MediaQuery.maybeOf(context);
     if (mediaQuery?.accessibleNavigation == true) {
       return Duration(milliseconds: (baseDuration.inMilliseconds * 0.5).round());
     }
@@ -425,13 +426,6 @@ class PerformanceService {
     return context.dependOnInheritedWidgetOfExactType<T>();
   }
 
-  /// Optimize provider access
-  T getOptimizedProvider<T>(BuildContext context, {bool listen = true}) {
-    // This method requires proper Provider imports and setup
-    // For now, return a placeholder implementation
-    throw UnimplementedError('Provider optimization requires proper setup');
-  }
-
   /// Optimize future handling
   Future<T> optimizeFuture<T>(Future<T> future, {Duration? timeout}) {
     if (timeout != null) {
@@ -508,6 +502,7 @@ class PerformanceService {
 
   /// Optimize file image precaching
   Future<void> precacheOptimizedFileImage(BuildContext context, String filePath) async {
+    if (kIsWeb) return;
     try {
       await precacheImage(FileImage(File(filePath)), context);
     } catch (e) {

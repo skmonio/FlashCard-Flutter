@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/flashcard_provider.dart';
 
 import '../components/main_header.dart';
+import '../components/game_guide_dialog.dart';
 import '../models/flash_card.dart';
 import '../models/deck.dart';
 import '../models/study_config.dart';
@@ -84,9 +85,11 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     if (widget.initialDeckId != null) {
       _selectedDeckIds = {widget.initialDeckId!};
     }
-    // Add listener to refresh when provider updates
     final provider = context.read<FlashcardProvider>();
     provider.addListener(_onProviderChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      GameGuideDialog.showIfFirstTime(context, widget.gameMode);
+    });
     
     // Set default flipped mode to 'flipped' for sentence building (Build Dutch from English)
     if (widget.gameMode == GameMode.sentenceBuilding) {
@@ -122,15 +125,27 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               highlightColor: Colors.transparent,
               onPressed: () => Navigator.of(context).pop(),
             ),
-            rightAction: IconButton(
-              icon: const Icon(
-                Icons.play_arrow,
-                color: Colors.green,
-                size: 28,
-              ),
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onPressed: _startStudy,
+            rightAction: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.help_outline,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                    size: 22,
+                  ),
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  tooltip: 'How to Play',
+                  onPressed: () => GameGuideDialog.show(context, widget.gameMode),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.play_arrow, color: Colors.green, size: 28),
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  onPressed: _startStudy,
+                ),
+              ],
             ),
           ),
           

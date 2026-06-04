@@ -1120,7 +1120,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
               // Right side: Accuracy
               Expanded(
                 child: Text(
-                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 100}%',
+                  'Acc: ${_totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0}%',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.right,
                 ),

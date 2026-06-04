@@ -40,13 +40,45 @@ class _CardsViewState extends State<CardsView> {
           // Stats Section
           _buildStatsSection(context, provider),
           const SizedBox(height: 20),
-          
+
+          // Empty state when no cards
+          if (provider.cards.isEmpty) _buildEmptyState(context),
+
           // Add Section
           _buildAddSection(context),
           const SizedBox(height: 20),
-          
+
           // View Section
           _buildViewSection(context, provider),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.teal.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.style_outlined, size: 48, color: Colors.teal.withValues(alpha: 0.6)),
+          const SizedBox(height: 12),
+          Text(
+            'No cards yet',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tap + to add your first card, import from a photo, or go to the Home tab to load sample cards.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+          ),
         ],
       ),
     );

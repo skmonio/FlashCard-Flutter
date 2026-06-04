@@ -10,6 +10,8 @@ import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'writing_view.dart';
 import 'word_scramble_view.dart';
+import 'add_card_view.dart';
+import 'photo_import_view.dart';
 
 import '../services/sample_data_service.dart';
 import 'shuffle_cards_view.dart';
@@ -33,14 +35,84 @@ class _HomeViewState extends State<HomeView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Flash Card Studies Section
-            _buildFlashCardStudiesSection(),
-          ],
-        ),
+      body: Consumer<FlashcardProvider>(
+        builder: (context, provider, _) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                if (provider.cards.isEmpty)
+                  _buildEmptyState(context, provider)
+                else
+                  _buildFlashCardStudiesSection(),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, FlashcardProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        children: [
+          Icon(Icons.school_outlined, size: 80, color: Colors.teal.withValues(alpha: 0.4)),
+          const SizedBox(height: 24),
+          Text(
+            'Welcome to Taal Trek!',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Add Dutch flashcards to unlock all 14 game modes.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _addSampleData(context),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Load 20 Sample Dutch Cards'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _navigateToAddCard(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Card Manually'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _navigateToPhotoImport(context),
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Import from Photo'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -472,6 +544,14 @@ class _HomeViewState extends State<HomeView> {
         );
       },
     );
+  }
+
+  void _navigateToAddCard(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AddCardView()));
+  }
+
+  void _navigateToPhotoImport(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PhotoImportView()));
   }
 
   void _addSampleData(BuildContext context) async {

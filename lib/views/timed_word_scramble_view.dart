@@ -890,7 +890,7 @@ class _TimedWordScrambleViewState extends State<TimedWordScrambleView> {
               // Right side: Accuracy
               Expanded(
                 child: Text(
-                  'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 100}%',
+                  'Acc: ${_totalAnswered > 0 ? (_correctAnswers / _totalAnswered * 100).toInt() : 0}%',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.right,
                 ),

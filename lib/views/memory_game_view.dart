@@ -446,7 +446,7 @@ class _MemoryGameViewState extends State<MemoryGameView>
               // Show timer in the middle if in timed mode
               if (_isTimedMode) _buildTimerIndicator() else const SizedBox.shrink(),
               Text(
-                'Acc: ${_moves > 0 ? (_matches / _moves * 100).toInt() : 100}%',
+                'Acc: ${_moves > 0 ? (_matches / _moves * 100).toInt() : 0}%',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],

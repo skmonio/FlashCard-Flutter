@@ -21,6 +21,7 @@ class PhotoImportService {
 
   /// Pick an image from camera or gallery with better error handling
   Future<File?> pickImage({bool fromCamera = false}) async {
+    if (kIsWeb) return null;
     try {
       print('PhotoImportService: Starting image picker...');
       
@@ -64,6 +65,7 @@ class PhotoImportService {
 
   /// Extract text from an image using OCR with better error handling
   Future<List<String>> extractTextFromImage(File imageFile) async {
+    if (kIsWeb) return [];
     try {
       print('PhotoImportService: Starting OCR processing...');
       
@@ -119,6 +121,7 @@ class PhotoImportService {
 
   /// Extract words with position information from an image
   Future<List<ExtractedWord>> extractWordsWithPosition(String imagePath) async {
+    if (kIsWeb) return [];
     try {
       print('PhotoImportService: Extracting words with position from: $imagePath');
       
