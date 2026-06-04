@@ -14,10 +14,12 @@ import '../providers/user_profile_provider.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../models/timed_difficulty.dart';
 import '../components/main_header.dart';
 import 'add_card_view.dart';
+import '../utils/game_session_controller.dart';
 
 class MultipleChoiceView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -69,7 +71,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
   int? _correctAnswerIndex;
   List<String> _options = [];
   bool _isQuestionMode = true; // true = word to definition, false = definition to word
-  final GameSession _gameSession = GameSession();
+  late GameSessionController _sessionController;
   
   // Lives system
   int _lives = 0;
@@ -98,12 +100,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
   // Auto progress timer
   Timer? _autoProgressTimer;
   
-  // RPG word progress tracking
-  Map<String, int> _xpGainedPerWord = {};
-  Map<String, LearningMastery> _wordMastery = {};
-  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
-  List<FlashCard> _studiedWords = [];
-  
   // Hint and review tracking
   Map<int, int> _hintCount = {}; // question index -> number of hints used (0, 1, 2, or 3)
   Map<int, Set<int>> _blockedOptions = {}; // question index -> set of blocked option indices
@@ -130,6 +126,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     _successController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
+    );
+    
+    _sessionController = GameSessionController(
+      flashcardProvider: context.read<FlashcardProvider>(),
+      userProfileProvider: context.read<UserProfileProvider>(),
     );
     
     // Initialize our copy of cards
@@ -228,21 +229,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     print('🔍 MultipleChoiceView: Refreshed cards from provider (preserving blocked options and question state)');
   }
 
-  void _ensureCardTracked(FlashCard card) {
-    if (_studiedWords.any((word) => word.id == card.id)) return;
-    _studiedWords.add(card);
-    _initialHPPerWord[card.id] = card.currentHP;
-  }
-
-  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
-    _ensureCardTracked(card);
-    if (wasCorrect) {
-      card.markCorrect(GameDifficulty.medium);
-    } else {
-      card.markIncorrect(GameDifficulty.medium);
-    }
-  }
-
   void _startTimer() {
     if (!_useTimedMode) return;
     
@@ -276,11 +262,13 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       _selectedAnswer = null; // No answer selected
     });
     
-    // Apply HP penalty and record answer
-    _applyHpPenalty(currentCard, wasCorrect: false);
-    _awardXPToWord(currentCard, false, 0);
-    _updateCardInProvider(currentCard);
-    XpService.recordAnswer(_gameSession, false);
+    // Apply HP penalty and record answer via controller
+    _sessionController.recordIncorrect(
+      currentCard,
+      exerciseType: 'Multiple Choice',
+      difficulty: GameDifficulty.medium,
+      isTimeout: true,
+    );
     
     // Auto progress after showing the answer
     Timer(const Duration(milliseconds: 1500), () {
@@ -486,17 +474,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     
     // Provide haptic feedback and animations based on answer correctness
     if (isCorrect) {
-      HapticService().successFeedback();
       _successController.forward(from: 0);
       _consecutiveCorrect++;
     } else {
-      HapticService().errorFeedback();
       _shakeController.forward(from: 0);
       _consecutiveCorrect = 0; // Reset streak
     }
-    
-    // Track XP for the answer
-    XpService.recordAnswer(_gameSession, isCorrect);
     
     // Stop timer if in timed mode
     if (_useTimedMode) {
@@ -515,10 +498,14 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         _answeredQuestions[_currentIndex] = index;
         _correctAnswersMap[_currentIndex] = true;
         
-        // Award XP with penalty for wrong attempts
-        _applyHpPenalty(currentCard, wasCorrect: true);
-        _awardXPToWord(currentCard, true, wrongAttempts);
-        _updateCardInProvider(currentCard);
+        // Record correct answer via controller (handles HP, XP, sounds, haptics, provider)
+        _sessionController.recordCorrect(
+          currentCard,
+          exerciseType: 'Multiple Choice',
+          difficulty: GameDifficulty.medium,
+          hintsUsed: _hintCount[_currentIndex] ?? 0,
+          wrongAttempts: wrongAttempts,
+        );
         
         // Auto progress logic (only if not game over and not in shuffle mode)
         if (widget.autoProgress && !widget.shuffleMode && !(_useLivesMode && _lives <= 0)) {
@@ -533,9 +520,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
             }
           });
         }
-        
-        // Play correct sound
-        SoundManager().playCorrectSound();
       } else {
         // Check if "1 answer mode" is enabled
         bool oneAnswerMode = widget.studyConfig?.oneAnswerMode ?? false;
@@ -547,9 +531,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
           _answeredQuestions[_currentIndex] = index;
           _correctAnswersMap[_currentIndex] = false;
           
-          _applyHpPenalty(currentCard, wasCorrect: false);
-          _awardXPToWord(currentCard, false, 1); // 1 wrong attempt
-          _updateCardInProvider(currentCard);
+          _sessionController.recordIncorrect(
+            currentCard,
+            exerciseType: 'Multiple Choice',
+            difficulty: GameDifficulty.medium,
+          );
           
           if (_useLivesMode) {
             _lives--;
@@ -569,12 +555,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
               }
             });
           }
-          
-          SoundManager().playWrongSound();
           return;
         }
 
-        // Wrong answer - disable this option, increment wrong attempts, and apply XP penalty
+        // Wrong answer - disable this option, increment wrong attempts
         final newWrongAttempts = wrongAttempts + 1;
         
         // Initialize sets if needed
@@ -586,13 +570,19 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         
         _wrongAttempts[_currentIndex] = newWrongAttempts;
         
+        // Trigger manual sounds & haptics for intermediate wrong attempt
+        HapticService().errorFeedback();
+        SoundManager().playWrongSound();
+        
         // Handle lives system 
         if (_useLivesMode) {
           _lives--;
           if (_lives <= 0) {
-            _applyHpPenalty(currentCard, wasCorrect: false);
-            _awardXPToWord(currentCard, false, newWrongAttempts);
-            _updateCardInProvider(currentCard);
+            _sessionController.recordIncorrect(
+              currentCard,
+              exerciseType: 'Multiple Choice',
+              difficulty: GameDifficulty.medium,
+            );
             _showGameOverScreen();
             return;
           }
@@ -605,12 +595,12 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
           _correctAnswersMap[_currentIndex] = false;
           _answeredQuestions[_currentIndex] = index;
           
-          _applyHpPenalty(currentCard, wasCorrect: false);
-          _awardXPToWord(currentCard, false, newWrongAttempts);
-          _updateCardInProvider(currentCard);
+          _sessionController.recordIncorrect(
+            currentCard,
+            exerciseType: 'Multiple Choice',
+            difficulty: GameDifficulty.medium,
+          );
         }
-        
-        SoundManager().playWrongSound();
       }
     });
   }
@@ -629,18 +619,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     _showWordProgress();
   }
 
-  Future<void> _updateCardInProvider(FlashCard card) async {
-    try {
-      final provider = context.read<FlashcardProvider>();
-      
-      // Update the card in the provider to save the XP changes
-      await provider.updateCard(card);
-      print('🔍 MultipleChoiceView: Updated card "${card.word}" in provider - current XP: ${card.learningMastery.currentXP}');
-      
-    } catch (e) {
-      print('🔍 MultipleChoiceView: Error updating card in provider: $e');
-    }
-  }
 
 
   Color _getOptionColor(int index) {
@@ -669,24 +647,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
 
   // Generate consistent color based on card content (same as study view)
   Color _getCardBorderColor(FlashCard card) {
-    final vibrantColors = [
-      const Color(0xFFFF6B35), // Coral/Orange-Red
-      const Color(0xFFFF9900), // Bright Orange
-      const Color(0xFFFFCC00), // Golden Yellow
-      const Color(0xFF33CC99), // Teal/Turquoise
-      const Color(0xFF00B3CC), // Cyan Blue
-      const Color(0xFF9966FF), // Purple
-      const Color(0xFFFF4D94), // Pink
-      const Color(0xFF66E64D), // Lime Green
-    ];
-    
-    if (card.word.isEmpty || card.definition.isEmpty) {
-      return vibrantColors[0];
-    }
-    
-    final hash = (card.word.hashCode + card.definition.hashCode).abs();
-    final index = hash % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
   void _goToPreviousQuestion() {
@@ -1400,10 +1361,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                     _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
                     const SizedBox(height: 16),
                     _buildStatCard('XP Earned', '', Icons.star, Colors.amber,
-                      AnimatedXpCounter(xpGained: _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
+                      AnimatedXpCounter(xpGained: _sessionController.xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp))),
                     
                     // Swipe hint if XP was gained
-                    if (_xpGainedPerWord.values.isNotEmpty) ...[
+                    if (_sessionController.xpGainedPerWord.values.isNotEmpty) ...[
                       const SizedBox(height: 24),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -1469,7 +1430,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                           _showingResults = false;
                           _answered = false;
                           _selectedAnswer = null;
-                          _gameSession.reset(); // Reset XP tracking
+                          
+                          _sessionController = GameSessionController(
+                            flashcardProvider: context.read<FlashcardProvider>(),
+                            userProfileProvider: context.read<UserProfileProvider>(),
+                          );
                           
                           // Reset lives if using lives mode
                           if (_useLivesMode) {
@@ -1482,12 +1447,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                           _questionOptions.clear();
                           _correctAnswerIndices.clear();
                           _questionModes.clear();
-                          
-                          // Reset RPG tracking
-                          _xpGainedPerWord.clear();
-                          _wordMastery.clear();
-                          _studiedWords.clear();
-                          _initialHPPerWord.clear();
                           
                           // Reset hint and review tracking
                           _hintCount.clear();
@@ -1602,79 +1561,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     );
   }
 
-  void _awardXp() {
-    // Calculate total XP from actual word XP gained
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    
-    if (totalXPGained > 0) {
-      final userProfileProvider = context.read<UserProfileProvider>();
-      userProfileProvider.addXp(totalXPGained);
-    }
-    
-    // Update session statistics
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
-    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
-    
-    context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAttempts,
-      sessionAccuracy: accuracy,
-      isPerfect: isPerfect,
-    );
-    
-    // Update streak based on study activity (Duolingo-style)
-    context.read<UserProfileProvider>().updateStreakFromStudyActivity();
-  }
-  
-  void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
-    _ensureCardTracked(card);
-    
-    print('🔍 MultipleChoiceView: Logging word "${card.word}" (isCorrect: $isCorrect, wrongAttempts: $wrongAttempts) - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
-    
-    if (isCorrect) {
-      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
-          ? card.learningMastery.exerciseHistory.last
-          : null;
-      final actualXPGained = latestEntry != null
-          ? (latestEntry['xpGained'] as int? ?? 0)
-          : 0;
-      
-      // Reduce XP based on number of hints used (50% for 1 hint, 25% for 2 hints, 0% for 3 hints)
-      final hintCount = _hintCount[_currentIndex] ?? 0;
-      var finalXPGained = hintCount == 1
-          ? (actualXPGained * 0.5).round()
-          : hintCount == 2
-              ? (actualXPGained * 0.25).round()
-              : hintCount == 3
-                  ? 0
-                  : actualXPGained;
-      
-      // Apply penalty for wrong attempts before success: -1 XP per wrong attempt, min 0
-      if (wrongAttempts > 0 && wrongAttempts < 5) {
-        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
-      }
-      
-      // Hint Penalty: usage also affects the overall session accuracy
-      if (hintCount > 0) {
-        // Increment attempts to lower overall accuracy %
-        _totalAttempts += (hintCount * 0.5).ceil();
-      }
-
-      if (latestEntry != null) {
-        card.learningMastery.currentXP += finalXPGained - actualXPGained;
-        latestEntry['xpGained'] = finalXPGained;
-      }
-      
-      _xpGainedPerWord[card.id] = (_xpGainedPerWord[card.id] ?? 0) + finalXPGained;
-      
-      print('🔍 MultipleChoiceView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained, hints: $hintCount, wrongAttempts: $wrongAttempts)');
-    } else {
-      _xpGainedPerWord[card.id] = 0;
-      
-      print('🔍 MultipleChoiceView: 0 XP awarded to word "${card.word}" (Incorrect after $wrongAttempts attempts)');
-    }
-    
-    // Store the word mastery for display (for both correct and incorrect)
-    _wordMastery[card.id] = card.learningMastery;
+  Future<void> _awardXp() async {
+    await _sessionController.finalizeSession();
   }
   
   void _shuffleAndRestart() {
@@ -1742,7 +1630,11 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       _showingResults = false;
       _answered = false;
       _selectedAnswer = null;
-      _gameSession.reset();
+      
+      _sessionController = GameSessionController(
+        flashcardProvider: context.read<FlashcardProvider>(),
+        userProfileProvider: context.read<UserProfileProvider>(),
+      );
       
       // Reset lives if using lives mode
       if (_useLivesMode) {
@@ -1756,12 +1648,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       _correctAnswerIndices.clear();
       _questionModes.clear();
       
-      // Reset RPG tracking
-      _xpGainedPerWord.clear();
-      _wordMastery.clear();
-      _initialHPPerWord.clear();
-      _studiedWords.clear();
-      
       // Reset wrong attempts tracking
       _wrongAttempts.clear();
       _disabledOptions.clear();
@@ -1772,10 +1658,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
 
   void _showWordProgress() {
     // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
-    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
+    final sessionStudiedWords = List<FlashCard>.from(_sessionController.studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_sessionController.xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_sessionController.wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_sessionController.initialHPPerWord);
     
     GameEndScreen.show(
       context,
@@ -1797,7 +1683,10 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
             _showingResults = false;
             _answered = false;
             _selectedAnswer = null;
-            _gameSession.reset();
+            _sessionController = GameSessionController(
+              flashcardProvider: context.read<FlashcardProvider>(),
+              userProfileProvider: context.read<UserProfileProvider>(),
+            );
             if (_useLivesMode) {
               _lives = _maxLives;
             }
@@ -1806,10 +1695,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
             _questionOptions.clear();
             _correctAnswerIndices.clear();
             _questionModes.clear();
-            _xpGainedPerWord.clear();
-            _wordMastery.clear();
-            _initialHPPerWord.clear();
-            _studiedWords.clear();
             _wrongAttempts.clear();
             _disabledOptions.clear();
           });

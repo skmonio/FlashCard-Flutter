@@ -14,10 +14,12 @@ import '../providers/user_profile_provider.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../components/main_header.dart';
 import 'add_card_view.dart';
 import '../models/timed_difficulty.dart';
+import '../utils/game_session_controller.dart';
 
 class TrueFalseView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -71,7 +73,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   String _question = '';
   String _currentTranslation = ''; // Store the translation being tested
   bool _isQuestionMode = true; // true = word to definition, false = definition to word
-  final GameSession _gameSession = GameSession();
+  late GameSessionController _sessionController;
   
   // Track answered questions and their answers
   Map<int, bool> _answeredQuestions = {}; // question index -> selected answer
@@ -101,11 +103,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   int _maxLives = 0;
   bool _useLivesMode = false;
   
-  // RPG word progress tracking
-  Map<String, int> _xpGainedPerWord = {};
-  Map<String, LearningMastery> _wordMastery = {};
-  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
-  List<FlashCard> _studiedWords = [];
   Map<int, Set<int>> _disabledOptions = {}; // question index -> set of disabled wrong option indices
   
   // Animation controllers for feedback
@@ -123,6 +120,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    
+    _sessionController = GameSessionController(
+      flashcardProvider: context.read<FlashcardProvider>(),
+      userProfileProvider: context.read<UserProfileProvider>(),
+    );
     
     // Initialize our copy of cards
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -189,19 +191,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     super.dispose();
   }
 
-  void _ensureCardTracked(FlashCard card) {
-    if (_studiedWords.any((word) => word.id == card.id)) return;
-    _studiedWords.add(card);
-    _initialHPPerWord[card.id] = card.currentHP;
-  }
-
-  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
-    if (wasCorrect) {
-      card.markCorrect(GameDifficulty.medium);
-    } else {
-      card.markIncorrect(GameDifficulty.medium);
-    }
-  }
 
   void _onProviderChanged() {
     // Refresh cards from the provider when cards are updated
@@ -410,10 +399,12 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       _answeredQuestions[_currentIndex] = false; // Mark as answered (incorrect)
     });
     
-    _applyHpPenalty(currentCard, wasCorrect: false);
-    _awardXPToWord(currentCard, false);
-    _updateCardInProvider(currentCard);
-    XpService.recordAnswer(_gameSession, false);
+    _sessionController.recordIncorrect(
+      currentCard,
+      exerciseType: 'True/False',
+      difficulty: GameDifficulty.medium,
+      isTimeout: true,
+    );
     
     Timer(const Duration(milliseconds: 1500), () {
       if (mounted) {
@@ -568,30 +559,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   }
 
   Color _getCardBorderColor(FlashCard card) {
-    // Generate consistent vibrant colors based on card content
-    final vibrantColors = [
-      const Color(0xFFE91E63), // Pink
-      const Color(0xFF9C27B0), // Purple
-      const Color(0xFF673AB7), // Deep Purple
-      const Color(0xFF3F51B5), // Indigo
-      const Color(0xFF2196F3), // Blue
-      const Color(0xFF03A9F4), // Light Blue
-      const Color(0xFF00BCD4), // Cyan
-      const Color(0xFF009688), // Teal
-      const Color(0xFF4CAF50), // Green
-      const Color(0xFF8BC34A), // Light Green
-      const Color(0xFFCDDC39), // Lime
-      const Color(0xFFFFEB3B), // Yellow
-      const Color(0xFFFFC107), // Amber
-      const Color(0xFFFF9800), // Orange
-      const Color(0xFFFF5722), // Deep Orange
-      const Color(0xFF795548), // Brown
-    ];
-    
-    // Use card content to generate consistent index
-    final hash = card.word.hashCode + card.definition.hashCode;
-    final index = hash.abs() % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
   void _selectAnswer(bool answer) {
@@ -605,32 +573,21 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     
     // Provide haptic feedback and animations based on answer correctness
     if (isCorrect) {
-      HapticService().successFeedback();
       _successController.forward(from: 0);
       _consecutiveCorrect++;
+      _sessionController.recordCorrect(
+        currentCard,
+        exerciseType: 'True/False',
+        difficulty: GameDifficulty.medium,
+      );
     } else {
-      HapticService().errorFeedback();
       _shakeController.forward(from: 0);
       _consecutiveCorrect = 0; // Reset streak
-    }
-
-    // Track XP for this answer
-    XpService.recordAnswer(_gameSession, isCorrect);
-    
-    // Track this card the first time it appears so the end screen has HP baselines
-    _ensureCardTracked(currentCard);
-    
-    // Apply HP penalty exactly once per card per session
-    _applyHpPenalty(currentCard, wasCorrect: isCorrect);
-    
-    if (widget.shuffleMode) {
-      // Shuffle mode handles XP externally but we still persist mastery updates
-      _wordMastery[currentCard.id] = currentCard.learningMastery;
-      _updateCardInProvider(currentCard);
-    } else {
-      // In standalone mode, handle full tracking
-      _awardXPToWord(currentCard, isCorrect);
-      _updateCardInProvider(currentCard);
+      _sessionController.recordIncorrect(
+        currentCard,
+        exerciseType: 'True/False',
+        difficulty: GameDifficulty.medium,
+      );
     }
 
     setState(() {
@@ -644,12 +601,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       
       if (isCorrect) {
         _correctAnswers++;
-        // Play correct sound
-        SoundManager().playCorrectSound();
       } else {
-        // Play wrong sound
-        SoundManager().playWrongSound();
-        
         // Handle lives system
         if (_useLivesMode) {
           _lives--;
@@ -1299,10 +1251,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
 
   void _showWordProgress() {
     // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
-    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
+    final sessionStudiedWords = List<FlashCard>.from(_sessionController.studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_sessionController.xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_sessionController.wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_sessionController.initialHPPerWord);
     
     GameEndScreen.show(
       context,
@@ -1325,7 +1277,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
             _hasShownResults = false;
             _answered = false;
             _selectedAnswer = null;
-            _gameSession.reset();
+            _sessionController = GameSessionController(
+              flashcardProvider: context.read<FlashcardProvider>(),
+              userProfileProvider: context.read<UserProfileProvider>(),
+            );
             if (_useLivesMode) {
               _lives = _maxLives;
             }
@@ -1335,10 +1290,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
             _questionTexts.clear();
             _questionModes.clear();
             _translations.clear();
-            _xpGainedPerWord.clear();
-            _wordMastery.clear();
-            _initialHPPerWord.clear();
-            _studiedWords.clear();
           });
           _generateQuestion();
         },
@@ -1528,9 +1479,12 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       _consecutiveCorrect = 0;
       _reviewCards.clear();
       _reviewStatusMessage = null;
-      _xpGainedPerWord.clear();
-      _wordMastery.clear();
-      _studiedWords.clear();
+      
+      _sessionController = GameSessionController(
+        flashcardProvider: context.read<FlashcardProvider>(),
+        userProfileProvider: context.read<UserProfileProvider>(),
+      );
+      
       _disabledOptions.clear();
       
       // Reset lives if in lives mode
@@ -1554,33 +1508,8 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     }
   }
 
-  void _awardXp() {
-    // Calculate total XP from actual word XP gained
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    
-    if (!widget.shuffleMode && totalXPGained > 0) {
-      final userProfileProvider = context.read<UserProfileProvider>();
-      userProfileProvider.addXp(totalXPGained);
-    }
-  }
-
-  void _awardXPToWord(FlashCard card, bool isCorrect) {
-    _ensureCardTracked(card);
-    
-    if (isCorrect) {
-      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
-          ? card.learningMastery.exerciseHistory.last
-          : null;
-      final actualXPGained = latestEntry != null
-          ? (latestEntry['xpGained'] as int? ?? 0)
-          : 0;
-      
-      _xpGainedPerWord[card.id] = actualXPGained;
-    } else {
-      _xpGainedPerWord[card.id] = 0;
-    }
-    
-    _wordMastery[card.id] = card.learningMastery;
+  Future<void> _awardXp() async {
+    await _sessionController.finalizeSession();
   }
 
 

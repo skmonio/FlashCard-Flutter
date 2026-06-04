@@ -16,8 +16,10 @@ import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import 'add_card_view.dart';
 import '../models/timed_difficulty.dart';
+import '../utils/game_session_controller.dart';
 
 class WordScrambleView extends StatefulWidget {
   final List<FlashCard> cards;
@@ -68,7 +70,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   List<String> _originalLetters = [];
   bool _isQuestionMode = true; // true = definition to word, false = word to definition
   bool _isCardFlipped = false;
-  final GameSession _gameSession = GameSession();
+  late GameSessionController _sessionController;
   
   // Local copy of cards for shuffling
   late List<FlashCard> _currentCards;
@@ -89,13 +91,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   int _lives = 0;
   int _maxLives = 0;
   bool _useLivesMode = false;
-  
-  // RPG word progress tracking
-  Map<String, int> _xpGainedPerWord = {};
-  Map<String, LearningMastery> _wordMastery = {};
-  Map<String, int> _initialHPPerWord = {}; // Track initial HP when word is first encountered
-  List<FlashCard> _studiedWords = [];
-  Set<String> _hpPenaltyAppliedWordIds = {};
   
   // Hint system
   Map<int, int> _hintCount = {}; // Track how many hints used per question
@@ -133,6 +128,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   @override
   void initState() {
     super.initState();
+    
+    _sessionController = GameSessionController(
+      flashcardProvider: context.read<FlashcardProvider>(),
+      userProfileProvider: context.read<UserProfileProvider>(),
+    );
     
     // Initialize cards list
     _currentCards = List<FlashCard>.from(widget.cards);
@@ -242,22 +242,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     }
   }
 
-  void _ensureCardTracked(FlashCard card) {
-    if (_studiedWords.any((word) => word.id == card.id)) return;
-    _studiedWords.add(card);
-    _initialHPPerWord[card.id] = card.currentHP;
-  }
-
-  void _applyHpPenalty(FlashCard card, {required bool wasCorrect}) {
-    if (_hpPenaltyAppliedWordIds.contains(card.id)) return;
-    _hpPenaltyAppliedWordIds.add(card.id);
-    _ensureCardTracked(card);
-    if (wasCorrect) {
-      card.markCorrect(GameDifficulty.medium);
-    } else {
-      card.markIncorrect(GameDifficulty.medium);
-    }
-  }
   
   /// Get default lives based on difficulty (assuming medium difficulty for now)
   int _getDefaultLives() {
@@ -421,10 +405,12 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       _answeredQuestions[_currentIndex] = _userAnswer;
     });
     
-    _applyHpPenalty(currentCard, wasCorrect: false);
-    _awardXPToWord(currentCard, false, 5);
-    _updateCardInProvider(currentCard);
-    XpService.recordAnswer(_gameSession, false);
+    _sessionController.recordIncorrect(
+      currentCard,
+      exerciseType: 'Word Scramble',
+      difficulty: GameDifficulty.medium,
+      isTimeout: true,
+    );
     
     Timer(const Duration(milliseconds: 1500), () {
       if (mounted) {
@@ -495,15 +481,14 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     
     if (isCorrect) {
       // Correct answer - proceed normally
-      // Track XP for this answer
-      XpService.recordAnswer(_gameSession, isCorrect);
-      
-      // Award XP to word for RPG system (with wrong attempts penalty)
-      _applyHpPenalty(currentCard, wasCorrect: true);
-      _awardXPToWord(currentCard, true, wrongAttempts);
-      
-      // Update the card in the provider to save the XP changes
-      _updateCardInProvider(currentCard);
+      // Record correct answer via controller (handles HP, XP, haptics, sounds, provider)
+      _sessionController.recordCorrect(
+        currentCard,
+        exerciseType: 'Word Scramble',
+        difficulty: GameDifficulty.medium,
+        hintsUsed: _hintCount[_currentIndex] ?? 0,
+        wrongAttempts: wrongAttempts,
+      );
       
       setState(() {
         _answered = true;
@@ -518,9 +503,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       if (_useTimedMode) {
         _timer?.cancel();
       }
-      
-      HapticService().successFeedback();
-      SoundManager().playCorrectSound();
       
       // Store the answer for navigation
       _answeredQuestions[_currentIndex] = List<String>.from(_userAnswer);
@@ -539,16 +521,13 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         });
       }
     } else {
-      // Wrong answer - shake, turn red, reset, and apply XP penalty
+      // Wrong answer - shake, turn red, reset
       final newWrongAttempts = widget.oneAnswerMode ? 5 : (wrongAttempts + 1);
       _wrongAttempts[_currentIndex] = newWrongAttempts;
       
       setState(() {
         _totalAttempts++;
       });
-      
-      // Track XP for wrong attempt
-      XpService.recordAnswer(_gameSession, false);
       
       // Handle lives system (already handles life loss correctly)
       if (_useLivesMode) {
@@ -559,9 +538,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         
         if (_lives <= 0) {
           print('🔍 WordScrambleView: Game over! No lives remaining');
-          _applyHpPenalty(currentCard, wasCorrect: false);
-          _awardXPToWord(currentCard, false, newWrongAttempts);
-          _updateCardInProvider(currentCard);
+          _sessionController.recordIncorrect(
+            currentCard,
+            exerciseType: 'Word Scramble',
+            difficulty: GameDifficulty.medium,
+          );
           
           // In shuffle mode, complete with failure
           if (widget.shuffleMode && mounted && widget.onComplete != null) {
@@ -578,10 +559,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       if (widget.oneAnswerMode || newWrongAttempts >= 5) {
         print('🔍 WordScrambleView: ${widget.oneAnswerMode ? '1-Click Answer mode' : '5 wrong attempts'} reached! Auto-completing.');
         
-        // Award 0 XP since they failed
-        _applyHpPenalty(currentCard, wasCorrect: false);
-        _awardXPToWord(currentCard, false, 5); // Force penalty for XP calculation
-        _updateCardInProvider(currentCard);
+        _sessionController.recordIncorrect(
+          currentCard,
+          exerciseType: 'Word Scramble',
+          difficulty: GameDifficulty.medium,
+        );
         
         // Stop timer in timed mode
         if (_useTimedMode) {
@@ -1296,12 +1278,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
                   final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
                   final isLocked = lockedPositions.contains(index);
                   
-                  if (isLocked) {
-                    print('🔍 WordScrambleView: Piece "$piece" at position $index is LOCKED (orange border)');
-                  } else {
-                    print('🔍 WordScrambleView: Piece "$piece" at position $index is UNLOCKED (blue border)');
-                  }
-                  
                   return Draggable<int>(
                     data: index,
                     maxSimultaneousDrags: _answered || isLocked || _isShowingWrongAnswer ? 0 : 1,
@@ -1420,8 +1396,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   }
 
   Widget _buildAnswerFeedback() {
-    print('🔍 WordScrambleView: Building feedback - _isShowingWrongAnswer: $_isShowingWrongAnswer, _answered: $_answered, userAnswer: $_userAnswer');
-    
     if (_isShowingWrongAnswer && !_answered) {
       final wrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
       return Text(
@@ -1526,19 +1500,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
 
 
   Color _getCardBorderColor(FlashCard card) {
-    // Generate a consistent color based on the card's ID
-    final hash = card.id.hashCode;
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.indigo,
-      Colors.pink,
-    ];
-    return colors[hash.abs() % colors.length];
+    return CardColorUtils.getBorderColor(card);
   }
 
   void _showCloseConfirmation() {
@@ -1770,7 +1732,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         }
       });
     } catch (e) {
-      print('🔍 WordScrambleView: Error toggling review card: $e');
       _reviewStatusTimer?.cancel();
       setState(() {
         _reviewStatusMessage = 'Action failed';
@@ -1787,26 +1748,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     if (_answered) return;
     
     final currentHintCount = _hintCount[_currentIndex] ?? 0;
-    _totalAttempts++; // Hint usage counts as an attempt for accuracy calculation
+    _totalAttempts++; 
     final revealedPieces = _hintRevealed[_currentIndex] ?? [];
-    final remainingPieces = _scrambledLetters.length;
     
-    final correctWord = _correctWords[_currentIndex] ?? '';
     final correctPieces = _correctPieceOrder[_currentIndex] ?? [];
-    
-    print('🔍 WordScrambleView: Using hint for word: "$correctWord"');
-    print('🔍 WordScrambleView: Available pieces: $_scrambledLetters');
-    print('🔍 WordScrambleView: Already revealed: $revealedPieces');
-    print('🔍 WordScrambleView: Correct piece order: $correctPieces');
-    print('🔍 WordScrambleView: Current user answer: $_userAnswer');
-    print('🔍 WordScrambleView: Remaining pieces: $remainingPieces');
-    
-    // IMPROVED HINT LOGIC:
-    // When only 1 piece remains, place pieces in correct order sequentially
-    // 1. Find the first position where user's piece is wrong or missing
-    // 2. Find the correct piece for that position
-    // 3. If that piece is available, use it to replace/add the piece
-    // 4. If not available, swap pieces as needed to get the correct one in place
     
     String? hintPiece;
     int positionToFix = -1;
@@ -1817,30 +1762,20 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     for (int i = 0; i < _userAnswer.length && i < correctPieces.length; i++) {
       if (!lockedPositions.contains(i) && _userAnswer[i] != correctPieces[i]) {
         positionToFix = i;
-        print('🔍 WordScrambleView: Found wrong piece at position $i: user="${_userAnswer[i]}" vs correct="${correctPieces[i]}"');
         break;
       }
     }
     
-    // If no wrong positions found, find the next missing piece
     if (positionToFix == -1 && _userAnswer.length < correctPieces.length) {
       positionToFix = _userAnswer.length;
-      print('🔍 WordScrambleView: No wrong pieces found, need to add piece at position $positionToFix');
     }
     
     if (positionToFix >= 0 && positionToFix < correctPieces.length) {
       final correctPieceForPosition = correctPieces[positionToFix];
-      print('🔍 WordScrambleView: Looking for correct piece "$correctPieceForPosition" for position $positionToFix');
       
-      // Check if the correct piece is available in scrambled letters
       if (_scrambledLetters.contains(correctPieceForPosition)) {
         hintPiece = correctPieceForPosition;
-        print('🔍 WordScrambleView: Found correct piece "$hintPiece" in available pieces');
       } else {
-        print('🔍 WordScrambleView: Correct piece "$correctPieceForPosition" not available in: $_scrambledLetters');
-        
-        // If the correct piece is not available, check if it's already in user answer at wrong position
-        // If so, swap it to the correct position
         int wrongPosition = -1;
         for (int i = 0; i < _userAnswer.length; i++) {
           if (!lockedPositions.contains(i) && _userAnswer[i] == correctPieceForPosition) {
@@ -1850,16 +1785,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         }
         
         if (wrongPosition >= 0) {
-          // The correct piece is in the wrong position - we'll swap it
-          print('🔍 WordScrambleView: Correct piece "$correctPieceForPosition" is at wrong position $wrongPosition, will swap');
           hintPiece = correctPieceForPosition;
         } else {
-          // If the correct piece is not available and not in user answer, use any available piece
-          // This handles cases where pieces are already used incorrectly
           for (final piece in _scrambledLetters) {
             if (!revealedPieces.contains(piece)) {
               hintPiece = piece;
-              print('🔍 WordScrambleView: Using available piece "$piece" as hint (correct piece not available)');
               break;
             }
           }
@@ -1867,26 +1797,16 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       }
     }
     
-    if (hintPiece == null) {
-      print('🔍 WordScrambleView: No suitable hint piece found');
-    }
-    
     if (hintPiece != null) {
       setState(() {
-        // Increment hint count for this question
         _hintCount[_currentIndex] = currentHintCount + 1;
         
-        // Track this piece as revealed by hint
         if (_hintRevealed[_currentIndex] == null) {
           _hintRevealed[_currentIndex] = [];
         }
         _hintRevealed[_currentIndex]!.add(hintPiece!);
         
-        // Use the improved hint logic with positionToFix
-        print('🔍 WordScrambleView: Hint piece to place: "$hintPiece" at position $positionToFix');
-        
         if (positionToFix >= 0) {
-          // Check if the correct piece is already in user answer at wrong position
           int wrongPosition = -1;
           final lockedPositions = _lockedPositions[_currentIndex] ?? <int>{};
           for (int i = 0; i < _userAnswer.length; i++) {
@@ -1897,60 +1817,39 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
           }
           
           if (wrongPosition >= 0 && wrongPosition != positionToFix) {
-            // Swap pieces: move the correct piece from wrong position to correct position
-            // Simple swap: exchange the values at the two positions
             if (positionToFix < _userAnswer.length) {
-              // There's a piece at the correct position - swap them
               final pieceAtCorrectPosition = _userAnswer[positionToFix];
-              _userAnswer[positionToFix] = hintPiece!; // Put correct piece at correct position
-              _userAnswer[wrongPosition] = pieceAtCorrectPosition; // Put wrong piece at wrong position
-              print('🔍 WordScrambleView: Swapped piece "$hintPiece" from position $wrongPosition to position $positionToFix, moved "$pieceAtCorrectPosition" to position $wrongPosition');
+              _userAnswer[positionToFix] = hintPiece!;
+              _userAnswer[wrongPosition] = pieceAtCorrectPosition;
             } else {
-              // No piece at correct position yet - just move the correct piece there
               _userAnswer.removeAt(wrongPosition);
               _userAnswer.add(hintPiece!);
-              print('🔍 WordScrambleView: Moved piece "$hintPiece" from position $wrongPosition to end (position ${_userAnswer.length - 1})');
             }
           } else {
-            // Normal case: piece is in scrambled letters, add/replace it
-            // Remove the hint piece from available pieces
             _scrambledLetters.remove(hintPiece!);
             
             if (positionToFix < _userAnswer.length) {
-              // Replace an existing wrong piece
               final oldPiece = _userAnswer[positionToFix];
               _userAnswer[positionToFix] = hintPiece!;
               
-              // Add the old piece back to available pieces if it's not empty
               if (oldPiece.isNotEmpty) {
                 _scrambledLetters.add(oldPiece);
               }
-              
-              print('🔍 WordScrambleView: Replaced wrong piece at position $positionToFix: "$oldPiece" -> "$hintPiece"');
             } else {
-              // Add a new piece at the end
               _userAnswer.add(hintPiece!);
-              print('🔍 WordScrambleView: Added hint piece at end position ${_userAnswer.length - 1}: "$hintPiece"');
             }
           }
           
-          // Lock all positions from the start up to and including the hinted position
-          // This ensures that all correctly placed pieces (including user-placed ones) are locked
           if (_lockedPositions[_currentIndex] == null) {
             _lockedPositions[_currentIndex] = <int>{};
           }
           
-          // Lock all positions from 0 to the hinted position (inclusive)
           for (int i = 0; i <= positionToFix; i++) {
             _lockedPositions[_currentIndex]!.add(i);
           }
           
-          print('🔍 WordScrambleView: Locked all positions from 0 to $positionToFix: ${_lockedPositions[_currentIndex]}');
-          
-          // Auto-check answer if all pieces are used
           final nonEmptyPieces = _scrambledLetters.where((p) => p.isNotEmpty).length;
           if (nonEmptyPieces == 0) {
-            // Small delay to allow UI to update before checking
             Future.delayed(const Duration(milliseconds: 100), () {
               if (mounted) {
                 _checkAnswer();
@@ -1970,7 +1869,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
         }
       });
     } else {
-      print('🔍 WordScrambleView: No hint piece found!');
       _hintStatusTimer?.cancel();
       setState(() {
         _hintStatusMessage = 'No hint available';
@@ -1983,76 +1881,16 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     }
   }
 
-  void _awardXp() {
-    // Calculate total XP from actual word XP gained
-    final totalXPGained = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    
-    if (!widget.shuffleMode && totalXPGained > 0) {
-      final userProfileProvider = context.read<UserProfileProvider>();
-      userProfileProvider.addXp(totalXPGained);
-    }
-    
-    // Update session statistics
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
-    final isPerfect = _correctAnswers == _totalAttempts && _totalAttempts > 0;
-    
-    context.read<UserProfileProvider>().updateSessionStats(
-      cardsStudied: _totalAttempts,
-      sessionAccuracy: accuracy,
-      isPerfect: isPerfect,
-    );
-    
-    // Update streak based on study activity (Duolingo-style)
-    context.read<UserProfileProvider>().updateStreakFromStudyActivity();
-  }
-  
-  void _awardXPToWord(FlashCard card, bool isCorrect, [int wrongAttempts = 0]) {
-    _ensureCardTracked(card);
-    
-    print('🔍 WordScrambleView: Logging word "${card.word}" (isCorrect: $isCorrect, wrongAttempts: $wrongAttempts) - daily attempts: ${card.learningMastery.dailyAttemptsDebug}');
-    
-    if (isCorrect) {
-      final latestEntry = card.learningMastery.exerciseHistory.isNotEmpty
-          ? card.learningMastery.exerciseHistory.last
-          : null;
-      final actualXPGained = latestEntry != null
-          ? (latestEntry['xpGained'] as int? ?? 0)
-          : 0;
-      
-      final hintsUsed = _hintCount[_currentIndex] ?? 0;
-      final hintPenalty = hintsUsed > 0 ? (0.25 * hintsUsed).clamp(0.0, 0.9) : 0.0;
-      var finalXPGained = hintsUsed > 0
-          ? (actualXPGained * (1.0 - hintPenalty)).round().clamp(1, actualXPGained)
-          : actualXPGained;
-      
-      // Wrong attempts reduce XP by 1 each (up to 5 where it's already 0)
-      if (wrongAttempts > 0 && wrongAttempts < 5) {
-        finalXPGained = (finalXPGained - wrongAttempts).clamp(0, actualXPGained);
-      }
-      
-      if (latestEntry != null) {
-        card.learningMastery.currentXP += finalXPGained - actualXPGained;
-        latestEntry['xpGained'] = finalXPGained;
-      }
-      
-      _xpGainedPerWord[card.id] = finalXPGained;
-      
-      final hintText = hintsUsed > 0 ? " (with ${hintsUsed} hint(s), penalty applied)" : "";
-      print('🔍 WordScrambleView: Awarded $finalXPGained XP to word "${card.word}"$hintText');
-    } else {
-      _xpGainedPerWord[card.id] = 0;
-      print('🔍 WordScrambleView: 0 XP awarded to word "${card.word}" (Incorrect after $wrongAttempts attempts)');
-    }
-    
-    _wordMastery[card.id] = card.learningMastery;
+  Future<void> _awardXp() async {
+    await _sessionController.finalizeSession();
   }
   
   void _showWordProgress() {
     // Create copies of the current session data for the display
-    final sessionStudiedWords = List<FlashCard>.from(_studiedWords);
-    final sessionXpGainedPerWord = Map<String, int>.from(_xpGainedPerWord);
-    final sessionWordMastery = Map<String, LearningMastery>.from(_wordMastery);
-    final sessionInitialHPPerWord = Map<String, int>.from(_initialHPPerWord);
+    final sessionStudiedWords = List<FlashCard>.from(_sessionController.studiedWords);
+    final sessionXpGainedPerWord = Map<String, int>.from(_sessionController.xpGainedPerWord);
+    final sessionWordMastery = Map<String, LearningMastery>.from(_sessionController.wordMastery);
+    final sessionInitialHPPerWord = Map<String, int>.from(_sessionController.initialHPPerWord);
     
     GameEndScreen.show(
       context,
@@ -2078,7 +1916,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
             _userAnswer.clear();
             _originalLetters.clear();
             _isCardFlipped = false;
-            _gameSession.reset();
+            _sessionController = GameSessionController(
+              flashcardProvider: context.read<FlashcardProvider>(),
+              userProfileProvider: context.read<UserProfileProvider>(),
+            );
             if (_useLivesMode) {
               _lives = _maxLives;
             }
@@ -2087,11 +1928,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
             _correctWords.clear();
             _scrambledLettersMap.clear();
             _questionModes.clear();
-            _xpGainedPerWord.clear();
-            _wordMastery.clear();
-            _studiedWords.clear();
-            _initialHPPerWord.clear();
-            _hpPenaltyAppliedWordIds.clear();
             _hintCount.clear();
             _hintRevealed.clear();
             _reviewCards.clear();
@@ -2177,7 +2013,11 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       _userAnswer.clear();
       _originalLetters.clear();
       _isCardFlipped = false;
-      _gameSession.reset();
+      
+      _sessionController = GameSessionController(
+        flashcardProvider: context.read<FlashcardProvider>(),
+        userProfileProvider: context.read<UserProfileProvider>(),
+      );
       
       // Reset lives if using lives mode
       if (_useLivesMode) {
@@ -2190,11 +2030,6 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
       _correctWords.clear();
       _scrambledLettersMap.clear();
       _questionModes.clear();
-      
-      // Reset RPG tracking
-      _xpGainedPerWord.clear();
-      _wordMastery.clear();
-      _studiedWords.clear();
       
       // Reset hint tracking
       _hintCount.clear();
