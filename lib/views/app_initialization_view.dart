@@ -10,6 +10,7 @@ import '../services/sound_manager.dart';
 import '../services/supabase_service.dart';
 import '../services/data_sync_service.dart';
 import '../services/data_cleanup_service.dart';
+import '../utils/global_navigator.dart';
 import 'loading_view.dart';
 import 'main_navigation_view.dart';
 import 'onboarding_view.dart';
@@ -33,7 +34,7 @@ class _AppInitializationViewState extends State<AppInitializationView> {
   @override
   void initState() {
     super.initState();
-    
+
     _initializeProviders();
     _checkAuthStatus();
   }
@@ -41,22 +42,22 @@ class _AppInitializationViewState extends State<AppInitializationView> {
   Future<void> _initializeProviders() async {
     // Perform one-time cleanup of Exercises and Phrases if needed
     await DataCleanupService.performCleanupIfNeeded();
-    
+
     // Initialize theme provider
     final themeProvider = context.read<ThemeProvider>();
     await themeProvider.initialize();
-    
+
     // Initialize sound provider
     final soundProvider = context.read<SoundProvider>();
     await soundProvider.initialize();
-    
+
     // Initialize sound manager with the provider
     await SoundManager().initialize(soundProvider: soundProvider);
     SoundManager().setSoundProvider(soundProvider);
-    
+
     // Play begin sound when app loads (after sound is initialized)
     SoundManager().playBeginSound();
-    
+
     if (mounted) {
       setState(() {
         _themeInitialized = true;
@@ -64,18 +65,18 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       });
     }
   }
-  
+
   Future<void> _checkOnboardingStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final completed = prefs.getBool('onboarding_completed') ?? false;
-    
+
     if (mounted) {
       setState(() {
         _onboardingCompleted = completed;
       });
     }
   }
-  
+
   String _getLoadingText() {
     if (!_themeInitialized) {
       return 'Initializing theme...';
@@ -96,7 +97,7 @@ class _AppInitializationViewState extends State<AppInitializationView> {
           _isAuthenticated = isAuth;
           _authChecked = true;
         });
-        
+
         // If authenticated, ensure profile exists and sync data
         if (isAuth) {
           await SupabaseService.instance.ensureUserProfileExists();
@@ -118,17 +119,17 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       }
     }
   }
-  
+
   Future<void> _syncDataAndCheckOnboarding() async {
     try {
       print('🔄 Syncing data for authenticated user...');
-      
+
       // Check if this device has meaningful user data (not just system decks)
       final prefs = await SharedPreferences.getInstance();
       final decks = prefs.getStringList('decks') ?? [];
       final cards = prefs.getStringList('cards') ?? [];
       final userProfile = prefs.getString('user_profile');
-      
+
       // Check if decks are more than just system decks (Uncategorized, Review)
       bool hasCustomDecks = false;
       if (decks.isNotEmpty) {
@@ -136,7 +137,9 @@ class _AppInitializationViewState extends State<AppInitializationView> {
           try {
             final deckData = json.decode(deckJson);
             final deckName = deckData['name'] as String?;
-            if (deckName != null && deckName != 'Uncategorized' && deckName != 'Review') {
+            if (deckName != null &&
+                deckName != 'Uncategorized' &&
+                deckName != 'Review') {
               hasCustomDecks = true;
               break;
             }
@@ -147,9 +150,10 @@ class _AppInitializationViewState extends State<AppInitializationView> {
           }
         }
       }
-      
-      final hasUserData = hasCustomDecks || cards.isNotEmpty || userProfile != null;
-      
+
+      final hasUserData =
+          hasCustomDecks || cards.isNotEmpty || userProfile != null;
+
       print('🔄 Has user data: $hasUserData');
       print('🔄 Decks: ${prefs.getStringList('decks')?.length ?? 0}');
       print('🔄 Cards: ${prefs.getStringList('cards')?.length ?? 0}');
@@ -157,7 +161,7 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       print('🔄 Cards isNotEmpty: ${cards.isNotEmpty}');
       print('🔄 Has custom decks: $hasCustomDecks');
       print('🔄 User profile: ${prefs.getString('user_profile') != null}');
-      
+
       // When signing in, prioritize downloading from cloud to get user's existing data
       print('🔄 Downloading data from cloud...');
       if (mounted) {
@@ -165,28 +169,34 @@ class _AppInitializationViewState extends State<AppInitializationView> {
           // This will trigger a rebuild to show "Syncing your data..." message
         });
       }
-      await DataSyncService.downloadDataFromCloud();
-      
+      final downloadResult = await DataSyncService.downloadDataFromCloud();
+      if (downloadResult.isFailure) {
+        GlobalNavigator.showErrorSnackBar(downloadResult.message);
+      }
+
       // Then upload any local changes that might not be in cloud yet
       if (hasUserData) {
         print('🔄 Uploading local data to cloud...');
-        await DataSyncService.syncAllData();
+        final uploadResult = await DataSyncService.syncAllData();
+        if (uploadResult.isFailure) {
+          GlobalNavigator.showErrorSnackBar(uploadResult.message);
+        }
       }
-      
+
       // Refresh providers after data sync to ensure UI shows latest data
       print('🔄 Refreshing providers after data sync...');
       if (mounted) {
         // Notify all providers to refresh their data
         final flashcardProvider = context.read<FlashcardProvider>();
         await flashcardProvider.initialize();
-        
+
         final userProfileProvider = context.read<UserProfileProvider>();
         await userProfileProvider.initialize();
       }
-      
+
       // Now check onboarding status (after data sync)
       await _checkOnboardingStatus();
-      
+
       if (mounted) {
         setState(() {
           _dataSynced = true;
@@ -216,13 +226,16 @@ class _AppInitializationViewState extends State<AppInitializationView> {
     //     },
     //   );
     // }
-    
+
     // Once theme is initialized and user is authenticated, show the loading view with syncing info
     return LoadingView(
       minimumDisplayTime: const Duration(milliseconds: 1500),
       isReadyCheck: () async {
         // Wait for theme, sound, auth, and data sync to complete
-        while (!_themeInitialized || !_soundInitialized || !_authChecked || (_isAuthenticated && !_dataSynced)) {
+        while (!_themeInitialized ||
+            !_soundInitialized ||
+            !_authChecked ||
+            (_isAuthenticated && !_dataSynced)) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
         return true;

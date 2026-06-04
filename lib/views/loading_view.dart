@@ -48,19 +48,19 @@ class _LoadingViewState extends State<LoadingView> {
   void _startLoadingSequence() async {
     // Check if user is authenticated and sync data if needed
     final isAuthenticated = SupabaseService.instance.isAuthenticated;
-    
+
     if (isAuthenticated) {
       await _syncData();
     } else {
       // If not authenticated, proceed with normal loading sequence
       _proceedWithNormalLoading();
     }
-    
+
     // Wait for the isReadyCheck to complete
     if (widget.isReadyCheck != null) {
       await widget.isReadyCheck!();
     }
-    
+
     // Transition to main content after minimum time
     Future.delayed(widget.minimumDisplayTime, () {
       if (mounted) {
@@ -73,33 +73,51 @@ class _LoadingViewState extends State<LoadingView> {
 
   Future<void> _syncData() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isSyncing = true;
       _loadingText = "Syncing your data...";
       _syncProgress = 0.0;
     });
 
+    final syncFailures = <SyncResult>[];
+
     try {
-      // Simulate progress updates during sync
       _updateSyncProgress(0.2, "Downloading your data...");
       await Future.delayed(const Duration(milliseconds: 300));
-      
+
       _updateSyncProgress(0.4, "Syncing flashcards...");
-      await DataSyncService.syncFlashcards();
+      final flashcardResult = await DataSyncService.syncFlashcards();
+      if (flashcardResult.isFailure) {
+        syncFailures.add(flashcardResult);
+      }
       await Future.delayed(const Duration(milliseconds: 200));
-      
+
       _updateSyncProgress(0.6, "Syncing decks...");
-      await DataSyncService.syncDecks();
+      final deckResult = await DataSyncService.syncDecks();
+      if (deckResult.isFailure) {
+        syncFailures.add(deckResult);
+      }
       await Future.delayed(const Duration(milliseconds: 200));
-      
+
       _updateSyncProgress(0.8, "Syncing user profile...");
-      await DataSyncService.syncUserProfile();
+      final profileResult = await DataSyncService.syncUserProfile();
+      if (profileResult.isFailure) {
+        syncFailures.add(profileResult);
+      }
       await Future.delayed(const Duration(milliseconds: 200));
-      
-      _updateSyncProgress(1.0, "Sync complete!");
+
+      if (syncFailures.isEmpty) {
+        _updateSyncProgress(1.0, "Sync complete!");
+      } else {
+        _updateSyncProgress(1.0, "Sync finished with issues");
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(syncFailures.first.message)));
+        }
+      }
       await Future.delayed(const Duration(milliseconds: 500));
-      
     } catch (e) {
       print('Error during data sync: $e');
       if (mounted) {
@@ -115,10 +133,10 @@ class _LoadingViewState extends State<LoadingView> {
         _isSyncing = false;
         _loadingText = "Almost ready...";
       });
-      
+
       // Wait a bit more before showing content
       await Future.delayed(const Duration(milliseconds: 800));
-      
+
       if (mounted) {
         setState(() {
           _showContent = true;
@@ -164,7 +182,7 @@ class _LoadingViewState extends State<LoadingView> {
     // Get theme from ThemeProvider and system brightness
     final themeProvider = context.watch<ThemeProvider>();
     final systemBrightness = MediaQuery.of(context).platformBrightness;
-    
+
     bool isDark;
     switch (themeProvider.themeMode) {
       case ThemeMode.dark:
@@ -178,10 +196,14 @@ class _LoadingViewState extends State<LoadingView> {
         isDark = systemBrightness == Brightness.dark;
         break;
     }
-    
-    final splashImage = isDark ? 'taal-trek-splash-dark.png' : 'taal-trek-splash.png';
-    print('🔍 LoadingView: Using splash image: $splashImage (isDark: $isDark, themeMode: ${themeProvider.themeMode}, systemBrightness: $systemBrightness)');
-    
+
+    final splashImage = isDark
+        ? 'taal-trek-splash-dark.png'
+        : 'taal-trek-splash.png';
+    print(
+      '🔍 LoadingView: Using splash image: $splashImage (isDark: $isDark, themeMode: ${themeProvider.themeMode}, systemBrightness: $systemBrightness)',
+    );
+
     return Material(
       child: Container(
         width: double.infinity,
@@ -198,7 +220,7 @@ class _LoadingViewState extends State<LoadingView> {
                 height: double.infinity,
               ),
             ),
-            
+
             // Loading indicator overlay at bottom
             Positioned(
               bottom: 60,
@@ -214,7 +236,8 @@ class _LoadingViewState extends State<LoadingView> {
                       height: 4,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(2),
-                        color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.2),
+                        color: (isDark ? Colors.white : Colors.black)
+                            .withValues(alpha: 0.2),
                       ),
                       child: FractionallySizedBox(
                         alignment: Alignment.centerLeft,
@@ -222,7 +245,9 @@ class _LoadingViewState extends State<LoadingView> {
                         child: Container(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(2),
-                            color: isDark ? Colors.white : const Color(0xFF007AFF),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF007AFF),
                           ),
                         ),
                       ),
@@ -243,9 +268,9 @@ class _LoadingViewState extends State<LoadingView> {
                       ),
                     ),
                   ],
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Loading text
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
@@ -258,7 +283,7 @@ class _LoadingViewState extends State<LoadingView> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
+
                   // Timeout message if stuck loading
                   if (_showTimeoutMessage) ...[
                     const SizedBox(height: 24),
@@ -269,10 +294,12 @@ class _LoadingViewState extends State<LoadingView> {
                         duration: const Duration(milliseconds: 500),
                         child: Text(
                           'If stuck loading, try re-opening the app in airplane mode.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: (isDark ? Colors.white : Colors.black)
+                                    .withValues(alpha: 0.7),
+                                fontSize: 12,
+                              ),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -286,4 +313,4 @@ class _LoadingViewState extends State<LoadingView> {
       ),
     );
   }
-} 
+}

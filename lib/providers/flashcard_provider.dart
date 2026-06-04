@@ -7,28 +7,29 @@ import '../services/flashcard_service.dart';
 import '../services/unified_import_service.dart';
 import '../services/data_sync_service.dart';
 import '../services/supabase_service.dart';
+import '../utils/global_navigator.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final FlashcardService _service = FlashcardService();
-  
+
   List<Deck> _decks = [];
   List<FlashCard> _cards = [];
   Map<String, dynamic> _settings = {};
   bool _isLoading = false;
   String? _error;
-  
+
   // Performance optimization: Debounce notifyListeners to reduce rebuilds
   Timer? _notifyDebounceTimer;
   static const Duration _notifyDebounceDelay = Duration(milliseconds: 100);
   bool _hasPendingNotify = false;
-  
+
   // Getters
   List<Deck> get decks => _decks;
   List<FlashCard> get cards => _cards;
   Map<String, dynamic> get settings => _settings;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  
+
   // Initialize the provider
   Future<void> initialize() async {
     _setLoading(true);
@@ -44,7 +45,7 @@ class FlashcardProvider extends ChangeNotifier {
       _setLoading(false);
     }
   }
-  
+
   // Optimized notifyListeners with debouncing
   @override
   void notifyListeners() {
@@ -57,36 +58,54 @@ class FlashcardProvider extends ChangeNotifier {
       }
     });
   }
-  
+
   // Immediate notify for critical updates (like loading states)
   void notifyListenersImmediate() {
     _notifyDebounceTimer?.cancel();
     _hasPendingNotify = false;
     super.notifyListeners();
   }
-  
+
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListenersImmediate(); // Loading states need immediate feedback
   }
-  
+
   void _setError(String? error) {
     _error = error;
     notifyListenersImmediate(); // Errors need immediate feedback
   }
-  
+
+  void _handleSyncResult(SyncResult result) {
+    if (!result.isFailure) return;
+
+    _error = result.message;
+    GlobalNavigator.showWarningSnackBar(result.message);
+    notifyListenersImmediate();
+  }
+
   @override
   void dispose() {
     _notifyDebounceTimer?.cancel();
     super.dispose();
   }
-  
+
   // MARK: - Deck Management
-  
-  Future<Deck?> createDeck(String name, {String? parentId, bool isPublic = false, int? colorValue}) async {
+
+  Future<Deck?> createDeck(
+    String name, {
+    String? parentId,
+    bool isPublic = false,
+    int? colorValue,
+  }) async {
     print('Creating deck: $name');
     try {
-      final deck = await _service.createDeck(name, parentId: parentId, isPublic: isPublic, colorValue: colorValue);
+      final deck = await _service.createDeck(
+        name,
+        parentId: parentId,
+        isPublic: isPublic,
+        colorValue: colorValue,
+      );
       print('Deck created successfully: ${deck.name} (${deck.id})');
       // Refresh the decks list from the service instead of trying to modify the unmodifiable list
       _decks = _service.decks;
@@ -98,7 +117,7 @@ class FlashcardProvider extends ChangeNotifier {
       return null;
     }
   }
-  
+
   Future<bool> updateDeck(Deck deck) async {
     try {
       await _service.updateDeck(deck);
@@ -111,21 +130,28 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   Future<bool> deleteDeck(String deckId) async {
     try {
       await _service.deleteDeck(deckId);
-      
+
       // Force immediate sync to cloud for deck deletion
       if (SupabaseService.instance.isAuthenticated) {
         try {
-          await DataSyncService.syncAllData();
-          print('✅ Deck deletion synced to cloud immediately');
+          final syncResult = await DataSyncService.syncAllData();
+          if (syncResult.isFailure) {
+            _handleSyncResult(syncResult);
+          } else {
+            print('✅ Deck deletion synced to cloud immediately');
+          }
         } catch (e) {
           print('⚠️ Failed to sync deck deletion to cloud: $e');
+          GlobalNavigator.showWarningSnackBar(
+            'Cloud sync failed after deleting the deck.',
+          );
         }
       }
-      
+
       // Refresh both lists from the service
       _decks = _service.decks;
       _cards = _service.cards;
@@ -136,35 +162,35 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   Deck? getDeck(String deckId) {
     return _service.getDeck(deckId);
   }
-  
+
   List<Deck> getRootDecks() {
     return _service.getRootDecks();
   }
-  
+
   List<Deck> getSubDecks(String parentDeckId) {
     return _service.getSubDecks(parentDeckId);
   }
-  
+
   List<Deck> getAllDecksHierarchical() {
     // Returns all decks organized hierarchically (parents first, then their children)
     List<Deck> result = [];
     final topLevel = getRootDecks();
-    
+
     for (final deck in topLevel) {
       result.add(deck);
       final subDecks = getSubDecks(deck.id);
       result.addAll(subDecks);
     }
-    
+
     return result;
   }
-  
+
   // MARK: - Card Management
-  
+
   Future<FlashCard?> createCard({
     required String word,
     String? definition,
@@ -191,14 +217,16 @@ class FlashcardProvider extends ChangeNotifier {
         pastTense: pastTense ?? '',
         perfectTense: perfectTense ?? '',
       );
-      
+
       // Refresh the cards list from the service
       _cards = _service.cards;
-      print('Provider: Card created and refreshed. Total cards: ${_cards.length}');
-      
+      print(
+        'Provider: Card created and refreshed. Total cards: ${_cards.length}',
+      );
+
       // Note: Legacy pre-generated exercises have been removed in favor of dynamic card games
       // Cards now power "Sentence your cards", "Test your cards", etc. without requiring separate exercise objects
-      
+
       notifyListeners();
       return card;
     } catch (e) {
@@ -207,17 +235,16 @@ class FlashcardProvider extends ChangeNotifier {
       return null;
     }
   }
-  
-  
+
   Future<bool> updateCard(FlashCard card) async {
     try {
       await _service.updateCard(card);
       // Refresh the cards list from the service
       _cards = _service.cards;
-      
+
       // Note: Legacy pre-generated exercises have been removed in favor of dynamic card games
       // Cards now power "Sentence your cards", "Test your cards", etc. without requiring separate exercise objects
-      
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -225,22 +252,29 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   Future<bool> deleteCard(String cardId) async {
     print('Provider: Deleting card: $cardId');
     try {
       await _service.deleteCard(cardId);
-      
+
       // Force immediate sync to cloud for card deletion
       if (SupabaseService.instance.isAuthenticated) {
         try {
-          await DataSyncService.syncAllData();
-          print('✅ Card deletion synced to cloud immediately');
+          final syncResult = await DataSyncService.syncAllData();
+          if (syncResult.isFailure) {
+            _handleSyncResult(syncResult);
+          } else {
+            print('✅ Card deletion synced to cloud immediately');
+          }
         } catch (e) {
           print('⚠️ Failed to sync card deletion to cloud: $e');
+          GlobalNavigator.showWarningSnackBar(
+            'Cloud sync failed after deleting the card.',
+          );
         }
       }
-      
+
       // Refresh the cards list from the service
       _cards = _service.cards;
       print('Provider: Cards after deletion: ${_cards.length}');
@@ -253,48 +287,48 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   FlashCard? getCard(String cardId) {
     return _service.getCard(cardId);
   }
-  
+
   List<FlashCard> getCardsForDeck(String deckId) {
     return _service.getCardsForDeck(deckId);
   }
-  
+
   List<FlashCard> getCardsForDeckWithSubDecks(String deckId) {
     return _service.getCardsForDeckWithSubDecks(deckId);
   }
-  
+
   List<FlashCard> getCardsForDecks(List<String> deckIds) {
     return _service.getCardsForDecks(deckIds);
   }
-  
+
   // MARK: - Study Session Management
-  
+
   List<FlashCard> getDueCardsForDeck(String deckId) {
     return _service.getDueCardsForDeck(deckId);
   }
-  
+
   List<FlashCard> getNewCardsForDeck(String deckId, {int limit = 20}) {
     return _service.getNewCardsForDeck(deckId, limit: limit);
   }
-  
+
   List<FlashCard> getLearningCardsForDeck(String deckId) {
     return _service.getLearningCardsForDeck(deckId);
   }
-  
+
   List<FlashCard> getReviewCardsForDeck(String deckId) {
     return _service.getReviewCardsForDeck(deckId);
   }
-  
+
   // MARK: - Card Progress Updates
-  
+
   Future<bool> markCardCorrect(FlashCard card) async {
     try {
       card.markCorrect(GameDifficulty.medium);
       await _service.updateCard(card);
-      
+
       // Update the card in our local list
       final index = _cards.indexWhere((c) => c.id == card.id);
       if (index != -1) {
@@ -307,12 +341,12 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   Future<bool> markCardIncorrect(FlashCard card) async {
     try {
       card.markIncorrect(GameDifficulty.medium);
       await _service.updateCard(card);
-      
+
       // Update the card in our local list
       final index = _cards.indexWhere((c) => c.id == card.id);
       if (index != -1) {
@@ -325,9 +359,9 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   // MARK: - Review Deck Management
-  
+
   Future<bool> addCardToReview(FlashCard card) async {
     try {
       await _service.addCardToReview(card);
@@ -343,7 +377,7 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   Future<bool> removeCardFromReview(FlashCard card) async {
     try {
       await _service.removeCardFromReview(card);
@@ -359,32 +393,30 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
 
-  
   // MARK: - Statistics
-  
+
   Map<String, dynamic> getDeckStatistics(String deckId) {
     return _service.getDeckStatistics(deckId);
   }
-  
+
   Map<String, dynamic> getOverallStatistics() {
     int totalCards = _cards.length;
     int newCards = _cards.where((card) => card.isNew).length;
     int learningCards = _cards.where((card) => card.isLearning).length;
     int reviewCards = _cards.where((card) => card.isReviewing).length;
     int learnedCards = _cards.where((card) => card.isFullyLearned).length;
-    
+
     int totalShown = 0;
     int totalCorrect = 0;
-    
+
     for (final card in _cards) {
       totalShown += card.timesShown;
       totalCorrect += card.timesCorrect;
     }
-    
+
     double accuracy = totalShown > 0 ? (totalCorrect / totalShown) * 100 : 0.0;
-    
+
     return {
       'totalCards': totalCards,
       'newCards': newCards,
@@ -397,9 +429,9 @@ class FlashcardProvider extends ChangeNotifier {
       'totalDecks': _decks.length,
     };
   }
-  
+
   // MARK: - Settings Management
-  
+
   Future<bool> updateSetting(String key, dynamic value) async {
     try {
       await _service.updateSetting(key, value);
@@ -411,23 +443,23 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   T? getSetting<T>(String key, {T? defaultValue}) {
     return _service.getSetting<T>(key, defaultValue: defaultValue);
   }
-  
+
   // MARK: - Search and Filter
-  
+
   List<FlashCard> searchCards(String query) {
     return _service.searchCards(query);
   }
-  
+
   List<Deck> searchDecks(String query) {
     return _service.searchDecks(query);
   }
-  
+
   // MARK: - Data Import/Export
-  
+
   Future<Map<String, dynamic>?> exportData() async {
     try {
       return await _service.exportData();
@@ -436,7 +468,7 @@ class FlashcardProvider extends ChangeNotifier {
       return null;
     }
   }
-  
+
   Future<bool> importData(Map<String, dynamic> data) async {
     try {
       await _service.importData(data);
@@ -450,42 +482,50 @@ class FlashcardProvider extends ChangeNotifier {
       return false;
     }
   }
-  
+
   // MARK: - CSV Export/Import
-  
+
   String exportUnifiedCSV(Set<String> deckIds) {
     final headers = [
-      'Word', 'Definition', 'Example', 'Article', 'Plural', 
-      'Present Tense', 'Past Tense', 'Perfect Tense', 'Decks', 
-      'Times Shown', 'Times Correct'
+      'Word',
+      'Definition',
+      'Example',
+      'Article',
+      'Plural',
+      'Present Tense',
+      'Past Tense',
+      'Perfect Tense',
+      'Decks',
+      'Times Shown',
+      'Times Correct',
     ];
-    
+
     var csvContent = headers.join(',') + '\n';
-    
+
     // Collect all cards from selected decks (including hierarchy)
     final allCards = <FlashCard>{};
-    
+
     for (final deckId in deckIds) {
       final deck = _decks.where((d) => d.id == deckId).firstOrNull;
       if (deck != null) {
         // Get cards from the main deck
         final deckCards = getCardsForDeck(deck.id);
         allCards.addAll(deckCards);
-        
+
         // Get cards from all sub-decks recursively
         final subDeckCards = _getAllCardsFromSubDecks(deck.id);
         allCards.addAll(subDeckCards);
       }
     }
-    
+
     // Convert to sorted list for consistent output
     final sortedCards = allCards.toList()
       ..sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
-    
+
     for (final card in sortedCards) {
       final deckPaths = _getDeckPathsForCard(card);
       final deckPathsString = deckPaths.join('; ');
-      
+
       final row = [
         _escapeCSVField(card.word),
         _escapeCSVField(card.definition),
@@ -499,10 +539,10 @@ class FlashcardProvider extends ChangeNotifier {
         card.timesShown.toString(),
         card.timesCorrect.toString(),
       ];
-      
+
       csvContent += row.join(',') + '\n';
     }
-    
+
     return csvContent;
   }
 
@@ -510,24 +550,24 @@ class FlashcardProvider extends ChangeNotifier {
   List<FlashCard> _getAllCardsFromSubDecks(String parentDeckId) {
     final allCards = <FlashCard>[];
     final subDecks = getSubDecks(parentDeckId);
-    
+
     for (final subDeck in subDecks) {
       // Get cards from this sub-deck
       final subDeckCards = getCardsForDeck(subDeck.id);
       allCards.addAll(subDeckCards);
-      
+
       // Recursively get cards from sub-sub-decks
       final subSubDeckCards = _getAllCardsFromSubDecks(subDeck.id);
       allCards.addAll(subSubDeckCards);
     }
-    
+
     return allCards;
   }
 
   // Helper method to get hierarchical deck paths for a card
   List<String> _getDeckPathsForCard(FlashCard card) {
     final deckPaths = <String>[];
-    
+
     for (final deckId in card.deckIds) {
       final deck = _decks.where((d) => d.id == deckId).firstOrNull;
       if (deck != null) {
@@ -538,7 +578,7 @@ class FlashcardProvider extends ChangeNotifier {
         deckPaths.add('Unknown Deck ($deckId)');
       }
     }
-    
+
     return deckPaths;
   }
 
@@ -546,10 +586,12 @@ class FlashcardProvider extends ChangeNotifier {
   String _buildDeckPath(Deck deck) {
     final path = <String>[deck.name];
     Deck? currentDeck = deck;
-    
+
     // Walk up the hierarchy to build the full path
     while (currentDeck?.parentId != null) {
-      final parentDeck = _decks.where((d) => d.id == currentDeck!.parentId).firstOrNull;
+      final parentDeck = _decks
+          .where((d) => d.id == currentDeck!.parentId)
+          .firstOrNull;
       if (parentDeck != null) {
         currentDeck = parentDeck;
         path.insert(0, currentDeck.name);
@@ -558,31 +600,32 @@ class FlashcardProvider extends ChangeNotifier {
         break;
       }
     }
-    
+
     return path.join(' > ');
   }
-  
+
   Future<Map<String, dynamic>> importFromCSV(String csvContent) async {
     print('Starting CSV import...');
-    final lines = csvContent.split('\n')
+    final lines = csvContent
+        .split('\n')
         .where((line) => line.trim().isNotEmpty)
         .toList();
     print('CSV has ${lines.length} non-empty lines');
-    
+
     if (lines.length < 2) {
       return {
         'success': 0,
-        'errors': ['CSV file appears to be empty or invalid']
+        'errors': ['CSV file appears to be empty or invalid'],
       };
     }
-    
+
     var successCount = 0;
     final errors = <String>[];
-    
+
     // Pre-process to collect all unique deck names and their hierarchy
     final allDeckPaths = <String>{};
     final deckPathToHierarchy = <String, List<String>>{};
-    
+
     for (int i = 1; i < lines.length; i++) {
       final line = lines[i];
       final fields = _parseCSVLine(line);
@@ -593,13 +636,21 @@ class FlashcardProvider extends ChangeNotifier {
           List<String> deckNameList;
           if (deckNames.contains(' > ')) {
             // Hierarchical format: "Chapter 2 > 2.5"
-            deckNameList = deckNames.split(' > ').map((name) => name.trim()).toList();
+            deckNameList = deckNames
+                .split(' > ')
+                .map((name) => name.trim())
+                .toList();
           } else {
             // Semicolon-separated format: "Deck1; Deck2"
-            deckNameList = deckNames.split(';').map((name) => name.trim()).toList();
+            deckNameList = deckNames
+                .split(';')
+                .map((name) => name.trim())
+                .toList();
           }
-          final validDeckNames = deckNameList.where((String name) => name.isNotEmpty).toList();
-          
+          final validDeckNames = deckNameList
+              .where((String name) => name.isNotEmpty)
+              .toList();
+
           if (validDeckNames.isNotEmpty) {
             // Create a path representation for hierarchy
             final deckPath = validDeckNames.join(' > ');
@@ -609,39 +660,43 @@ class FlashcardProvider extends ChangeNotifier {
         }
       }
     }
-    
+
     print('Found deck paths: $allDeckPaths');
-    
+
     // Create hierarchical deck structure
     final deckNameToId = <String, String>{};
     for (final deckPath in allDeckPaths) {
       final hierarchy = deckPathToHierarchy[deckPath]!;
       String? parentId;
-      
+
       for (int i = 0; i < hierarchy.length; i++) {
         final deckName = hierarchy[i];
         final isSubDeck = i > 0;
-        
+
         try {
           // Check if deck exists at this level
           Deck? existingDeck;
           if (isSubDeck && parentId != null) {
             // Look for existing sub-deck under the parent
-            existingDeck = _decks.firstWhere((d) => 
-              d.name == deckName && d.parentId == parentId);
+            existingDeck = _decks.firstWhere(
+              (d) => d.name == deckName && d.parentId == parentId,
+            );
           } else if (!isSubDeck) {
             // Look for existing root deck
-            existingDeck = _decks.firstWhere((d) => 
-              d.name == deckName && d.parentId == null);
+            existingDeck = _decks.firstWhere(
+              (d) => d.name == deckName && d.parentId == null,
+            );
           }
-          
+
           if (existingDeck != null) {
             deckNameToId[deckName] = existingDeck.id;
             parentId = existingDeck.id;
             print('Found existing deck: $deckName (${existingDeck.id})');
           } else {
             // Create new deck
-            print('Creating new deck: $deckName${isSubDeck ? ' (sub-deck)' : ''}');
+            print(
+              'Creating new deck: $deckName${isSubDeck ? ' (sub-deck)' : ''}',
+            );
             final newDeck = await createDeck(deckName, parentId: parentId);
             if (newDeck != null) {
               deckNameToId[deckName] = newDeck.id;
@@ -657,7 +712,9 @@ class FlashcardProvider extends ChangeNotifier {
           }
         } catch (e) {
           // Deck doesn't exist, create it
-          print('Creating new deck: $deckName${isSubDeck ? ' (sub-deck)' : ''}');
+          print(
+            'Creating new deck: $deckName${isSubDeck ? ' (sub-deck)' : ''}',
+          );
           final newDeck = await createDeck(deckName, parentId: parentId);
           if (newDeck != null) {
             deckNameToId[deckName] = newDeck.id;
@@ -673,10 +730,12 @@ class FlashcardProvider extends ChangeNotifier {
         }
       }
     }
-    
+
     print('Final deckNameToId map: $deckNameToId');
-    print('Current decks in provider: ${_decks.map((d) => '${d.name} (${d.id})').toList()}');
-    
+    print(
+      'Current decks in provider: ${_decks.map((d) => '${d.name} (${d.id})').toList()}',
+    );
+
     // Ensure Uncategorized deck exists
     Deck? uncategorizedDeck;
     try {
@@ -689,33 +748,32 @@ class FlashcardProvider extends ChangeNotifier {
       if (uncategorizedDeck == null) {
         print('ERROR: Failed to create Uncategorized deck');
         errors.add('Failed to create Uncategorized deck. Please try again.');
-        return {
-          'success': 0,
-          'errors': errors,
-        };
+        return {'success': 0, 'errors': errors};
       } else {
-        print('Successfully created Uncategorized deck: ${uncategorizedDeck.name}');
+        print(
+          'Successfully created Uncategorized deck: ${uncategorizedDeck.name}',
+        );
       }
     }
-    
+
     // Skip header row
     for (int i = 1; i < lines.length; i++) {
       final line = lines[i];
       final lineNumber = i + 1; // 1-based indexing
-      
+
       try {
         print('Processing line $lineNumber: $line');
         final fields = _parseCSVLine(line);
         print('Parsed fields: $fields');
-        
+
         // Validate minimum required fields
-        if (fields.length < 3 || 
-            fields[1].trim().isEmpty || 
+        if (fields.length < 3 ||
+            fields[1].trim().isEmpty ||
             fields[2].trim().isEmpty) {
           errors.add('Line $lineNumber: Missing required word or definition');
           continue;
         }
-        
+
         final word = fields[1].trim(); // Word is in second column
         final definition = fields[2].trim(); // Definition is in third column
         final example = fields.length > 3 ? fields[3].trim() : '';
@@ -724,11 +782,11 @@ class FlashcardProvider extends ChangeNotifier {
         final presentTense = fields.length > 6 ? fields[6].trim() : '';
         final pastTense = fields.length > 7 ? fields[7].trim() : '';
         final perfectTense = fields.length > 8 ? fields[8].trim() : '';
-        
+
         // Handle deck assignment using pre-created decks
         final deckNames = fields[0].trim(); // Deck info is in first column
         final deckIds = <String>{};
-        
+
         if (deckNames.isNotEmpty) {
           // Handle both semicolon-separated and hierarchical formats
           List<String> deckNameList;
@@ -737,15 +795,21 @@ class FlashcardProvider extends ChangeNotifier {
             deckNameList = [deckNames];
           } else {
             // Semicolon-separated format: "Deck1; Deck2"
-            deckNameList = deckNames.split(';').map((name) => name.trim()).toList();
+            deckNameList = deckNames
+                .split(';')
+                .map((name) => name.trim())
+                .toList();
           }
           print('Deck names from CSV: $deckNameList');
-          
+
           for (final deckPath in deckNameList) {
             if (deckPath.isNotEmpty) {
               // Handle hierarchical deck paths (e.g., "Parent > Child > Grandchild")
-              final hierarchy = deckPath.split('>').map((name) => name.trim()).toList();
-              
+              final hierarchy = deckPath
+                  .split('>')
+                  .map((name) => name.trim())
+                  .toList();
+
               if (hierarchy.length == 1) {
                 // Simple deck name (no hierarchy)
                 final deckName = hierarchy[0];
@@ -755,36 +819,48 @@ class FlashcardProvider extends ChangeNotifier {
                   deckIds.add(deckId);
                   print('Added deck ID $deckId for deck "$deckName"');
                 } else {
-                  print('ERROR: Deck "$deckName" not found in deckNameToId map');
-                  errors.add('Line $lineNumber: Deck "$deckName" not found or could not be created');
+                  print(
+                    'ERROR: Deck "$deckName" not found in deckNameToId map',
+                  );
+                  errors.add(
+                    'Line $lineNumber: Deck "$deckName" not found or could not be created',
+                  );
                 }
               } else {
                 // Hierarchical deck path - find the leaf deck (last in hierarchy)
                 final leafDeckName = hierarchy.last;
                 final deckId = deckNameToId[leafDeckName];
-                print('Looking for hierarchical deck "$deckPath" (leaf: "$leafDeckName"), found ID: $deckId');
+                print(
+                  'Looking for hierarchical deck "$deckPath" (leaf: "$leafDeckName"), found ID: $deckId',
+                );
                 if (deckId != null) {
                   deckIds.add(deckId);
-                  print('Added deck ID $deckId for hierarchical deck "$deckPath"');
+                  print(
+                    'Added deck ID $deckId for hierarchical deck "$deckPath"',
+                  );
                 } else {
-                  print('ERROR: Hierarchical deck "$deckPath" not found in deckNameToId map');
-                  errors.add('Line $lineNumber: Hierarchical deck "$deckPath" not found or could not be created');
+                  print(
+                    'ERROR: Hierarchical deck "$deckPath" not found in deckNameToId map',
+                  );
+                  errors.add(
+                    'Line $lineNumber: Hierarchical deck "$deckPath" not found or could not be created',
+                  );
                 }
               }
             }
           }
         }
-        
+
         // If no decks specified, add to Uncategorized
         if (deckIds.isEmpty && uncategorizedDeck != null) {
           deckIds.add(uncategorizedDeck.id);
         }
-        
+
         // Handle statistics
         int cardSuccessCount = 0;
         int timesShown = 0;
         int timesCorrect = 0;
-        
+
         if (fields.length > 9) {
           cardSuccessCount = int.tryParse(fields[9].trim()) ?? 0;
         }
@@ -794,13 +870,15 @@ class FlashcardProvider extends ChangeNotifier {
         if (fields.length > 11) {
           timesCorrect = int.tryParse(fields[11].trim()) ?? 0;
         }
-        
+
         // Validate statistics to prevent invalid learning percentages
         if (timesCorrect > timesShown) {
-          print('Warning: timesCorrect ($timesCorrect) > timesShown ($timesShown), clamping to valid values');
+          print(
+            'Warning: timesCorrect ($timesCorrect) > timesShown ($timesShown), clamping to valid values',
+          );
           timesCorrect = timesShown; // Clamp to prevent percentages over 100%
         }
-        
+
         print('Creating card with deckIds: $deckIds');
         // Create the card
         final newCard = await createCard(
@@ -814,16 +892,16 @@ class FlashcardProvider extends ChangeNotifier {
           pastTense: pastTense,
           perfectTense: perfectTense,
         );
-        
+
         if (newCard != null) {
           // Update statistics if provided
           newCard.successCount = cardSuccessCount;
           // Note: timesShown and timesCorrect are now computed from learningMastery
           // The legacy setters are no longer available
-          
+
           // Update the card in the service
           await _service.updateCard(newCard);
-          
+
           successCount++;
           print('Successfully created card: ${newCard.word}');
         } else {
@@ -834,32 +912,29 @@ class FlashcardProvider extends ChangeNotifier {
         errors.add('Line $lineNumber: ${e.toString()}');
       }
     }
-    
+
     // Refresh data after import
     await refresh();
-    
-    return {
-      'success': successCount,
-      'errors': errors,
-    };
+
+    return {'success': successCount, 'errors': errors};
   }
-  
+
   String _escapeCSVField(String field) {
     if (field.contains(',') || field.contains('"') || field.contains('\n')) {
       return '"${field.replaceAll('"', '""')}"';
     }
     return field;
   }
-  
+
   List<String> _parseCSVLine(String line) {
     print('Parsing CSV line: "$line"');
     final fields = <String>[];
     var currentField = '';
     var inQuotes = false;
-    
+
     for (int i = 0; i < line.length; i++) {
       final char = line[i];
-      
+
       if (char == '"') {
         if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
           // Escaped quote
@@ -877,14 +952,14 @@ class FlashcardProvider extends ChangeNotifier {
         currentField += char;
       }
     }
-    
+
     // Add the last field
     fields.add(currentField);
-    
+
     print('Parsed fields: $fields');
     return fields;
   }
-  
+
   List<String> getDeckNamesForCard(FlashCard card) {
     return card.deckIds.map((deckId) {
       try {
@@ -894,9 +969,9 @@ class FlashcardProvider extends ChangeNotifier {
       }
     }).toList();
   }
-  
+
   // MARK: - Data Persistence
-  
+
   Future<void> saveData() async {
     try {
       await _service.saveData();
@@ -907,14 +982,14 @@ class FlashcardProvider extends ChangeNotifier {
   }
 
   // End of FlashcardProvider logic section
-  
+
   // MARK: - Utility Methods
-  
+
   void clearError() {
     _error = null;
     notifyListeners();
   }
-  
+
   Future<void> refresh() async {
     // Reload data from SharedPreferences (useful after data sync)
     await _service.reloadData();
@@ -934,7 +1009,7 @@ class FlashcardProvider extends ChangeNotifier {
       }
 
       final card = _cards[cardIndex];
-      
+
       // Create a new card with reset progress
       final resetCard = card.copyWith(
         successCount: 0,
@@ -956,7 +1031,7 @@ class FlashcardProvider extends ChangeNotifier {
 
       // Update the card in the service
       await _service.updateCard(resetCard);
-      
+
       // Update the card in the provider
       _cards[cardIndex] = resetCard;
       notifyListeners();
@@ -974,23 +1049,30 @@ class FlashcardProvider extends ChangeNotifier {
       if (card == null) {
         throw Exception('Card not found');
       }
-      
+
       // Create a new card with updated public status
       final updatedCard = card.copyWith(isPublic: isPublic);
 
       // Update the card in the service
       await _service.updateCard(updatedCard);
-      
+
       // Force immediate sync to cloud for public status changes
       if (SupabaseService.instance.isAuthenticated) {
         try {
-          await DataSyncService.syncAllData();
-          print('✅ Card public status synced to cloud immediately');
+          final syncResult = await DataSyncService.syncAllData();
+          if (syncResult.isFailure) {
+            _handleSyncResult(syncResult);
+          } else {
+            print('✅ Card public status synced to cloud immediately');
+          }
         } catch (e) {
           print('⚠️ Failed to sync card public status to cloud: $e');
+          GlobalNavigator.showWarningSnackBar(
+            'Cloud sync failed after updating the card.',
+          );
         }
       }
-      
+
       // Refresh the cards list from the service
       _cards = _service.cards;
       notifyListeners();
@@ -1008,7 +1090,7 @@ class FlashcardProvider extends ChangeNotifier {
       if (deck == null) {
         throw Exception('Deck not found');
       }
-      
+
       // Create a new deck with updated public status
       final updatedDeck = deck.copyWith(
         isPublic: isPublic,
@@ -1017,7 +1099,7 @@ class FlashcardProvider extends ChangeNotifier {
 
       // Update the deck in the service
       await _service.updateDeck(updatedDeck);
-      
+
       // Update all cards in the deck (including sub-decks) to match the deck's public status
       final cardsInDeck = _service.getCardsForDeckWithSubDecks(deckId);
       for (final card in cardsInDeck) {
@@ -1026,17 +1108,24 @@ class FlashcardProvider extends ChangeNotifier {
           await _service.updateCard(updatedCard);
         }
       }
-      
+
       // Force immediate sync to cloud for public status changes
       if (SupabaseService.instance.isAuthenticated) {
         try {
-          await DataSyncService.syncAllData();
-          print('✅ Deck public status synced to cloud immediately');
+          final syncResult = await DataSyncService.syncAllData();
+          if (syncResult.isFailure) {
+            _handleSyncResult(syncResult);
+          } else {
+            print('✅ Deck public status synced to cloud immediately');
+          }
         } catch (e) {
           print('⚠️ Failed to sync deck public status to cloud: $e');
+          GlobalNavigator.showWarningSnackBar(
+            'Cloud sync failed after updating the deck.',
+          );
         }
       }
-      
+
       // Refresh both lists from the service
       _decks = _service.decks;
       _cards = _service.cards;
@@ -1046,4 +1135,4 @@ class FlashcardProvider extends ChangeNotifier {
       rethrow;
     }
   }
-} 
+}

@@ -31,11 +31,11 @@ class UniversalAddButton extends StatelessWidget {
     );
   }
 
-  void _showCreateItemDialog(BuildContext context) {
+  void _showCreateItemDialog(BuildContext context) async {
     final RenderBox button = context.findRenderObject() as RenderBox;
     final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     
-    showMenu<String>(
+    final value = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
         Rect.fromPoints(
@@ -76,21 +76,21 @@ class UniversalAddButton extends StatelessWidget {
           ),
         ),
       ],
-    ).then((value) {
-      if (value != null) {
-        switch (value) {
-          case 'card':
-            _navigateToAddCard(context);
-            break;
-          case 'import':
-            _navigateToImport(context);
-            break;
-          case 'deck':
-            _navigateToAddDeck(context);
-            break;
-        }
+    );
+
+    if (value != null && context.mounted) {
+      switch (value) {
+        case 'card':
+          _navigateToAddCard(context);
+          break;
+        case 'import':
+          _navigateToImport(context);
+          break;
+        case 'deck':
+          _navigateToAddDeck(context);
+          break;
       }
-    });
+    }
   }
 
 

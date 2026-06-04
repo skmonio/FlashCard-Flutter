@@ -15,34 +15,42 @@ class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
   DeepLinkService._internal();
-  
+
   static final AppLinks _appLinks = AppLinks();
-  
+
   // Handle incoming deep links
   static Future<void> handleDeepLink(String link) async {
     print('🔗 Deep link received: $link');
-    
+
     try {
       final uri = Uri.parse(link);
-      print('🔗 Parsed URI: scheme=${uri.scheme}, host=${uri.host}, path=${uri.path}');
+      print(
+        '🔗 Parsed URI: scheme=${uri.scheme}, host=${uri.host}, path=${uri.path}',
+      );
       print('🔗 Query parameters: ${uri.queryParameters}');
-      
+
       // Handle password reset (recovery)
       if (uri.scheme == 'taaltrek' && uri.host == 'reset-password') {
         // Supabase may send token as token, token_hash or in the fragment as access_token
-        String? token = uri.queryParameters['token'] ?? uri.queryParameters['token_hash'];
+        String? token =
+            uri.queryParameters['token'] ?? uri.queryParameters['token_hash'];
         String? type = uri.queryParameters['type'];
 
         // Some providers return params in the URL fragment (after '#')
         if ((token == null || token.isEmpty) && uri.fragment.isNotEmpty) {
           final fragParams = _parseFragmentParams(uri.fragment);
-          token = fragParams['token'] ?? fragParams['recovery_token'] ?? fragParams['token_hash'] ?? fragParams['access_token'];
+          token =
+              fragParams['token'] ??
+              fragParams['recovery_token'] ??
+              fragParams['token_hash'] ??
+              fragParams['access_token'];
           type = fragParams['type'] ?? type;
         }
 
         try {
           // If Supabase provided a recovery OTP token, verify it first
-          if (token != null && (type == 'recovery' || type == 'recovery_token')) {
+          if (token != null &&
+              (type == 'recovery' || type == 'recovery_token')) {
             print('🔐 Verifying recovery token');
             await Supabase.instance.client.auth.verifyOTP(
               token: token,
@@ -54,7 +62,8 @@ class DeepLinkService {
           if (token == null) {
             GlobalNavigator.showAlertDialog(
               title: 'Password reset link',
-              content: 'We could not read a reset token. Please open the reset link directly from your email on this device. If the email is older than 60 minutes, request a new link and try again.',
+              content:
+                  'We could not read a reset token. Please open the reset link directly from your email on this device. If the email is older than 60 minutes, request a new link and try again.',
             );
             return;
           }
@@ -66,14 +75,14 @@ class DeepLinkService {
           _showVerificationError('Password reset failed: $e');
         }
       }
-      
+
       // Handle email verification
       if (uri.scheme == 'taaltrek' && uri.host == 'verify-email') {
         final token = uri.queryParameters['token'];
         final type = uri.queryParameters['type'];
-        
+
         print('📧 Email verification - token: $token, type: $type');
-        
+
         if (token != null && type != null) {
           try {
             await SupabaseService.instance.verifyEmail(
@@ -81,7 +90,7 @@ class DeepLinkService {
               type: type,
             );
             print('✅ Email verified successfully');
-            
+
             // Show success message
             _showVerificationSuccess();
           } catch (e) {
@@ -90,37 +99,39 @@ class DeepLinkService {
           }
         }
       }
-      
+
       // Handle login callback
       if (uri.scheme == 'taaltrek' && uri.host == 'login-callback') {
         print('🔐 Login callback received');
         // Handle any additional login callback logic here
       }
-      
     } catch (e) {
       print('❌ Error handling deep link: $e');
     }
   }
-  
+
   // Initialize deep link listening
   static void initialize() {
     print('🔗 Initializing deep link service');
-    
+
     // Listen for app links when app is already running
-    _appLinks.uriLinkStream.listen((Uri uri) {
-      print('🔗 App link stream received: $uri');
-      handleDeepLink(uri.toString());
-    }, onError: (err) {
-      print('❌ App link stream error: $err');
-    });
-    
+    _appLinks.uriLinkStream.listen(
+      (Uri uri) {
+        print('🔗 App link stream received: $uri');
+        handleDeepLink(uri.toString());
+      },
+      onError: (err) {
+        print('❌ App link stream error: $err');
+      },
+    );
+
     // Listen for auth state changes
     Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
       final session = data.session;
-      
+
       print('🔐 Auth state changed: $event');
-      
+
       if (event == AuthChangeEvent.passwordRecovery) {
         // Supabase established a recovery session from the link; prompt for new password
         print('🔐 Password recovery session established');
@@ -133,7 +144,7 @@ class DeepLinkService {
         print('👋 User signed out');
       }
     });
-    
+
     // Handle initial link if app was opened via deep link
     _appLinks.getInitialLink().then((Uri? uri) {
       if (uri != null) {
@@ -142,15 +153,16 @@ class DeepLinkService {
       }
     });
   }
-  
+
   // Show verification success message
   static void _showVerificationSuccess() {
     print('🎉 Email verification successful! You can now sign in.');
-    
+
     // Show success dialog
     GlobalNavigator.showAlertDialog(
       title: 'Email Verified! 🎉',
-      content: 'Your email has been successfully verified! You can now sign in to your account.',
+      content:
+          'Your email has been successfully verified! You can now sign in to your account.',
       actions: [
         TextButton(
           onPressed: () {
@@ -162,14 +174,15 @@ class DeepLinkService {
       ],
     );
   }
-  
+
   // Show verification error message
   static void _showVerificationError(String error) {
     print('❌ Email verification failed: $error');
-    
+
     GlobalNavigator.showAlertDialog(
       title: 'Verification Failed',
-      content: 'There was an error verifying your email. Please try again or contact support.',
+      content:
+          'There was an error verifying your email. Please try again or contact support.',
     );
   }
 
@@ -205,7 +218,9 @@ class DeepLinkService {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Enter and confirm your new password to complete the reset.'),
+              const Text(
+                'Enter and confirm your new password to complete the reset.',
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: newPasswordController,
@@ -292,13 +307,14 @@ class DeepLinkService {
       confirmPasswordController.dispose();
     }
   }
-  
+
   // Check if user needs onboarding and show it
   static Future<void> _checkAndShowOnboarding() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
-      
+      final onboardingCompleted =
+          prefs.getBool('onboarding_completed') ?? false;
+
       if (!onboardingCompleted) {
         // Show onboarding
         Navigator.of(GlobalNavigator.currentContext!).push(
@@ -320,30 +336,34 @@ class DeepLinkService {
       GlobalNavigator.showSnackBar('Welcome! You can now sign in. 🎓');
     }
   }
-  
+
   // Handle user sign in - sync data
   static Future<void> _handleUserSignIn() async {
     try {
       // When signing in, always download from cloud first to get the user's existing data
       print('🔄 Downloading data from cloud...');
-      await DataSyncService.downloadDataFromCloud();
-      GlobalNavigator.showSnackBar('Data synced from cloud! ☁️');
-      
+      final syncResult = await DataSyncService.downloadDataFromCloud();
+      if (syncResult.isFailure) {
+        GlobalNavigator.showErrorSnackBar(syncResult.message);
+      } else {
+        GlobalNavigator.showSnackBar('Data synced from cloud! ☁️');
+      }
+
       // Refresh providers after data sync
       print('🔄 Refreshing providers after deep link sync...');
       final context = GlobalNavigator.currentContext;
       print('🔄 Context is null: ${context == null}');
-      
+
       if (context != null) {
         try {
           print('🔄 Attempting to refresh FlashcardProvider...');
           final flashcardProvider = context.read<FlashcardProvider>();
           await flashcardProvider.initialize();
-          
+
           print('🔄 Attempting to refresh UserProfileProvider...');
           final userProfileProvider = context.read<UserProfileProvider>();
           await userProfileProvider.initialize();
-          
+
           print('✅ Providers refreshed successfully');
         } catch (e) {
           print('❌ Error refreshing providers: $e');
@@ -353,7 +373,9 @@ class DeepLinkService {
       }
     } catch (e) {
       print('❌ Error during data sync: $e');
-      GlobalNavigator.showSnackBar('Data sync failed, but you can still use the app');
+      GlobalNavigator.showSnackBar(
+        'Data sync failed, but you can still use the app',
+      );
     }
   }
 }

@@ -156,7 +156,7 @@ class _CardDetailsDialogState extends State<CardDetailsDialog> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text('Learning Progress: ${freshCard.learningPercentage ?? 0}%'),
+              Text('Learning Progress: ${freshCard.learningPercentage}%'),
               const SizedBox(height: 8),
               
               // Study Statistics

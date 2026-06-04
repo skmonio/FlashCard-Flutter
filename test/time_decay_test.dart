@@ -20,29 +20,29 @@ void main() {
     test('Progress within level calculation', () {
       final level2 = WordLevel.level2;
       expect(level2.getProgressWithinLevel(11.0), 0.0); // Start of level 2
-      expect(level2.getProgressWithinLevel(15.0), closeTo(0.4, 0.1)); // 40% through level 2
+      expect(
+        level2.getProgressWithinLevel(15.0),
+        closeTo(0.4, 0.1),
+      ); // 40% through level 2
       expect(level2.getProgressWithinLevel(20.0), 1.0); // End of level 2
     });
 
     test('Time decay system', () {
       final mastery = LearningMastery();
-      
-      // Simulate a word with good performance
-      mastery.easyCorrect = 15;
-      mastery.easyAttempts = 15;
-      mastery.mediumCorrect = 8;
-      mastery.mediumAttempts = 10;
-      mastery.hardCorrect = 5;
-      mastery.hardAttempts = 8;
+
+      // Simulate a word with enough XP to be above the first level
+      mastery.currentXP = 250;
       mastery.lastReviewDate = DateTime.now();
-      
+
       // Should be at a higher level
       final initialLevel = mastery.wordLevel;
       expect(initialLevel.level, greaterThan(1));
-      
+
       // Simulate 10 days without review (7 days decay = 14% loss)
-      mastery.lastReviewDate = DateTime.now().subtract(const Duration(days: 10));
-      
+      mastery.lastReviewDate = DateTime.now().subtract(
+        const Duration(days: 10),
+      );
+
       // Should have decayed significantly
       final decayedLevel = mastery.wordLevel;
       expect(decayedLevel.level, lessThanOrEqualTo(initialLevel.level));
@@ -50,27 +50,24 @@ void main() {
 
     test('Level progression and decay', () {
       final mastery = LearningMastery();
-      
+
       // Start with a new word
-      expect(mastery.wordLevel.level, 1);
+      expect(mastery.wordLevel.level, 0);
       expect(mastery.learningPercentage, 0.0);
-      
-      // Simulate some correct answers
-      mastery.easyCorrect = 12;
-      mastery.easyAttempts = 12;
-      mastery.mediumCorrect = 6;
-      mastery.mediumAttempts = 8;
-      mastery.hardCorrect = 3;
-      mastery.hardAttempts = 5;
+
+      // Simulate enough XP to progress into a higher level
+      mastery.currentXP = 250;
       mastery.lastReviewDate = DateTime.now();
-      
+
       // Should be at a higher level
       final level = mastery.wordLevel;
       expect(level.level, greaterThan(1));
-      
+
       // Simulate 20 days without review (17 days decay = 34% loss)
-      mastery.lastReviewDate = DateTime.now().subtract(const Duration(days: 20));
-      
+      mastery.lastReviewDate = DateTime.now().subtract(
+        const Duration(days: 20),
+      );
+
       // Should have decayed back to lower level
       final decayedLevel = mastery.wordLevel;
       expect(decayedLevel.level, lessThanOrEqualTo(level.level));

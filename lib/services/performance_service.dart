@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
+import '../utils/app_logger.dart';
 
 class PerformanceService {
   static final PerformanceService _instance = PerformanceService._internal();
@@ -27,13 +27,13 @@ class PerformanceService {
     _computationCache.clear();
     _cacheTimestamps.clear();
     _imageCache.clear();
-    
+
     // Cancel all debounce timers
     for (final timer in _debounceTimers.values) {
       timer.cancel();
     }
     _debounceTimers.clear();
-    
+
     // Clear Flutter's image cache
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
@@ -43,18 +43,18 @@ class PerformanceService {
   T? getCachedComputation<T>(String key, T Function() computation) {
     final now = DateTime.now();
     final timestamp = _cacheTimestamps[key];
-    
+
     // Check if cache is expired
     if (timestamp != null && now.difference(timestamp) > _cacheExpiry) {
       _computationCache.remove(key);
       _cacheTimestamps.remove(key);
     }
-    
+
     // Return cached value if available
     if (_computationCache.containsKey(key)) {
       return _computationCache[key] as T?;
     }
-    
+
     // Compute and cache
     try {
       final result = computation();
@@ -62,7 +62,9 @@ class PerformanceService {
       _cacheTimestamps[key] = now;
       return result;
     } catch (e) {
-      print('PerformanceService: Error computing cached value for key $key: $e');
+      AppLogger.log(
+        'PerformanceService: Error computing cached value for key $key: $e',
+      );
       return null;
     }
   }
@@ -86,11 +88,11 @@ class PerformanceService {
   List<T> paginateList<T>(List<T> list, int page, int pageSize) {
     final startIndex = page * pageSize;
     final endIndex = (startIndex + pageSize).clamp(0, list.length);
-    
+
     if (startIndex >= list.length) {
       return [];
     }
-    
+
     return list.sublist(startIndex, endIndex);
   }
 
@@ -102,51 +104,55 @@ class PerformanceService {
     int maxResults = 50,
   }) {
     if (query.isEmpty) return items;
-    
+
     final queryLower = query.toLowerCase();
     final results = <T>[];
-    
+
     for (final item in items) {
       if (results.length >= maxResults) break;
-      
+
       final text = getSearchableText(item).toLowerCase();
-      
+
       // Exact match gets highest priority
       if (text.contains(queryLower)) {
         results.add(item);
         continue;
       }
-      
+
       // Fuzzy match for typos
       if (_fuzzyMatch(text, queryLower)) {
         results.add(item);
       }
     }
-    
+
     return results;
   }
 
   /// Simple fuzzy matching algorithm
   bool _fuzzyMatch(String text, String query) {
     if (query.length > text.length) return false;
-    
+
     int queryIndex = 0;
     for (int i = 0; i < text.length && queryIndex < query.length; i++) {
       if (text[i] == query[queryIndex]) {
         queryIndex++;
       }
     }
-    
+
     return queryIndex == query.length;
   }
 
   /// Optimize image loading
-  Future<ui.Image?> loadImageOptimized(String url, {int? maxWidth, int? maxHeight}) async {
+  Future<ui.Image?> loadImageOptimized(
+    String url, {
+    int? maxWidth,
+    int? maxHeight,
+  }) async {
     // Check cache first
     if (_imageCache.containsKey(url)) {
       return _imageCache[url];
     }
-    
+
     try {
       final data = await NetworkAssetBundle(Uri.parse(url)).load(url);
       final codec = await ui.instantiateImageCodec(
@@ -155,13 +161,13 @@ class PerformanceService {
         targetHeight: maxHeight,
       );
       final frame = await codec.getNextFrame();
-      
+
       // Cache the image
       _imageCache[url] = frame.image;
-      
+
       return frame.image;
     } catch (e) {
-      print('PerformanceService: Error loading image $url: $e');
+      AppLogger.log('PerformanceService: Error loading image $url: $e');
       return null;
     }
   }
@@ -199,7 +205,9 @@ class PerformanceService {
     if (context == null) return baseDuration;
     final mediaQuery = MediaQuery.maybeOf(context);
     if (mediaQuery?.accessibleNavigation == true) {
-      return Duration(milliseconds: (baseDuration.inMilliseconds * 0.5).round());
+      return Duration(
+        milliseconds: (baseDuration.inMilliseconds * 0.5).round(),
+      );
     }
     return baseDuration;
   }
@@ -228,7 +236,9 @@ class PerformanceService {
 
   /// Optimize widget rebuilds with automatic key generation
   Key generateOptimizedKey(String baseKey, [Object? additionalData]) {
-    return ValueKey('${baseKey}_${additionalData ?? DateTime.now().millisecondsSinceEpoch}');
+    return ValueKey(
+      '${baseKey}_${additionalData ?? DateTime.now().millisecondsSinceEpoch}',
+    );
   }
 
   /// Optimize scroll performance
@@ -253,21 +263,21 @@ class PerformanceService {
     String Function(T) getSearchableText,
   ) {
     final index = <String, List<int>>{};
-    
+
     for (int i = 0; i < items.length; i++) {
       final text = getSearchableText(items[i]).toLowerCase();
       final words = text.split(' ');
-      
+
       for (final word in words) {
         if (word.length < 2) continue; // Skip very short words
-        
+
         if (!index.containsKey(word)) {
           index[word] = [];
         }
         index[word]!.add(i);
       }
     }
-    
+
     return index;
   }
 
@@ -278,19 +288,19 @@ class PerformanceService {
     String query,
   ) {
     if (query.isEmpty) return items;
-    
+
     final queryWords = query.toLowerCase().split(' ');
     final matchingIndices = <int>{};
-    
+
     for (final word in queryWords) {
       if (word.length < 2) continue;
-      
+
       final indices = index[word];
       if (indices != null) {
         matchingIndices.addAll(indices);
       }
     }
-    
+
     return matchingIndices.map((index) => items[index]).toList();
   }
 
@@ -304,9 +314,10 @@ class PerformanceService {
   String formatDateOptimized(DateTime date, String format) {
     final cacheKey = '${date.millisecondsSinceEpoch}_$format';
     return getCachedComputation(cacheKey, () {
-      // This would use a date formatting library
-      return '${date.day}/${date.month}/${date.year}';
-    }) ?? '${date.day}/${date.month}/${date.year}';
+          // This would use a date formatting library
+          return '${date.day}/${date.month}/${date.year}';
+        }) ??
+        '${date.day}/${date.month}/${date.year}';
   }
 
   /// Optimize number formatting
@@ -322,12 +333,13 @@ class PerformanceService {
   }) {
     if (cacheKey != null) {
       return getCachedComputation(cacheKey, () {
-        final sorted = List<T>.from(list);
-        sorted.sort(compare);
-        return sorted;
-      }) ?? list;
+            final sorted = List<T>.from(list);
+            sorted.sort(compare);
+            return sorted;
+          }) ??
+          list;
     }
-    
+
     final sorted = List<T>.from(list);
     sorted.sort(compare);
     return sorted;
@@ -341,10 +353,11 @@ class PerformanceService {
   }) {
     if (cacheKey != null) {
       return getCachedComputation(cacheKey, () {
-        return list.where(test).toList();
-      }) ?? list;
+            return list.where(test).toList();
+          }) ??
+          list;
     }
-    
+
     return list.where(test).toList();
   }
 
@@ -356,10 +369,11 @@ class PerformanceService {
   }) {
     if (cacheKey != null) {
       return getCachedComputation(cacheKey, () {
-        return Map.fromEntries(list.map(convert));
-      }) ?? {};
+            return Map.fromEntries(list.map(convert));
+          }) ??
+          {};
     }
-    
+
     return Map.fromEntries(list.map(convert));
   }
 
@@ -371,235 +385,76 @@ class PerformanceService {
   }) {
     if (cacheKey != null) {
       return getCachedComputation(cacheKey, () {
-        return list.reduce(combine);
-      }) ?? list.first;
+            return list.reduce(combine);
+          }) ??
+          list.first;
     }
-    
+
     return list.reduce(combine);
   }
 
-  /// Optimize widget tree with automatic const constructors
-  Widget optimizeWidget(Widget widget) {
-    // This is a placeholder for widget optimization
-    // In practice, you'd analyze the widget tree and optimize it
-    return widget;
-  }
-
-  /// Optimize build context usage
-  BuildContext? getOptimizedContext(BuildContext context) {
-    // Return the most efficient context for the current operation
-    return context;
-  }
-
-  /// Optimize theme access
-  ThemeData getOptimizedTheme(BuildContext context) {
-    return Theme.of(context);
-  }
-
-  /// Optimize media query access
-  MediaQueryData getOptimizedMediaQuery(BuildContext context) {
-    return MediaQuery.of(context);
-  }
-
-  /// Optimize navigation
-  NavigatorState? getOptimizedNavigator(BuildContext context) {
-    return Navigator.of(context);
-  }
-
-  /// Optimize scaffold access
-  ScaffoldState? getOptimizedScaffold(BuildContext context) {
-    return Scaffold.of(context);
-  }
-
-  /// Optimize overlay access
-  OverlayState? getOptimizedOverlay(BuildContext context) {
-    return Overlay.of(context);
-  }
-
-  /// Optimize focus scope access
-  FocusScopeNode getOptimizedFocusScope(BuildContext context) {
-    return FocusScope.of(context);
-  }
-
-  /// Optimize inherited widget access
-  T? getOptimizedInheritedWidget<T extends InheritedWidget>(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<T>();
-  }
-
-  /// Optimize future handling
-  Future<T> optimizeFuture<T>(Future<T> future, {Duration? timeout}) {
-    if (timeout != null) {
-      return future.timeout(timeout);
-    }
-    return future;
-  }
-
-  /// Optimize stream handling
-  Stream<T> optimizeStream<T>(Stream<T> stream, {Duration? timeout}) {
-    if (timeout != null) {
-      return stream.timeout(timeout);
-    }
-    return stream;
-  }
-
-  /// Optimize timer creation
-  Timer createOptimizedTimer(Duration duration, VoidCallback callback) {
-    return Timer(duration, callback);
-  }
-
-  /// Optimize periodic timer creation
-  Timer createOptimizedPeriodicTimer(Duration duration, VoidCallback callback) {
-    return Timer.periodic(duration, (_) => callback());
-  }
-
-  /// Optimize microtask scheduling
-  void scheduleOptimizedMicrotask(VoidCallback callback) {
-    scheduleMicrotask(callback);
-  }
-
-  /// Optimize frame scheduling
-  void scheduleOptimizedFrame(VoidCallback callback) {
-    WidgetsBinding.instance.scheduleFrameCallback((_) => callback());
-  }
-
-  /// Optimize post-frame callback
-  void scheduleOptimizedPostFrame(VoidCallback callback) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => callback());
-  }
-
-  /// Optimize persistent frame callback
-  void addOptimizedPersistentFrameCallback(FrameCallback callback) {
-    WidgetsBinding.instance.addPersistentFrameCallback(callback);
-  }
-
-  /// Optimize observer registration
-  void addOptimizedObserver(WidgetsBindingObserver observer) {
-    WidgetsBinding.instance.addObserver(observer);
-  }
-
-  /// Optimize observer removal
-  void removeOptimizedObserver(WidgetsBindingObserver observer) {
-    WidgetsBinding.instance.removeObserver(observer);
-  }
-
   /// Optimize image precaching
-  Future<void> precacheOptimizedImage(BuildContext context, String imagePath) async {
+  Future<void> precacheOptimizedImage(
+    BuildContext context,
+    String imagePath,
+  ) async {
     try {
       await precacheImage(AssetImage(imagePath), context);
     } catch (e) {
-      print('PerformanceService: Error precaching image $imagePath: $e');
+      AppLogger.log(
+        'PerformanceService: Error precaching image $imagePath: $e',
+      );
     }
   }
 
   /// Optimize network image precaching
-  Future<void> precacheOptimizedNetworkImage(BuildContext context, String imageUrl) async {
+  Future<void> precacheOptimizedNetworkImage(
+    BuildContext context,
+    String imageUrl,
+  ) async {
     try {
       await precacheImage(NetworkImage(imageUrl), context);
     } catch (e) {
-      print('PerformanceService: Error precaching network image $imageUrl: $e');
+      AppLogger.log(
+        'PerformanceService: Error precaching network image $imageUrl: $e',
+      );
     }
   }
 
   /// Optimize file image precaching
-  Future<void> precacheOptimizedFileImage(BuildContext context, String filePath) async {
+  Future<void> precacheOptimizedFileImage(
+    BuildContext context,
+    String filePath,
+  ) async {
     if (kIsWeb) return;
     try {
       await precacheImage(FileImage(File(filePath)), context);
     } catch (e) {
-      print('PerformanceService: Error precaching file image $filePath: $e');
+      AppLogger.log(
+        'PerformanceService: Error precaching file image $filePath: $e',
+      );
     }
   }
 
   /// Optimize memory image precaching
-  Future<void> precacheOptimizedMemoryImage(BuildContext context, Uint8List bytes) async {
+  Future<void> precacheOptimizedMemoryImage(
+    BuildContext context,
+    Uint8List bytes,
+  ) async {
     try {
       await precacheImage(MemoryImage(bytes), context);
     } catch (e) {
-      print('PerformanceService: Error precaching memory image: $e');
+      AppLogger.log('PerformanceService: Error precaching memory image: $e');
     }
-  }
-
-  /// Optimize widget disposal
-  void disposeOptimized() {
-    clearAllCaches();
   }
 
   /// Initialize the performance service
   void initialize() {
     // Initialize performance optimizations
     clearAllCaches();
-    print('PerformanceService: Initialized with performance optimizations');
-  }
-
-  /// Optimize widget initialization
-  void initializeOptimized() {
-    // Initialize performance optimizations
-    clearAllCaches();
-  }
-
-  /// Optimize widget lifecycle
-  void optimizeLifecycle() {
-    // Optimize widget lifecycle management
-  }
-
-  /// Optimize error handling
-  void handleErrorOptimized(Object error, StackTrace? stackTrace) {
-    print('PerformanceService: Error handled: $error');
-    if (stackTrace != null) {
-      print('PerformanceService: Stack trace: $stackTrace');
-    }
-  }
-
-  /// Optimize logging
-  void logOptimized(String message, {String? tag}) {
-    final timestamp = DateTime.now().toIso8601String();
-    final logMessage = tag != null ? '[$tag] $message' : message;
-    print('PerformanceService [$timestamp]: $logMessage');
-  }
-
-  /// Optimize debugging
-  void debugOptimized(String message, {String? tag}) {
-    if (kDebugMode) {
-      logOptimized(message, tag: tag);
-    }
-  }
-
-  /// Optimize profiling
-  void profileOptimized(String operation, VoidCallback callback) {
-    final stopwatch = Stopwatch()..start();
-    callback();
-    stopwatch.stop();
-    debugOptimized('$operation took ${stopwatch.elapsedMilliseconds}ms');
-  }
-
-  /// Optimize async profiling
-  Future<void> profileOptimizedAsync(String operation, Future<void> Function() callback) async {
-    final stopwatch = Stopwatch()..start();
-    await callback();
-    stopwatch.stop();
-    debugOptimized('$operation took ${stopwatch.elapsedMilliseconds}ms');
-  }
-
-  /// Optimize memory profiling
-  void profileMemoryOptimized(String operation) {
-    final memoryInfo = getMemoryInfo();
-    debugOptimized('Memory after $operation: $memoryInfo');
-  }
-
-  /// Optimize performance monitoring
-  void monitorPerformanceOptimized(String operation, VoidCallback callback) {
-    profileOptimized(operation, () {
-      profileMemoryOptimized(operation);
-      callback();
-    });
-  }
-
-  /// Optimize async performance monitoring
-  Future<void> monitorPerformanceOptimizedAsync(String operation, Future<void> Function() callback) async {
-    await profileOptimizedAsync(operation, () async {
-      profileMemoryOptimized(operation);
-      await callback();
-    });
+    AppLogger.log(
+      'PerformanceService: Initialized with performance optimizations',
+    );
   }
 }
 

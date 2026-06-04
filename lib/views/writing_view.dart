@@ -74,13 +74,11 @@ class _WritingViewState extends State<WritingView> {
   Timer? _timer;
   int _timeRemaining = 0;
   int _totalTime = 0;
-  bool _timeUp = false;
   bool _useTimedMode = false;
   
   // Auto progress system
   Timer? _autoProgressTimer;
   Set<int> _autoProgressedQuestions = {};
-  int _activeQuestionIndex = 0;
   
   // Track answered questions and their answers
   Map<int, String> _answeredQuestions = {}; // question index -> user answer
@@ -177,7 +175,6 @@ class _WritingViewState extends State<WritingView> {
           if (_timeRemaining > 0) {
             _timeRemaining--;
           } else {
-            _timeUp = true;
             _timer?.cancel();
             _handleTimeUp();
           }
@@ -380,7 +377,6 @@ class _WritingViewState extends State<WritingView> {
       _answered = false;
       _userAnswer = '';
       _textController.clear();
-      _timeUp = false;
     });
     
     // Start timer if using timed mode
@@ -466,7 +462,6 @@ class _WritingViewState extends State<WritingView> {
       _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
         if (mounted && _currentIndex < _currentCards.length - 1) {
           _autoProgressedQuestions.add(_currentIndex);
-          _activeQuestionIndex = _currentIndex + 1;
           _goToNextQuestion();
         }
       });
@@ -534,7 +529,6 @@ class _WritingViewState extends State<WritingView> {
             _autoProgressTimer = Timer(const Duration(milliseconds: 800), () {
               if (mounted && _currentIndex < _currentCards.length - 1) {
                 _autoProgressedQuestions.add(_currentIndex);
-                _activeQuestionIndex = _currentIndex + 1;
                 _goToNextQuestion();
               }
             });
@@ -997,19 +991,7 @@ class _WritingViewState extends State<WritingView> {
     );
   }
 
-  double _getAdaptiveCardHeight(BuildContext context) {
-    double screenHeight = MediaQuery.of(context).size.height;
-    if (screenHeight < 700) return 140;
-    if (screenHeight < 850) return 180;
-    return 220;
-  }
 
-  double _getAdaptiveFontSize(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth < 360) return 24;
-    if (screenWidth < 400) return 28;
-    return 32;
-  }
 
   void _editCurrentCard() {
     final currentCard = _currentCards[_currentIndex];
@@ -1168,218 +1150,6 @@ class _WritingViewState extends State<WritingView> {
     );
   }
 
-  Widget _buildResultsView() {
-    final accuracy = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts * 100).toInt() : 0;
-    
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Column(
-          children: [
-            // Small header - matching study view
-            MainHeader(
-              title: 'Writing Complete',
-              leftAction: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back_ios),
-                iconSize: 20,
-              ),
-              rightAction: IconButton(
-                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-                icon: const Icon(Icons.home),
-                iconSize: 20,
-              ),
-            ),
-            
-            // Results content - Make it scrollable
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    
-                    // Score
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: accuracy >= 80 ? Colors.green.withValues(alpha: 0.1) : 
-                               accuracy >= 60 ? Colors.orange.withValues(alpha: 0.1) : 
-                               Colors.red.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$accuracy%',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: accuracy >= 80 ? Colors.green : 
-                                   accuracy >= 60 ? Colors.orange : 
-                                   Colors.red,
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Stats
-                    _buildStatCard('Questions', _totalAttempts.toString(), Icons.edit),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Correct', _correctAnswers.toString(), Icons.check_circle, Colors.green),
-                    const SizedBox(height: 16),
-                    _buildStatCard('Incorrect', (_totalAttempts - _correctAnswers).toString(), Icons.cancel, Colors.red),
-                    
-                    // Swipe hint if XP was gained
-                    if (_xpGainedPerWord.values.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.swipe_right,
-                              color: Colors.amber,
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Swipe right to view word progress',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.amber.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    
-                    const SizedBox(height: 32),
-                    
-                    const SizedBox(height: 20), // Bottom padding
-                  ],
-                ),
-              ),
-            ),
-            
-            // Fixed footer with action buttons
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        
-                        setState(() {
-                          _currentIndex = 0;
-                          _correctAnswers = 0;
-                          _totalAttempts = 0;
-                          _showingResults = false;
-                          _hasShownResults = false;
-                          _answered = false;
-                          _displayWord = '';
-                          _lives = 5;
-                          _userAnswer = '';
-                          _textController.clear();
-                          _guessedLetters.clear();
-                          _revealedLetters.clear();
-                          // Reset all navigation state
-                          _answeredQuestions.clear();
-                          _correctAnswersMap.clear();
-                          _correctAnswersText.clear();
-                          _questionModes.clear();
-                          
-                          // Reset RPG tracking
-                          _xpGainedPerWord.clear();
-                          _wordMastery.clear();
-                          _initialHPPerWord.clear();
-                          _studiedWords.clear();
-                          _wrongAttemptsPerWord.clear();
-                          _hpDeductedWordIds.clear();
-                          _maxMistakeRevealQuestions.clear();
-                          
-                          // Reset hint and review tracking
-                          _hintCount.clear();
-                          _hintRevealed.clear();
-                          _reviewCards.clear();
-                        });
-                        _generateQuestion();
-                      },
-                      child: const Text('Write Again'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Done'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, [Color? color]) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color ?? Theme.of(context).colorScheme.primary,
-            size: 24,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showCloseConfirmation() {
     showDialog(
       context: context,
@@ -1476,7 +1246,6 @@ class _WritingViewState extends State<WritingView> {
       final wrongText = wrongAttempts > 0 ? ", $wrongAttempts wrong letter${wrongAttempts == 1 ? '' : 's'}" : "";
       print('🔍 WritingView: Awarded $finalXPGained XP to word "${card.word}" (base: $actualXPGained$hintText$wrongText) - daily attempts after: ${card.learningMastery.dailyAttemptsDebug}');
     } else {
-      final wrongAttempts = _wrongAttemptsPerWord[card.id] ?? 0;
       _xpGainedPerWord[card.id] = 0;
       _wordMastery[card.id] = card.learningMastery;
       return;
@@ -1907,7 +1676,6 @@ class _WritingViewState extends State<WritingView> {
   void _useHint() {
     if (!_canUseHint()) return;
     
-    final currentCard = _currentCards[_currentIndex];
     final correctAnswer = _correctAnswer;
     
     if (correctAnswer.isEmpty) return;
@@ -1935,7 +1703,7 @@ class _WritingViewState extends State<WritingView> {
         _hintCount[_currentIndex] = (_hintCount[_currentIndex] ?? 0) + 1;
         
         // Add the letter to revealed letters
-        _revealedLetters.add(nextLetter!);
+        _revealedLetters.add(nextLetter);
         
         // Update the display word to show the revealed letter
         _updateDisplayWord();
