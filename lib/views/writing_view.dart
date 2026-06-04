@@ -9,6 +9,7 @@ import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import '../services/xp_service.dart';
 import '../components/main_header.dart';
 import 'add_card_view.dart';
@@ -387,30 +388,7 @@ class _WritingViewState extends State<WritingView> {
   }
 
   Color _getCardBorderColor(FlashCard card) {
-    // Generate consistent vibrant colors based on card content
-    final vibrantColors = [
-      const Color(0xFFE91E63), // Pink
-      const Color(0xFF9C27B0), // Purple
-      const Color(0xFF673AB7), // Deep Purple
-      const Color(0xFF3F51B5), // Indigo
-      const Color(0xFF2196F3), // Blue
-      const Color(0xFF03A9F4), // Light Blue
-      const Color(0xFF00BCD4), // Cyan
-      const Color(0xFF009688), // Teal
-      const Color(0xFF4CAF50), // Green
-      const Color(0xFF8BC34A), // Light Green
-      const Color(0xFFCDDC39), // Lime
-      const Color(0xFFFFEB3B), // Yellow
-      const Color(0xFFFFC107), // Amber
-      const Color(0xFFFF9800), // Orange
-      const Color(0xFFFF5722), // Deep Orange
-      const Color(0xFF795548), // Brown
-    ];
-    
-    // Use card content to generate consistent index
-    final hash = card.word.hashCode + card.definition.hashCode;
-    final index = hash.abs() % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
   void _applyHpLoss(FlashCard card, bool wasCorrect) {

@@ -14,6 +14,7 @@ import '../services/haptic_service.dart';
 import '../services/sound_manager.dart';
 
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import 'add_card_view.dart';
 
 enum SwipeDirection {
@@ -871,24 +872,7 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
 
   // Generate consistent color based on card content
   Color _getCardBorderColor(FlashCard card) {
-    final vibrantColors = [
-      const Color(0xFFFF6B35), // Coral/Orange-Red
-      const Color(0xFFFF9900), // Bright Orange
-      const Color(0xFFFFCC00), // Golden Yellow
-      const Color(0xFF33CC99), // Teal/Turquoise
-      const Color(0xFF00B3CC), // Cyan Blue
-      const Color(0xFF9966FF), // Purple
-      const Color(0xFFFF4D94), // Pink
-      const Color(0xFF66E64D), // Lime Green
-    ];
-    
-    if (card.word.isEmpty || card.definition.isEmpty) {
-      return vibrantColors[0];
-    }
-    
-    final hash = (card.word.hashCode + card.definition.hashCode).abs();
-    final index = hash % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
   Color _getSwipeColor() {
@@ -1865,26 +1849,8 @@ class TaalTrekFlashCard extends StatelessWidget {
     );
   }
 
-  // Copy the exact border color logic from Quick Study (AdvancedStudyView)
   Color _getCardBorderColor() {
-    final vibrantColors = [
-      const Color(0xFFFF6B35), // Coral/Orange-Red
-      const Color(0xFFFF9900), // Bright Orange
-      const Color(0xFFFFCC00), // Golden Yellow
-      const Color(0xFF33CC99), // Teal/Turquoise
-      const Color(0xFF00B3CC), // Cyan Blue
-      const Color(0xFF9966FF), // Purple
-      const Color(0xFFFF4D94), // Pink
-      const Color(0xFF66E64D), // Lime Green
-    ];
-    
-    if (card.word.isEmpty || card.definition.isEmpty) {
-      return vibrantColors[0];
-    }
-    
-    final hash = (card.word.hashCode + card.definition.hashCode).abs();
-    final index = hash % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
 } 

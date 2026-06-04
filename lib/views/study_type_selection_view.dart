@@ -13,13 +13,10 @@ import 'multiple_choice_view.dart';
 import 'true_false_view.dart';
 import 'writing_view.dart';
 import 'memory_game_view.dart';
-import 'timed_multiple_choice_view.dart';
-import 'timed_true_false_view.dart';
 import 'pick_your_card_view.dart';
 import 'pop_your_card_view.dart';
 import 'connect_cards_view.dart';
 import 'word_scramble_view.dart';
-import 'timed_word_scramble_view.dart';
 import 'sentence_building_view.dart';
 import 'de_het_view.dart';
 import 'so_many_cards_view.dart';
@@ -1405,67 +1402,44 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         );
         break;
       case GameMode.test:
-        if (_useTimedMode) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedMultipleChoiceView(
-                cards: studyCards,
-                title: 'Timed Test',
-                difficulty: _selectedTimedDifficulty!,
-                startFlipped: _getStartFlipped(),
-                answerPoolCards: answerPoolCards,
-                oneAnswerMode: _oneAnswerMode,
-                enableHints: _enableHints,
-              ),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => MultipleChoiceView(
+              cards: studyCards,
+              title: _useTimedMode ? 'Timed Test' : 'Test Mode',
+              autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
+              useTimedMode: _useTimedMode,
+              timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+              startFlipped: _getStartFlipped(),
+              studyConfig: studyConfig,
+              answerPoolCards: answerPoolCards,
+              oneAnswerMode: _oneAnswerMode,
+              enableHints: _enableHints,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => MultipleChoiceView(
-                cards: studyCards,
-                title: 'Test Mode',
-                autoProgress: _autoProgress,
-                useLivesMode: _useLivesMode,
-                customLives: _useLivesMode ? _selectedLives : null,
-                startFlipped: _getStartFlipped(),
-                studyConfig: studyConfig,
-                answerPoolCards: answerPoolCards,
-              ),
-            ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.trueFalse:
-        if (_useTimedMode) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedTrueFalseView(
-                cards: studyCards,
-                title: 'Timed True/False',
-                difficulty: _selectedTimedDifficulty!,
-                answerPoolCards: answerPoolCards,
-                oneAnswerMode: _oneAnswerMode,
-                enableHints: _enableHints,
-              ),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrueFalseView(
+              cards: studyCards,
+              title: _useTimedMode ? 'Timed True/False' : 'True/False',
+              autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
+              useTimedMode: _useTimedMode,
+              timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+              startFlipped: _getStartFlipped(),
+              studyConfig: studyConfig,
+              answerPoolCards: answerPoolCards,
+              oneAnswerMode: _oneAnswerMode,
+              enableHints: _enableHints,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TrueFalseView(
-                cards: studyCards,
-                title: 'True/False',
-                autoProgress: _autoProgress,
-                useLivesMode: _useLivesMode,
-                customLives: _useLivesMode ? _selectedLives : null,
-                startFlipped: _getStartFlipped(),
-                studyConfig: studyConfig,
-                answerPoolCards: answerPoolCards,
-              ),
-            ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.write:
         Navigator.of(context).push(
@@ -1492,34 +1466,22 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         );
         break;
       case GameMode.wordScramble:
-        if (_useTimedMode) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TimedWordScrambleView(
-                cards: studyCards,
-                title: 'Timed Jumble',
-                difficulty: _selectedTimedDifficulty!,
-                oneAnswerMode: _oneAnswerMode,
-                enableHints: _enableHints,
-              ),
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => WordScrambleView(
+              cards: studyCards,
+              title: _useTimedMode ? 'Timed Jumble' : 'Jumble',
+              autoProgress: _autoProgress,
+              useLivesMode: _useLivesMode,
+              customLives: _useLivesMode ? _selectedLives : null,
+              useTimedMode: _useTimedMode,
+              timedDifficulty: _useTimedMode ? _selectedTimedDifficulty : null,
+              startFlipped: _getStartFlipped(),
+              oneAnswerMode: _oneAnswerMode,
+              enableHints: _enableHints,
             ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => WordScrambleView(
-                cards: studyCards,
-                title: 'Jumble',
-                autoProgress: _autoProgress,
-                useLivesMode: _useLivesMode,
-                customLives: _useLivesMode ? _selectedLives : null,
-                startFlipped: _getStartFlipped(),
-                oneAnswerMode: _oneAnswerMode,
-                enableHints: _enableHints,
-              ),
-            ),
-          );
-        }
+          ),
+        );
         break;
       case GameMode.pickYourCard:
         Navigator.of(context).push(
@@ -2385,17 +2347,40 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     // Shuffle and take a subset of cards
     final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
     final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    final provider = context.read<FlashcardProvider>();
+    final studyConfig = StudyConfig(
+      deckIds: _selectedDeckIds.toList(),
+      deckNames: _selectedDeckIds.isEmpty
+          ? ['All Decks']
+          : _selectedDeckIds.map((id) => provider.getDeck(id)?.name ?? 'Unknown').toList(),
+      cardCount: studyCards.length,
+      useSRSFiltering: _useSRSFiltering,
+      startFlipped: _startFlipped,
+      autoProgress: _autoProgress,
+      useLivesMode: _useLivesMode,
+      customLives: _useLivesMode ? _selectedLives : null,
+      useTimedMode: true,
+      timedDifficulty: difficulty,
+      timePerQuestion: difficulty == TimedDifficulty.easy ? 7 : (difficulty == TimedDifficulty.medium ? 5 : 3),
+      useAllCardsForAnswers: _useAllCardsForAnswers,
+      oneAnswerMode: _oneAnswerMode,
+      enableHints: _enableHints,
+    );
 
-    // Navigate to timed test view
+    // Navigate to timed test view using the unified MultipleChoiceView
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => TimedMultipleChoiceView(
+        builder: (context) => MultipleChoiceView(
           cards: studyCards,
           title: 'Timed Test',
-          difficulty: difficulty,
+          useTimedMode: true,
+          timedDifficulty: difficulty,
           startFlipped: _startFlipped,
           oneAnswerMode: _oneAnswerMode,
           enableHints: _enableHints,
+          studyConfig: studyConfig,
+          answerPoolCards: _useAllCardsForAnswers ? provider.cards : allCards,
         ),
       ),
     );
@@ -2457,15 +2442,40 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     // Shuffle and take a subset of cards
     final shuffledCards = List<FlashCard>.from(allCards)..shuffle();
     final studyCards = shuffledCards.take(_selectedCardCount).toList();
+    
+    final provider = context.read<FlashcardProvider>();
+    final studyConfig = StudyConfig(
+      deckIds: _selectedDeckIds.toList(),
+      deckNames: _selectedDeckIds.isEmpty
+          ? ['All Decks']
+          : _selectedDeckIds.map((id) => provider.getDeck(id)?.name ?? 'Unknown').toList(),
+      cardCount: studyCards.length,
+      useSRSFiltering: _useSRSFiltering,
+      startFlipped: _startFlipped,
+      autoProgress: _autoProgress,
+      useLivesMode: _useLivesMode,
+      customLives: _useLivesMode ? _selectedLives : null,
+      useTimedMode: true,
+      timedDifficulty: difficulty,
+      timePerQuestion: difficulty == TimedDifficulty.easy ? 7 : (difficulty == TimedDifficulty.medium ? 5 : 3),
+      useAllCardsForAnswers: _useAllCardsForAnswers,
+      oneAnswerMode: _oneAnswerMode,
+      enableHints: _enableHints,
+    );
 
-    // Navigate to timed true/false view
+    // Navigate to timed true/false view using the unified TrueFalseView
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => TimedTrueFalseView(
+        builder: (context) => TrueFalseView(
           cards: studyCards,
           title: 'Timed True/False',
-          difficulty: difficulty,
+          useTimedMode: true,
+          timedDifficulty: difficulty,
+          startFlipped: _startFlipped,
           oneAnswerMode: _oneAnswerMode,
+          enableHints: _enableHints,
+          studyConfig: studyConfig,
+          answerPoolCards: _useAllCardsForAnswers ? provider.cards : allCards,
         ),
       ),
     );

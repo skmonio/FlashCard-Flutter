@@ -16,6 +16,7 @@ import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../utils/game_difficulty_helper.dart';
+import '../utils/card_color_utils.dart';
 import '../utils/game_end_screen.dart';
 import '../utils/sentence_utils.dart';
 import 'add_card_view.dart';
@@ -869,27 +870,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
   }
 
   Color _getCardBorderColor(FlashCard card) {
-    final vibrantColors = [
-      const Color(0xFFFF6B35), // Coral/Orange-Red
-      const Color(0xFFFF9900), // Bright Orange
-      const Color(0xFFFFCC00), // Golden Yellow
-      const Color(0xFF33CC99), // Teal/Turquoise
-      const Color(0xFF00B3CC), // Cyan Blue
-      const Color(0xFF9966FF), // Purple
-      const Color(0xFFFF4D94), // Pink
-      const Color(0xFF66E64D), // Lime Green
-    ];
-    
-    if (card.word.isEmpty) {
-      return vibrantColors[0];
-    }
-    
-    // Simple hash of the word to pick a consistent color
-    int hash = 0;
-    for (int i = 0; i < card.word.length; i++) {
-        hash = card.word.codeUnitAt(i) + ((hash << 5) - hash);
-    }
-    return vibrantColors[hash.abs() % vibrantColors.length];
+    return CardColorUtils.getBorderColor(card);
   }
 
   Widget _buildHeader() {

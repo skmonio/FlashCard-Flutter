@@ -13,6 +13,7 @@ import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
 import '../utils/game_end_screen.dart';
+import '../utils/card_color_utils.dart';
 import '../components/main_header.dart';
 
 class TimeYourCardsView extends StatefulWidget {
@@ -166,18 +167,7 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
   }
 
   Color _getCardBorderColor(FlashCard card) {
-    final vibrantColors = [
-      const Color(0xFF673AB7),
-      const Color(0xFF3F51B5),
-      const Color(0xFF2196F3),
-      const Color(0xFF00BCD4),
-      const Color(0xFF009688),
-      const Color(0xFF4CAF50),
-      const Color(0xFFCDDC39),
-      const Color(0xFFFFC107),
-    ];
-    final hash = (card.word.hashCode + card.definition.hashCode).abs();
-    return vibrantColors[hash % vibrantColors.length];
+    return CardColorUtils.getBorderColor(card);
   }
 
   void _loadQuestion() {

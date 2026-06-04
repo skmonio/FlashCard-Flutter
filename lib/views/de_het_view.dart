@@ -11,6 +11,7 @@ import '../services/xp_service.dart';
 import '../services/haptic_service.dart';
 import '../providers/flashcard_provider.dart';
 import '../providers/user_profile_provider.dart';
+import '../utils/card_color_utils.dart';
 import '../utils/game_end_screen.dart';
 import '../components/main_header.dart';
 
@@ -167,24 +168,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
   }
 
   Color _getCardBorderColor(FlashCard card) {
-    final vibrantColors = [
-      const Color(0xFFFF6B35), // Coral/Orange-Red
-      const Color(0xFFFF9900), // Bright Orange
-      const Color(0xFFFFCC00), // Golden Yellow
-      const Color(0xFF33CC99), // Teal/Turquoise
-      const Color(0xFF00B3CC), // Cyan Blue
-      const Color(0xFF9966FF), // Purple
-      const Color(0xFFFF4D94), // Pink
-      const Color(0xFF66E64D), // Lime Green
-    ];
-    
-    if (card.word.isEmpty || card.definition.isEmpty) {
-      return vibrantColors[0];
-    }
-    
-    final hash = (card.word.hashCode + card.definition.hashCode).abs();
-    final index = hash % vibrantColors.length;
-    return vibrantColors[index];
+    return CardColorUtils.getBorderColor(card);
   }
 
   // ─── Question logic ────────────────────────────────────────────────────────
