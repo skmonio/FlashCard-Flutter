@@ -125,6 +125,23 @@ class _CardStatsViewState extends State<CardStatsView> {
                 _buildStatRow('Times Incorrect', '${freshCard.timesShown - freshCard.timesCorrect}'),
                 _buildStatRow('Success Rate', _getSuccessRate(freshCard)),
                 _buildStatRow('Consecutive Correct', '${freshCard.consecutiveCorrect}'),
+                _buildStatRow('Times Forgotten', '${freshCard.learningMastery.lapses}'),
+                if (freshCard.learningMastery.lapses >= 8)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber, color: Colors.orange, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'This card has been forgotten ${freshCard.learningMastery.lapses} times. Consider rewriting the definition or adding a memory aid.',
+                            style: const TextStyle(fontSize: 12, color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
             

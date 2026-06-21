@@ -115,8 +115,8 @@ class FlashCard {
   double get hpPercentage => learningMastery.hpPercentage;
   String get hpStatus => learningMastery.hpStatus;
   
-  /// Check if card is available for study (has HP and can still gain XP)
-  bool get isAvailableForStudy => !isDefeated && learningMastery.currentXP < 1100;
+  /// Check if card is available for study (has HP)
+  bool get isAvailableForStudy => !isDefeated;
   
   // Legacy getters for backward compatibility
   int get timesShown => learningMastery.totalAttempts;

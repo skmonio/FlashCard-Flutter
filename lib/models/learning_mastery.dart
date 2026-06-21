@@ -357,9 +357,16 @@ class LearningMastery {
   /// Handle lapse (quality < 3)
   void _handleLapse() {
     lapses++;
-    repetitions = 0;
-    interval = 1;
-    
+    if (interval > 21) {
+      // Mature card: partial reset — preserve some spacing credit
+      interval = (interval * 0.5).round().clamp(1, interval);
+      repetitions = (repetitions - 1).clamp(1, repetitions);
+    } else {
+      // Young card: full reset back to learning phase
+      repetitions = 0;
+      interval = 1;
+    }
+
     // Graduated ease factor reduction
     if (lapses == 1) {
       easeFactor = (easeFactor - 0.2).clamp(1.3, 2.5);
