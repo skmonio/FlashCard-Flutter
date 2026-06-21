@@ -225,9 +225,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final String correctDutchWord = currentCard.word;
 
     final List<String> bubbleTexts = <String>[correctDutchWord];
-    while (bubbleTexts.length < 6) {
-      String decoy = _generateDecoy(correctDutchWord);
+    final decoys = _generateDecoys(correctDutchWord, widget.cards, false);
+    for (final decoy in decoys) {
       if (!bubbleTexts.contains(decoy)) bubbleTexts.add(decoy);
+      if (bubbleTexts.length >= 6) break;
     }
     bubbleTexts.shuffle();
 
@@ -318,7 +319,35 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  String _generateDecoy(String word) {
+  List<String> _generateDecoys(String correctText, List<FlashCard> allCards, bool useDefinition) {
+    // Collect candidate texts from OTHER cards (same field as the correct bubble)
+    final currentCard = _currentIndex < widget.cards.length ? widget.cards[_currentIndex] : null;
+    final candidates = allCards
+        .where((c) => c.id != currentCard?.id)
+        .map((c) => useDefinition ? c.definition : c.word)
+        .where((text) => text.isNotEmpty && text != correctText)
+        .toList();
+
+    candidates.shuffle(random);
+
+    // Take up to 5 unique decoys
+    final decoys = <String>[];
+    for (final candidate in candidates) {
+      if (!decoys.contains(candidate) && decoys.length < 5) {
+        decoys.add(candidate);
+      }
+    }
+
+    // If not enough real cards, fall back to character mutation for the remainder
+    while (decoys.length < 5) {
+      final fallback = _mutateWord(correctText);
+      if (!decoys.contains(fallback)) decoys.add(fallback);
+    }
+
+    return decoys;
+  }
+
+  String _mutateWord(String word) {
     if (word.length < 3) return '${word}x';
     int i = random.nextInt(word.length);
     String letter = word[i];
