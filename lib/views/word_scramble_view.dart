@@ -5,7 +5,6 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_header.dart';
 import '../components/main_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
