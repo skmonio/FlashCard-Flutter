@@ -226,6 +226,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
   Map<String, bool> _solutionRevealedPerWord = {}; // Track if solution has been revealed for each word
   Set<String> _completedWordIds = {};
   Set<String> _markedCorrectWordIds = {};
+  Set<String> _overranWordIds = {}; // Words completed by tracing past the end
   int _currentUnansweredIndex = 0; // Track the current unanswered question index
   bool _hasNavigatedBack = false; // Track if user has pressed Back button
   
@@ -898,6 +899,21 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         // Update hint level to match the new hint indexes count
         _hintLevel = max(_hintLevel, prefixLength);
 
+        // Over-ran: user traced the full correct word but kept going past it
+        if (prefixLength == word.length) {
+          _overranWordIds.add(currentWordId);
+          setState(() {
+            _selectedIndexes = List.from(_correctPath);
+            _wrongIndexes.clear();
+            _hintIndexes.clear();
+          });
+          HapticService().successFeedback();
+          Future.delayed(const Duration(milliseconds: 600), () {
+            if (mounted) _completeWord();
+          });
+          return;
+        }
+
         // Incorrect word, show error
         print('❌ Word is incorrect');
         
@@ -1158,21 +1174,29 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     int baseXP = 10;
     int wrongAttempts = _wrongAttemptsPerWord[currentWordId] ?? 0;
     bool solutionRevealed = _solutionRevealedPerWord[currentWordId] ?? false;
-    int finalXP = solutionRevealed ? 0 : (baseXP - wrongAttempts).clamp(0, baseXP);
+    bool overran = _overranWordIds.contains(currentWordId);
+    int finalXP = solutionRevealed
+        ? 0
+        : overran
+            ? (baseXP ~/ 2)
+            : (baseXP - wrongAttempts).clamp(0, baseXP);
     _xpGainedPerWord[currentWordId] = finalXP;
     _wordMastery[currentWordId] = _availableCards[_currentCardIndex].learningMastery;
-    
+
     SoundManager().playCorrectSound();
     _successController.forward(from: 0);
-    
-    // Show feedback message (different if solution was revealed)
+
+    final displayWord = _availableCards[_currentCardIndex].word.toUpperCase();
+    // Show feedback message
     setState(() {
       _showFeedback = true;
       _totalAttempts++;
       if (solutionRevealed) {
-        _feedbackMessage = 'Solution revealed! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+        _feedbackMessage = 'Solution revealed! The answer is $displayWord';
+      } else if (overran) {
+        _feedbackMessage = 'So close! You traced past "$displayWord" — half credit';
       } else {
-        _feedbackMessage = 'Correct! The answer is ${_availableCards[_currentCardIndex].word.toUpperCase()}';
+        _feedbackMessage = 'Correct! The answer is $displayWord';
       }
     });
     
@@ -1403,9 +1427,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _solutionRevealedPerWord.clear();
       _completedWordIds.clear();
       _markedCorrectWordIds.clear();
+      _overranWordIds.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
-      
+
       // Reset lives if in lives mode
       if (_isLivesMode) {
         _maxLives = widget.customLives ?? 3;
@@ -1439,6 +1464,7 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _solutionRevealedPerWord.clear();
       _completedWordIds.clear();
       _markedCorrectWordIds.clear();
+      _overranWordIds.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
       if (_isLivesMode) {
@@ -1476,9 +1502,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _solutionRevealedPerWord.clear();
       _completedWordIds.clear();
       _markedCorrectWordIds.clear();
+      _overranWordIds.clear();
       _currentUnansweredIndex = 0;
       _hasNavigatedBack = false;
-      
+
       // Reset lives if in lives mode
       if (_isLivesMode) {
         _maxLives = widget.customLives ?? 3;
