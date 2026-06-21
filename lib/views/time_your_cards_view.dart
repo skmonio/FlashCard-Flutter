@@ -311,6 +311,7 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
     _awardXPToWord(card, isCorrect);
     _updateCardInProvider(card);
 
+    bool livesRanOut = false;
     setState(() {
       _selectedOption = chosen;
       _answered = true;
@@ -322,9 +323,13 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
         _correctAnswers++;
       } else if (_useLivesMode) {
         _lives--;
-        if (_lives <= 0) _finishSession();
+        if (_lives <= 0) livesRanOut = true;
       }
     });
+    if (livesRanOut) {
+      _finishSession();
+      return;
+    }
 
     _autoProgressTimer?.cancel();
     _autoProgressTimer = Timer(const Duration(milliseconds: 1400), () {
@@ -348,10 +353,25 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
     }
   }
 
-  void _finishSession() {
+  Future<void> _finalizeSession() async {
+    if (!mounted) return;
+    final userProvider = context.read<UserProfileProvider>();
+    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    if (totalXP > 0) await userProvider.addXp(totalXP);
+    final accuracy = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+    await userProvider.updateSessionStats(
+      cardsStudied: _totalAttempts,
+      sessionAccuracy: accuracy,
+      isPerfect: _correctAnswers == _totalAttempts && _totalAttempts > 0,
+    );
+    await userProvider.updateStreakFromStudyActivity();
+  }
+
+  Future<void> _finishSession() async {
     _questionTimer?.cancel();
-    _awardXp();
     setState(() => _showingResults = true);
+    await _finalizeSession();
+    if (mounted) _showEndScreen();
   }
 
   void _ensureCardTracked(FlashCard card) {
@@ -381,11 +401,6 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
       _xpGainedPerWord[card.id] = 0;
     }
     _wordMastery[card.id] = card.learningMastery;
-  }
-
-  void _awardXp() {
-    final provider = context.read<UserProfileProvider>();
-    XpService.awardSessionXp(provider, _gameSession);
   }
 
   Future<void> _updateCardInProvider(FlashCard card) async {
@@ -431,8 +446,6 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
 
   @override
   Widget build(BuildContext context) {
-    if (_showingResults) _showEndScreen();
-
     if (_currentCards.isEmpty) {
       return Scaffold(
         body: Column(
