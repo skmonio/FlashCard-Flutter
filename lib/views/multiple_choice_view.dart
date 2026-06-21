@@ -364,34 +364,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       }
     }
     
-    // Only use generic options as absolute last resort
-    if (wrongOptions.length < desiredWrongOptions) {
-      final genericOptions = _isQuestionMode
-          ? [
-              'Not applicable',
-              'Different meaning',
-              'Other definition',
-              'Alternative translation',
-              'Similar phrase',
-            ]
-          : [
-              'Unknown word',
-              'Different word',
-              'Other term',
-              'Similar spelling',
-              'Random choice',
-            ];
-      
-      int fallbackIndex = 0;
-      while (wrongOptions.length < desiredWrongOptions && fallbackIndex < genericOptions.length) {
-        final generic = genericOptions[fallbackIndex];
-        if (!wrongOptions.contains(generic)) {
-          wrongOptions.add(generic);
-        }
-        fallbackIndex++;
-      }
-    }
-    
     // Create options list with correct answer first
     _options = [correctAnswer, ...wrongOptions];
     
