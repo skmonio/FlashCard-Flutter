@@ -117,6 +117,10 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   String? _reviewStatusMessage;
   Timer? _reviewStatusTimer;
 
+  // Consecutive-answer tracking to prevent mindless tapping
+  bool? _lastTrueOrFalse;
+  int _consecutiveSameCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -286,8 +290,21 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     final answerPool = _getAnswerPoolForCard(currentCard);
     final otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
     
-    // 50% chance of true, 50% chance of false
-    final isTrue = random.nextBool();
+    // 50% chance of true, 50% chance of false — but cap runs at 2 consecutive same answers
+    bool isTrue;
+    if (_lastTrueOrFalse != null && _consecutiveSameCount >= 2) {
+      // Force the opposite after 2 in a row
+      isTrue = !_lastTrueOrFalse!;
+    } else {
+      isTrue = random.nextBool();
+    }
+    // Track for next question
+    if (_lastTrueOrFalse == isTrue) {
+      _consecutiveSameCount++;
+    } else {
+      _consecutiveSameCount = 1;
+    }
+    _lastTrueOrFalse = isTrue;
     
     if (isTrue) {
       // True question - use correct answer
@@ -1290,6 +1307,8 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
             _questionTexts.clear();
             _questionModes.clear();
             _translations.clear();
+            _lastTrueOrFalse = null;
+            _consecutiveSameCount = 0;
           });
           _generateQuestion();
         },
@@ -1479,7 +1498,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       _consecutiveCorrect = 0;
       _reviewCards.clear();
       _reviewStatusMessage = null;
-      
+      _lastTrueOrFalse = null;
+      _consecutiveSameCount = 0;
+
       _sessionController = GameSessionController(
         flashcardProvider: context.read<FlashcardProvider>(),
         userProfileProvider: context.read<UserProfileProvider>(),
