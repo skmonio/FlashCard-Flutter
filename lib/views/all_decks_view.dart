@@ -875,24 +875,49 @@ class _AllDecksViewState extends State<AllDecksView> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Selected Decks'),
-        content: Text(
-          'Are you sure you want to permanently delete ${_selectedDeckIds.length} deck(s)?\n\n'
-          'This will also delete all cards in these decks:\n$deckNames\n\n'
-          'This action cannot be undone.',
+        title: Text('Delete ${_selectedDeckIds.length} Deck${_selectedDeckIds.length == 1 ? '' : 's'}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Selected: $deckNames'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber, color: Colors.red, size: 16),
+                      SizedBox(width: 6),
+                      Text('This cannot be undone', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  Text('• All exclusive cards and their study history will be permanently deleted', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _performBulkDelete();
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete Permanently'),
           ),
         ],
       ),

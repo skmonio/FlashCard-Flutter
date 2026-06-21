@@ -864,9 +864,37 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Deck'),
-        content: Text(
-          'Are you sure you want to delete "${widget.deck.name}"? '
-          'This will also remove all cards in this deck.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Delete "${widget.deck.name}"?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber, color: Colors.red, size: 16),
+                      SizedBox(width: 6),
+                      Text('This cannot be undone', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
+                    ],
+                  ),
+                  SizedBox(height: 6),
+                  Text('• All cards exclusive to this deck will be permanently deleted', style: TextStyle(fontSize: 12)),
+                  SizedBox(height: 4),
+                  Text('• All study history (XP, progress, streaks) for those cards will be lost', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -884,7 +912,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
               }
             },
             style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Delete Permanently'),
           ),
         ],
       ),
