@@ -1144,13 +1144,10 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
       _ensureCardTracked(currentCard);
     }
     
-    if (!_completedWordIds.contains(currentWordId)) {
-      _completedWordIds.add(currentWordId);
-      if (!_markedCorrectWordIds.contains(currentWordId)) {
-        _applyHpPenalty(currentCard, wasCorrect: true);
-        _markedCorrectWordIds.add(currentWordId);
-        _updateCardInProvider(currentCard);
-      }
+    if (!_markedCorrectWordIds.contains(currentWordId)) {
+      _applyHpPenalty(currentCard, wasCorrect: true);
+      _markedCorrectWordIds.add(currentWordId);
+      _updateCardInProvider(currentCard);
     }
     
     // Advance the current unanswered index if this was the current question

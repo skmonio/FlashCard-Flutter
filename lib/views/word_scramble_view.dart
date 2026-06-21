@@ -5,7 +5,6 @@ import 'dart:async';
 import '../models/flash_card.dart';
 import '../models/game_session.dart';
 import '../models/learning_mastery.dart';
-import '../components/unified_header.dart';
 import '../components/main_header.dart';
 import '../components/xp_progress_widget.dart';
 import '../components/animated_xp_counter.dart';
@@ -579,11 +578,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
           // Set user answer to the correct order of pieces
           _userAnswer = List<String>.from(correctPieces);
           _answered = true;
-          _totalAttempts++;
           _correctAnswersMap[_currentIndex] = false;
           _consecutiveCorrect = 0; // Reset streak
           _shakeController.forward(from: 0);
-          
+
           _answeredQuestions[_currentIndex] = List<String>.from(correctPieces);
         });
         
