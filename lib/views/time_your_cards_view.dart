@@ -46,6 +46,7 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
   int _correctAnswers = 0;
   int _totalAttempts = 0;
   bool _showingResults = false;
+  bool _endScreenShown = false;
   bool _answered = false;
   String? _selectedOption;
   String? _correctTenseValue;
@@ -371,7 +372,10 @@ class _TimeYourCardsViewState extends State<TimeYourCardsView> with TickerProvid
     _questionTimer?.cancel();
     setState(() => _showingResults = true);
     await _finalizeSession();
-    if (mounted) _showEndScreen();
+    if (mounted && !_endScreenShown) {
+      _endScreenShown = true;
+      _showEndScreen();
+    }
   }
 
   void _ensureCardTracked(FlashCard card) {

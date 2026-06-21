@@ -24,6 +24,11 @@ class _DeckSelectionDialogState extends State<DeckSelectionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.read<FlashcardProvider>();
+    final cardCounts = {
+      for (final deck in widget.decks)
+        deck.id: provider.getCardsForDeck(deck.id).length,
+    };
     return AlertDialog(
       title: Text('Select Deck${widget.decks.length > 1 ? 's' : ''} to ${widget.isMove ? 'Move' : 'Copy'} To'),
       content: SizedBox(
@@ -37,7 +42,7 @@ class _DeckSelectionDialogState extends State<DeckSelectionDialog> {
             final isSelected = _selectedDeckIds.contains(deck.id);
             return CheckboxListTile(
               title: Text(deck.name),
-              subtitle: Text('${context.read<FlashcardProvider>().getCardsForDeck(deck.id).length} cards'),
+              subtitle: Text('${cardCounts[deck.id] ?? 0} cards'),
               value: isSelected,
               onChanged: (value) {
                 setState(() {

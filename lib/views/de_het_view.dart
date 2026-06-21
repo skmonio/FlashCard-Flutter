@@ -301,14 +301,14 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     });
   }
 
-  void _goNext() {
+  Future<void> _goNext() async {
     if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
       });
       _loadQuestion();
     } else {
-      _finishSession();
+      await _finishSession();
     }
   }
 
@@ -638,7 +638,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
                   )
                 else
                   FilledButton.icon(
-                    onPressed: _answered ? () { _finishSession(); } : null,
+                    onPressed: _answered ? _finishSession : null,
                     icon: const Icon(Icons.check, size: 14),
                     label: const Text('Finish'),
                   ),

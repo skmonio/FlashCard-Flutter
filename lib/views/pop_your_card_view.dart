@@ -226,7 +226,7 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final String correctDutchWord = currentCard.word;
 
     final List<String> bubbleTexts = <String>[correctDutchWord];
-    final decoys = _generateDecoys(correctDutchWord, widget.cards, false);
+    final decoys = _generateDecoys(correctDutchWord, widget.cards);
     for (final decoy in decoys) {
       if (!bubbleTexts.contains(decoy)) bubbleTexts.add(decoy);
       if (bubbleTexts.length >= 6) break;
@@ -320,12 +320,12 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  List<String> _generateDecoys(String correctText, List<FlashCard> allCards, bool useDefinition) {
-    // Collect candidate texts from OTHER cards (same field as the correct bubble)
+  List<String> _generateDecoys(String correctText, List<FlashCard> allCards) {
+    // Collect candidate words from OTHER cards
     final currentCard = _currentIndex < widget.cards.length ? widget.cards[_currentIndex] : null;
     final candidates = allCards
         .where((c) => c.id != currentCard?.id)
-        .map((c) => useDefinition ? c.definition : c.word)
+        .map((c) => c.word)
         .where((text) => text.isNotEmpty && text != correctText)
         .toList();
 

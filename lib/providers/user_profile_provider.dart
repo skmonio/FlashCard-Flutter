@@ -225,7 +225,7 @@ class UserProfileProvider extends ChangeNotifier {
       print(
         '🔍 UserProfileProvider: Level up detected! ${oldLevel} -> ${newLevel}',
       );
-      _checkLevelRewards(newLevel);
+      await _checkLevelRewards(newLevel);
     }
 
     // Check achievements
@@ -393,7 +393,7 @@ class UserProfileProvider extends ChangeNotifier {
   }
 
   // Check level rewards
-  void _checkLevelRewards(int newLevel) {
+  Future<void> _checkLevelRewards(int newLevel) async {
     final updatedRewards = List<LevelReward>.from(_profile.levelRewards);
     bool hasChanges = false;
 
@@ -406,7 +406,7 @@ class UserProfileProvider extends ChangeNotifier {
         hasChanges = true;
 
         // Apply reward effects
-        _applyReward(reward);
+        await _applyReward(reward);
       }
     }
 
@@ -416,10 +416,10 @@ class UserProfileProvider extends ChangeNotifier {
   }
 
   // Apply reward effects
-  void _applyReward(LevelReward reward) {
+  Future<void> _applyReward(LevelReward reward) async {
     switch (reward.type) {
       case LevelRewardType.xp:
-        addXp(reward.value);
+        await addXp(reward.value);
         break;
       case LevelRewardType.streak:
         // Streak protection logic would go here
@@ -445,7 +445,7 @@ class UserProfileProvider extends ChangeNotifier {
         _profile = _profile.copyWith(levelRewards: updatedRewards);
 
         // Apply reward effects
-        _applyReward(reward);
+        await _applyReward(reward);
 
         await _saveToStorage();
         notifyListeners();

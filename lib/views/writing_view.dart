@@ -256,31 +256,41 @@ class _WritingViewState extends State<WritingView> {
         answerLetters.add(char.toUpperCase());
       }
     }
-    
-    // Add some extra common letters to make the keyboard more useful
+
+    final random = Random();
     final extraLetters = ['A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'N', 'L', 'C', 'D', 'P', 'M', 'H', 'G', 'B', 'F', 'K', 'W', 'V', 'X', 'Y', 'Z', 'J', 'Q'];
-    
+
+    // If the answer has no alphabetic characters (e.g. a numeric card), build
+    // the keyboard from common letters only to avoid clamp(1, 0) RangeError.
+    if (answerLetters.isEmpty) {
+      final Set<String> allLetters = {};
+      while (allLetters.length < 10 && extraLetters.isNotEmpty) {
+        final idx = random.nextInt(extraLetters.length);
+        allLetters.add(extraLetters[idx]);
+        extraLetters.removeAt(idx);
+      }
+      _keyboardLetters = allLetters.toList()..shuffle(random);
+      return;
+    }
+
     // Only seed a subset of correct letters (at most half, minimum 1)
     // so short words aren't trivially solved by elimination
-    final random = Random();
     final answerLetterList = answerLetters.toList()..shuffle(random);
     final seedCount = ((answerLetters.length + 1) ~/ 2).clamp(1, answerLetters.length);
     final seededAnswerLetters = answerLetterList.take(seedCount).toSet();
 
     final Set<String> allLetters = {...seededAnswerLetters};
 
-    final random2 = Random();
     // Always include enough extras to give 10 total keys minimum
     final targetSize = max(allLetters.length + 6, 10);
-    
+
     while (allLetters.length < targetSize && extraLetters.isNotEmpty) {
-      final randomIndex = random2.nextInt(extraLetters.length);
+      final randomIndex = random.nextInt(extraLetters.length);
       allLetters.add(extraLetters[randomIndex]);
       extraLetters.removeAt(randomIndex);
     }
 
-    // Convert to list and shuffle
-    _keyboardLetters = allLetters.toList()..shuffle(random2);
+    _keyboardLetters = allLetters.toList()..shuffle(random);
   }
   
   void _generateQuestion() {
