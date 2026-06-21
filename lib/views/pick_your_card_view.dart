@@ -10,6 +10,7 @@ import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../components/main_header.dart';
+import '../components/game_view_widgets.dart';
 import '../services/haptic_service.dart';
 import 'add_card_view.dart';
 
@@ -1364,13 +1365,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_useLivesMode && widget.useTimedMode) ...[
-                        _buildLivesIndicator(),
+                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                         const SizedBox(width: 8),
-                        _buildTimerIndicator(),
+                        GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                       ] else if (_useLivesMode) ...[
-                        _buildLivesIndicator(),
+                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                       ] else if (widget.useTimedMode) ...[
-                        _buildTimerIndicator(),
+                        GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                       ],
                     ],
                   ),
@@ -1450,54 +1451,8 @@ class _PickYourCardViewState extends State<PickYourCardView>
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: _buildLivesIndicator(),
+        child: GameLivesIndicator(lives: _lives, maxLives: _maxLives),
       ),
-    );
-  }
-  
-  Widget _buildLivesIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(_maxLives, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            index < _lives ? Icons.favorite : Icons.favorite_border,
-            color: Colors.red,
-            size: 18,
-          ),
-        );
-      }),
-    );
-  }
-  
-  Widget _buildTimerIndicator() {
-    final progress = _timeRemaining / _totalTime;
-    Color timerColor = Colors.green;
-    if (progress < 0.3) {
-      timerColor = Colors.red;
-    } else if (progress < 0.6) {
-      timerColor = Colors.orange;
-    }
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.timer,
-          color: timerColor,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_timeRemaining',
-          style: TextStyle(
-            color: timerColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
     );
   }
 

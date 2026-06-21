@@ -10,6 +10,7 @@ import '../utils/game_end_screen.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../components/main_header.dart';
+import '../components/game_view_widgets.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
@@ -862,13 +863,13 @@ class _PopYourCardViewState extends State<PopYourCardView>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (_useLivesMode && _useTimedMode) ...[
-                                    _buildLivesIndicator(),
+                                    GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                                     const SizedBox(width: 8),
-                                    _buildTimerIndicator(),
+                                    GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                                   ] else if (_useLivesMode) ...[
-                                    _buildLivesIndicator(),
+                                    GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                                   ] else if (_useTimedMode) ...[
-                                    _buildTimerIndicator(),
+                                    GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                                   ],
                                 ],
                               ),
@@ -1032,55 +1033,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  Widget _buildLivesIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(_maxLives, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            index < _lives ? Icons.favorite : Icons.favorite_border,
-            color: Colors.red,
-            size: 18,
-          ),
-        );
-      }),
-    );
-  }
-  
-  Widget _buildTimerIndicator() {
-    if (_totalTime <= 0) {
-      return const SizedBox.shrink();
-    }
-    
-    final progress = _timeRemaining / _totalTime;
-    Color timerColor = Colors.green;
-    if (progress < 0.3) {
-      timerColor = Colors.red;
-    } else if (progress < 0.6) {
-      timerColor = Colors.orange;
-    }
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.timer,
-          color: timerColor,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_timeRemaining',
-          style: TextStyle(
-            color: timerColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// Bubble data model
