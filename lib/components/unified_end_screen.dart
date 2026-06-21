@@ -566,46 +566,34 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                       ),
                     ),
                   ),
-                  child: Row(
+                  child: Builder(
+                    builder: (context) {
+                      // Compute available count upfront for display
+                      final provider = context.read<FlashcardProvider>();
+                      final available = widget.studiedWords.where((c) {
+                        final updated = provider.getCard(c.id) ?? c;
+                        return updated.isAvailableForStudy;
+                      }).toList();
+                      final availableCount = available.length;
+                      final totalCount = widget.studiedWords.length;
+
+                      return Row(
                     children: [
-                      // Study Again button with availability check
+                      // Study Again button with available count label
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            if (widget.onStudyAgain != null) {
-                              final provider = context.read<FlashcardProvider>();
-                              
-                              // Check availability
-                              final available = widget.studiedWords.where((c) {
-                                final updated = provider.getCard(c.id) ?? c;
-                                return updated.isAvailableForStudy;
-                              }).toList();
-                              
-                              if (available.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('No cards are available for study (all defeated or mastered).'),
-                                    backgroundColor: Colors.red,
-                                    duration: Duration(seconds: 3),
-                                  ),
-                                );
-                                return;
-                              }
-                              
-                              if (available.length < widget.studiedWords.length) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Some cards are not available (defeated or mastered).'),
-                                    backgroundColor: Colors.orange,
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                              
-                              widget.onStudyAgain!(available);
-                            }
-                          },
-                          child: const Text('Study Again'),
+                          onPressed: widget.onStudyAgain == null || availableCount == 0
+                              ? null
+                              : () {
+                                  widget.onStudyAgain!(available);
+                                },
+                          child: Text(
+                            availableCount == totalCount
+                                ? 'Study Again'
+                                : availableCount == 0
+                                    ? 'Study Again (0 available)'
+                                    : 'Study Again ($availableCount/$totalCount)',
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -654,6 +642,8 @@ class _UnifiedEndScreenState extends State<UnifiedEndScreen>
                         ),
                       ),
                     ],
+                      );
+                    },
                   ),
                 ),
               ),

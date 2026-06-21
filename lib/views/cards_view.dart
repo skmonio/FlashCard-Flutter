@@ -79,6 +79,20 @@ class _CardsViewState extends State<CardsView> {
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PhotoImportView()),
+              );
+            },
+            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+            label: const Text('Import from Photo'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.teal,
+              side: BorderSide(color: Colors.teal.withValues(alpha: 0.5)),
+            ),
+          ),
         ],
       ),
     );
