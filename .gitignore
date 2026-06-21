@@ -71,3 +71,4 @@ temp_aab/
 
 # Build artifacts - iOS
 *.ipa
+.claude/
