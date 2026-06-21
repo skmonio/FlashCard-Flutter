@@ -169,9 +169,9 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     super.dispose();
   }
 
-  void _generateQuestion() {
+  Future<void> _generateQuestion() async {
     if (_currentIndex >= _currentCards.length) {
-      _awardXp();
+      await _finalizeSession();
       if (widget.onComplete != null) {
         final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
         widget.onComplete!(successRate >= 0.6);
@@ -267,19 +267,19 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     });
   }
 
-  void _checkAnswer() {
+  Future<void> _checkAnswer() async {
     if (_answered || _userAnswer.isEmpty || _isShowingWrongAnswer) return;
-    
+
     _timer?.cancel();
-    
+
     final correctWords = _correctSentence.split(' ').where((w) => w.trim().isNotEmpty).toList();
     final isCorrect = listEquals(_userAnswer, correctWords);
     final currentCard = _currentCards[_currentIndex];
-    
+
     if (isCorrect) {
       _handleCorrectAnswer(currentCard);
     } else {
-      _handleWrongAnswer(currentCard);
+      await _handleWrongAnswer(currentCard);
     }
   }
 
@@ -318,7 +318,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     }
   }
 
-  void _handleWrongAnswer(FlashCard card) {
+  Future<void> _handleWrongAnswer(FlashCard card) async {
     final currentWrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     final newWrongAttempts = widget.oneAnswerMode ? 5 : (currentWrongAttempts + 1);
     _wrongAttempts[_currentIndex] = newWrongAttempts;
@@ -333,7 +333,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
         _applyHpPenalty(card, wasCorrect: false);
         _awardXPToWord(card, false, newWrongAttempts);
         _updateCardInProvider(card);
-        _showGameOverScreen();
+        await _showGameOverScreen();
         return;
       }
     }
@@ -559,11 +559,11 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     }
   }
 
-  void _showGameOverScreen() {
+  Future<void> _showGameOverScreen() async {
     setState(() {
       _showingResults = true;
     });
-    _awardXp();
+    await _finalizeSession();
     SoundManager().playCompleteSound();
   }
 
@@ -618,9 +618,18 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     _wordMastery[card.id] = card.learningMastery;
   }
 
-  void _awardXp() {
-    final provider = context.read<UserProfileProvider>();
-    XpService.awardSessionXp(provider, _gameSession);
+  Future<void> _finalizeSession() async {
+    if (!mounted) return;
+    final userProvider = context.read<UserProfileProvider>();
+    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    if (totalXP > 0) await userProvider.addXp(totalXP);
+    final accuracy = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+    await userProvider.updateSessionStats(
+      cardsStudied: _totalAttempts,
+      sessionAccuracy: accuracy,
+      isPerfect: _correctAnswers == _totalAttempts && _totalAttempts > 0,
+    );
+    await userProvider.updateStreakFromStudyActivity();
   }
 
   Future<void> _updateCardInProvider(FlashCard card) async {
