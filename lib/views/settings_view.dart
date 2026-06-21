@@ -368,16 +368,10 @@ class _SettingsViewState extends State<SettingsView> {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: const Icon(Icons.star),
+                leading: const Icon(Icons.star_outline),
                 title: const Text('Rate the App'),
-                subtitle: const Text('Share your feedback'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  // TODO: Open app store rating
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Rating feature coming soon!')),
-                  );
-                },
+                subtitle: const Text('Coming soon'),
+                enabled: false,
               ),
             ],
           ),

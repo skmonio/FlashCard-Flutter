@@ -390,6 +390,7 @@ class _AddCardViewState extends State<AddCardView> {
                       decoration: InputDecoration(
                         labelText: 'Plural Form',
                         hintText: 'e.g., huizen',
+                        helperText: 'Used in "So Many Cards" game mode',
                         border: const OutlineInputBorder(),
                         prefixIcon: const Icon(Icons.list),
                         suffixIcon: _pluralController.text.isNotEmpty ? IconButton(
@@ -445,13 +446,22 @@ class _AddCardViewState extends State<AddCardView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Article (optional)',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+        Row(
+          children: [
+            Text(
+              'Article (optional)',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Tooltip(
+              message: 'Required for the "De of Het" game mode',
+              child: Icon(Icons.info_outline, size: 14, color: Colors.grey),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Row(
@@ -1240,7 +1250,7 @@ class _AddCardViewState extends State<AddCardView> {
             const SizedBox(height: 12),
             Text('Existing definition: ${duplicateCard.definition}'),
             const SizedBox(height: 16),
-            const Text('What would you like to do?'),
+            const Text('Replace all fields of the existing card (word, definition, example, article) with the new values, or keep the existing card and only update its deck assignments?'),
           ],
         ),
         actions: [
@@ -1254,7 +1264,7 @@ class _AddCardViewState extends State<AddCardView> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop('overwrite'),
-            child: const Text('Overwrite with New Info'),
+            child: const Text('Replace All Fields'),
           ),
         ],
       ),
