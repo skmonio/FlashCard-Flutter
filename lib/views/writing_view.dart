@@ -12,6 +12,7 @@ import '../utils/game_end_screen.dart';
 import '../utils/card_color_utils.dart';
 import '../services/xp_service.dart';
 import '../components/main_header.dart';
+import '../components/game_view_widgets.dart';
 import 'add_card_view.dart';
 
 class WritingView extends StatefulWidget {
@@ -1097,10 +1098,10 @@ class _WritingViewState extends State<WritingView> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_useLivesMode) ...[
-                        _buildLivesIndicator(),
+                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                         if (_useTimedMode) const SizedBox(width: 8),
                       ],
-                      if (_useTimedMode) _buildTimerIndicator(),
+                      if (_useTimedMode) GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                     ],
                   ),
                 ),
@@ -1722,52 +1723,6 @@ class _WritingViewState extends State<WritingView> {
         }
       });
     }
-  }
-
-  Widget _buildLivesIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(_maxLives, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            index < _lives ? Icons.favorite : Icons.favorite_border,
-            color: Colors.red,
-            size: 18,
-          ),
-        );
-      }),
-    );
-  }
-  
-  Widget _buildTimerIndicator() {
-    final progress = _timeRemaining / _totalTime;
-    Color timerColor = Colors.green;
-    if (progress < 0.3) {
-      timerColor = Colors.red;
-    } else if (progress < 0.6) {
-      timerColor = Colors.orange;
-    }
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.timer,
-          color: timerColor,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_timeRemaining',
-          style: TextStyle(
-            color: timerColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
   }
 
   void _showGameOverScreen() {
