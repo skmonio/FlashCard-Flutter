@@ -770,14 +770,10 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     if (letters.length <= 3) {
       // For short words (3 letters or less), split into 2 pieces
       if (letters.length == 3) {
-        // "dog" -> ["do", "g"] or ["d", "og"]
-        if (random.nextBool()) {
-          pieces.add(letters.sublist(0, 2).join('')); // "do"
-          pieces.add(letters[2]); // "g"
-        } else {
-          pieces.add(letters[0]); // "d"
-          pieces.add(letters.sublist(1, 3).join('')); // "og"
-        }
+        // Split into 3 individual letters — 6 possible arrangements vs 2
+        pieces.add(letters[0]);
+        pieces.add(letters[1]);
+        pieces.add(letters[2]);
       } else if (letters.length == 2) {
         // "hi" -> ["h", "i"]
         pieces.add(letters[0]);
