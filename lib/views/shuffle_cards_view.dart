@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
+import '../providers/user_profile_provider.dart';
 import '../models/deck.dart';
 import '../models/flash_card.dart';
 import 'multiple_choice_view.dart';
@@ -639,8 +640,9 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         // Pop the current game view and immediately push end screen to avoid showing shuffle screen
         Navigator.pop(context);
         // Use a minimal delay to ensure pop completes, then immediately show end screen
-        Future.delayed(const Duration(milliseconds: 50), () {
+        Future.delayed(const Duration(milliseconds: 50), () async {
           if (mounted) {
+            await _finalizeSession();
             _showShuffleEndScreen('Game Over! You got one wrong.', false);
           }
         });
@@ -687,6 +689,23 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
         _isTransitioningToNextChallenge = false;
       }
     });
+  }
+
+  Future<void> _finalizeSession() async {
+    if (!mounted) return;
+    final userProvider = context.read<UserProfileProvider>();
+    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    if (totalXP > 0) await userProvider.addXp(totalXP);
+    final accuracy = _gameSession.totalAnswers > 0
+        ? _gameSession.correctAnswers / _gameSession.totalAnswers
+        : 0.0;
+    await userProvider.updateSessionStats(
+      cardsStudied: _gameSession.totalAnswers,
+      sessionAccuracy: accuracy,
+      isPerfect: _gameSession.correctAnswers == _gameSession.totalAnswers &&
+          _gameSession.totalAnswers > 0,
+    );
+    await userProvider.updateStreakFromStudyActivity();
   }
 
   void _showShuffleEndScreen(String message, bool wasSuccessful) {
