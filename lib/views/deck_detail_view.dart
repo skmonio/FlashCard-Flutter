@@ -78,11 +78,21 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                   return _buildEmptyState();
                 }
                 
+                final allDeckCards = widget.deck.isSubDeck
+                    ? provider.getCardsForDeck(widget.deck.id)
+                    : provider.getCardsForDeckWithSubDecks(widget.deck.id);
+                final defeatedCards = allDeckCards.where((c) => c.isDefeated).toList();
+                final decayingCards = allDeckCards.where((c) {
+                  final last = c.learningMastery.lastReviewDate;
+                  if (last == null) return false;
+                  return DateTime.now().difference(last).inDays > 3;
+                }).toList();
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                       child: Text(
                         '${cards.length} Cards',
                         style: TextStyle(
@@ -92,6 +102,18 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                         ),
                       ),
                     ),
+                    if (defeatedCards.isNotEmpty)
+                      _buildInfoBanner(
+                        icon: Icons.favorite_border,
+                        color: Colors.red,
+                        text: '${defeatedCards.length} card${defeatedCards.length == 1 ? '' : 's'} defeated — HP recovering (1/hr)',
+                      ),
+                    if (decayingCards.isNotEmpty)
+                      _buildInfoBanner(
+                        icon: Icons.trending_down,
+                        color: Colors.orange,
+                        text: '${decayingCards.length} card${decayingCards.length == 1 ? '' : 's'} losing XP — study to stop decay',
+                      ),
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -264,6 +286,16 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                       ],
                     ),
                   ),
+                  PopupMenuItem(
+                    value: SortOption.dueForReview,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.schedule),
+                        const SizedBox(width: 8),
+                        const Text('Due for Review'),
+                      ],
+                    ),
+                  ),
                 ],
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -338,6 +370,8 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       case SortOption.learningPercentage:
       case SortOption.learningPercentageLowHigh:
         return Icons.trending_up;
+      case SortOption.dueForReview:
+        return Icons.schedule;
     }
   }
 
@@ -363,7 +397,33 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         return 'Learning % (Low-High)';
       case SortOption.lastModified:
         return 'Last Modified';
+      case SortOption.dueForReview:
+        return 'Due for Review';
     }
+  }
+
+  Widget _buildInfoBanner({required IconData icon, required Color color, required String text}) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.85)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -685,6 +745,19 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         break;
       case SortOption.lastModified:
         cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+        break;
+      case SortOption.dueForReview:
+        cards.sort((a, b) {
+          final aDue = a.isDueForReview;
+          final bDue = b.isDueForReview;
+          if (aDue != bDue) return aDue ? -1 : 1;
+          final aDate = a.nextReviewDate;
+          final bDate = b.nextReviewDate;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return -1;
+          if (bDate == null) return 1;
+          return aDate.compareTo(bDate);
+        });
         break;
     }
 

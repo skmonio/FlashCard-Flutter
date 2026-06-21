@@ -25,6 +25,7 @@ enum SortOption {
   dateCreated,
   dateCreatedOldestFirst,
   lastModified,
+  dueForReview,
 }
 
 class AllCardsView extends StatefulWidget {
@@ -730,6 +731,8 @@ class _AllCardsViewState extends State<AllCardsView> {
         return 'Date Created (Oldest)';
       case SortOption.lastModified:
         return 'Last Modified';
+      case SortOption.dueForReview:
+        return 'Due for Review';
     }
   }
 
@@ -755,6 +758,8 @@ class _AllCardsViewState extends State<AllCardsView> {
         return Icons.keyboard_arrow_down;
       case SortOption.lastModified:
         return Icons.update;
+      case SortOption.dueForReview:
+        return Icons.schedule;
     }
   }
 
@@ -852,6 +857,19 @@ class _AllCardsViewState extends State<AllCardsView> {
           break;
         case SortOption.lastModified:
           cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+          break;
+        case SortOption.dueForReview:
+          cards.sort((a, b) {
+            final aDue = a.isDueForReview;
+            final bDue = b.isDueForReview;
+            if (aDue != bDue) return aDue ? -1 : 1;
+            final aDate = a.nextReviewDate;
+            final bDate = b.nextReviewDate;
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return -1;
+            if (bDate == null) return 1;
+            return aDate.compareTo(bDate);
+          });
           break;
       }
     } catch (e) {

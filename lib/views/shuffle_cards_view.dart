@@ -109,6 +109,13 @@ class _ShuffleCardsViewState extends State<ShuffleCardsView> {
   void _saveEnabledModes() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('shuffle_one_answer_mode', _oneAnswerMode);
+    await prefs.setBool('shuffle_mode_multiple_choice', _enabledModes[ShuffleMode.multipleChoice] ?? true);
+    await prefs.setBool('shuffle_mode_true_false', _enabledModes[ShuffleMode.trueFalse] ?? true);
+    await prefs.setBool('shuffle_mode_memory_game', _enabledModes[ShuffleMode.memoryGame] ?? true);
+    await prefs.setBool('shuffle_mode_word_scramble', _enabledModes[ShuffleMode.wordScramble] ?? true);
+    await prefs.setBool('shuffle_mode_writing', _enabledModes[ShuffleMode.writing] ?? true);
+    await prefs.setBool('shuffle_mode_pop_your_cards', _enabledModes[ShuffleMode.popYourCards] ?? true);
+    await prefs.setBool('shuffle_mode_pick_your_cards', _enabledModes[ShuffleMode.pickYourCards] ?? true);
   }
 
   List<FlashCard> _getAnswerPoolCards(FlashCard primaryCard) {
