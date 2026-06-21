@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/flash_card.dart';
 import '../providers/flashcard_provider.dart';
 import '../services/xp_service.dart';
+import '../utils/card_color_utils.dart';
 import '../views/add_card_view.dart';
 import '../views/card_stats_view.dart';
 import 'hp_bar.dart';
@@ -89,7 +90,7 @@ class _CardDetailsDialogState extends State<CardDetailsDialog> {
                   Icon(Icons.folder_outlined, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    'Decks: ${_getDeckNames(freshCard, provider)}',
+                    'Decks: ${CardColorUtils.getDeckNames(freshCard, provider)}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 14,
@@ -373,17 +374,6 @@ class _CardDetailsDialogState extends State<CardDetailsDialog> {
         ),
       ],
     );
-  }
-
-  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
-    if (card.deckIds.isEmpty) return 'No decks';
-    
-    final deckNames = card.deckIds
-        .map((id) => provider.getDeck(id)?.name ?? 'Unknown')
-        .where((name) => name.isNotEmpty)
-        .toList();
-    
-    return deckNames.isEmpty ? 'No decks' : deckNames.join(', ');
   }
 
   String _getNextReviewText(FlashCard card) {
