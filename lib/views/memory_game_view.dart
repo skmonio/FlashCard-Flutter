@@ -953,8 +953,9 @@ class _MemoryGameViewState extends State<MemoryGameView>
     });
 
     // Strategy: Replace immediately if deck is empty or nearly empty, otherwise wait for 2 sets (4 spots)
-    bool shouldProcessNow = _remainingCards.isEmpty || 
-                            _remainingCards.length < 2 || 
+    bool shouldProcessNow = _remainingCards.isEmpty ||
+                            _remainingCards.length < 2 ||
+                            _pendingReplacementIndices.length >= _remainingCards.length ||
                             _pendingReplacementIndices.length >= 4;
 
     if (shouldProcessNow && !_isProcessingBatch) {
