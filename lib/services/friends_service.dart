@@ -162,6 +162,21 @@ class FriendsService {
     }
   }
 
+  /// Cancel a sent friend request
+  Future<void> cancelFriendRequest(String receiverId) async {
+    try {
+      await _client
+          .from('friend_requests')
+          .delete()
+          .eq('sender_id', SupabaseService.instance.currentUser!.id)
+          .eq('receiver_id', receiverId)
+          .eq('status', 'pending');
+    } catch (e) {
+      print('Error cancelling friend request: $e');
+      rethrow;
+    }
+  }
+
   /// Get pending friend requests
   Future<List<FriendRequest>> getPendingFriendRequests() async {
     try {

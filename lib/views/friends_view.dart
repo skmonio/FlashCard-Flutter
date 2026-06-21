@@ -550,7 +550,7 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
     
     return Semantics(
       label: '${user['username'] ?? 'User'}, level ${user['level'] ?? 1}, ${user['xp'] ?? 0} XP',
-      hint: hasRequestSent ? 'Request already sent' : 'Double tap to send a friend request',
+      hint: hasRequestSent ? 'Double tap to cancel friend request' : 'Double tap to send a friend request',
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         child: ListTile(
@@ -568,20 +568,27 @@ class _FriendsViewState extends State<FriendsView> with TickerProviderStateMixin
           ),
           subtitle: Text('Level ${user['level'] ?? 1} • ${user['xp'] ?? 0} XP'),
           trailing: hasRequestSent
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(20),
+              ? OutlinedButton(
+                  onPressed: () async {
+                    try {
+                      await FriendsService().cancelFriendRequest(userId);
+                      setState(() {
+                        _sentRequests.remove(userId);
+                      });
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to cancel request')),
+                        );
+                      }
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey,
+                    side: const BorderSide(color: Colors.grey),
+                    minimumSize: const Size(44, 44),
                   ),
-                  constraints: const BoxConstraints(minHeight: 44),
-                  child: const Text(
-                    'Requested',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  child: const Text('Cancel'),
                 )
               : ElevatedButton(
                   onPressed: () => _sendFriendRequest(userId),

@@ -398,10 +398,9 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
         trailing: _currentType == LeaderboardType.friends
             ? IconButton(
                 onPressed: () {
-                  // Navigate to friend's profile or send message
-                  _showFriendOptions(entry);
+                  // Navigate to friend's profile
                 },
-                icon: const Icon(Icons.more_vert),
+                icon: const Icon(Icons.person),
               )
             : null,
       ),
@@ -434,41 +433,4 @@ class _LeaderboardViewState extends State<LeaderboardView> with TickerProviderSt
     }
   }
 
-  void _showFriendOptions(LeaderboardEntry entry) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('View Profile'),
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to friend's profile
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.message),
-              title: const Text('Send Message'),
-              onTap: () {
-                Navigator.pop(context);
-                // Open chat with friend
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.sports_esports),
-              title: const Text('Challenge'),
-              onTap: () {
-                Navigator.pop(context);
-                // Send study challenge
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
