@@ -12,7 +12,6 @@ import '../utils/game_end_screen.dart';
 import '../utils/card_color_utils.dart';
 import '../services/xp_service.dart';
 import '../components/main_header.dart';
-import '../components/game_view_widgets.dart';
 import 'add_card_view.dart';
 
 class WritingView extends StatefulWidget {
@@ -256,35 +255,24 @@ class _WritingViewState extends State<WritingView> {
         answerLetters.add(char.toUpperCase());
       }
     }
-
-    final random = Random();
+    
+    // Add some extra common letters to make the keyboard more useful
     final extraLetters = ['A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'N', 'L', 'C', 'D', 'P', 'M', 'H', 'G', 'B', 'F', 'K', 'W', 'V', 'X', 'Y', 'Z', 'J', 'Q'];
-
-    // If the answer has no alphabetic characters (e.g. a numeric card), build
-    // the keyboard from common letters only to avoid clamp(1, 0) RangeError.
-    if (answerLetters.isEmpty) {
-      final Set<String> allLetters = {};
-      while (allLetters.length < 10 && extraLetters.isNotEmpty) {
-        final idx = random.nextInt(extraLetters.length);
-        allLetters.add(extraLetters[idx]);
-        extraLetters.removeAt(idx);
-      }
-      _keyboardLetters = allLetters.toList()..shuffle(random);
-      return;
-    }
-
-    // Always include every letter from the correct answer — the word must be solvable
+    
+    // Combine answer letters with some extra letters
     final Set<String> allLetters = {...answerLetters};
-
-    // Pad with random extras so there are at least 10 keys (adds noise/challenge)
-    final targetSize = max(allLetters.length + 4, 10);
-
+    
+    // Add extra letters (but not too many to keep the keyboard manageable)
+    final random = Random();
+    final targetSize = answerLetters.length + 8; // Aim for answer letters + 8 extra
+    
     while (allLetters.length < targetSize && extraLetters.isNotEmpty) {
       final randomIndex = random.nextInt(extraLetters.length);
       allLetters.add(extraLetters[randomIndex]);
       extraLetters.removeAt(randomIndex);
     }
-
+    
+    // Convert to list and shuffle
     _keyboardLetters = allLetters.toList()..shuffle(random);
   }
   
@@ -931,43 +919,36 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                 ] else if (!_answered) ...[
-                  // Attempts remaining — live heart row
+                  // Show attempts remaining UI
                   Builder(
                     builder: (context) {
-                      if (widget.oneAnswerMode) return const SizedBox.shrink();
                       final cardId = _currentCards[_currentIndex].id;
                       final wrongAttempts = _wrongAttemptsPerWord[cardId] ?? 0;
-                      final remaining = 5 - wrongAttempts;
-                      return Column(
-                        children: [
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              ...List.generate(5, (i) {
-                                final used = i < wrongAttempts;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                                  child: Icon(
-                                    used ? Icons.favorite_border : Icons.favorite,
-                                    color: used ? Colors.grey.shade400 : Colors.red,
-                                    size: 22,
-                                  ),
-                                );
-                              }),
-                              const SizedBox(width: 10),
-                              Text(
-                                remaining == 5 ? '5 attempts' : '$remaining left',
+                      
+                      // In Single Attempt mode, we only show it after the first mistake (which fails it)
+                      // In Multiple Attempt mode, we show the countdown
+                      if (widget.oneAnswerMode) {
+                        return const SizedBox.shrink();
+                      } else {
+                        return Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Center(
+                              child: Text(
+                                wrongAttempts == 0 
+                                    ? 'Enter letters (5 attempts allowed)'
+                                    : 'Incorrect, try again ($wrongAttempts/5 attempts)',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  color: remaining <= 1 ? Colors.red : Colors.grey.shade600,
+                                  color: wrongAttempts == 0 ? Colors.grey : Colors.red,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
-                            ],
-                          ),
-                        ],
-                      );
+                            ),
+                          ],
+                        );
+                      }
                     },
                   ),
                 ],
@@ -1095,7 +1076,7 @@ class _WritingViewState extends State<WritingView> {
     }
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
@@ -1116,10 +1097,10 @@ class _WritingViewState extends State<WritingView> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_useLivesMode) ...[
-                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
+                        _buildLivesIndicator(),
                         if (_useTimedMode) const SizedBox(width: 8),
                       ],
-                      if (_useTimedMode) GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
+                      if (_useTimedMode) _buildTimerIndicator(),
                     ],
                   ),
                 ),
@@ -1558,48 +1539,25 @@ class _WritingViewState extends State<WritingView> {
 
   Widget _buildHintIcon() {
     final canUseHint = _canUseHint();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_hintStatusMessage != null)
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              _hintStatusMessage!,
-              style: const TextStyle(
-                color: Colors.orange,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        GestureDetector(
-          onTap: canUseHint ? _useHint : null,
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: canUseHint ? Colors.orange : Colors.grey,
-                width: 2,
-              ),
-            ),
-            child: Icon(
-              Icons.lightbulb,
-              size: 16,
-              color: canUseHint ? Colors.orange : Colors.grey,
-            ),
+    return GestureDetector(
+      onTap: canUseHint ? _useHint : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
         ),
-      ],
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
+        ),
+      ),
     );
   }
 
@@ -1741,6 +1699,52 @@ class _WritingViewState extends State<WritingView> {
         }
       });
     }
+  }
+
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
+            color: Colors.red,
+            size: 18,
+          ),
+        );
+      }),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
   }
 
   void _showGameOverScreen() {

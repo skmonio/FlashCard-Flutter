@@ -65,7 +65,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
   int _currentIndex = 0;
   int _correctAnswers = 0;
   int _totalAttempts = 0;
-  int _firstAttemptCorrectCount = 0;
   bool _showingResults = false;
   bool _answered = false;
   int? _selectedAnswer;
@@ -494,8 +493,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       if (isCorrect) {
         _answered = true;
         _correctAnswers++;
-        if (wrongAttempts == 0) _firstAttemptCorrectCount++;
-
+        
         // Store the answer
         _answeredQuestions[_currentIndex] = index;
         _correctAnswersMap[_currentIndex] = true;
@@ -872,21 +870,28 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                   ),
                   
                   const SizedBox(height: 16), // Reduced spacing
-
-                  // Options - always 2 columns, no scroll
+                  
+                  const SizedBox(height: 20), // Reduced spacing
+                  
+                  // Options - 2 answers on one line, flexible on devices
                   Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisExtent: 74,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 400,
+                          mainAxisExtent: 80,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                        ),
+                        itemCount: _options.length,
+                        itemBuilder: (context, index) {
+                          return _buildOptionButton(index, _options[index]);
+                        },
                       ),
-                      itemCount: _options.length,
-                      itemBuilder: (context, index) {
-                        return _buildOptionButton(index, _options[index]);
-                      },
                     ),
                   ),
                 ],
@@ -903,7 +908,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
     final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
     
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
@@ -1207,7 +1212,7 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                   onTap: isNotSelectable ? null : () => _selectAnswer(index),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: statusColor,
                       borderRadius: BorderRadius.circular(12),
@@ -1226,8 +1231,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                     child: Row(
                       children: [
                         Container(
-                          width: 26,
-                          height: 26,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
                             color: borderStatusColor.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
@@ -1247,21 +1252,19 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                                   ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             option,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 16,
                               fontWeight: FontWeight.w500,
                               color: _answered && !isCorrectOption && !isSelectedWrong ? Colors.grey : null,
                             ),
                           ),
                         ),
                         if (_answered && isCorrectOption)
-                          const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                          const Icon(Icons.check_circle, color: Colors.green, size: 24),
                       ],
                     ),
                   ),
@@ -1424,33 +1427,32 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
                           _currentIndex = 0;
                           _correctAnswers = 0;
                           _totalAttempts = 0;
-                          _firstAttemptCorrectCount = 0;
                           _showingResults = false;
                           _answered = false;
                           _selectedAnswer = null;
-
+                          
                           _sessionController = GameSessionController(
                             flashcardProvider: context.read<FlashcardProvider>(),
                             userProfileProvider: context.read<UserProfileProvider>(),
                           );
-
+                          
                           // Reset lives if using lives mode
                           if (_useLivesMode) {
                             _lives = _maxLives;
                           }
-
+                          
                           // Reset all navigation state
                           _answeredQuestions.clear();
                           _correctAnswersMap.clear();
                           _questionOptions.clear();
                           _correctAnswerIndices.clear();
                           _questionModes.clear();
-
+                          
                           // Reset hint and review tracking
                           _hintCount.clear();
                           _blockedOptions.clear();
                           _reviewCards.clear();
-
+                          
                           // Reset wrong attempts tracking
                           _wrongAttempts.clear();
                           _disabledOptions.clear();
@@ -1625,7 +1627,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
       _currentIndex = 0;
       _correctAnswers = 0;
       _totalAttempts = 0;
-      _firstAttemptCorrectCount = 0;
       _showingResults = false;
       _answered = false;
       _selectedAnswer = null;
@@ -1670,8 +1671,8 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         xpGainedPerWord: sessionXpGainedPerWord,
         wordMastery: sessionWordMastery,
         initialHPPerWord: sessionInitialHPPerWord,
-        correctAnswers: _firstAttemptCorrectCount,
-        totalQuestions: _currentCards.length,
+        correctAnswers: _correctAnswers,
+        totalQuestions: _totalAttempts,
         onStudyAgain: (available) {
           Navigator.of(context).pop();
           setState(() {
@@ -1679,7 +1680,6 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
             _currentIndex = 0;
             _correctAnswers = 0;
             _totalAttempts = 0;
-            _firstAttemptCorrectCount = 0;
             _showingResults = false;
             _answered = false;
             _selectedAnswer = null;
@@ -1719,13 +1719,22 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
 
   double _getAdaptiveCardHeight(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Calculate available height after accounting for header, progress bar, and buttons
+    final availableHeight = screenHeight - 200; // Reserve space for UI elements
+    
+    // For very small screens (height < 600), use much smaller percentage
     if (screenHeight < 600) {
-      return 100.0;
-    } else if (screenHeight < 800) {
-      return 130.0;
-    } else {
-      return 160.0;
+      return (availableHeight * 0.2).clamp(120.0, 150.0); // 20% of available, min 120px, max 150px
+    }
+    // For medium screens (height 600-800), use medium percentage
+    else if (screenHeight < 800) {
+      return (availableHeight * 0.25).clamp(150.0, 200.0); // 25% of available, min 150px, max 200px
+    }
+    // For large screens, use larger percentage
+    else {
+      return (availableHeight * 0.3).clamp(200.0, 250.0); // 30% of available, min 200px, max 250px
     }
   }
 
@@ -1789,17 +1798,17 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color: canUseHint ? Colors.orange : Colors.grey,
-            width: 2,
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
         ),
         child: Icon(
           Icons.lightbulb,
           size: 16,
-          color: canUseHint ? Colors.orange : Colors.grey,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
         ),
       ),
     );

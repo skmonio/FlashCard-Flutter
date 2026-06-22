@@ -169,9 +169,9 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     super.dispose();
   }
 
-  Future<void> _generateQuestion() async {
+  void _generateQuestion() {
     if (_currentIndex >= _currentCards.length) {
-      await _finalizeSession();
+      _awardXp();
       if (widget.onComplete != null) {
         final successRate = _totalAttempts > 0 ? (_correctAnswers / _totalAttempts) : 0.0;
         widget.onComplete!(successRate >= 0.6);
@@ -194,9 +194,9 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
 
     final currentCard = _currentCards[_currentIndex];
     
-    // Normal (not flipped): show English example, user builds Dutch.
-    // Flipped: show Dutch example, user builds English.
-    _isQuestionMode = !widget.startFlipped;
+    // Flipped mode: true = Show English example translation, build Dutch example
+    //               false = Show Dutch example, build English example translation
+    _isQuestionMode = widget.startFlipped; 
     
     if (_isQuestionMode) {
       // Build Dutch sentence
@@ -267,19 +267,19 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     });
   }
 
-  Future<void> _checkAnswer() async {
+  void _checkAnswer() {
     if (_answered || _userAnswer.isEmpty || _isShowingWrongAnswer) return;
-
+    
     _timer?.cancel();
-
+    
     final correctWords = _correctSentence.split(' ').where((w) => w.trim().isNotEmpty).toList();
     final isCorrect = listEquals(_userAnswer, correctWords);
     final currentCard = _currentCards[_currentIndex];
-
+    
     if (isCorrect) {
       _handleCorrectAnswer(currentCard);
     } else {
-      await _handleWrongAnswer(currentCard);
+      _handleWrongAnswer(currentCard);
     }
   }
 
@@ -318,7 +318,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     }
   }
 
-  Future<void> _handleWrongAnswer(FlashCard card) async {
+  void _handleWrongAnswer(FlashCard card) {
     final currentWrongAttempts = _wrongAttempts[_currentIndex] ?? 0;
     final newWrongAttempts = widget.oneAnswerMode ? 5 : (currentWrongAttempts + 1);
     _wrongAttempts[_currentIndex] = newWrongAttempts;
@@ -333,7 +333,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
         _applyHpPenalty(card, wasCorrect: false);
         _awardXPToWord(card, false, newWrongAttempts);
         _updateCardInProvider(card);
-        await _showGameOverScreen();
+        _showGameOverScreen();
         return;
       }
     }
@@ -559,11 +559,11 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     }
   }
 
-  Future<void> _showGameOverScreen() async {
+  void _showGameOverScreen() {
     setState(() {
       _showingResults = true;
     });
-    await _finalizeSession();
+    _awardXp();
     SoundManager().playCompleteSound();
   }
 
@@ -618,18 +618,9 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     _wordMastery[card.id] = card.learningMastery;
   }
 
-  Future<void> _finalizeSession() async {
-    if (!mounted) return;
-    final userProvider = context.read<UserProfileProvider>();
-    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    if (totalXP > 0) await userProvider.addXp(totalXP);
-    final accuracy = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
-    await userProvider.updateSessionStats(
-      cardsStudied: _totalAttempts,
-      sessionAccuracy: accuracy,
-      isPerfect: _correctAnswers == _totalAttempts && _totalAttempts > 0,
-    );
-    await userProvider.updateStreakFromStudyActivity();
+  void _awardXp() {
+    final provider = context.read<UserProfileProvider>();
+    XpService.awardSessionXp(provider, _gameSession);
   }
 
   Future<void> _updateCardInProvider(FlashCard card) async {
@@ -898,31 +889,24 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
 
   Widget _buildHintIcon() {
     final canUseHint = !_answered && widget.enableHints;
-    
+
     return GestureDetector(
       onTap: canUseHint ? _useHint : null,
       child: Container(
-        width: 38,
-        height: 38,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1),
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color: canUseHint ? Colors.orange : Colors.grey,
-            width: 2,
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
-          boxShadow: canUseHint ? [
-            BoxShadow(
-              color: Colors.orange.withValues(alpha: 0.2),
-              blurRadius: 4,
-              spreadRadius: 1,
-            )
-          ] : null,
         ),
         child: Icon(
           Icons.lightbulb,
-          size: 20,
-          color: canUseHint ? Colors.orange : Colors.grey,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
         ),
       ),
     );
@@ -932,7 +916,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(

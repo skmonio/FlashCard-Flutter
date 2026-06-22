@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/flashcard_provider.dart';
 
 import '../components/main_header.dart';
@@ -92,6 +93,8 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
     if (widget.gameMode == GameMode.sentenceBuilding) {
       _flippedMode = 'flipped';
     }
+
+    _loadSavedSettings();
   }
 
   @override
@@ -105,6 +108,74 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
   void _onProviderChanged() {
     // Only rebuild if actually needed - provider debouncing handles most updates
     // This view doesn't need to rebuild on every provider change
+  }
+
+  Future<void> _loadSavedSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _selectedCardCount = prefs.getInt('study_card_count') ?? 10;
+      _startFlipped = prefs.getBool('study_start_flipped') ?? false;
+      _autoProgress = prefs.getBool('study_auto_progress') ?? false;
+      _useLivesMode = prefs.getBool('study_lives_mode') ?? false;
+      _selectedLives = prefs.getInt('study_lives') ?? 2;
+      _flippedMode = prefs.getString('study_flipped_mode') ??
+          (widget.gameMode == GameMode.sentenceBuilding ? 'flipped' : 'normal');
+      _useTimedMode = prefs.getBool('study_timed_mode') ?? false;
+      _selectedTimedDifficulty = TimedDifficulty.values[
+          prefs.getInt('study_timed_difficulty') ?? TimedDifficulty.medium.index];
+      _useSRSFiltering = prefs.getBool('study_srs_filtering') ?? true;
+      _useAllCardsForAnswers = prefs.getBool('study_all_cards_answers') ?? false;
+      _oneAnswerMode = prefs.getBool('study_one_answer_mode') ?? false;
+      _enableHints = prefs.getBool('study_enable_hints') ?? true;
+    });
+  }
+
+  Future<void> _saveAllSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('study_card_count', _selectedCardCount);
+    await prefs.setBool('study_start_flipped', _startFlipped);
+    await prefs.setBool('study_auto_progress', _autoProgress);
+    await prefs.setBool('study_lives_mode', _useLivesMode);
+    await prefs.setInt('study_lives', _selectedLives);
+    await prefs.setString('study_flipped_mode', _flippedMode);
+    await prefs.setBool('study_timed_mode', _useTimedMode);
+    await prefs.setInt('study_timed_difficulty', _selectedTimedDifficulty.index);
+    await prefs.setBool('study_srs_filtering', _useSRSFiltering);
+    await prefs.setBool('study_all_cards_answers', _useAllCardsForAnswers);
+    await prefs.setBool('study_one_answer_mode', _oneAnswerMode);
+    await prefs.setBool('study_enable_hints', _enableHints);
+  }
+
+  Future<void> _resetToDefaults() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('study_card_count');
+    await prefs.remove('study_start_flipped');
+    await prefs.remove('study_auto_progress');
+    await prefs.remove('study_lives_mode');
+    await prefs.remove('study_lives');
+    await prefs.remove('study_flipped_mode');
+    await prefs.remove('study_timed_mode');
+    await prefs.remove('study_timed_difficulty');
+    await prefs.remove('study_srs_filtering');
+    await prefs.remove('study_all_cards_answers');
+    await prefs.remove('study_one_answer_mode');
+    await prefs.remove('study_enable_hints');
+    if (!mounted) return;
+    setState(() {
+      _selectedCardCount = 10;
+      _startFlipped = false;
+      _autoProgress = false;
+      _useLivesMode = false;
+      _selectedLives = 2;
+      _flippedMode = widget.gameMode == GameMode.sentenceBuilding ? 'flipped' : 'normal';
+      _useTimedMode = false;
+      _selectedTimedDifficulty = TimedDifficulty.medium;
+      _useSRSFiltering = true;
+      _useAllCardsForAnswers = false;
+      _oneAnswerMode = false;
+      _enableHints = true;
+    });
   }
 
   @override
@@ -576,6 +647,20 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
               _buildHintsToggle(),
               const SizedBox(height: 16),
             ],
+
+            // Reset to defaults button
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _resetToDefaults,
+                icon: const Icon(Icons.restart_alt, size: 18),
+                label: const Text('Reset to defaults'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -628,6 +713,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                 _enableHints = false;
               }
             });
+            _saveAllSettings();
           },
         ),
       ],
@@ -689,6 +775,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                   this.setState(() {
                     _enableHints = value;
                   });
+                  _saveAllSettings();
                 },
         ),
       ],
@@ -726,6 +813,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             setState(() {
               _useSRSFiltering = value;
             });
+            _saveAllSettings();
           },
         ),
       ],
@@ -763,6 +851,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             setState(() {
               _flippedMode = value ? 'flipped' : 'normal';
             });
+            _saveAllSettings();
           },
         ),
       ],
@@ -800,6 +889,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             setState(() {
               _autoProgress = value;
             });
+            _saveAllSettings();
           },
         ),
       ],
@@ -850,6 +940,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                       _enableHints = false;
                     }
                   });
+                  _saveAllSettings();
                 },
         ),
       ],
@@ -928,6 +1019,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                       _enableHints = false;
                     }
                   });
+                  _saveAllSettings();
                 },
         ),
       ],
@@ -994,6 +1086,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         this.setState(() {
           _selectedLives = lives;
         });
+        _saveAllSettings();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -1047,6 +1140,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
         this.setState(() {
           _selectedTimedDifficulty = difficulty;
         });
+        _saveAllSettings();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -1173,6 +1267,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
                   setState(() {
                     _selectedCardCount = value.round();
                   });
+                  _saveAllSettings();
                 },
               ),
             ),
@@ -2515,6 +2610,7 @@ class _StudyTypeSelectionViewState extends State<StudyTypeSelectionView> {
             setState(() {
               _useAllCardsForAnswers = value;
             });
+            _saveAllSettings();
           },
         ),
       ],

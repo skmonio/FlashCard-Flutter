@@ -24,9 +24,6 @@ class SoManyCardsView extends StatefulWidget {
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final StudyConfig? studyConfig;
-  final Function(bool)? onComplete;
-  final bool shuffleMode;
-  final bool oneAnswerMode;
 
   const SoManyCardsView({
     super.key,
@@ -37,9 +34,6 @@ class SoManyCardsView extends StatefulWidget {
     this.useTimedMode = false,
     this.timedDifficulty,
     this.studyConfig,
-    this.onComplete,
-    this.shuffleMode = false,
-    this.oneAnswerMode = true,
   });
 
   @override
@@ -52,7 +46,6 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
   int _correctAnswers = 0;
   int _totalAttempts = 0;
   bool _showingResults = false;
-  bool _endScreenShown = false;
   bool _answered = false;
   String? _selectedOption;
   String? _correctPlural;
@@ -195,7 +188,7 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     final plural = card.plural;
     
     // Generate decoys
-    List<String> options = _generatePluralOptions(card.word, plural);
+    List<String> options = _generatePluralOptions(card.word, plural, _currentCards);
 
     setState(() {
       _answered = false;
@@ -210,33 +203,43 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     if (_useTimedMode) _startTimer();
   }
 
-  List<String> _generatePluralOptions(String word, String correct) {
+  List<String> _generatePluralOptions(String word, String correct, List<FlashCard> allCards) {
     Set<String> options = {correct};
-    
-    // Common Dutch plural patterns
-    List<String> patterns = [
-      word + "en",
-      word + "s",
-      word + "'s",
-      word + "eren",
-      word.endsWith('s') ? word + "es" : word + "jes",
-    ];
 
-    patterns.shuffle();
-    for (var p in patterns) {
-      if (options.length < 4 && p != correct) {
-        options.add(p);
+    // First prefer real plurals from other cards as distractors
+    final otherPlurals = allCards
+        .where((c) => c.plural.isNotEmpty && c.plural != correct)
+        .map((c) => c.plural)
+        .toList()
+      ..shuffle();
+
+    for (final p in otherPlurals) {
+      if (options.length >= 4) break;
+      options.add(p);
+    }
+
+    // Fall back to Dutch plural patterns if we still need options
+    if (options.length < 4) {
+      final patterns = [
+        word + 'en',
+        word + 's',
+        word + "'s",
+        word + 'eren',
+        word.endsWith('s') ? word + 'es' : word + 'jes',
+      ]..shuffle();
+
+      for (final p in patterns) {
+        if (options.length >= 4) break;
+        if (p != correct) options.add(p);
       }
     }
 
-    // Fallback if needed
+    // Last resort fallback (shouldn't happen with the above)
     while (options.length < 4) {
       options.add(word + Random().nextInt(100).toString());
     }
 
-    List<String> result = options.toList();
-    result.shuffle();
-    return result;
+    return options.toList()..shuffle();
   }
 
   void _startTimer() {
@@ -291,7 +294,6 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     _awardXPToWord(card, isCorrect);
     _updateCardInProvider(card);
 
-    bool livesRanOut = false;
     setState(() {
       _selectedOption = chosen;
       _answered = true;
@@ -303,13 +305,9 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
         _correctAnswers++;
       } else if (_useLivesMode) {
         _lives--;
-        if (_lives <= 0) livesRanOut = true;
+        if (_lives <= 0) _finishSession();
       }
     });
-    if (livesRanOut) {
-      _finishSession();
-      return;
-    }
 
     _autoProgressTimer?.cancel();
     _autoProgressTimer = Timer(const Duration(milliseconds: 1200), () {
@@ -333,33 +331,10 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     }
   }
 
-  Future<void> _finalizeSession() async {
-    if (!mounted) return;
-    final userProvider = context.read<UserProfileProvider>();
-    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
-    if (totalXP > 0) await userProvider.addXp(totalXP);
-    final accuracy = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
-    await userProvider.updateSessionStats(
-      cardsStudied: _totalAttempts,
-      sessionAccuracy: accuracy,
-      isPerfect: _correctAnswers == _totalAttempts && _totalAttempts > 0,
-    );
-    await userProvider.updateStreakFromStudyActivity();
-  }
-
-  Future<void> _finishSession() async {
+  void _finishSession() {
     _questionTimer?.cancel();
+    _awardXp();
     setState(() => _showingResults = true);
-    await _finalizeSession();
-    if (mounted && !_endScreenShown) {
-      _endScreenShown = true;
-      if (widget.onComplete != null) {
-        final successRate = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
-        widget.onComplete!(successRate >= 0.6);
-        return;
-      }
-      _showEndScreen();
-    }
   }
 
   void _ensureCardTracked(FlashCard card) {
@@ -389,6 +364,11 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
       _xpGainedPerWord[card.id] = 0;
     }
     _wordMastery[card.id] = card.learningMastery;
+  }
+
+  void _awardXp() {
+    final provider = context.read<UserProfileProvider>();
+    XpService.awardSessionXp(provider, _gameSession);
   }
 
   Future<void> _updateCardInProvider(FlashCard card) async {
@@ -434,6 +414,8 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    if (_showingResults) _showEndScreen();
+
     if (_currentCards.isEmpty) {
       return Scaffold(
         body: Column(

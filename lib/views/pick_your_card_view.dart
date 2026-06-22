@@ -10,7 +10,6 @@ import '../utils/game_end_screen.dart';
 import '../services/xp_service.dart';
 import '../services/sound_manager.dart';
 import '../components/main_header.dart';
-import '../components/game_view_widgets.dart';
 import '../services/haptic_service.dart';
 import 'add_card_view.dart';
 
@@ -256,7 +255,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
 
   void _loadCurrentCard() {
     if (currentCardIndex >= widget.cards.length) return;
-    
+
+    // Always start fresh — clear any lingering result state from the previous card
+    setState(() {
+      _showResult = false;
+      _isLastAnswerCorrect = false;
+    });
+
     final FlashCard currentCard = widget.cards[currentCardIndex];
     final String dutch = currentCard.word;
     
@@ -1344,7 +1349,7 @@ class _PickYourCardViewState extends State<PickYourCardView>
     final progress = widget.cards.isEmpty ? 0.0 : currentCardIndex / widget.cards.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
@@ -1365,13 +1370,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (_useLivesMode && widget.useTimedMode) ...[
-                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
+                        _buildLivesIndicator(),
                         const SizedBox(width: 8),
-                        GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
+                        _buildTimerIndicator(),
                       ] else if (_useLivesMode) ...[
-                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
+                        _buildLivesIndicator(),
                       ] else if (widget.useTimedMode) ...[
-                        GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
+                        _buildTimerIndicator(),
                       ],
                     ],
                   ),
@@ -1451,8 +1456,54 @@ class _PickYourCardViewState extends State<PickYourCardView>
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: GameLivesIndicator(lives: _lives, maxLives: _maxLives),
+        child: _buildLivesIndicator(),
       ),
+    );
+  }
+  
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
+            color: Colors.red,
+            size: 18,
+          ),
+        );
+      }),
+    );
+  }
+  
+  Widget _buildTimerIndicator() {
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 

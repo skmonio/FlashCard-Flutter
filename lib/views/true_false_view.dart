@@ -17,7 +17,6 @@ import '../utils/game_end_screen.dart';
 import '../utils/card_color_utils.dart';
 import '../utils/game_difficulty_helper.dart';
 import '../components/main_header.dart';
-import '../components/game_view_widgets.dart';
 import 'add_card_view.dart';
 import '../models/timed_difficulty.dart';
 import '../utils/game_session_controller.dart';
@@ -117,10 +116,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
   Set<String> _reviewCards = {}; // card IDs marked for review
   String? _reviewStatusMessage;
   Timer? _reviewStatusTimer;
-
-  // Consecutive-answer tracking to prevent mindless tapping
-  bool? _lastTrueOrFalse;
-  int _consecutiveSameCount = 0;
 
   @override
   void initState() {
@@ -291,21 +286,8 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     final answerPool = _getAnswerPoolForCard(currentCard);
     final otherCards = answerPool.where((card) => card.id != currentCard.id).toList();
     
-    // 50% chance of true, 50% chance of false — but cap runs at 2 consecutive same answers
-    bool isTrue;
-    if (_lastTrueOrFalse != null && _consecutiveSameCount >= 2) {
-      // Force the opposite after 2 in a row
-      isTrue = !_lastTrueOrFalse!;
-    } else {
-      isTrue = random.nextBool();
-    }
-    // Track for next question
-    if (_lastTrueOrFalse == isTrue) {
-      _consecutiveSameCount++;
-    } else {
-      _consecutiveSameCount = 1;
-    }
-    _lastTrueOrFalse = isTrue;
+    // 50% chance of true, 50% chance of false
+    final isTrue = random.nextBool();
     
     if (isTrue) {
       // True question - use correct answer
@@ -896,7 +878,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     final progress = widget.cards.isEmpty ? 0.0 : _currentIndex / widget.cards.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
           Row(
@@ -917,11 +899,11 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (widget.useLivesMode) ...[
-                        GameLivesIndicator(lives: _lives, maxLives: _maxLives),
+                        _buildLivesIndicator(),
                         if (_useTimedMode || _consecutiveCorrect >= 3) const SizedBox(width: 8),
                       ],
                       if (_useTimedMode) ...[
-                        GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
+                        _buildTimerIndicator(),
                         if (_consecutiveCorrect >= 3) const SizedBox(width: 8),
                       ],
                       if (_consecutiveCorrect >= 3)
@@ -971,6 +953,37 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimerIndicator() {
+    if (_totalTime == 0) return const SizedBox.shrink();
+    final progress = _timeRemaining / _totalTime;
+    Color timerColor = Colors.green;
+    if (progress < 0.3) {
+      timerColor = Colors.red;
+    } else if (progress < 0.6) {
+      timerColor = Colors.orange;
+    }
+    
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.timer,
+          color: timerColor,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$_timeRemaining',
+          style: TextStyle(
+            color: timerColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1053,6 +1066,23 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
     );
   }
   
+  Widget _buildLivesIndicator() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(_maxLives, (index) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            index < _lives ? Icons.favorite : Icons.favorite_border,
+            color: Colors.red,
+            size: 18,
+          ),
+        );
+      }),
+    );
+  }
+  
+
   Widget _buildAnswerButton(bool isTrue) {
     return AnimatedBuilder(
       animation: Listenable.merge([_shakeController, _successController]),
@@ -1128,7 +1158,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: borderColor.withValues(alpha: 0.1),
+                            color: _answered
+                                ? borderColor.withValues(alpha: 0.1)
+                                : (isTrue ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15)),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -1141,7 +1173,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: borderColor,
+                                      color: _answered
+                                          ? borderColor
+                                          : (isTrue ? Colors.green.shade700 : Colors.red.shade700),
                                     ),
                                   ),
                           ),
@@ -1260,8 +1294,6 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
             _questionTexts.clear();
             _questionModes.clear();
             _translations.clear();
-            _lastTrueOrFalse = null;
-            _consecutiveSameCount = 0;
           });
           _generateQuestion();
         },
@@ -1451,9 +1483,7 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
       _consecutiveCorrect = 0;
       _reviewCards.clear();
       _reviewStatusMessage = null;
-      _lastTrueOrFalse = null;
-      _consecutiveSameCount = 0;
-
+      
       _sessionController = GameSessionController(
         flashcardProvider: context.read<FlashcardProvider>(),
         userProfileProvider: context.read<UserProfileProvider>(),
