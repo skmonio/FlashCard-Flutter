@@ -1365,9 +1365,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     
     // Update session statistics
     final totalCards = _knownCards.length + _unknownCards.length + _skippedCards.length;
-    final accuracy = totalCards > 0 ? (_knownCards.length / totalCards) : 0.0;
+    final accuracy = _gameSession.totalAnswers > 0
+        ? _gameSession.correctAnswers / _gameSession.totalAnswers
+        : 0.0;
     final isPerfect = _unknownCards.isEmpty && _skippedCards.isEmpty && totalCards > 0;
-    
+
     context.read<UserProfileProvider>().updateSessionStats(
       cardsStudied: totalCards,
       sessionAccuracy: accuracy,

@@ -23,6 +23,8 @@ class DeHetView extends StatefulWidget {
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final StudyConfig? studyConfig;
+  final Function(bool)? onComplete;
+  final bool shuffleMode;
 
   const DeHetView({
     super.key,
@@ -33,6 +35,8 @@ class DeHetView extends StatefulWidget {
     this.useTimedMode = false,
     this.timedDifficulty,
     this.studyConfig,
+    this.onComplete,
+    this.shuffleMode = false,
   });
 
   @override
@@ -343,6 +347,11 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     await _finalizeSession();
     if (mounted && !_endScreenShown) {
       _endScreenShown = true;
+      if (widget.onComplete != null) {
+        final successRate = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+        widget.onComplete!(successRate >= 0.6);
+        return;
+      }
       _showEndScreen();
     }
   }
