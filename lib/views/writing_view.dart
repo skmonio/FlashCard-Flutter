@@ -273,16 +273,11 @@ class _WritingViewState extends State<WritingView> {
       return;
     }
 
-    // Only seed a subset of correct letters (at most half, minimum 1)
-    // so short words aren't trivially solved by elimination
-    final answerLetterList = answerLetters.toList()..shuffle(random);
-    final seedCount = ((answerLetters.length + 1) ~/ 2).clamp(1, answerLetters.length);
-    final seededAnswerLetters = answerLetterList.take(seedCount).toSet();
+    // Always include every letter from the correct answer — the word must be solvable
+    final Set<String> allLetters = {...answerLetters};
 
-    final Set<String> allLetters = {...seededAnswerLetters};
-
-    // Always include enough extras to give 10 total keys minimum
-    final targetSize = max(allLetters.length + 6, 10);
+    // Pad with random extras so there are at least 10 keys (adds noise/challenge)
+    final targetSize = max(allLetters.length + 4, 10);
 
     while (allLetters.length < targetSize && extraLetters.isNotEmpty) {
       final randomIndex = random.nextInt(extraLetters.length);
@@ -936,36 +931,43 @@ class _WritingViewState extends State<WritingView> {
                     ),
                   ),
                 ] else if (!_answered) ...[
-                  // Show attempts remaining UI
+                  // Attempts remaining — live heart row
                   Builder(
                     builder: (context) {
+                      if (widget.oneAnswerMode) return const SizedBox.shrink();
                       final cardId = _currentCards[_currentIndex].id;
                       final wrongAttempts = _wrongAttemptsPerWord[cardId] ?? 0;
-                      
-                      // In Single Attempt mode, we only show it after the first mistake (which fails it)
-                      // In Multiple Attempt mode, we show the countdown
-                      if (widget.oneAnswerMode) {
-                        return const SizedBox.shrink();
-                      } else {
-                        return Column(
-                          children: [
-                            const SizedBox(height: 12),
-                            Center(
-                              child: Text(
-                                wrongAttempts == 0 
-                                    ? 'Enter letters (5 attempts allowed)'
-                                    : 'Incorrect, try again ($wrongAttempts/5 attempts)',
+                      final remaining = 5 - wrongAttempts;
+                      return Column(
+                        children: [
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ...List.generate(5, (i) {
+                                final used = i < wrongAttempts;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  child: Icon(
+                                    used ? Icons.favorite_border : Icons.favorite,
+                                    color: used ? Colors.grey.shade400 : Colors.red,
+                                    size: 22,
+                                  ),
+                                );
+                              }),
+                              const SizedBox(width: 10),
+                              Text(
+                                remaining == 5 ? '5 attempts' : '$remaining left',
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: wrongAttempts == 0 ? Colors.grey : Colors.red,
+                                  color: remaining <= 1 ? Colors.red : Colors.grey.shade600,
                                 ),
-                                textAlign: TextAlign.center,
                               ),
-                            ),
-                          ],
-                        );
-                      }
+                            ],
+                          ),
+                        ],
+                      );
                     },
                   ),
                 ],
