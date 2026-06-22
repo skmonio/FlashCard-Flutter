@@ -194,9 +194,9 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
 
     final currentCard = _currentCards[_currentIndex];
     
-    // Flipped mode: true = Show English example translation, build Dutch example
-    //               false = Show Dutch example, build English example translation
-    _isQuestionMode = widget.startFlipped; 
+    // Normal (not flipped): show English example, user builds Dutch.
+    // Flipped: show Dutch example, user builds English.
+    _isQuestionMode = !widget.startFlipped;
     
     if (_isQuestionMode) {
       // Build Dutch sentence
@@ -932,7 +932,7 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
     final progress = _currentCards.isEmpty ? 0.0 : _currentIndex / _currentCards.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           Row(

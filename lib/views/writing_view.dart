@@ -1095,7 +1095,7 @@ class _WritingViewState extends State<WritingView> {
     }
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           Row(

@@ -1038,7 +1038,7 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
     final progress = widget.cards.isEmpty ? 0.0 : _currentIndex / widget.cards.length;
     
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
           Row(
