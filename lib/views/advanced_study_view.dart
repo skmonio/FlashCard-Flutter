@@ -1416,9 +1416,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _knownCards.add(currentCard.id);
         _combo++;
         if (_combo > _maxCombo) _maxCombo = _combo;
-        // Track XP for correct answer (5 XP)
         XpService.recordAnswer(_gameSession, true);
-        // Update learning progress - marked as correct
+        // Mark correct so exerciseHistory gets a fresh XP entry before _awardXPToWord reads it
+        currentCard.markCorrect(GameDifficulty.medium);
         _updateCardLearningProgress(currentCard, true);
         break;
       case SwipeDirection.up: // Review - removed
