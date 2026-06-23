@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:ui';
 import 'package:provider/provider.dart';
 import 'providers/flashcard_provider.dart';
 import 'providers/theme_provider.dart';
@@ -15,6 +17,18 @@ import 'views/app_initialization_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    print('🔥 FlutterError: ${details.exceptionAsString()}');
+    print('🔥 Stack: ${details.stack}');
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    print('🔥 Unhandled error: $error');
+    print('🔥 Stack: $stack');
+    return true;
+  };
   
   // Initialize Supabase
   try {
