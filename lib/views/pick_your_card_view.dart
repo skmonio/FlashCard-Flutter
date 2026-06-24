@@ -255,7 +255,13 @@ class _PickYourCardViewState extends State<PickYourCardView>
 
   void _loadCurrentCard() {
     if (currentCardIndex >= widget.cards.length) return;
-    
+
+    // Always start fresh — clear any lingering result state from the previous card
+    setState(() {
+      _showResult = false;
+      _isLastAnswerCorrect = false;
+    });
+
     final FlashCard currentCard = widget.cards[currentCardIndex];
     final String dutch = currentCard.word;
     

@@ -7,10 +7,12 @@ import '../models/flash_card.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
+import '../components/deck_selection_dialog.dart';
 import 'add_card_view.dart';
 import '../components/universal_add_button.dart';
 import 'all_cards_view.dart'; // Import for SortOption enum
 import 'study_type_selection_view.dart';
+import '../utils/card_color_utils.dart';
 
 class DeckDetailView extends StatefulWidget {
   final Deck deck;
@@ -76,11 +78,21 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                   return _buildEmptyState();
                 }
                 
+                final allDeckCards = widget.deck.isSubDeck
+                    ? provider.getCardsForDeck(widget.deck.id)
+                    : provider.getCardsForDeckWithSubDecks(widget.deck.id);
+                final defeatedCards = allDeckCards.where((c) => c.isDefeated).toList();
+                final decayingCards = allDeckCards.where((c) {
+                  final last = c.learningMastery.lastReviewDate;
+                  if (last == null) return false;
+                  return DateTime.now().difference(last).inDays > 3;
+                }).toList();
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                       child: Text(
                         '${cards.length} Cards',
                         style: TextStyle(
@@ -90,6 +102,18 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                         ),
                       ),
                     ),
+                    if (defeatedCards.isNotEmpty)
+                      _buildInfoBanner(
+                        icon: Icons.favorite_border,
+                        color: Colors.red,
+                        text: '${defeatedCards.length} card${defeatedCards.length == 1 ? '' : 's'} defeated — HP recovering (1/hr)',
+                      ),
+                    if (decayingCards.isNotEmpty)
+                      _buildInfoBanner(
+                        icon: Icons.trending_down,
+                        color: Colors.orange,
+                        text: '${decayingCards.length} card${decayingCards.length == 1 ? '' : 's'} losing XP — study to stop decay',
+                      ),
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -262,6 +286,16 @@ class _DeckDetailViewState extends State<DeckDetailView> {
                       ],
                     ),
                   ),
+                  PopupMenuItem(
+                    value: SortOption.dueForReview,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.schedule),
+                        const SizedBox(width: 8),
+                        const Text('Due for Review'),
+                      ],
+                    ),
+                  ),
                 ],
                 child: Container(
                   padding: const EdgeInsets.all(12),
@@ -336,6 +370,8 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       case SortOption.learningPercentage:
       case SortOption.learningPercentageLowHigh:
         return Icons.trending_up;
+      case SortOption.dueForReview:
+        return Icons.schedule;
     }
   }
 
@@ -361,7 +397,33 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         return 'Learning % (Low-High)';
       case SortOption.lastModified:
         return 'Last Modified';
+      case SortOption.dueForReview:
+        return 'Due for Review';
     }
+  }
+
+  Widget _buildInfoBanner({required IconData icon, required Color color, required String text}) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.85)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -625,53 +687,9 @@ class _DeckDetailViewState extends State<DeckDetailView> {
       child: LinearProgressIndicator(
         value: (card.learningPercentage ?? 0).toDouble(),
         backgroundColor: Colors.grey.withValues(alpha: 0.2),
-        valueColor: AlwaysStoppedAnimation<Color>(_getSRSColor(card.srsLevel)),
+        valueColor: AlwaysStoppedAnimation<Color>(CardColorUtils.getSrsColor(card.srsLevel)),
       ),
     );
-  }
-
-  Color _getSRSColor(int srsLevel) {
-    switch (srsLevel) {
-      case 0:
-        return Colors.grey;
-      case 1:
-        return Colors.red;
-      case 2:
-        return Colors.orange;
-      case 3:
-        return Colors.yellow;
-      case 4:
-        return Colors.lightGreen;
-      default:
-        return Colors.green;
-    }
-  }
-
-  String _getSRSDescription(int srsLevel) {
-    switch (srsLevel) {
-      case 0:
-        return 'New card - never studied';
-      case 1:
-        return 'Learning phase - review every day';
-      case 2:
-        return 'Early learning - review every 6 days';
-      case 3:
-        return 'Mid-learning - review every 15 days';
-      case 4:
-        return 'Review phase - longer intervals';
-      case 5:
-        return 'Well learned - review every 2-4 weeks';
-      case 6:
-        return 'Familiar - review every 1-2 months';
-      case 7:
-        return 'Very familiar - review every 2-4 months';
-      case 8:
-        return 'Mastered - review every 4-8 months';
-      case 9:
-        return 'Expert - review every 6-12 months';
-      default:
-        return 'Mastered - review every 8+ months';
-    }
   }
 
   List<FlashCard> _getFilteredAndSortedCards(FlashcardProvider provider) {
@@ -727,6 +745,19 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         break;
       case SortOption.lastModified:
         cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+        break;
+      case SortOption.dueForReview:
+        cards.sort((a, b) {
+          final aDue = a.isDueForReview;
+          final bDue = b.isDueForReview;
+          if (aDue != bDue) return aDue ? -1 : 1;
+          final aDate = a.nextReviewDate;
+          final bDate = b.nextReviewDate;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return -1;
+          if (bDate == null) return 1;
+          return aDate.compareTo(bDate);
+        });
         break;
     }
 
@@ -1062,17 +1093,6 @@ class _DeckDetailViewState extends State<DeckDetailView> {
         ),
       ],
     );
-  }
-
-  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
-    final deckNames = card.deckIds.map((deckId) {
-      final deck = provider.getDeck(deckId);
-      return deck?.name ?? 'Unknown Deck';
-    }).toList();
-    
-    if (deckNames.isEmpty) return 'Uncategorized';
-    if (deckNames.length == 1) return deckNames.first;
-    return '${deckNames.first} +${deckNames.length - 1} more';
   }
 
   String _getNextReviewText(FlashCard card) {
@@ -1417,7 +1437,7 @@ class _DeckDetailViewState extends State<DeckDetailView> {
 
     showDialog(
       context: context,
-      builder: (context) => _DeckSelectionDialog(
+      builder: (context) => DeckSelectionDialog(
         decks: availableDecks,
         isMove: isMove,
         onConfirm: (selectedDeckIds) {
@@ -1470,67 +1490,3 @@ class _DeckDetailViewState extends State<DeckDetailView> {
   }
 
 }
-
-class _DeckSelectionDialog extends StatefulWidget {
-  final List<Deck> decks;
-  final bool isMove;
-  final Function(List<String>) onConfirm;
-
-  const _DeckSelectionDialog({
-    required this.decks,
-    required this.isMove,
-    required this.onConfirm,
-  });
-  @override
-  State<_DeckSelectionDialog> createState() => _DeckSelectionDialogState();
-}
-
-class _DeckSelectionDialogState extends State<_DeckSelectionDialog> {
-  final Set<String> _selectedDeckIds = {};
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Select Deck${widget.decks.length > 1 ? 's' : ''} to ${widget.isMove ? 'Move' : 'Copy'} To'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 360,
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: widget.decks.length,
-          itemBuilder: (context, index) {
-            final deck = widget.decks[index];
-            final isSelected = _selectedDeckIds.contains(deck.id);
-            return CheckboxListTile(
-              title: Text(deck.name),
-              subtitle: Text('${context.read<FlashcardProvider>().getCardsForDeck(deck.id).length} cards'),
-              value: isSelected,
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _selectedDeckIds.add(deck.id);
-                  } else {
-                    _selectedDeckIds.remove(deck.id);
-                  }
-                });
-              },
-            );
-          },
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: _selectedDeckIds.isEmpty ? null : () => widget.onConfirm(_selectedDeckIds.toList()),
-          style: TextButton.styleFrom(
-            foregroundColor: widget.isMove ? Colors.blue : Colors.green,
-          ),
-          child: Text('${widget.isMove ? "Move" : "Copy"} to ${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'}'),
-        ),
-      ],
-    );
-  }
-} 

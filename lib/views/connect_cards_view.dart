@@ -847,10 +847,9 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
     print('🔍 Pointer up - selected indexes: $_selectedIndexes');
     setState(() {
       _isDragging = false;
-      _dragPosition = null; // Clear drag trail
+      _dragPosition = null;
     });
-    
-    // Clear pressed state after a short delay for visual feedback
+
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
         setState(() {
@@ -858,131 +857,105 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         });
       }
     });
-    
-    // Check if the current selection is correct
-    if (_selectedIndexes.isNotEmpty) {
-      final word = _availableCards[_currentCardIndex].word.toUpperCase();
-      String formedWord = _selectedIndexes.map((i) => _letters[i]).join('');
-      String currentWordId = _availableCards[_currentCardIndex].id;
-      
-      if (_solutionRevealedPerWord[currentWordId] ?? false) {
-        return;
-      }
-      
-      print('🔍 Checking word: "$formedWord" vs "$word"');
-      
-      // Check if the formed word matches the target word
-      if (formedWord == word) {
-        // Correct word - this should trigger completion
-        print('✅ Word is correct!');
-        _checkWordCompletion();
-      } else {
-        // Find longest correct prefix
-        int prefixLength = 0;
-        for (int i = 0; i < _selectedIndexes.length && i < _correctPath.length; i++) {
-          if (_selectedIndexes[i] == _correctPath[i]) {
-            prefixLength++;
-          } else {
-            break;
-          }
-        }
-        
-        // Update hint indexes with the correct prefix
-        for (int i = 0; i < prefixLength; i++) {
-          int indexToAdd = _correctPath[i];
-          if (!_hintIndexes.contains(indexToAdd)) {
-            _hintIndexes.add(indexToAdd);
-          }
-        }
-        
-        // Update hint level to match the new hint indexes count
-        _hintLevel = max(_hintLevel, prefixLength);
 
-        // Incorrect word, show error
-        print('❌ Word is incorrect');
-        
-        // Increment wrong attempts counter
-        // If oneAnswerMode is enabled, set to 5 immediately to trigger solution reveal
-        int wrongAttempts;
-        if (widget.oneAnswerMode) {
-          _wrongAttemptsPerWord[currentWordId] = 5;
-          wrongAttempts = 5;
+    // In manual mode the Check button handles submission; keep selection as-is.
+    if (!widget.autoProgress) return;
+
+    _submitAnswer();
+  }
+
+  void _submitAnswer() {
+    if (_selectedIndexes.isEmpty) return;
+
+    final word = _availableCards[_currentCardIndex].word.toUpperCase();
+    String formedWord = _selectedIndexes.map((i) => _letters[i]).join('');
+    String currentWordId = _availableCards[_currentCardIndex].id;
+
+    if (_solutionRevealedPerWord[currentWordId] ?? false) return;
+
+    print('🔍 Checking word: "$formedWord" vs "$word"');
+
+    if (formedWord == word) {
+      print('✅ Word is correct!');
+      _checkWordCompletion();
+    } else {
+      // Find longest correct prefix
+      int prefixLength = 0;
+      for (int i = 0; i < _selectedIndexes.length && i < _correctPath.length; i++) {
+        if (_selectedIndexes[i] == _correctPath[i]) {
+          prefixLength++;
         } else {
-          _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
-          wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
+          break;
         }
-        
-        // Track initial HP BEFORE processing (so we capture HP before it's reduced)
-        final currentCard = _availableCards[_currentCardIndex];
-        if (!_studiedWords.contains(currentCard)) {
-          _studiedWords.add(currentCard);
-          _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+      }
+
+      for (int i = 0; i < prefixLength; i++) {
+        int indexToAdd = _correctPath[i];
+        if (!_hintIndexes.contains(indexToAdd)) {
+          _hintIndexes.add(indexToAdd);
         }
+      }
+
+      _hintLevel = max(_hintLevel, prefixLength);
+
+      print('❌ Word is incorrect');
+
+      int wrongAttempts;
+      if (widget.oneAnswerMode) {
+        _wrongAttemptsPerWord[currentWordId] = 5;
+        wrongAttempts = 5;
+      } else {
+        _wrongAttemptsPerWord[currentWordId] = (_wrongAttemptsPerWord[currentWordId] ?? 0) + 1;
+        wrongAttempts = _wrongAttemptsPerWord[currentWordId]!;
+      }
+
+      final currentCard = _availableCards[_currentCardIndex];
+      if (!_studiedWords.contains(currentCard)) {
+        _studiedWords.add(currentCard);
+        _initialHPPerWord[currentCard.id] = currentCard.currentHP;
+      }
+
+      setState(() {
+        _wrongIndexes = List.from(_selectedIndexes);
+        for (int i = 0; i < prefixLength; i++) {
+          _wrongIndexes.remove(_correctPath[i]);
+        }
+        _totalAttempts++;
+        if (_isLivesMode) {
+          _livesRemaining--;
+          if (_livesRemaining <= 0) {
+            _showGameCompleteDialog();
+            return;
+          }
+        }
+      });
+
+      if (wrongAttempts >= 5 && !(_solutionRevealedPerWord[currentWordId] ?? false)) {
+        print('🔍 5 wrong attempts reached - revealing solution');
+        _solutionRevealedPerWord[currentWordId] = true;
 
         setState(() {
-          _wrongIndexes = List.from(_selectedIndexes);
-          // Remove correct prefix from wrong indexes so they prioritize hint color
-          for (int i = 0; i < prefixLength; i++) {
-            _wrongIndexes.remove(_correctPath[i]);
-          }
-          
-          _totalAttempts++;
-          
-          // Handle lives mode
-          if (_isLivesMode) {
-            _livesRemaining--;
-            if (_livesRemaining <= 0) {
-              // Game over - show end screen
-              _showGameCompleteDialog();
-              return;
-            }
-          }
+          _selectedIndexes = List.from(_correctPath);
+          _wrongIndexes.clear();
+          _hintIndexes.clear();
         });
-        
-        // Check if we've reached 5 wrong attempts - show solution
-        if (wrongAttempts >= 5 && !(_solutionRevealedPerWord[currentWordId] ?? false)) {
-          print('🔍 5 wrong attempts reached - revealing solution');
-          _solutionRevealedPerWord[currentWordId] = true;
-          
-          setState(() {
-            // Reveal the correct path by selecting all correct indexes
-            _selectedIndexes = List.from(_correctPath);
-            _wrongIndexes.clear();
-            _hintIndexes.clear(); // Clear hints since we're showing the full solution
-          });
-          
-          // Auto-complete the word after showing solution
-          Future.delayed(const Duration(milliseconds: 1000), () {
-            if (mounted) {
-              _completeWord();
-            }
-          });
-          
-          return;
-        }
-        
-        SoundManager().playWrongSound();
-        HapticService().errorFeedback();
-        _shakeController.forward(from: 0);
-        
-        Future.delayed(const Duration(milliseconds: 500), () {
-          setState(() {
-            // Clear selection but keep hint letters
-            _selectedIndexes.clear();
-            _wrongIndexes.clear();
-            // Restore hint letters to selected indexes
-            _selectedIndexes.addAll(_hintIndexes);
-          });
+
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) _completeWord();
         });
+        return;
       }
-    } else {
-      print('🔍 No letters selected - clearing selection');
-      // If no letters selected, clear any existing selection
-      setState(() {
-        _selectedIndexes.clear();
-        _wrongIndexes.clear();
-        // Restore hint letters to selected indexes
-        _selectedIndexes.addAll(_hintIndexes);
+
+      SoundManager().playWrongSound();
+      HapticService().errorFeedback();
+      _shakeController.forward(from: 0);
+
+      Future.delayed(const Duration(milliseconds: 500), () {
+        setState(() {
+          _selectedIndexes.clear();
+          _wrongIndexes.clear();
+          _selectedIndexes.addAll(_hintIndexes);
+        });
       });
     }
   }
@@ -1051,17 +1024,27 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
         return;
       }
       
+      // Allow deselecting the only selected tile (first tile undo)
+      if (_selectedIndexes.length == 1 && _selectedIndexes[0] == index) {
+        setState(() {
+          _selectedIndexes.clear();
+          _pressedIndex = -1;
+        });
+        HapticService().lightImpact();
+        return;
+      }
+
       // Don't allow selecting letters that are already selected
       if (_selectedIndexes.contains(index)) {
         return;
       }
-      
+
       // Allow selecting hint letters if they're not already in the selection
       if (_hintIndexes.contains(index) && _selectedIndexes.contains(index)) {
         print('🔍 Hint letter already selected: ${_letters[index]}');
         return;
       }
-      
+
       // If this is the first touch and no letters are selected yet
       if (_selectedIndexes.isEmpty) {
         // If we have hint letters, only allow starting from the first hint letter
@@ -1895,21 +1878,45 @@ class _ConnectCardsViewState extends State<ConnectCardsView>
                       ),
                     ),
 
-                  // Next button
-                  ElevatedButton.icon(
-                    onPressed: _getNextButtonAction(),
-                    icon: const Icon(Icons.arrow_forward_ios, size: 18),
-                    label: const Text('Next'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 2,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  // Check button (manual mode, word not yet answered) or Next button
+                  if (!widget.autoProgress &&
+                      !_answeredWords.containsKey(currentCard.id) &&
+                      !(_solutionRevealedPerWord[currentCard.id] ?? false))
+                    ElevatedButton(
+                      onPressed: _selectedIndexes.length == currentCard.word.length
+                          ? _submitAnswer
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.withValues(alpha: 0.2),
+                        disabledForegroundColor: Colors.grey,
+                        elevation: 2,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Check',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    )
+                  else
+                    ElevatedButton.icon(
+                      onPressed: _getNextButtonAction(),
+                      icon: const Icon(Icons.arrow_forward_ios, size: 18),
+                      label: const Text('Next'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

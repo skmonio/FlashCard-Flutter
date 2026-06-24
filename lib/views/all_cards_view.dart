@@ -4,11 +4,12 @@ import 'package:intl/intl.dart';
 import '../providers/flashcard_provider.dart';
 import '../models/flash_card.dart';
 import '../models/learning_mastery.dart';
-import '../models/deck.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/card_details_dialog.dart';
+import '../components/deck_selection_dialog.dart';
 import '../components/universal_add_button.dart';
+import '../utils/card_color_utils.dart';
 import 'add_card_view.dart';
 import 'shuffle_cards_view.dart';
 import 'dart:async'; // Added for Timer
@@ -24,6 +25,7 @@ enum SortOption {
   dateCreated,
   dateCreatedOldestFirst,
   lastModified,
+  dueForReview,
 }
 
 class AllCardsView extends StatefulWidget {
@@ -589,7 +591,7 @@ class _AllCardsViewState extends State<AllCardsView> {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          _getDeckNames(card, provider),
+                          CardColorUtils.getDeckNames(card, provider),
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 12,
@@ -729,6 +731,8 @@ class _AllCardsViewState extends State<AllCardsView> {
         return 'Date Created (Oldest)';
       case SortOption.lastModified:
         return 'Last Modified';
+      case SortOption.dueForReview:
+        return 'Due for Review';
     }
   }
 
@@ -754,18 +758,9 @@ class _AllCardsViewState extends State<AllCardsView> {
         return Icons.keyboard_arrow_down;
       case SortOption.lastModified:
         return Icons.update;
+      case SortOption.dueForReview:
+        return Icons.schedule;
     }
-  }
-
-  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
-    final deckNames = card.deckIds.map((deckId) {
-      final deck = provider.getDeck(deckId);
-      return deck?.name ?? 'Unknown Deck';
-    }).toList();
-    
-    if (deckNames.isEmpty) return 'Uncategorized';
-    if (deckNames.length == 1) return deckNames.first;
-    return '${deckNames.first} +${deckNames.length - 1} more';
   }
 
   String _getNextReviewText(FlashCard card) {
@@ -862,6 +857,19 @@ class _AllCardsViewState extends State<AllCardsView> {
           break;
         case SortOption.lastModified:
           cards.sort((a, b) => b.lastModified.compareTo(a.lastModified));
+          break;
+        case SortOption.dueForReview:
+          cards.sort((a, b) {
+            final aDue = a.isDueForReview;
+            final bDue = b.isDueForReview;
+            if (aDue != bDue) return aDue ? -1 : 1;
+            final aDate = a.nextReviewDate;
+            final bDate = b.nextReviewDate;
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return -1;
+            if (bDate == null) return 1;
+            return aDate.compareTo(bDate);
+          });
           break;
       }
     } catch (e) {
@@ -1425,50 +1433,6 @@ class _AllCardsViewState extends State<AllCardsView> {
     }
   }
 
-  Color _getSRSColor(int srsLevel) {
-    switch (srsLevel) {
-      case 0:
-        return Colors.grey;
-      case 1:
-        return Colors.red;
-      case 2:
-        return Colors.orange;
-      case 3:
-        return Colors.yellow;
-      case 4:
-        return Colors.lightGreen;
-      default:
-        return Colors.green;
-    }
-  }
-
-  String _getSRSDescription(int srsLevel) {
-    switch (srsLevel) {
-      case 0:
-        return 'New card - never studied';
-      case 1:
-        return 'Learning phase - review every day';
-      case 2:
-        return 'Early learning - review every 6 days';
-      case 3:
-        return 'Mid-learning - review every 15 days';
-      case 4:
-        return 'Review phase - longer intervals';
-      case 5:
-        return 'Well learned - review every 2-4 weeks';
-      case 6:
-        return 'Familiar - review every 1-2 months';
-      case 7:
-        return 'Very familiar - review every 2-4 months';
-      case 8:
-        return 'Mastered - review every 4-8 months';
-      case 9:
-        return 'Expert - review every 6-12 months';
-      default:
-        return 'Mastered - review every 8+ months';
-    }
-  }
-
   void _showMoveCopyDialog() {
     showDialog(
       context: context,
@@ -1522,7 +1486,7 @@ class _AllCardsViewState extends State<AllCardsView> {
 
     showDialog(
       context: context,
-      builder: (context) => _DeckSelectionDialog(
+      builder: (context) => DeckSelectionDialog(
         decks: availableDecks,
         isMove: isMove,
         onConfirm: (selectedDeckIds) {
@@ -1587,70 +1551,3 @@ class _AllCardsViewState extends State<AllCardsView> {
   }
 
 }
-
-class _DeckSelectionDialog extends StatefulWidget {
-  final List<Deck> decks;
-  final bool isMove;
-  final Function(List<String>) onConfirm;
-
-  const _DeckSelectionDialog({
-    required this.decks,
-    required this.isMove,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_DeckSelectionDialog> createState() => _DeckSelectionDialogState();
-}
-
-class _DeckSelectionDialogState extends State<_DeckSelectionDialog> {
-  final Set<String> _selectedDeckIds = {};
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Select Deck${widget.decks.length > 1 ? 's' : ''} to ${widget.isMove ? 'Move' : 'Copy'} To'),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 300,
-        child: ListView.builder(
-          itemCount: widget.decks.length,
-          itemBuilder: (context, index) {
-            final deck = widget.decks[index];
-            final isSelected = _selectedDeckIds.contains(deck.id);
-            
-            return CheckboxListTile(
-              title: Text(deck.name),
-              subtitle: Text('${context.read<FlashcardProvider>().getCardsForDeck(deck.id).length} cards'),
-              value: isSelected,
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    _selectedDeckIds.add(deck.id);
-                  } else {
-                    _selectedDeckIds.remove(deck.id);
-                  }
-                });
-              },
-            );
-          },
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: _selectedDeckIds.isEmpty 
-              ? null 
-              : () => widget.onConfirm(_selectedDeckIds.toList()),
-          style: TextButton.styleFrom(
-            foregroundColor: widget.isMove ? Colors.blue : Colors.green,
-          ),
-          child: Text('${widget.isMove ? 'Move' : 'Copy'} to ${_selectedDeckIds.length} deck${_selectedDeckIds.length == 1 ? '' : 's'}'),
-        ),
-      ],
-    );
-  }
-} 

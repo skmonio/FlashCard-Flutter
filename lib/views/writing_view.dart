@@ -1539,48 +1539,25 @@ class _WritingViewState extends State<WritingView> {
 
   Widget _buildHintIcon() {
     final canUseHint = _canUseHint();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_hintStatusMessage != null)
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              _hintStatusMessage!,
-              style: const TextStyle(
-                color: Colors.orange,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        GestureDetector(
-          onTap: canUseHint ? _useHint : null,
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: canUseHint ? Colors.orange : Colors.grey,
-                width: 2,
-              ),
-            ),
-            child: Icon(
-              Icons.lightbulb,
-              size: 16,
-              color: canUseHint ? Colors.orange : Colors.grey,
-            ),
+    return GestureDetector(
+      onTap: canUseHint ? _useHint : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
         ),
-      ],
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
+        ),
+      ),
     );
   }
 

@@ -10,6 +10,7 @@ import '../utils/game_end_screen.dart';
 import '../services/sound_manager.dart';
 import '../services/haptic_service.dart';
 import '../components/main_header.dart';
+import '../components/game_view_widgets.dart';
 import 'package:provider/provider.dart';
 
 class PopYourCardView extends StatefulWidget {
@@ -225,9 +226,10 @@ class _PopYourCardViewState extends State<PopYourCardView>
     final String correctDutchWord = currentCard.word;
 
     final List<String> bubbleTexts = <String>[correctDutchWord];
-    while (bubbleTexts.length < 6) {
-      String decoy = _generateDecoy(correctDutchWord);
+    final decoys = _generateDecoys(correctDutchWord, widget.cards);
+    for (final decoy in decoys) {
       if (!bubbleTexts.contains(decoy)) bubbleTexts.add(decoy);
+      if (bubbleTexts.length >= 6) break;
     }
     bubbleTexts.shuffle();
 
@@ -318,7 +320,35 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  String _generateDecoy(String word) {
+  List<String> _generateDecoys(String correctText, List<FlashCard> allCards) {
+    // Collect candidate words from OTHER cards
+    final currentCard = _currentIndex < widget.cards.length ? widget.cards[_currentIndex] : null;
+    final candidates = allCards
+        .where((c) => c.id != currentCard?.id)
+        .map((c) => c.word)
+        .where((text) => text.isNotEmpty && text != correctText)
+        .toList();
+
+    candidates.shuffle(random);
+
+    // Take up to 5 unique decoys
+    final decoys = <String>[];
+    for (final candidate in candidates) {
+      if (!decoys.contains(candidate) && decoys.length < 5) {
+        decoys.add(candidate);
+      }
+    }
+
+    // If not enough real cards, fall back to character mutation for the remainder
+    while (decoys.length < 5) {
+      final fallback = _mutateWord(correctText);
+      if (!decoys.contains(fallback)) decoys.add(fallback);
+    }
+
+    return decoys;
+  }
+
+  String _mutateWord(String word) {
     if (word.length < 3) return '${word}x';
     int i = random.nextInt(word.length);
     String letter = word[i];
@@ -862,13 +892,13 @@ class _PopYourCardViewState extends State<PopYourCardView>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (_useLivesMode && _useTimedMode) ...[
-                                    _buildLivesIndicator(),
+                                    GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                                     const SizedBox(width: 8),
-                                    _buildTimerIndicator(),
+                                    GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                                   ] else if (_useLivesMode) ...[
-                                    _buildLivesIndicator(),
+                                    GameLivesIndicator(lives: _lives, maxLives: _maxLives),
                                   ] else if (_useTimedMode) ...[
-                                    _buildTimerIndicator(),
+                                    GameTimerIndicator(timeRemaining: _timeRemaining, totalTime: _totalTime),
                                   ],
                                 ],
                               ),
@@ -1032,55 +1062,6 @@ class _PopYourCardViewState extends State<PopYourCardView>
     }
   }
 
-  Widget _buildLivesIndicator() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(_maxLives, (index) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            index < _lives ? Icons.favorite : Icons.favorite_border,
-            color: Colors.red,
-            size: 18,
-          ),
-        );
-      }),
-    );
-  }
-  
-  Widget _buildTimerIndicator() {
-    if (_totalTime <= 0) {
-      return const SizedBox.shrink();
-    }
-    
-    final progress = _timeRemaining / _totalTime;
-    Color timerColor = Colors.green;
-    if (progress < 0.3) {
-      timerColor = Colors.red;
-    } else if (progress < 0.6) {
-      timerColor = Colors.orange;
-    }
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.timer,
-          color: timerColor,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$_timeRemaining',
-          style: TextStyle(
-            color: timerColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// Bubble data model

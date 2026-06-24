@@ -6,6 +6,7 @@ import '../providers/flashcard_provider.dart';
 import '../services/xp_service.dart';
 import '../components/hp_bar.dart';
 import '../components/main_header.dart';
+import '../utils/card_color_utils.dart';
 
 class CardStatsView extends StatefulWidget {
   final FlashCard card;
@@ -79,7 +80,7 @@ class _CardStatsViewState extends State<CardStatsView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Decks: ${_getDeckNames(freshCard, provider)}',
+                      'Decks: ${CardColorUtils.getDeckNames(freshCard, provider)}',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
@@ -462,17 +463,6 @@ class _CardStatsViewState extends State<CardStatsView> {
         ],
       ),
     );
-  }
-
-  String _getDeckNames(FlashCard card, FlashcardProvider provider) {
-    if (card.deckIds.isEmpty) return 'No decks';
-    
-    final deckNames = card.deckIds
-        .map((id) => provider.getDeck(id)?.name ?? 'Unknown')
-        .where((name) => name.isNotEmpty)
-        .toList();
-    
-    return deckNames.isEmpty ? 'No decks' : deckNames.join(', ');
   }
 
   String _getNextReviewText(FlashCard card) {

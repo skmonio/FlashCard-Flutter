@@ -1365,9 +1365,11 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
     
     // Update session statistics
     final totalCards = _knownCards.length + _unknownCards.length + _skippedCards.length;
-    final accuracy = totalCards > 0 ? (_knownCards.length / totalCards) : 0.0;
+    final accuracy = _gameSession.totalAnswers > 0
+        ? _gameSession.correctAnswers / _gameSession.totalAnswers
+        : 0.0;
     final isPerfect = _unknownCards.isEmpty && _skippedCards.isEmpty && totalCards > 0;
-    
+
     context.read<UserProfileProvider>().updateSessionStats(
       cardsStudied: totalCards,
       sessionAccuracy: accuracy,
@@ -1416,9 +1418,9 @@ class _AdvancedStudyViewState extends State<AdvancedStudyView>
         _knownCards.add(currentCard.id);
         _combo++;
         if (_combo > _maxCombo) _maxCombo = _combo;
-        // Track XP for correct answer (5 XP)
         XpService.recordAnswer(_gameSession, true);
-        // Update learning progress - marked as correct
+        // Mark correct so exerciseHistory gets a fresh XP entry before _awardXPToWord reads it
+        currentCard.markCorrect(GameDifficulty.medium);
         _updateCardLearningProgress(currentCard, true);
         break;
       case SwipeDirection.up: // Review - removed

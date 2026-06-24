@@ -424,17 +424,18 @@ class LearningMastery {
 
   /// Mark incorrect with an explicit exercise type string (e.g. 'sentence', 'writing').
   void markIncorrectAs(String exerciseType, [GameDifficulty difficulty = GameDifficulty.medium]) {
-    // Record the attempt (no XP for incorrect answers)
-    recordGameAttempt(exerciseType);
-    
-    // Add to exerciseHistory with 0 XP to keep game usage in sync with timesShown
+    // Wrong answers do NOT consume the daily XP budget (dailyGameAttempts unchanged).
+    // We still reset the daily counter if it's a new day.
+    _resetDailyAttemptsIfNeeded();
+
+    // Add to exerciseHistory with 0 XP (tracks timesStudiedToday for HP calculation)
     exerciseHistory.add({
       'timestamp': DateTime.now().toIso8601String(),
       'exerciseType': exerciseType,
       'xpGained': 0,
       'totalXP': currentXP,
     });
-    
+
     // Default to "incorrect" quality
     processAnswer(difficulty, AnswerQuality.incorrect);
   }

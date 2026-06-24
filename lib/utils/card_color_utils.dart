@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/flash_card.dart';
+import '../providers/flashcard_provider.dart';
 
 class CardColorUtils {
   // Generate consistent vibrant colors based on card content
@@ -27,5 +28,60 @@ class CardColorUtils {
     final hash = card.word.hashCode + card.definition.hashCode;
     final index = hash.abs() % vibrantColors.length;
     return vibrantColors[index];
+  }
+
+  static Color getSrsColor(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return Colors.grey;
+      case 1:
+        return Colors.red;
+      case 2:
+        return Colors.orange;
+      case 3:
+        return Colors.yellow;
+      case 4:
+        return Colors.lightGreen;
+      default:
+        return Colors.green;
+    }
+  }
+
+  static String getSrsDescription(int srsLevel) {
+    switch (srsLevel) {
+      case 0:
+        return 'New card - never studied';
+      case 1:
+        return 'Learning phase - review every day';
+      case 2:
+        return 'Early learning - review every 6 days';
+      case 3:
+        return 'Mid-learning - review every 15 days';
+      case 4:
+        return 'Review phase - longer intervals';
+      case 5:
+        return 'Well learned - review every 2-4 weeks';
+      case 6:
+        return 'Familiar - review every 1-2 months';
+      case 7:
+        return 'Very familiar - review every 2-4 months';
+      case 8:
+        return 'Mastered - review every 4-8 months';
+      case 9:
+        return 'Expert - review every 6-12 months';
+      default:
+        return 'Mastered - review every 8+ months';
+    }
+  }
+
+  static String getDeckNames(FlashCard card, FlashcardProvider provider) {
+    final deckNames = card.deckIds.map((deckId) {
+      final deck = provider.getDeck(deckId);
+      return deck?.name ?? 'Unknown Deck';
+    }).toList();
+
+    if (deckNames.isEmpty) return 'Uncategorized';
+    if (deckNames.length == 1) return deckNames.first;
+    return '${deckNames.first} +${deckNames.length - 1} more';
   }
 }

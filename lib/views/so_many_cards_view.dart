@@ -24,6 +24,9 @@ class SoManyCardsView extends StatefulWidget {
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final StudyConfig? studyConfig;
+  final Function(bool)? onComplete;
+  final bool shuffleMode;
+  final bool oneAnswerMode;
 
   const SoManyCardsView({
     super.key,
@@ -34,6 +37,9 @@ class SoManyCardsView extends StatefulWidget {
     this.useTimedMode = false,
     this.timedDifficulty,
     this.studyConfig,
+    this.onComplete,
+    this.shuffleMode = false,
+    this.oneAnswerMode = false,
   });
 
   @override
@@ -188,7 +194,7 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     final plural = card.plural;
     
     // Generate decoys
-    List<String> options = _generatePluralOptions(card.word, plural);
+    List<String> options = _generatePluralOptions(card.word, plural, _currentCards);
 
     setState(() {
       _answered = false;
@@ -203,33 +209,43 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
     if (_useTimedMode) _startTimer();
   }
 
-  List<String> _generatePluralOptions(String word, String correct) {
+  List<String> _generatePluralOptions(String word, String correct, List<FlashCard> allCards) {
     Set<String> options = {correct};
-    
-    // Common Dutch plural patterns
-    List<String> patterns = [
-      word + "en",
-      word + "s",
-      word + "'s",
-      word + "eren",
-      word.endsWith('s') ? word + "es" : word + "jes",
-    ];
 
-    patterns.shuffle();
-    for (var p in patterns) {
-      if (options.length < 4 && p != correct) {
-        options.add(p);
+    // First prefer real plurals from other cards as distractors
+    final otherPlurals = allCards
+        .where((c) => c.plural.isNotEmpty && c.plural != correct)
+        .map((c) => c.plural)
+        .toList()
+      ..shuffle();
+
+    for (final p in otherPlurals) {
+      if (options.length >= 4) break;
+      options.add(p);
+    }
+
+    // Fall back to Dutch plural patterns if we still need options
+    if (options.length < 4) {
+      final patterns = [
+        word + 'en',
+        word + 's',
+        word + "'s",
+        word + 'eren',
+        word.endsWith('s') ? word + 'es' : word + 'jes',
+      ]..shuffle();
+
+      for (final p in patterns) {
+        if (options.length >= 4) break;
+        if (p != correct) options.add(p);
       }
     }
 
-    // Fallback if needed
+    // Last resort fallback (shouldn't happen with the above)
     while (options.length < 4) {
       options.add(word + Random().nextInt(100).toString());
     }
 
-    List<String> result = options.toList();
-    result.shuffle();
-    return result;
+    return options.toList()..shuffle();
   }
 
   void _startTimer() {
@@ -324,6 +340,11 @@ class _SoManyCardsViewState extends State<SoManyCardsView> with TickerProviderSt
   void _finishSession() {
     _questionTimer?.cancel();
     _awardXp();
+    if (widget.onComplete != null) {
+      final successRate = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+      widget.onComplete!(successRate >= 0.6);
+      return;
+    }
     setState(() => _showingResults = true);
   }
 

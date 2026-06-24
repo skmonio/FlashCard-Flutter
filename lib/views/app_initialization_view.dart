@@ -206,6 +206,11 @@ class _AppInitializationViewState extends State<AppInitializationView> {
       print('❌ Error during data sync: $e');
       // Still check onboarding even if sync fails
       await _checkOnboardingStatus();
+      if (mounted) {
+        setState(() {
+          _dataSynced = true;
+        });
+      }
     }
   }
 

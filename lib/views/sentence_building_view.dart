@@ -889,31 +889,24 @@ class _SentenceBuildingViewState extends State<SentenceBuildingView> with Ticker
 
   Widget _buildHintIcon() {
     final canUseHint = !_answered && widget.enableHints;
-    
+
     return GestureDetector(
       onTap: canUseHint ? _useHint : null,
       child: Container(
-        width: 38,
-        height: 38,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1),
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color: canUseHint ? Colors.orange : Colors.grey,
-            width: 2,
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
-          boxShadow: canUseHint ? [
-            BoxShadow(
-              color: Colors.orange.withValues(alpha: 0.2),
-              blurRadius: 4,
-              spreadRadius: 1,
-            )
-          ] : null,
         ),
         child: Icon(
           Icons.lightbulb,
-          size: 20,
-          color: canUseHint ? Colors.orange : Colors.grey,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
         ),
       ),
     );

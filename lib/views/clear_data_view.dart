@@ -91,7 +91,12 @@ class _ClearDataViewState extends State<ClearDataView> {
     });
 
     try {
-      final totalSteps = _selectedOptions.length;
+      int totalSteps = 0;
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('cards')) totalSteps++;
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('decks')) totalSteps++;
+      if (_selectedOptions.contains('everything')) totalSteps++; // meta step
+      if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) totalSteps++;
+      if (totalSteps == 0) totalSteps = 1;
       double currentStep = 0.0;
 
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('cards')) {
@@ -99,7 +104,7 @@ class _ClearDataViewState extends State<ClearDataView> {
         await _clearAllCards();
         currentStep += 1.0;
       }
-      
+
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('decks')) {
         _updateProgress(currentStep / totalSteps, 'Clearing decks...');
         await _clearAllDecks();
@@ -110,12 +115,12 @@ class _ClearDataViewState extends State<ClearDataView> {
         // Legacy exercise and phrase cleanup logic removed
         // as those providers are being decommissioned.
         _updateProgress(currentStep / totalSteps, 'Cleaning up meta data...');
-        currentStep += 0.5;
+        currentStep += 1.0;
       }
-      
+
       if (_selectedOptions.contains('everything') || _selectedOptions.contains('stats')) {
         _updateProgress(currentStep / totalSteps, 'Clearing stats & progress...');
-        await _clearAllStats();
+        await _clearAllStats(clearCardMastery: !(_selectedOptions.contains('everything') || _selectedOptions.contains('cards')));
         currentStep += 1.0;
       }
 
@@ -205,42 +210,45 @@ class _ClearDataViewState extends State<ClearDataView> {
     }
   }
 
-  Future<void> _clearAllStats() async {
+  Future<void> _clearAllStats({bool clearCardMastery = true}) async {
     try {
       final userProfileProvider = context.read<UserProfileProvider>();
       await userProfileProvider.resetXpAndProgress();
     } catch (e) {
       print('UserProfileProvider not available: $e');
     }
-    
+
     // Clear individual word RPG progress (XP and learning mastery)
-    try {
-      final flashcardProvider = context.read<FlashcardProvider>();
-      final cards = List.from(flashcardProvider.cards);
-      for (final card in cards) {
-        // Reset the learning mastery for each card
-        final resetMastery = LearningMastery(
-          easyCorrect: 0,
-          mediumCorrect: 0,
-          hardCorrect: 0,
-          expertCorrect: 0,
-          easyAttempts: 0,
-          mediumAttempts: 0,
-          hardAttempts: 0,
-          expertAttempts: 0,
-          currentXP: 0,
-          currentLevel: 1,
-          levelUpHistory: [],
-          exerciseHistory: [],
-          dailyGameAttempts: {},
-          lastGameResetDate: null,
-        );
-        
-        final updatedCard = card.copyWith(learningMastery: resetMastery, successCount: 0);
-        await flashcardProvider.updateCard(updatedCard);
+    // Skip this step if cards are also being deleted (avoids redundant work)
+    if (clearCardMastery) {
+      try {
+        final flashcardProvider = context.read<FlashcardProvider>();
+        final cards = List.from(flashcardProvider.cards);
+        for (final card in cards) {
+          // Reset the learning mastery for each card
+          final resetMastery = LearningMastery(
+            easyCorrect: 0,
+            mediumCorrect: 0,
+            hardCorrect: 0,
+            expertCorrect: 0,
+            easyAttempts: 0,
+            mediumAttempts: 0,
+            hardAttempts: 0,
+            expertAttempts: 0,
+            currentXP: 0,
+            currentLevel: 1,
+            levelUpHistory: [],
+            exerciseHistory: [],
+            dailyGameAttempts: {},
+            lastGameResetDate: null,
+          );
+
+          final updatedCard = card.copyWith(learningMastery: resetMastery, successCount: 0);
+          await flashcardProvider.updateCard(updatedCard);
+        }
+      } catch (e) {
+        print('Error clearing word RPG progress: $e');
       }
-    } catch (e) {
-      print('Error clearing word RPG progress: $e');
     }
   }
 

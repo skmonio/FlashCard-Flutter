@@ -998,17 +998,17 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
                             width: candidateData.isNotEmpty ? 2 : 1,
                           ),
                         ),
-                        child: SizedBox(
-                          height: 80,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 50),
                           child: _userAnswer.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    'Drag or tap pieces to build the word',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 14),
+                                    child: Text(
+                                      'Drag or tap pieces to build the word',
+                                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                                      textAlign: TextAlign.center,
                                     ),
-                                    textAlign: TextAlign.center,
                                   ),
                                 )
                               : _buildUserAnswerDisplay(),
@@ -1177,7 +1177,23 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
             ),
             
             const SizedBox(width: 12),
-            
+
+            // Check button (only when not yet answered and has user answer)
+            if (!_answered)
+              ElevatedButton(
+                onPressed: (_userAnswer.isNotEmpty && !_answered) ? _checkAnswer : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(100, 36),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 0,
+                ),
+                child: const Text('Check', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+
+            if (!_answered) const SizedBox(width: 12),
+
             // Next/Finish button
             Expanded(
               child: ElevatedButton.icon(
@@ -1644,58 +1660,29 @@ class _WordScrambleViewState extends State<WordScrambleView> with TickerProvider
   }
 
   Widget _buildHintIcon() {
-    final hintsUsed = _hintCount[_currentIndex] ?? 0;
     final remainingPieces = _scrambledLetters.where((p) => p.isNotEmpty).length;
     // Block hints when only 1 piece remains - it would trivially solve the puzzle
     final canUseHint = remainingPieces > 1 && !_answered;
-    
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_hintStatusMessage != null)
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              _hintStatusMessage!,
-              style: const TextStyle(
-                color: Colors.orange,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        Tooltip(
-          message: canUseHint 
-              ? 'Use hint (${hintsUsed} used)'
-              : 'No more hints available',
-          child: GestureDetector(
-            onTap: canUseHint ? _useHint : null,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: canUseHint ? Colors.orange : Colors.grey,
-                  width: 2,
-                ),
-              ),
-              child: Icon(
-                Icons.lightbulb,
-                size: 16,
-                color: canUseHint ? Colors.orange : Colors.grey,
-              ),
-            ),
+
+    return GestureDetector(
+      onTap: canUseHint ? _useHint : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
         ),
-      ],
+        child: Icon(
+          Icons.lightbulb,
+          size: 16,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
+        ),
+      ),
     );
   }
 

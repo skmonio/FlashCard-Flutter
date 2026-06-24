@@ -1798,17 +1798,17 @@ class _MultipleChoiceViewState extends State<MultipleChoiceView> with TickerProv
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: canUseHint ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3),
+          color: canUseHint ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color: canUseHint ? Colors.orange : Colors.grey,
-            width: 2,
+            color: canUseHint ? Colors.orange : Colors.grey.shade400,
+            width: 1.5,
           ),
         ),
         child: Icon(
           Icons.lightbulb,
           size: 16,
-          color: canUseHint ? Colors.orange : Colors.grey,
+          color: canUseHint ? Colors.orange : Colors.grey.shade400,
         ),
       ),
     );

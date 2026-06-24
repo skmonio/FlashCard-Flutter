@@ -1158,7 +1158,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: borderColor.withValues(alpha: 0.1),
+                            color: _answered
+                                ? borderColor.withValues(alpha: 0.1)
+                                : (isTrue ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15)),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -1171,7 +1173,9 @@ class _TrueFalseViewState extends State<TrueFalseView> with TickerProviderStateM
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: borderColor,
+                                      color: _answered
+                                          ? borderColor
+                                          : (isTrue ? Colors.green.shade700 : Colors.red.shade700),
                                     ),
                                   ),
                           ),

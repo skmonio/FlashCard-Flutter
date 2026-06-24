@@ -23,6 +23,8 @@ class DeHetView extends StatefulWidget {
   final bool useTimedMode;
   final TimedDifficulty? timedDifficulty;
   final StudyConfig? studyConfig;
+  final Function(bool)? onComplete;
+  final bool shuffleMode;
 
   const DeHetView({
     super.key,
@@ -33,6 +35,8 @@ class DeHetView extends StatefulWidget {
     this.useTimedMode = false,
     this.timedDifficulty,
     this.studyConfig,
+    this.onComplete,
+    this.shuffleMode = false,
   });
 
   @override
@@ -84,6 +88,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
   late Animation<double> _pulseAnimation;
   late Animation<double> _scaleAnimation;
   int _consecutiveCorrect = 0;
+  bool _endScreenShown = false;
 
   // Auto-progress timer
   Timer? _autoProgressTimer;
@@ -266,6 +271,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     _awardXPToWord(card, isCorrect);
     _updateCardInProvider(card);
 
+    bool livesRanOut = false;
     setState(() {
       _selectedArticle = chosen;
       _correctArticle = correct;
@@ -280,12 +286,15 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
         if (_useLivesMode) {
           _lives--;
           if (_lives <= 0) {
-            _finishSession();
-            return;
+            livesRanOut = true;
           }
         }
       }
     });
+    if (livesRanOut) {
+      _finishSession();
+      return;
+    }
 
     // Auto-advance after short delay
     _autoProgressTimer?.cancel();
@@ -296,14 +305,14 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     });
   }
 
-  void _goNext() {
+  Future<void> _goNext() async {
     if (_currentIndex < _currentCards.length - 1) {
       setState(() {
         _currentIndex++;
       });
       _loadQuestion();
     } else {
-      _finishSession();
+      await _finishSession();
     }
   }
 
@@ -316,12 +325,35 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     }
   }
 
-  void _finishSession() {
+  Future<void> _finalizeSession() async {
+    if (!mounted) return;
+    final userProvider = context.read<UserProfileProvider>();
+    final totalXP = _xpGainedPerWord.values.fold(0, (sum, xp) => sum + xp);
+    if (totalXP > 0) await userProvider.addXp(totalXP);
+    final accuracy = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+    await userProvider.updateSessionStats(
+      cardsStudied: _totalAttempts,
+      sessionAccuracy: accuracy,
+      isPerfect: _correctAnswers == _totalAttempts && _totalAttempts > 0,
+    );
+    await userProvider.updateStreakFromStudyActivity();
+  }
+
+  Future<void> _finishSession() async {
     _questionTimer?.cancel();
-    _awardXp();
     setState(() {
       _showingResults = true;
     });
+    await _finalizeSession();
+    if (mounted && !_endScreenShown) {
+      _endScreenShown = true;
+      if (widget.onComplete != null) {
+        final successRate = _totalAttempts > 0 ? _correctAnswers / _totalAttempts : 0.0;
+        widget.onComplete!(successRate >= 0.6);
+        return;
+      }
+      _showEndScreen();
+    }
   }
 
   // ─── XP / HP helpers ──────────────────────────────────────────────────────
@@ -356,11 +388,6 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
     _wordMastery[card.id] = card.learningMastery;
   }
 
-  void _awardXp() {
-    final provider = context.read<UserProfileProvider>();
-    XpService.awardSessionXp(provider, _gameSession);
-  }
-
   Future<void> _updateCardInProvider(FlashCard card) async {
     final provider = context.read<FlashcardProvider>();
     await provider.updateCard(card);
@@ -370,10 +397,6 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (_showingResults) {
-      _showEndScreen();
-    }
-
     if (_currentCards.isEmpty) {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -882,6 +905,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
               _showingResults = false;
               _answered = false;
               _selectedArticle = null;
+              _endScreenShown = false;
               _gameSession.reset();
               _answeredQuestions.clear();
               _isCorrectMap.clear();
@@ -907,6 +931,7 @@ class _DeHetViewState extends State<DeHetView> with TickerProviderStateMixin {
               _showingResults = false;
               _answered = false;
               _selectedArticle = null;
+              _endScreenShown = false;
               _gameSession.reset();
               _answeredQuestions.clear();
               _isCorrectMap.clear();

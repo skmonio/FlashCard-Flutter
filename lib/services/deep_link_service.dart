@@ -151,6 +151,8 @@ class DeepLinkService {
         print('🔗 Initial app link: $uri');
         handleDeepLink(uri.toString());
       }
+    }).catchError((err) {
+      print('❌ Failed to get initial app link: $err');
     });
   }
 

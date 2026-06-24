@@ -413,11 +413,17 @@ class _AddCardViewState extends State<AddCardView> {
                     // Verb Forms (if applicable)
                     _buildVerbForms(),
                     const SizedBox(height: 24),
-                    
+
+                    // Game Compatibility
+                    _buildSectionHeader('Game Compatibility'),
+                    const SizedBox(height: 12),
+                    _buildGameCompatibility(),
+                    const SizedBox(height: 24),
+
                     // Deck Selection
                     _buildSectionHeader('Deck Assignment'),
                     const SizedBox(height: 16),
-                    
+
                     _buildDeckSelection(),
                     const SizedBox(height: 32),
                   ],
@@ -599,6 +605,82 @@ class _AddCardViewState extends State<AddCardView> {
             }
             return null;
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGameCompatibility() {
+    final hasWord = _wordController.text.trim().isNotEmpty;
+    final hasDef = _definitionController.text.trim().isNotEmpty;
+    final hasArticle = _selectedArticle.isNotEmpty;
+    final hasPlural = _pluralController.text.trim().isNotEmpty;
+    final hasTense = _presentTenseController.text.trim().isNotEmpty ||
+        _pastTenseController.text.trim().isNotEmpty ||
+        _perfectTenseController.text.trim().isNotEmpty;
+    final hasExample = _exampleController.text.trim().isNotEmpty &&
+        _exampleTranslationController.text.trim().isNotEmpty;
+
+    final games = [
+      _GameChip(label: 'Multiple Choice', icon: Icons.check_circle_outline, active: hasWord && hasDef),
+      _GameChip(label: 'True / False', icon: Icons.help_outline, active: hasWord && hasDef),
+      _GameChip(label: 'Memory', icon: Icons.psychology, active: hasWord && hasDef),
+      _GameChip(label: 'Writing', icon: Icons.edit, active: hasWord),
+      _GameChip(label: 'Word Scramble', icon: Icons.text_fields, active: hasWord),
+      _GameChip(label: 'Pop Your Card', icon: Icons.bubble_chart, active: hasWord),
+      _GameChip(label: 'Pick Your Card', icon: Icons.touch_app, active: hasWord),
+      _GameChip(label: 'De / Het', icon: Icons.article, active: hasArticle),
+      _GameChip(label: 'Plurals', icon: Icons.format_list_numbered, active: hasPlural),
+      _GameChip(label: 'Verb Tenses', icon: Icons.timeline, active: hasTense),
+      _GameChip(label: 'Sentence Building', icon: Icons.short_text, active: hasExample),
+    ];
+
+    final activeCount = games.where((g) => g.active).length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Active in $activeCount of ${games.length} games',
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: games.map((g) {
+            final color = g.active
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3);
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: g.active
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(g.icon, size: 12, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    g.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: color,
+                      fontWeight: g.active ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -1473,6 +1555,8 @@ class _AddCardViewState extends State<AddCardView> {
 
   // Removed _syncExercises method as exercises are replaced by games
 
+
+
   Widget _buildCustomHeader(BuildContext context) {
     return Stack(
       children: [
@@ -1533,4 +1617,11 @@ class _AddCardViewState extends State<AddCardView> {
       ],
     );
   }
-} 
+}
+
+class _GameChip {
+  final String label;
+  final IconData icon;
+  final bool active;
+  const _GameChip({required this.label, required this.icon, required this.active});
+}
